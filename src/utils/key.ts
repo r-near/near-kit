@@ -144,9 +144,3 @@ export function parseSeedPhrase(
 
   return new Ed25519KeyPair(secretKey)
 }
-
-/**
- * Export base58 encoding utilities from @scure/base
- */
-export const base58Encode = base58.encode
-export const base58Decode = base58.decode

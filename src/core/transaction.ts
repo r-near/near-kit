@@ -2,8 +2,8 @@
  * Transaction builder for creating and sending NEAR transactions
  */
 
+import { base58 } from "@scure/base"
 import { parseGas, parseNearAmount } from "../utils/format.js"
-import { base58Decode } from "../utils/key.js"
 import { DEFAULT_FUNCTION_CALL_GAS } from "./constants.js"
 import type { RpcClient } from "./rpc.js"
 import type {
@@ -302,7 +302,7 @@ export class TransactionBuilder {
     )
 
     const status = await this.rpc.getStatus()
-    const blockHash = base58Decode(status.sync_info.latest_block_hash)
+    const blockHash = base58.decode(status.sync_info.latest_block_hash)
 
     const transaction: Transaction = {
       signerId: this.signerId,
