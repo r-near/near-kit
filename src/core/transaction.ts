@@ -9,6 +9,7 @@ import type { RpcClient } from "./rpc.js"
 import {
   serializeTransaction,
   serializeSignedTransaction,
+  type AccessKeyPermissionBorsh,
 } from "./schema.js"
 import * as actions from "./actions.js"
 import type {
@@ -144,7 +145,7 @@ export class TransactionBuilder {
   /**
    * Add an add key action
    */
-  addKey(accountId: string, publicKey: string, permission: unknown): this {
+  addKey(accountId: string, publicKey: string, permission: AccessKeyPermissionBorsh): this {
     const pk: PublicKey = {
       keyType: 0,
       data: new Uint8Array(),

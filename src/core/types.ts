@@ -69,10 +69,10 @@ export type AccessKeyPermission = FullAccessPermission | FunctionCallPermission
 
 // ==================== Transaction Types ====================
 
-export interface Action {
-  enum: string
-  [key: string]: unknown
-}
+// Action type is now defined in schema.ts and derived from Borsh schema
+// Import it first so Transaction can use it
+import type { Action } from "./schema.js"
+export type { Action }
 
 export interface Transaction {
   signerId: string

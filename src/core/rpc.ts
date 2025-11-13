@@ -2,6 +2,7 @@
  * RPC client for NEAR Protocol
  */
 
+import { base64 } from "@scure/base"
 import { NetworkError } from "../errors/index.js"
 
 export interface RpcRequest {
@@ -55,7 +56,7 @@ export class RpcClient {
         throw new NetworkError(
           `HTTP ${response.status}: ${response.statusText}`,
           response.status,
-          response.status >= 500,
+          response.status >= 500
         )
       }
 
@@ -65,7 +66,7 @@ export class RpcClient {
         throw new NetworkError(
           `RPC error: ${data.error.message}`,
           data.error.code,
-          false,
+          false
         )
       }
 
@@ -83,34 +84,34 @@ export class RpcClient {
       throw new NetworkError(
         `Network request failed: ${(error as Error).message}`,
         undefined,
-        true,
+        true
       )
     }
   }
 
   async query<T = unknown>(
     path: string,
-    data: string | Uint8Array,
+    data: string | Uint8Array
   ): Promise<T> {
     return this.call("query", {
       request_type: path,
       finality: "final",
-      args_base64: typeof data === "string" ? data : this.base64Encode(data),
+      args_base64: typeof data === "string" ? data : base64.encode(data),
     })
   }
 
   async viewFunction(
     contractId: string,
     methodName: string,
-    args: unknown = {},
+    args: unknown = {}
   ): Promise<{
     result: number[]
     logs: string[]
     block_height: number
     block_hash: string
   }> {
-    const argsBase64 = this.base64Encode(
-      new TextEncoder().encode(JSON.stringify(args)),
+    const argsBase64 = base64.encode(
+      new TextEncoder().encode(JSON.stringify(args))
     )
 
     return this.call("query", {
@@ -140,7 +141,7 @@ export class RpcClient {
 
   async getAccessKey(
     accountId: string,
-    publicKey: string,
+    publicKey: string
   ): Promise<{
     nonce: number
     permission: unknown
@@ -156,8 +157,8 @@ export class RpcClient {
   }
 
   async sendTransaction(signedTransaction: Uint8Array): Promise<unknown> {
-    const base64 = this.base64Encode(signedTransaction)
-    return this.call("broadcast_tx_commit", [base64])
+    const base64Encoded = base64.encode(signedTransaction)
+    return this.call("broadcast_tx_commit", [base64Encoded])
   }
 
   async getStatus(): Promise<{
@@ -185,23 +186,5 @@ export class RpcClient {
     gas_price: string
   }> {
     return this.call("gas_price", [blockId])
-  }
-
-  private base64Encode(data: Uint8Array): string {
-    // Use Buffer in Node.js, btoa in browser
-    if (typeof Buffer !== "undefined") {
-      return Buffer.from(data).toString("base64")
-    } else {
-      return btoa(String.fromCharCode(...data))
-    }
-  }
-
-  private base64Decode(data: string): Uint8Array {
-    // Use Buffer in Node.js, atob in browser
-    if (typeof Buffer !== "undefined") {
-      return new Uint8Array(Buffer.from(data, "base64"))
-    } else {
-      return Uint8Array.from(atob(data), (c) => c.charCodeAt(0))
-    }
   }
 }

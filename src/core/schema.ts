@@ -8,7 +8,12 @@
  */
 
 import { b } from "@zorsh/zorsh"
-import type { Action, PublicKey, Signature, Transaction, SignedTransaction } from "./types.js"
+import type {
+  PublicKey,
+  Signature,
+  SignedTransaction,
+  Transaction,
+} from "./types.js"
 
 // ==================== Public Key ====================
 
@@ -81,6 +86,11 @@ const AccessKeyPermissionSchema = b.enum({
   functionCall: FunctionCallPermissionSchema,
   fullAccess: FullAccessPermissionSchema,
 })
+
+/**
+ * AccessKeyPermission type inferred from schema
+ */
+export type AccessKeyPermissionBorsh = b.infer<typeof AccessKeyPermissionSchema>
 
 /**
  * Access key with nonce and permission
@@ -192,9 +202,9 @@ const UseGlobalContractSchema = b.struct({
 // ==================== Delegate Actions ====================
 
 /**
- * ClassicActions enum - same as Action but without nested SignedDelegate
+ * ClassicActions enum - same as Action but without SignedDelegate
  * Used within DelegateAction to prevent infinite recursion
- * The signedDelegate variant uses a string placeholder
+ * Note: The discriminant values must match the NEAR protocol spec
  */
 const ClassicActionsSchema = b.enum({
   createAccount: CreateAccountSchema,
@@ -205,10 +215,15 @@ const ClassicActionsSchema = b.enum({
   addKey: AddKeySchema,
   deleteKey: DeleteKeySchema,
   deleteAccount: DeleteAccountSchema,
-  signedDelegate: b.string(), // Placeholder - should not be used
   deployGlobalContract: DeployGlobalContractSchema,
   useGlobalContract: UseGlobalContractSchema,
 })
+
+/**
+ * ClassicAction type - actions that can be used within a DelegateAction
+ * This excludes SignedDelegate to prevent infinite nesting
+ */
+export type ClassicAction = b.infer<typeof ClassicActionsSchema>
 
 /**
  * DelegateAction for meta-transactions
@@ -242,9 +257,9 @@ const SignedDelegateSchema = b.struct({
  * 5 = AddKey
  * 6 = DeleteKey
  * 7 = DeleteAccount
- * 8 = SignedDelegate (placeholder)
- * 9 = DeployGlobalContract (placeholder)
- * 10 = UseGlobalContract (placeholder)
+ * 8 = SignedDelegate
+ * 9 = DeployGlobalContract
+ * 10 = UseGlobalContract
  */
 export const ActionSchema = b.enum({
   createAccount: CreateAccountSchema,
@@ -259,6 +274,12 @@ export const ActionSchema = b.enum({
   deployGlobalContract: DeployGlobalContractSchema,
   useGlobalContract: UseGlobalContractSchema,
 })
+
+/**
+ * Action type inferred from the Borsh schema
+ * This is the single source of truth for action types
+ */
+export type Action = b.infer<typeof ActionSchema>
 
 // ==================== Transaction ====================
 
@@ -287,8 +308,9 @@ export const SignedTransactionSchema = b.struct({
 
 /**
  * Convert our PublicKey type to zorsh-compatible format
+ * Exported for use in action helpers
  */
-function publicKeyToZorsh(pk: PublicKey) {
+export function publicKeyToZorsh(pk: PublicKey) {
   if (pk.keyType === 0) {
     // Ed25519
     return { ed25519Key: { data: Array.from(pk.data) } }
@@ -300,8 +322,9 @@ function publicKeyToZorsh(pk: PublicKey) {
 
 /**
  * Convert our Signature type to zorsh-compatible format
+ * Exported for use in action helpers
  */
-function signatureToZorsh(sig: Signature) {
+export function signatureToZorsh(sig: Signature) {
   if (sig.keyType === 0) {
     // Ed25519
     return { ed25519Signature: { data: Array.from(sig.data) } }
@@ -313,111 +336,32 @@ function signatureToZorsh(sig: Signature) {
 
 /**
  * Convert an action to zorsh-compatible format
+ * Since action helpers now do conversion, this only handles recursive processing
+ * of delegate actions (which contain nested action arrays)
  */
-function actionToZorsh(action: Action): b.infer<typeof ActionSchema> {
-  const actionType = action.enum as string
-  const actionData = action[actionType]
-
-  // Handle each action type
-  if (actionType === "createAccount") {
-    return { createAccount: {} }
-  } else if (actionType === "deployContract") {
-    return {
-      deployContract: {
-        code: (actionData as { code: Uint8Array }).code
-      }
-    }
-  } else if (actionType === "functionCall") {
-    const fc = actionData as { methodName: string; args: Uint8Array; gas: bigint; deposit: bigint }
-    return {
-      functionCall: {
-        methodName: fc.methodName,
-        args: fc.args,
-        gas: fc.gas,
-        deposit: fc.deposit,
-      }
-    }
-  } else if (actionType === "transfer") {
-    return {
-      transfer: {
-        deposit: (actionData as { deposit: bigint }).deposit
-      }
-    }
-  } else if (actionType === "stake") {
-    const stake = actionData as { stake: bigint; publicKey: PublicKey }
-    return {
-      stake: {
-        stake: stake.stake,
-        publicKey: publicKeyToZorsh(stake.publicKey),
-      }
-    }
-  } else if (actionType === "addKey") {
-    const addKey = actionData as { publicKey: PublicKey; accessKey: { nonce: bigint; permission: unknown } }
-    return {
-      addKey: {
-        publicKey: publicKeyToZorsh(addKey.publicKey),
-        accessKey: {
-          nonce: addKey.accessKey.nonce,
-          permission: addKey.accessKey.permission,
-        }
-      }
-    }
-  } else if (actionType === "deleteKey") {
-    const deleteKey = actionData as { publicKey: PublicKey }
-    return {
-      deleteKey: {
-        publicKey: publicKeyToZorsh(deleteKey.publicKey),
-      }
-    }
-  } else if (actionType === "deleteAccount") {
-    return {
-      deleteAccount: {
-        beneficiaryId: (actionData as { beneficiaryId: string }).beneficiaryId,
-      }
-    }
-  } else if (actionType === "signedDelegate") {
-    const signedDelegate = actionData as {
-      delegateAction: {
-        senderId: string
-        receiverId: string
-        actions: Action[]
-        nonce: bigint
-        maxBlockHeight: bigint
-        publicKey: PublicKey
-      }
-      signature: Signature
-    }
+function actionToZorsh(action: Action): Action {
+  // Only need to recursively process delegate actions
+  if ("signedDelegate" in action) {
     return {
       signedDelegate: {
         delegateAction: {
-          senderId: signedDelegate.delegateAction.senderId,
-          receiverId: signedDelegate.delegateAction.receiverId,
-          actions: signedDelegate.delegateAction.actions.map(actionToZorsh),
-          nonce: signedDelegate.delegateAction.nonce,
-          maxBlockHeight: signedDelegate.delegateAction.maxBlockHeight,
-          publicKey: publicKeyToZorsh(signedDelegate.delegateAction.publicKey),
+          senderId: action.signedDelegate.delegateAction.senderId,
+          receiverId: action.signedDelegate.delegateAction.receiverId,
+          // Recursively convert nested actions
+          actions: action.signedDelegate.delegateAction.actions.map(
+            (a) => actionToZorsh(a as Action)
+          ) as ClassicAction[],
+          nonce: action.signedDelegate.delegateAction.nonce,
+          maxBlockHeight: action.signedDelegate.delegateAction.maxBlockHeight,
+          publicKey: action.signedDelegate.delegateAction.publicKey,
         },
-        signature: signatureToZorsh(signedDelegate.signature),
-      }
-    }
-  } else if (actionType === "deployGlobalContract") {
-    const deploy = actionData as { code: Uint8Array; deployMode: unknown }
-    return {
-      deployGlobalContract: {
-        code: deploy.code,
-        deployMode: deploy.deployMode,
-      }
-    }
-  } else if (actionType === "useGlobalContract") {
-    const use = actionData as { contractIdentifier: unknown }
-    return {
-      useGlobalContract: {
-        contractIdentifier: use.contractIdentifier,
-      }
+        signature: action.signedDelegate.signature,
+      },
     }
   }
 
-  throw new Error(`Unknown action type: ${actionType}`)
+  // All other actions are already in zorsh-compatible format from helpers
+  return action
 }
 
 /**
@@ -437,7 +381,9 @@ export function serializeTransaction(tx: Transaction): Uint8Array {
 /**
  * Serialize a signed transaction to bytes
  */
-export function serializeSignedTransaction(signedTx: SignedTransaction): Uint8Array {
+export function serializeSignedTransaction(
+  signedTx: SignedTransaction
+): Uint8Array {
   return SignedTransactionSchema.serialize({
     transaction: {
       signerId: signedTx.transaction.signerId,

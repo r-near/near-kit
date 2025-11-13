@@ -4,6 +4,8 @@
  */
 
 import type { Action, PublicKey } from "./types.js"
+import type { ClassicAction, AccessKeyPermissionBorsh } from "./schema.js"
+import { publicKeyToZorsh, signatureToZorsh } from "./schema.js"
 
 // ==================== Action Data Classes ====================
 
@@ -126,7 +128,7 @@ export class UseGlobalContract {
 export class DelegateAction {
   senderId: string
   receiverId: string
-  actions: Action[]
+  actions: ClassicAction[]
   nonce: bigint
   maxBlockHeight: bigint
   publicKey: PublicKey
@@ -134,7 +136,7 @@ export class DelegateAction {
   constructor(
     senderId: string,
     receiverId: string,
-    actions: Action[],
+    actions: ClassicAction[],
     nonce: bigint,
     maxBlockHeight: bigint,
     publicKey: PublicKey
@@ -165,8 +167,7 @@ export class SignedDelegate {
  */
 export function transfer(deposit: bigint): Action {
   return {
-    enum: "transfer",
-    transfer: new Transfer(deposit),
+    transfer: { deposit },
   }
 }
 
@@ -180,8 +181,7 @@ export function functionCall(
   deposit: bigint
 ): Action {
   return {
-    enum: "functionCall",
-    functionCall: new FunctionCall(methodName, args, gas, deposit),
+    functionCall: { methodName, args, gas, deposit },
   }
 }
 
@@ -190,8 +190,7 @@ export function functionCall(
  */
 export function createAccount(): Action {
   return {
-    enum: "createAccount",
-    createAccount: new CreateAccount(),
+    createAccount: {},
   }
 }
 
@@ -200,8 +199,7 @@ export function createAccount(): Action {
  */
 export function deleteAccount(beneficiaryId: string): Action {
   return {
-    enum: "deleteAccount",
-    deleteAccount: new DeleteAccount(beneficiaryId),
+    deleteAccount: { beneficiaryId },
   }
 }
 
@@ -210,8 +208,7 @@ export function deleteAccount(beneficiaryId: string): Action {
  */
 export function deployContract(code: Uint8Array): Action {
   return {
-    enum: "deployContract",
-    deployContract: new DeployContract(code),
+    deployContract: { code },
   }
 }
 
@@ -220,18 +217,22 @@ export function deployContract(code: Uint8Array): Action {
  */
 export function stake(amount: bigint, publicKey: PublicKey): Action {
   return {
-    enum: "stake",
-    stake: new Stake(amount, publicKey),
+    stake: {
+      stake: amount,
+      publicKey: publicKeyToZorsh(publicKey),
+    },
   }
 }
 
 /**
  * Create an add key action
  */
-export function addKey(publicKey: PublicKey, permission: unknown): Action {
+export function addKey(publicKey: PublicKey, permission: AccessKeyPermissionBorsh): Action {
   return {
-    enum: "addKey",
-    addKey: new AddKey(publicKey, permission),
+    addKey: {
+      publicKey: publicKeyToZorsh(publicKey),
+      accessKey: { nonce: BigInt(0), permission },
+    },
   }
 }
 
@@ -240,8 +241,9 @@ export function addKey(publicKey: PublicKey, permission: unknown): Action {
  */
 export function deleteKey(publicKey: PublicKey): Action {
   return {
-    enum: "deleteKey",
-    deleteKey: new DeleteKey(publicKey),
+    deleteKey: {
+      publicKey: publicKeyToZorsh(publicKey),
+    },
   }
 }
 
@@ -252,9 +254,16 @@ export function deployGlobalContract(
   code: Uint8Array,
   deployMode: GlobalContractDeployMode
 ): Action {
+  // Convert class instance to discriminated union
+  const deployModeConverted = deployMode.CodeHash !== undefined
+    ? { CodeHash: {} }
+    : { AccountId: {} }
+
   return {
-    enum: "deployGlobalContract",
-    deployGlobalContract: new DeployGlobalContract(code, deployMode),
+    deployGlobalContract: {
+      code,
+      deployMode: deployModeConverted,
+    },
   }
 }
 
@@ -262,9 +271,15 @@ export function deployGlobalContract(
  * Create a use global contract action
  */
 export function useGlobalContract(contractIdentifier: GlobalContractIdentifier): Action {
+  // Convert class instance to discriminated union
+  const identifierConverted = contractIdentifier.CodeHash !== undefined
+    ? { CodeHash: Array.from(contractIdentifier.CodeHash) as number[] }
+    : { AccountId: contractIdentifier.AccountId as string }
+
   return {
-    enum: "useGlobalContract",
-    useGlobalContract: new UseGlobalContract(contractIdentifier),
+    useGlobalContract: {
+      contractIdentifier: identifierConverted,
+    },
   }
 }
 
@@ -276,7 +291,16 @@ export function signedDelegate(
   signature: import("./types.js").Signature
 ): Action {
   return {
-    enum: "signedDelegate",
-    signedDelegate: new SignedDelegate(delegateAction, signature),
+    signedDelegate: {
+      delegateAction: {
+        senderId: delegateAction.senderId,
+        receiverId: delegateAction.receiverId,
+        actions: delegateAction.actions,
+        nonce: delegateAction.nonce,
+        maxBlockHeight: delegateAction.maxBlockHeight,
+        publicKey: publicKeyToZorsh(delegateAction.publicKey),
+      },
+      signature: signatureToZorsh(signature),
+    },
   }
 }
