@@ -34,10 +34,23 @@ export interface KeyPair {
   sign(message: Uint8Array): Signature
 }
 
+export enum KeyType {
+  ED25519 = 0,
+  SECP256K1 = 1,
+}
+
 export interface PublicKey {
   keyType: KeyType
   data: Uint8Array
   toString(): string
+}
+
+export interface Ed25519PublicKey extends PublicKey {
+  keyType: KeyType.ED25519
+}
+
+export interface Secp256k1PublicKey extends PublicKey {
+  keyType: KeyType.SECP256K1
 }
 
 export interface Signature {
@@ -45,9 +58,12 @@ export interface Signature {
   data: Uint8Array
 }
 
-export enum KeyType {
-  ED25519 = 0,
-  SECP256K1 = 1,
+export interface Ed25519Signature extends Signature {
+  keyType: KeyType.ED25519
+}
+
+export interface Secp256k1Signature extends Signature {
+  keyType: KeyType.SECP256K1
 }
 
 export type Signer = (message: Uint8Array) => Promise<Signature>

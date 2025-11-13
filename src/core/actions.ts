@@ -3,7 +3,11 @@
  * Provides clean, type-safe interfaces for creating NEAR transaction actions
  */
 
-import type { PublicKey } from "./types.js"
+import type {
+  PublicKey,
+  Ed25519PublicKey,
+  Secp256k1PublicKey,
+} from "./types.js"
 import type {
   ClassicAction,
   AccessKeyPermissionBorsh,
@@ -229,6 +233,15 @@ export function deployContract(code: Uint8Array): DeployContractAction {
 /**
  * Create a stake action
  */
+export function stake(
+  amount: bigint,
+  publicKey: Ed25519PublicKey
+): { stake: { stake: bigint; publicKey: { ed25519Key: { data: number[] } } } }
+export function stake(
+  amount: bigint,
+  publicKey: Secp256k1PublicKey
+): { stake: { stake: bigint; publicKey: { secp256k1Key: { data: number[] } } } }
+export function stake(amount: bigint, publicKey: PublicKey): StakeAction
 export function stake(amount: bigint, publicKey: PublicKey): StakeAction {
   return {
     stake: {
@@ -241,6 +254,28 @@ export function stake(amount: bigint, publicKey: PublicKey): StakeAction {
 /**
  * Create an add key action
  */
+export function addKey(
+  publicKey: Ed25519PublicKey,
+  permission: AccessKeyPermissionBorsh
+): {
+  addKey: {
+    publicKey: { ed25519Key: { data: number[] } }
+    accessKey: { nonce: bigint; permission: AccessKeyPermissionBorsh }
+  }
+}
+export function addKey(
+  publicKey: Secp256k1PublicKey,
+  permission: AccessKeyPermissionBorsh
+): {
+  addKey: {
+    publicKey: { secp256k1Key: { data: number[] } }
+    accessKey: { nonce: bigint; permission: AccessKeyPermissionBorsh }
+  }
+}
+export function addKey(
+  publicKey: PublicKey,
+  permission: AccessKeyPermissionBorsh
+): AddKeyAction
 export function addKey(
   publicKey: PublicKey,
   permission: AccessKeyPermissionBorsh
@@ -256,6 +291,13 @@ export function addKey(
 /**
  * Create a delete key action
  */
+export function deleteKey(
+  publicKey: Ed25519PublicKey
+): { deleteKey: { publicKey: { ed25519Key: { data: number[] } } } }
+export function deleteKey(
+  publicKey: Secp256k1PublicKey
+): { deleteKey: { publicKey: { secp256k1Key: { data: number[] } } } }
+export function deleteKey(publicKey: PublicKey): DeleteKeyAction
 export function deleteKey(publicKey: PublicKey): DeleteKeyAction {
   return {
     deleteKey: {

@@ -23,7 +23,13 @@ import {
   addKey,
   deleteKey,
 } from "./actions.js"
-import { KeyType, type PublicKey, type Signature } from "./types.js"
+import {
+  KeyType,
+  type Ed25519PublicKey,
+  type Secp256k1PublicKey,
+  type Ed25519Signature,
+  type Secp256k1Signature,
+} from "./types.js"
 
 describe("Action type inference", () => {
   test("Action type is inferred from schema", () => {
@@ -51,59 +57,51 @@ describe("Action type inference", () => {
 
 describe("PublicKey conversion", () => {
   test("converts Ed25519 public key to zorsh format", () => {
-    const pk: PublicKey = {
+    const pk: Ed25519PublicKey = {
       keyType: KeyType.ED25519,
       data: new Uint8Array(32).fill(1),
       toString: () => "ed25519:test",
     }
 
     const zorsh = publicKeyToZorsh(pk)
-    expect("ed25519Key" in zorsh).toBe(true)
-    if ("ed25519Key" in zorsh) {
-      expect(zorsh.ed25519Key.data).toEqual(Array(32).fill(1))
-    }
+    // Type is narrowed to { ed25519Key: { data: number[] } }
+    expect(zorsh.ed25519Key.data).toEqual(Array(32).fill(1))
   })
 
   test("converts Secp256k1 public key to zorsh format", () => {
-    const pk: PublicKey = {
+    const pk: Secp256k1PublicKey = {
       keyType: KeyType.SECP256K1,
       data: new Uint8Array(64).fill(2),
       toString: () => "secp256k1:test",
     }
 
     const zorsh = publicKeyToZorsh(pk)
-    expect("secp256k1Key" in zorsh).toBe(true)
-    if ("secp256k1Key" in zorsh) {
-      expect(zorsh.secp256k1Key.data).toEqual(Array(64).fill(2))
-    }
+    // Type is narrowed to { secp256k1Key: { data: number[] } }
+    expect(zorsh.secp256k1Key.data).toEqual(Array(64).fill(2))
   })
 })
 
 describe("Signature conversion", () => {
   test("converts Ed25519 signature to zorsh format", () => {
-    const sig: Signature = {
+    const sig: Ed25519Signature = {
       keyType: KeyType.ED25519,
       data: new Uint8Array(64).fill(3),
     }
 
     const zorsh = signatureToZorsh(sig)
-    expect("ed25519Signature" in zorsh).toBe(true)
-    if ("ed25519Signature" in zorsh) {
-      expect(zorsh.ed25519Signature.data).toEqual(Array(64).fill(3))
-    }
+    // Type is narrowed to { ed25519Signature: { data: number[] } }
+    expect(zorsh.ed25519Signature.data).toEqual(Array(64).fill(3))
   })
 
   test("converts Secp256k1 signature to zorsh format", () => {
-    const sig: Signature = {
+    const sig: Secp256k1Signature = {
       keyType: KeyType.SECP256K1,
       data: new Uint8Array(65).fill(4),
     }
 
     const zorsh = signatureToZorsh(sig)
-    expect("secp256k1Signature" in zorsh).toBe(true)
-    if ("secp256k1Signature" in zorsh) {
-      expect(zorsh.secp256k1Signature.data).toEqual(Array(65).fill(4))
-    }
+    // Type is narrowed to { secp256k1Signature: { data: number[] } }
+    expect(zorsh.secp256k1Signature.data).toEqual(Array(65).fill(4))
   })
 })
 
@@ -133,7 +131,7 @@ describe("Action serialization", () => {
   })
 
   test("serializes stake action with converted public key", () => {
-    const pk: PublicKey = {
+    const pk: Ed25519PublicKey = {
       keyType: KeyType.ED25519,
       data: new Uint8Array(32).fill(5),
       toString: () => "ed25519:test",
@@ -145,14 +143,12 @@ describe("Action serialization", () => {
     expect(action.stake.stake).toBe(BigInt(1000000000000000000000000))
 
     // Public key should be converted to zorsh format
-    expect("ed25519Key" in action.stake.publicKey).toBe(true)
-    if ("ed25519Key" in action.stake.publicKey) {
-      expect(action.stake.publicKey.ed25519Key.data).toEqual(Array(32).fill(5))
-    }
+    // Type is narrowed thanks to specific PublicKey type
+    expect(action.stake.publicKey.ed25519Key.data).toEqual(Array(32).fill(5))
   })
 
   test("serializes add key action with converted public key", () => {
-    const pk: PublicKey = {
+    const pk: Ed25519PublicKey = {
       keyType: KeyType.ED25519,
       data: new Uint8Array(32).fill(6),
       toString: () => "ed25519:test",
@@ -164,10 +160,8 @@ describe("Action serialization", () => {
     expect("addKey" in action).toBe(true)
 
     // Public key should be converted
-    expect("ed25519Key" in action.addKey.publicKey).toBe(true)
-    if ("ed25519Key" in action.addKey.publicKey) {
-      expect(action.addKey.publicKey.ed25519Key.data).toEqual(Array(32).fill(6))
-    }
+    // Type is narrowed thanks to specific PublicKey type
+    expect(action.addKey.publicKey.ed25519Key.data).toEqual(Array(32).fill(6))
 
     // Permission should be passed through
     expect(action.addKey.accessKey.permission).toEqual(permission)
@@ -175,7 +169,7 @@ describe("Action serialization", () => {
   })
 
   test("serializes delete key action with converted public key", () => {
-    const pk: PublicKey = {
+    const pk: Ed25519PublicKey = {
       keyType: KeyType.ED25519,
       data: new Uint8Array(32).fill(7),
       toString: () => "ed25519:test",
@@ -184,10 +178,8 @@ describe("Action serialization", () => {
     const action = deleteKey(pk)
 
     expect("deleteKey" in action).toBe(true)
-    expect("ed25519Key" in action.deleteKey.publicKey).toBe(true)
-    if ("ed25519Key" in action.deleteKey.publicKey) {
-      expect(action.deleteKey.publicKey.ed25519Key.data).toEqual(Array(32).fill(7))
-    }
+    // Type is narrowed thanks to specific PublicKey type
+    expect(action.deleteKey.publicKey.ed25519Key.data).toEqual(Array(32).fill(7))
   })
 
   test("serializes deploy contract action", () => {
@@ -208,7 +200,7 @@ describe("Action serialization", () => {
 
 describe("Transaction serialization", () => {
   test("serializes complete transaction", () => {
-    const pk: PublicKey = {
+    const pk: Ed25519PublicKey = {
       keyType: KeyType.ED25519,
       data: new Uint8Array(32).fill(8),
       toString: () => "ed25519:test",

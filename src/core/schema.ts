@@ -10,7 +10,11 @@
 import { b } from "@zorsh/zorsh"
 import type {
   PublicKey,
+  Ed25519PublicKey,
+  Secp256k1PublicKey,
   Signature,
+  Ed25519Signature,
+  Secp256k1Signature,
   SignedTransaction,
   Transaction,
 } from "./types.js"
@@ -324,10 +328,10 @@ export const SignedTransactionSchema = b.struct({
  * Exported for use in action helpers
  */
 export function publicKeyToZorsh(
-  pk: PublicKey & { keyType: 0 | import("./types.js").KeyType.ED25519 }
+  pk: Ed25519PublicKey
 ): { ed25519Key: { data: number[] } }
 export function publicKeyToZorsh(
-  pk: PublicKey & { keyType: 1 | import("./types.js").KeyType.SECP256K1 }
+  pk: Secp256k1PublicKey
 ): { secp256k1Key: { data: number[] } }
 export function publicKeyToZorsh(
   pk: PublicKey
@@ -347,10 +351,10 @@ export function publicKeyToZorsh(pk: PublicKey) {
  * Exported for use in action helpers
  */
 export function signatureToZorsh(
-  sig: Signature & { keyType: 0 | import("./types.js").KeyType.ED25519 }
+  sig: Ed25519Signature
 ): { ed25519Signature: { data: number[] } }
 export function signatureToZorsh(
-  sig: Signature & { keyType: 1 | import("./types.js").KeyType.SECP256K1 }
+  sig: Secp256k1Signature
 ): { secp256k1Signature: { data: number[] } }
 export function signatureToZorsh(
   sig: Signature
