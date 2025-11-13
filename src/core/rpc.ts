@@ -11,6 +11,13 @@ import type {
   StatusResponse,
   GasPriceResponse,
 } from "./types.js"
+import {
+  ViewFunctionCallResultSchema,
+  AccountViewSchema,
+  AccessKeyViewSchema,
+  StatusResponseSchema,
+  GasPriceResponseSchema,
+} from "./rpc-schemas.js"
 
 export interface RpcRequest {
   jsonrpc: "2.0"
@@ -116,33 +123,39 @@ export class RpcClient {
       new TextEncoder().encode(JSON.stringify(args)),
     )
 
-    return this.call("query", {
+    const result = await this.call("query", {
       request_type: "call_function",
       finality: "final",
       account_id: contractId,
       method_name: methodName,
       args_base64: argsBase64,
     })
+
+    return ViewFunctionCallResultSchema.parse(result)
   }
 
   async getAccount(accountId: string): Promise<AccountView> {
-    return this.call("query", {
+    const result = await this.call("query", {
       request_type: "view_account",
       finality: "final",
       account_id: accountId,
     })
+
+    return AccountViewSchema.parse(result)
   }
 
   async getAccessKey(
     accountId: string,
     publicKey: string,
   ): Promise<AccessKeyView> {
-    return this.call("query", {
+    const result = await this.call("query", {
       request_type: "view_access_key",
       finality: "final",
       account_id: accountId,
       public_key: publicKey,
     })
+
+    return AccessKeyViewSchema.parse(result)
   }
 
   async sendTransaction(signedTransaction: Uint8Array): Promise<unknown> {
@@ -151,10 +164,12 @@ export class RpcClient {
   }
 
   async getStatus(): Promise<StatusResponse> {
-    return this.call("status", [])
+    const result = await this.call("status", [])
+    return StatusResponseSchema.parse(result)
   }
 
   async getGasPrice(blockId: string | null = null): Promise<GasPriceResponse> {
-    return this.call("gas_price", [blockId])
+    const result = await this.call("gas_price", [blockId])
+    return GasPriceResponseSchema.parse(result)
   }
 }
