@@ -53,7 +53,7 @@ export class FileKeyStore implements KeyStore {
 
   constructor(basePath: string = '~/.near-credentials') {
     // Expand home directory
-    this.basePath = basePath.replace(/^~/, process.env.HOME || process.env.USERPROFILE || '');
+    this.basePath = basePath.replace(/^~/, process.env['HOME'] || process.env['USERPROFILE'] || '');
   }
 
   private getKeyFilePath(accountId: string): string {

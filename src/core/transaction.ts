@@ -81,7 +81,9 @@ export class TransactionBuilder {
     this.actions = [];
     this.rpc = rpc;
     this.keyStore = keyStore;
-    this.signer = signer;
+    if (signer !== undefined) {
+      this.signer = signer;
+    }
   }
 
   /**
