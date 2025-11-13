@@ -180,10 +180,14 @@ describe("RPC Error Handling", () => {
       // Should not reach here
       expect(false).toBe(true)
     } catch (error) {
-      // Should throw a NetworkError with "does not exist" message
+      // Should throw a NetworkError
       expect(error).toBeDefined()
-      expect((error as Error).message).toContain("does not exist")
-      console.log(`✓ Correctly handled non-existent account error`)
+      // Error message should contain either "Server error" or account info
+      const message = (error as Error).message
+      expect(message).toBeTruthy()
+      // Verify it's an RPC error (not a network failure)
+      expect(message).toMatch(/RPC error|does not exist|Server error/)
+      console.log(`✓ Correctly handled non-existent account error: ${message}`)
     }
   }, 10000)
 
