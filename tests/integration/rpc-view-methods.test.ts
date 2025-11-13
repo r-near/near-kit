@@ -34,11 +34,23 @@ describe("RPC View Methods - Mainnet", () => {
     // Verify response structure
     expect(status).toBeDefined()
     expect(status.chain_id).toBe("mainnet")
+    expect(status.genesis_hash).toBeDefined()
     expect(status.version).toBeDefined()
     expect(status.version.version).toBeDefined()
     expect(status.version.build).toBeDefined()
     expect(status.protocol_version).toBeGreaterThan(0)
     expect(status.latest_protocol_version).toBeGreaterThan(0)
+
+    // Verify node info
+    expect(status.node_public_key).toBeDefined()
+    expect(status.rpc_addr).toBeDefined()
+
+    // Verify validators structure (array of objects with account_id)
+    expect(Array.isArray(status.validators)).toBe(true)
+    if (status.validators.length > 0) {
+      expect(status.validators[0]).toHaveProperty("account_id")
+      expect(typeof status.validators[0].account_id).toBe("string")
+    }
 
     // Verify sync info
     expect(status.sync_info).toBeDefined()
@@ -48,7 +60,7 @@ describe("RPC View Methods - Mainnet", () => {
     expect(status.sync_info.latest_block_time).toBeDefined()
     expect(typeof status.sync_info.syncing).toBe("boolean")
 
-    console.log(`✓ Mainnet status: chain=${status.chain_id}, height=${status.sync_info.latest_block_height}`)
+    console.log(`✓ Mainnet status: chain=${status.chain_id}, height=${status.sync_info.latest_block_height}, validators=${status.validators.length}`)
   }, 10000) // 10 second timeout
 
   test("getAccount should return account info for known account", async () => {

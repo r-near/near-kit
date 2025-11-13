@@ -70,18 +70,27 @@ export type Signer = (message: Uint8Array) => Promise<Signature>
 
 // ==================== Permissions ====================
 
-export type FullAccessPermission = {
-  permission: "FullAccess"
+/**
+ * Function call permission details from RPC
+ */
+export interface FunctionCallPermissionDetails {
+  /** Account ID that can be called */
+  receiver_id: string
+  /** List of method names that can be called (empty array means any) */
+  method_names: string[]
+  /** Optional allowance in yoctoNEAR */
+  allowance?: string | null
 }
 
-export type FunctionCallPermission = {
-  permission: "FunctionCall"
-  receiverId: string
-  methodNames?: string[]
-  allowance?: string
-}
-
-export type AccessKeyPermission = FullAccessPermission | FunctionCallPermission
+/**
+ * Access key permission as returned by RPC
+ * Either "FullAccess" string or object with FunctionCall details
+ */
+export type AccessKeyPermission =
+  | "FullAccess"
+  | {
+      FunctionCall: FunctionCallPermissionDetails
+    }
 
 // ==================== Transaction Types ====================
 
@@ -211,19 +220,34 @@ export interface StatusResponse {
     version: string
     /** Build identifier */
     build: string
+    /** Git commit hash */
+    commit?: string
     /** Rustc version used to build */
     rustc_version?: string
   }
   /** Chain ID (e.g., "mainnet", "testnet") */
   chain_id: string
+  /** Genesis hash */
+  genesis_hash: string
   /** Current protocol version */
   protocol_version: number
   /** Latest protocol version */
   latest_protocol_version: number
   /** RPC address */
   rpc_addr: string
-  /** List of validator account IDs */
-  validators: string[]
+  /** Node's public key (if validator) */
+  node_public_key: string
+  /** Node's key */
+  node_key: string | null
+  /** Validator account ID (null if not a validator) */
+  validator_account_id: string | null
+  /** Validator public key (null if not a validator) */
+  validator_public_key: string | null
+  /** List of current validators */
+  validators: Array<{
+    /** Validator account ID */
+    account_id: string
+  }>
   /** Sync information */
   sync_info: {
     /** Hash of the latest block */
@@ -242,11 +266,13 @@ export interface StatusResponse {
     earliest_block_height?: number
     /** Earliest block time if available */
     earliest_block_time?: string
-    /** Epoch start height if available */
+    /** Current epoch ID */
+    epoch_id?: string
+    /** Epoch start height */
     epoch_start_height?: number
   }
-  /** List of validator account IDs (duplicate for compatibility) */
-  validator_account_id?: string
+  /** Uptime in seconds */
+  uptime_sec?: number
 }
 
 /**
@@ -255,6 +281,49 @@ export interface StatusResponse {
 export interface GasPriceResponse {
   /** Gas price in yoctoNEAR */
   gas_price: string
+}
+
+/**
+ * Access key list response from view_access_key_list query
+ */
+export interface AccessKeyListResponse {
+  /** Block hash at which the query was executed */
+  block_hash: string
+  /** Block height at which the query was executed */
+  block_height: number
+  /** List of access keys with their details */
+  keys: Array<{
+    /** Public key string (e.g., "ed25519:...") */
+    public_key: string
+    /** Access key details */
+    access_key: {
+      /** Current nonce for the access key */
+      nonce: number
+      /** Permission type */
+      permission: AccessKeyPermission
+    }
+  }>
+}
+
+/**
+ * RPC error response structure
+ */
+export interface RpcErrorResponse {
+  /** Error name/type */
+  name: string
+  /** Error code */
+  code: number
+  /** Error message */
+  message: string
+  /** Additional error data */
+  data?: string
+  /** Error cause with additional context */
+  cause?: {
+    /** Cause name/type */
+    name: string
+    /** Additional info about the error */
+    info?: Record<string, unknown>
+  }
 }
 
 // ==================== Client Configuration ====================
