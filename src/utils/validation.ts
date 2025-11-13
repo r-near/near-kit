@@ -4,12 +4,12 @@
 
 import {
   ACCOUNT_ID_REGEX,
-  MIN_ACCOUNT_ID_LENGTH,
-  MAX_ACCOUNT_ID_LENGTH,
   ED25519_KEY_PREFIX,
+  MAX_ACCOUNT_ID_LENGTH,
+  MIN_ACCOUNT_ID_LENGTH,
   SECP256K1_KEY_PREFIX,
-} from '../core/constants.js';
-import { InvalidAccountIdError } from '../errors/index.js';
+} from "../core/constants.js"
+import { InvalidAccountIdError } from "../errors/index.js"
 
 /**
  * Validate a NEAR account ID
@@ -20,25 +20,25 @@ export function validateAccountId(accountId: string): boolean {
   if (accountId.length < MIN_ACCOUNT_ID_LENGTH) {
     throw new InvalidAccountIdError(
       accountId,
-      `Account ID must be at least ${MIN_ACCOUNT_ID_LENGTH} characters`
-    );
+      `Account ID must be at least ${MIN_ACCOUNT_ID_LENGTH} characters`,
+    )
   }
 
   if (accountId.length > MAX_ACCOUNT_ID_LENGTH) {
     throw new InvalidAccountIdError(
       accountId,
-      `Account ID must be at most ${MAX_ACCOUNT_ID_LENGTH} characters`
-    );
+      `Account ID must be at most ${MAX_ACCOUNT_ID_LENGTH} characters`,
+    )
   }
 
   if (!ACCOUNT_ID_REGEX.test(accountId)) {
     throw new InvalidAccountIdError(
       accountId,
-      'Account ID must contain only lowercase alphanumeric characters, hyphens, underscores, and dots'
-    );
+      "Account ID must contain only lowercase alphanumeric characters, hyphens, underscores, and dots",
+    )
   }
 
-  return true;
+  return true
 }
 
 /**
@@ -51,10 +51,10 @@ export function isValidAccountId(accountId: string): boolean {
     accountId.length < MIN_ACCOUNT_ID_LENGTH ||
     accountId.length > MAX_ACCOUNT_ID_LENGTH
   ) {
-    return false;
+    return false
   }
 
-  return ACCOUNT_ID_REGEX.test(accountId);
+  return ACCOUNT_ID_REGEX.test(accountId)
 }
 
 /**
@@ -64,16 +64,16 @@ export function isValidAccountId(accountId: string): boolean {
  */
 export function isValidPublicKey(key: string): boolean {
   if (key.startsWith(ED25519_KEY_PREFIX)) {
-    const keyData = key.slice(ED25519_KEY_PREFIX.length);
-    return isValidBase58(keyData);
+    const keyData = key.slice(ED25519_KEY_PREFIX.length)
+    return isValidBase58(keyData)
   }
 
   if (key.startsWith(SECP256K1_KEY_PREFIX)) {
-    const keyData = key.slice(SECP256K1_KEY_PREFIX.length);
-    return isValidBase58(keyData);
+    const keyData = key.slice(SECP256K1_KEY_PREFIX.length)
+    return isValidBase58(keyData)
   }
 
-  return false;
+  return false
 }
 
 /**
@@ -82,8 +82,9 @@ export function isValidPublicKey(key: string): boolean {
  * @returns true if valid base58, false otherwise
  */
 export function isValidBase58(str: string): boolean {
-  const base58Regex = /^[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]+$/;
-  return base58Regex.test(str);
+  const base58Regex =
+    /^[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]+$/
+  return base58Regex.test(str)
 }
 
 /**
@@ -92,19 +93,19 @@ export function isValidBase58(str: string): boolean {
  * @returns Normalized amount in yoctoNEAR
  */
 export function normalizeAmount(amount: string | number | bigint): string {
-  if (typeof amount === 'bigint') {
-    return amount.toString();
+  if (typeof amount === "bigint") {
+    return amount.toString()
   }
 
-  if (typeof amount === 'number') {
-    return BigInt(amount).toString();
+  if (typeof amount === "number") {
+    return BigInt(amount).toString()
   }
 
   // If it's a string, try to parse it as a number
-  const num = parseFloat(amount);
+  const num = parseFloat(amount)
   if (isNaN(num)) {
-    throw new Error(`Invalid amount: ${amount}`);
+    throw new Error(`Invalid amount: ${amount}`)
   }
 
-  return BigInt(Math.floor(num)).toString();
+  return BigInt(Math.floor(num)).toString()
 }

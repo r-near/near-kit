@@ -2,7 +2,7 @@
  * Unit conversion utilities for NEAR tokens and gas
  */
 
-import { YOCTO_PER_NEAR, GAS_PER_TGAS } from '../core/constants.js';
+import { GAS_PER_TGAS, YOCTO_PER_NEAR } from "../core/constants.js"
 
 /**
  * Parse a human-readable NEAR amount to yoctoNEAR
@@ -10,20 +10,20 @@ import { YOCTO_PER_NEAR, GAS_PER_TGAS } from '../core/constants.js';
  * @returns Amount in yoctoNEAR as string
  */
 export function parseNearAmount(amount: string | number): string {
-  const amountStr = typeof amount === 'number' ? amount.toString() : amount;
+  const amountStr = typeof amount === "number" ? amount.toString() : amount
 
   // Remove ' NEAR' suffix if present
-  const cleaned = amountStr.replace(/\s*NEAR\s*$/i, '').trim();
+  const cleaned = amountStr.replace(/\s*NEAR\s*$/i, "").trim()
 
   // Parse as decimal
-  const parts = cleaned.split('.');
-  const wholePart = parts[0] || '0';
-  const fracPart = (parts[1] || '').padEnd(24, '0').substring(0, 24);
+  const parts = cleaned.split(".")
+  const wholePart = parts[0] || "0"
+  const fracPart = (parts[1] || "").padEnd(24, "0").substring(0, 24)
 
   // Convert to yoctoNEAR
-  const yocto = BigInt(wholePart) * YOCTO_PER_NEAR + BigInt(fracPart);
+  const yocto = BigInt(wholePart) * YOCTO_PER_NEAR + BigInt(fracPart)
 
-  return yocto.toString();
+  return yocto.toString()
 }
 
 /**
@@ -32,22 +32,25 @@ export function parseNearAmount(amount: string | number): string {
  * @param precision - Number of decimal places (default: 2)
  * @returns Formatted amount with ' NEAR' suffix
  */
-export function formatNearAmount(yocto: string | bigint, precision = 2): string {
-  const amount = typeof yocto === 'string' ? BigInt(yocto) : yocto;
+export function formatNearAmount(
+  yocto: string | bigint,
+  precision = 2,
+): string {
+  const amount = typeof yocto === "string" ? BigInt(yocto) : yocto
 
   // Convert to NEAR
-  const wholePart = amount / YOCTO_PER_NEAR;
-  const fracPart = amount % YOCTO_PER_NEAR;
+  const wholePart = amount / YOCTO_PER_NEAR
+  const fracPart = amount % YOCTO_PER_NEAR
 
   if (fracPart === BigInt(0)) {
-    return `${wholePart} NEAR`;
+    return `${wholePart} NEAR`
   }
 
   // Format fractional part
-  const fracStr = fracPart.toString().padStart(24, '0');
-  const trimmed = fracStr.substring(0, precision);
+  const fracStr = fracPart.toString().padStart(24, "0")
+  const trimmed = fracStr.substring(0, precision)
 
-  return `${wholePart}.${trimmed} NEAR`;
+  return `${wholePart}.${trimmed} NEAR`
 }
 
 /**
@@ -56,17 +59,17 @@ export function formatNearAmount(yocto: string | bigint, precision = 2): string 
  * @returns Gas amount as string
  */
 export function parseGas(gas: string | number): string {
-  const gasStr = typeof gas === 'number' ? gas.toString() : gas;
+  const gasStr = typeof gas === "number" ? gas.toString() : gas
 
   // Check if it's in TGas format
-  const tgasMatch = gasStr.match(/^(\d+(?:\.\d+)?)\s*T[Gg]as$/);
+  const tgasMatch = gasStr.match(/^(\d+(?:\.\d+)?)\s*T[Gg]as$/)
   if (tgasMatch) {
-    const tgas = parseFloat(tgasMatch[1]!);
-    return (BigInt(Math.floor(tgas * 1e12)) * BigInt(1)).toString();
+    const tgas = parseFloat(tgasMatch[1]!)
+    return (BigInt(Math.floor(tgas * 1e12)) * BigInt(1)).toString()
   }
 
   // Otherwise, treat as raw gas
-  return BigInt(gasStr).toString();
+  return BigInt(gasStr).toString()
 }
 
 /**
@@ -75,10 +78,10 @@ export function parseGas(gas: string | number): string {
  * @returns Formatted gas with ' Tgas' suffix
  */
 export function formatGas(gas: string | bigint): string {
-  const amount = typeof gas === 'string' ? BigInt(gas) : gas;
-  const tgas = Number(amount) / Number(GAS_PER_TGAS);
+  const amount = typeof gas === "string" ? BigInt(gas) : gas
+  const tgas = Number(amount) / Number(GAS_PER_TGAS)
 
-  return `${tgas.toFixed(2)} Tgas`;
+  return `${tgas.toFixed(2)} Tgas`
 }
 
 /**
@@ -87,7 +90,7 @@ export function formatGas(gas: string | bigint): string {
  * @returns Gas amount as string
  */
 export function toGas(tgas: number): string {
-  return (BigInt(Math.floor(tgas * 1e12)) * BigInt(1)).toString();
+  return (BigInt(Math.floor(tgas * 1e12)) * BigInt(1)).toString()
 }
 
 /**
@@ -96,6 +99,6 @@ export function toGas(tgas: number): string {
  * @returns Amount in TGas
  */
 export function toTGas(gas: string | bigint): number {
-  const amount = typeof gas === 'string' ? BigInt(gas) : gas;
-  return Number(amount) / Number(GAS_PER_TGAS);
+  const amount = typeof gas === "string" ? BigInt(gas) : gas
+  return Number(amount) / Number(GAS_PER_TGAS)
 }

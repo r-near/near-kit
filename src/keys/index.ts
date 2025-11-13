@@ -2,4 +2,4 @@
  * Key management module
  */
 
-export * from './keystore.js';
+export * from "./keystore.js"
