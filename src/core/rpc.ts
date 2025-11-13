@@ -4,6 +4,13 @@
 
 import { base64 } from "@scure/base"
 import { NetworkError } from "../errors/index.js"
+import type {
+  ViewFunctionCallResult,
+  AccountView,
+  AccessKeyView,
+  StatusResponse,
+  GasPriceResponse,
+} from "./types.js"
 
 export interface RpcRequest {
   jsonrpc: "2.0"
@@ -103,15 +110,10 @@ export class RpcClient {
   async viewFunction(
     contractId: string,
     methodName: string,
-    args: unknown = {}
-  ): Promise<{
-    result: number[]
-    logs: string[]
-    block_height: number
-    block_hash: string
-  }> {
+    args: unknown = {},
+  ): Promise<ViewFunctionCallResult> {
     const argsBase64 = base64.encode(
-      new TextEncoder().encode(JSON.stringify(args))
+      new TextEncoder().encode(JSON.stringify(args)),
     )
 
     return this.call("query", {
@@ -123,15 +125,7 @@ export class RpcClient {
     })
   }
 
-  async getAccount(accountId: string): Promise<{
-    amount: string
-    locked: string
-    code_hash: string
-    storage_usage: number
-    storage_paid_at: number
-    block_height: number
-    block_hash: string
-  }> {
+  async getAccount(accountId: string): Promise<AccountView> {
     return this.call("query", {
       request_type: "view_account",
       finality: "final",
@@ -141,13 +135,8 @@ export class RpcClient {
 
   async getAccessKey(
     accountId: string,
-    publicKey: string
-  ): Promise<{
-    nonce: number
-    permission: unknown
-    block_height: number
-    block_hash: string
-  }> {
+    publicKey: string,
+  ): Promise<AccessKeyView> {
     return this.call("query", {
       request_type: "view_access_key",
       finality: "final",
@@ -161,30 +150,11 @@ export class RpcClient {
     return this.call("broadcast_tx_commit", [base64Encoded])
   }
 
-  async getStatus(): Promise<{
-    version: {
-      version: string
-      build: string
-    }
-    chain_id: string
-    protocol_version: number
-    latest_protocol_version: number
-    rpc_addr: string
-    validators: string[]
-    sync_info: {
-      latest_block_hash: string
-      latest_block_height: number
-      latest_state_root: string
-      latest_block_time: string
-      syncing: boolean
-    }
-  }> {
+  async getStatus(): Promise<StatusResponse> {
     return this.call("status", [])
   }
 
-  async getGasPrice(blockId: string | null = null): Promise<{
-    gas_price: string
-  }> {
+  async getGasPrice(blockId: string | null = null): Promise<GasPriceResponse> {
     return this.call("gas_price", [blockId])
   }
 }

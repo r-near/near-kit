@@ -6,13 +6,13 @@
 
 export const NETWORK_PRESETS = {
   mainnet: {
-    rpcUrl: "https://rpc.mainnet.near.org",
+    rpcUrl: "https://free.rpc.fastnear.com",
     networkId: "mainnet",
     walletUrl: "https://wallet.near.org",
     helperUrl: "https://helper.mainnet.near.org",
   },
   testnet: {
-    rpcUrl: "https://rpc.testnet.near.org",
+    rpcUrl: "https://rpc.testnet.fastnear.com",
     networkId: "testnet",
     walletUrl: "https://wallet.testnet.near.org",
     helperUrl: "https://helper.testnet.near.org",

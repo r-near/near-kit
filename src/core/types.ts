@@ -143,33 +143,118 @@ export interface SimulationResult {
 
 // ==================== RPC Types ====================
 
+/**
+ * Result from calling a view function on a contract
+ */
 export interface ViewFunctionCallResult {
+  /** Raw result bytes as array of numbers */
   result: number[]
+  /** Console logs from the contract execution */
   logs: string[]
+  /** Block height at which the function was called */
   block_height: number
+  /** Block hash at which the function was called */
   block_hash: string
 }
 
+/**
+ * Account information returned by view_account query
+ */
 export interface AccountView {
+  /** Account balance in yoctoNEAR */
   amount: string
+  /** Locked balance in yoctoNEAR (for staking) */
   locked: string
+  /** Hash of the contract code (base58) */
   code_hash: string
+  /** Storage used by the account in bytes */
   storage_usage: number
+  /** Block height at which storage was paid */
   storage_paid_at: number
+  /** Block height of the query */
   block_height: number
+  /** Block hash of the query */
   block_hash: string
 }
 
+/**
+ * Access key information returned by view_access_key query
+ */
 export interface AccessKeyView {
+  /** Current nonce for the access key */
   nonce: number
+  /** Permission type (FullAccess or FunctionCall) */
   permission: AccessKeyPermission
+  /** Block height of the query */
   block_height: number
+  /** Block hash of the query */
   block_hash: string
 }
 
+/**
+ * Access key with its public key
+ */
 export interface AccessKeyInfoView {
+  /** Public key string (e.g., "ed25519:...") */
   public_key: string
+  /** Access key details */
   access_key: AccessKeyView
+}
+
+/**
+ * Network status information
+ */
+export interface StatusResponse {
+  /** Node version information */
+  version: {
+    /** Version string (e.g., "1.0.0") */
+    version: string
+    /** Build identifier */
+    build: string
+    /** Rustc version used to build */
+    rustc_version?: string
+  }
+  /** Chain ID (e.g., "mainnet", "testnet") */
+  chain_id: string
+  /** Current protocol version */
+  protocol_version: number
+  /** Latest protocol version */
+  latest_protocol_version: number
+  /** RPC address */
+  rpc_addr: string
+  /** List of validator account IDs */
+  validators: string[]
+  /** Sync information */
+  sync_info: {
+    /** Hash of the latest block */
+    latest_block_hash: string
+    /** Height of the latest block */
+    latest_block_height: number
+    /** Latest state root hash */
+    latest_state_root: string
+    /** Timestamp of the latest block */
+    latest_block_time: string
+    /** Whether the node is currently syncing */
+    syncing: boolean
+    /** Earliest block hash if available */
+    earliest_block_hash?: string
+    /** Earliest block height if available */
+    earliest_block_height?: number
+    /** Earliest block time if available */
+    earliest_block_time?: string
+    /** Epoch start height if available */
+    epoch_start_height?: number
+  }
+  /** List of validator account IDs (duplicate for compatibility) */
+  validator_account_id?: string
+}
+
+/**
+ * Gas price information
+ */
+export interface GasPriceResponse {
+  /** Gas price in yoctoNEAR */
+  gas_price: string
 }
 
 // ==================== Client Configuration ====================
