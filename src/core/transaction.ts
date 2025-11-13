@@ -6,6 +6,11 @@ import { base58 } from "@scure/base"
 import { parseGas, parseNearAmount } from "../utils/format.js"
 import { DEFAULT_FUNCTION_CALL_GAS } from "./constants.js"
 import type { RpcClient } from "./rpc.js"
+import {
+  serializeTransaction,
+  serializeSignedTransaction,
+} from "./schema.js"
+import * as actions from "./actions.js"
 import type {
   Action,
   FinalExecutionOutcome,
@@ -16,73 +21,6 @@ import type {
   SimulationResult,
   Transaction,
 } from "./types.js"
-
-// Borsh schema for transaction actions
-class Transfer {
-  deposit: bigint
-
-  constructor(deposit: string) {
-    this.deposit = BigInt(deposit)
-  }
-}
-
-class FunctionCall {
-  methodName: string
-  args: Uint8Array
-  gas: bigint
-  deposit: bigint
-
-  constructor(
-    methodName: string,
-    args: Uint8Array,
-    gas: string,
-    deposit: string
-  ) {
-    this.methodName = methodName
-    this.args = args
-    this.gas = BigInt(gas)
-    this.deposit = BigInt(deposit)
-  }
-}
-
-class CreateAccount {}
-class DeleteAccount {
-  beneficiaryId: string
-  constructor(id: string) {
-    this.beneficiaryId = id
-  }
-}
-class DeployContract {
-  code: Uint8Array
-  constructor(code: Uint8Array) {
-    this.code = code
-  }
-}
-class Stake {
-  stake: bigint
-  publicKey: PublicKey
-  constructor(amount: string, pk: PublicKey) {
-    this.stake = BigInt(amount)
-    this.publicKey = pk
-  }
-}
-
-class AddKey {
-  publicKey: PublicKey
-  accessKey: { nonce: bigint; permission: unknown }
-
-  constructor(publicKey: PublicKey, permission: unknown) {
-    this.publicKey = publicKey
-    this.accessKey = { nonce: BigInt(0), permission }
-  }
-}
-
-class DeleteKey {
-  publicKey: PublicKey
-  constructor(publicKey: PublicKey) {
-    this.publicKey = publicKey
-  }
-}
 
 export class TransactionBuilder {
   private signerId: string
@@ -112,11 +50,7 @@ export class TransactionBuilder {
    */
   transfer(receiverId: string, amount: string | number): this {
     const amountYocto = parseNearAmount(amount.toString())
-
-    this.actions.push({
-      enum: "transfer",
-      transfer: new Transfer(amountYocto),
-    })
+    this.actions.push(actions.transfer(BigInt(amountYocto)))
 
     if (!this.receiverId) {
       this.receiverId = receiverId
@@ -145,10 +79,9 @@ export class TransactionBuilder {
       ? parseNearAmount(options.attachedDeposit.toString())
       : "0"
 
-    this.actions.push({
-      enum: "functionCall",
-      functionCall: new FunctionCall(methodName, argsBytes, gas, deposit),
-    })
+    this.actions.push(
+      actions.functionCall(methodName, argsBytes, BigInt(gas), BigInt(deposit))
+    )
 
     if (!this.receiverId) {
       this.receiverId = contractId
@@ -161,10 +94,7 @@ export class TransactionBuilder {
    * Add a create account action
    */
   createAccount(accountId: string): this {
-    this.actions.push({
-      enum: "createAccount",
-      createAccount: new CreateAccount(),
-    })
+    this.actions.push(actions.createAccount())
 
     if (!this.receiverId) {
       this.receiverId = accountId
@@ -177,11 +107,7 @@ export class TransactionBuilder {
    * Add a delete account action
    */
   deleteAccount(beneficiaryId: string): this {
-    this.actions.push({
-      enum: "deleteAccount",
-      deleteAccount: new DeleteAccount(beneficiaryId),
-    })
-
+    this.actions.push(actions.deleteAccount(beneficiaryId))
     return this
   }
 
@@ -189,10 +115,7 @@ export class TransactionBuilder {
    * Add a deploy contract action
    */
   deployContract(accountId: string, code: Uint8Array): this {
-    this.actions.push({
-      enum: "deployContract",
-      deployContract: new DeployContract(code),
-    })
+    this.actions.push(actions.deployContract(code))
 
     if (!this.receiverId) {
       this.receiverId = accountId
@@ -214,11 +137,7 @@ export class TransactionBuilder {
       toString: () => publicKey,
     }
 
-    this.actions.push({
-      enum: "stake",
-      stake: new Stake(amountYocto, pk),
-    })
-
+    this.actions.push(actions.stake(BigInt(amountYocto), pk))
     return this
   }
 
@@ -232,10 +151,7 @@ export class TransactionBuilder {
       toString: () => publicKey,
     }
 
-    this.actions.push({
-      enum: "addKey",
-      addKey: new AddKey(pk, permission),
-    })
+    this.actions.push(actions.addKey(pk, permission))
 
     if (!this.receiverId) {
       this.receiverId = accountId
@@ -254,10 +170,7 @@ export class TransactionBuilder {
       toString: () => publicKey,
     }
 
-    this.actions.push({
-      enum: "deleteKey",
-      deleteKey: new DeleteKey(pk),
-    })
+    this.actions.push(actions.deleteKey(pk))
 
     if (!this.receiverId) {
       this.receiverId = accountId
@@ -322,11 +235,8 @@ export class TransactionBuilder {
   async send(): Promise<FinalExecutionOutcome> {
     const transaction = await this.build()
 
-    // TODO:
-    // Serialize and sign transaction
-    // Note: This is a simplified version - proper implementation
-    // would use Borsh serialization with correct schema
-    const serialized = this.serializeTransaction(transaction)
+    // Serialize transaction using Borsh
+    const serialized = serializeTransaction(transaction)
 
     const keyPair = await this.keyStore.get(this.signerId)
     if (!keyPair) {
@@ -340,8 +250,8 @@ export class TransactionBuilder {
       signature,
     }
 
-    // Serialize signed transaction
-    const signedSerialized = this.serializeSignedTransaction(signedTx)
+    // Serialize signed transaction using Borsh
+    const signedSerialized = serializeSignedTransaction(signedTx)
 
     // Send to network
     const result = await this.rpc.sendTransaction(signedSerialized)
@@ -354,19 +264,5 @@ export class TransactionBuilder {
    */
   async simulate(): Promise<SimulationResult> {
     throw new Error("simulate() not yet implemented")
-  }
-
-  // Helper methods
-  private serializeTransaction(tx: Transaction): Uint8Array {
-    // Placeholder - proper implementation would use Borsh
-    // For now, return a simple encoding
-    const encoder = new TextEncoder()
-    return encoder.encode(JSON.stringify(tx))
-  }
-
-  private serializeSignedTransaction(signedTx: SignedTransaction): Uint8Array {
-    // Placeholder - proper implementation would use Borsh
-    const encoder = new TextEncoder()
-    return encoder.encode(JSON.stringify(signedTx))
   }
 }
