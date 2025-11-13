@@ -143,6 +143,7 @@ export function parseKey(keyString: string): KeyPair {
 }
 
 /**
+ * TODO:
  * Generate a seed phrase (12 words)
  * Note: This is a placeholder implementation. In production, use a proper BIP39 library
  * @returns A seed phrase string
@@ -185,6 +186,7 @@ export function generateSeedPhrase(): string {
  * @returns KeyPair instance
  */
 export function parseSeedPhrase(phrase: string, _path?: string): KeyPair {
+  // TODO:
   // This is a simplified version. In production, use proper BIP32/BIP39/SLIP10 derivation
   // For now, we'll just generate a key based on the hash of the phrase
   const encoder = new TextEncoder()
@@ -200,7 +202,7 @@ export function parseSeedPhrase(phrase: string, _path?: string): KeyPair {
   // Generate deterministic key (this is NOT secure, just for demonstration)
   const seed = new Uint8Array(32)
   for (let i = 0; i < 32; i++) {
-    seed[i] = (hash >> (i % 32)) & 0xff
+    seed[i] = (hash >> i % 32) & 0xff
   }
 
   const keyPair = nacl.sign.keyPair.fromSeed(seed)
@@ -214,4 +216,4 @@ export function parseSeedPhrase(phrase: string, _path?: string): KeyPair {
 /**
  * Encode binary data to base58
  */
-export { base58Encode, base58Decode }
+export { base58Decode, base58Encode }
