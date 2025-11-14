@@ -70,7 +70,6 @@ export class TransactionBuilder {
   private rpc: RpcClient
   private keyStore: KeyStore
   private signer?: Signer
-  private _signer?: Signer
   private defaultWaitUntil: TxExecutionStatus
 
   constructor(
@@ -78,8 +77,7 @@ export class TransactionBuilder {
     rpc: RpcClient,
     keyStore: KeyStore,
     signer?: Signer,
-    signer?: Signer,
-    defaultWaitUntil: TxExecutionStatus = "EXECUTED_OPTIMISTIC",
+    defaultWaitUntil: TxExecutionStatus = "EXECUTED_OPTIMISTIC"
   ) {
     this.signerId = signerId
     this.actions = []
