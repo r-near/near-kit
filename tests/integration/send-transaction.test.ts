@@ -196,7 +196,7 @@ describe("sendTransaction - RPC Response Validation", () => {
           .send()
 
         throw new Error("Expected transaction to fail")
-      } catch (error: any) {
+      } catch (error: unknown) {
         // Should be InvalidTransactionError, not FunctionCallError
         // because the failure is from createAccount, not the function call
         expect(error.name).not.toBe("FunctionCallError")
@@ -310,9 +310,11 @@ describe("sendTransaction - RPC Response Validation", () => {
       // Find CreateAccount action in transaction
       // RPC returns CreateAccount as a string (no params) or object (with params)
       const createAccountAction = result.transaction.actions.find(
-        (action: any) =>
+        (action: unknown) =>
           action === "CreateAccount" ||
-          (typeof action === "object" && "CreateAccount" in action),
+          (typeof action === "object" &&
+            action !== null &&
+            "CreateAccount" in action),
       )
 
       expect(createAccountAction).toBeDefined()

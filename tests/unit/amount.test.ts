@@ -150,6 +150,7 @@ describe("parseAmount", () => {
 
     test("throws on bare number (would be caught by TypeScript)", () => {
       // This would be a type error in TypeScript, but test runtime behavior
+      // biome-ignore lint/suspicious/noExplicitAny: intentionally testing runtime behavior with invalid type
       expect(() => parseAmount("42" as any)).toThrow("Ambiguous amount")
     })
 

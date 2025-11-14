@@ -16,8 +16,16 @@ import { fromHotConnect, Near } from "../src/index.js"
 // Uncomment to use in a real project:
 // import { NearConnector } from "@hot-labs/near-connect"
 
+// Type definitions for @hot-labs/near-connect (external dependency)
+// biome-ignore lint/suspicious/noExplicitAny: External library type not available
+declare const NearConnector: any
+type WalletSignInEvent = {
+  accounts: Array<{ accountId: string; publicKey: string }>
+}
+
 async function main() {
   // 1. Create HOT Connect connector
+  // biome-ignore lint/suspicious/noExplicitAny: External library type not available
   const connector = new (NearConnector as any)({
     network: "mainnet",
 
@@ -34,7 +42,7 @@ async function main() {
   })
 
   // 2. Listen for wallet events
-  connector.on("wallet:signIn", async (event: any) => {
+  connector.on("wallet:signIn", async (event: WalletSignInEvent) => {
     console.log("Wallet connected:", event.accounts[0].accountId)
 
     // 3. Create Near client with HOT Connect adapter

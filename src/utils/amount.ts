@@ -88,6 +88,8 @@ export function parseAmount(amount: AmountInput): string {
   // Parse "X NEAR" format (case insensitive)
   const nearMatch = trimmed.match(/^([\d.]+)\s+NEAR$/i)
   if (nearMatch) {
+    // Safe to use non-null assertion after match check
+    // biome-ignore lint/style/noNonNullAssertion: regex capture group guaranteed to exist when match succeeds
     const value = nearMatch[1]!
     return parseNearToYocto(value)
   }
@@ -95,6 +97,8 @@ export function parseAmount(amount: AmountInput): string {
   // Parse "X yocto" format
   const yoctoMatch = trimmed.match(/^(\d+)\s+yocto$/i)
   if (yoctoMatch) {
+    // Safe to use non-null assertion after match check
+    // biome-ignore lint/style/noNonNullAssertion: regex capture group guaranteed to exist when match succeeds
     return yoctoMatch[1]!
   }
 

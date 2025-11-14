@@ -278,7 +278,7 @@ describe("Near class with wallets", () => {
       // but we can verify wallet wasn't called
       try {
         await near.view("contract.testnet", "get_value", {})
-      } catch (error) {
+      } catch (_error) {
         // Expected to fail - no real RPC
       }
 

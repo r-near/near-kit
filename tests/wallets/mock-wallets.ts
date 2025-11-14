@@ -3,6 +3,7 @@
  */
 
 import type {
+  Action,
   FinalExecutionOutcome,
   SignedMessage,
   WalletAccount,
@@ -13,7 +14,7 @@ import type {
  */
 export class MockWalletSelector {
   private accounts: WalletAccount[]
-  private callLog: Array<{ method: string; params: any }> = []
+  private callLog: Array<{ method: string; params: unknown }> = []
 
   constructor(accounts: WalletAccount[] = []) {
     this.accounts = accounts
@@ -27,7 +28,7 @@ export class MockWalletSelector {
   async signAndSendTransaction(params: {
     signerId?: string
     receiverId: string
-    actions: any[]
+    actions: Action[]
   }): Promise<FinalExecutionOutcome> {
     this.callLog.push({ method: "signAndSendTransaction", params })
 
@@ -41,7 +42,7 @@ export class MockWalletSelector {
         public_key: "ed25519:...",
         nonce: 1,
         receiver_id: params.receiverId,
-        actions: params.actions as any,
+        actions: params.actions as unknown,
         signature: "ed25519:...",
         hash: "mock-tx-hash",
       },
@@ -95,7 +96,7 @@ export class MockWalletSelector {
  */
 export class MockHotConnect {
   private _wallet: MockHotConnectWallet
-  private callLog: Array<{ method: string; params: any }> = []
+  private callLog: Array<{ method: string; params: unknown }> = []
 
   constructor(accounts: WalletAccount[] = []) {
     this._wallet = new MockHotConnectWallet(accounts)
@@ -107,7 +108,7 @@ export class MockHotConnect {
   }
 
   // Event handlers (simplified for testing)
-  on(_event: string, _callback: Function) {
+  on(_event: string, _callback: (...args: never[]) => unknown) {
     // Mock implementation - not used in tests
   }
 
@@ -131,7 +132,7 @@ export class MockHotConnect {
  */
 class MockHotConnectWallet {
   private accounts: WalletAccount[]
-  private callLog: Array<{ method: string; params: any }> = []
+  private callLog: Array<{ method: string; params: unknown }> = []
 
   constructor(accounts: WalletAccount[] = []) {
     this.accounts = accounts
@@ -145,7 +146,7 @@ class MockHotConnectWallet {
   async signAndSendTransaction(params: {
     signerId?: string
     receiverId: string
-    actions: any[]
+    actions: Action[]
   }): Promise<FinalExecutionOutcome> {
     this.callLog.push({ method: "signAndSendTransaction", params })
 
@@ -159,7 +160,7 @@ class MockHotConnectWallet {
         public_key: "ed25519:...",
         nonce: 1,
         receiver_id: params.receiverId,
-        actions: params.actions as any,
+        actions: params.actions as unknown,
         signature: "ed25519:...",
         hash: "mock-tx-hash",
       },
@@ -224,7 +225,7 @@ export class MockWalletWithoutSignMessage {
   async signAndSendTransaction(params: {
     signerId?: string
     receiverId: string
-    actions: any[]
+    actions: Action[]
   }): Promise<FinalExecutionOutcome> {
     // Return a mock successful outcome in RPC format
     return {
@@ -236,7 +237,7 @@ export class MockWalletWithoutSignMessage {
         public_key: "ed25519:...",
         nonce: 1,
         receiver_id: params.receiverId,
-        actions: params.actions as any,
+        actions: params.actions as unknown,
         signature: "ed25519:...",
         hash: "mock-tx-hash",
       },

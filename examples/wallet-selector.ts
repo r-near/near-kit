@@ -16,13 +16,24 @@ import { fromWalletSelector, Near } from "../src/index.js"
 // import { setupModal } from "@near-wallet-selector/modal-ui"
 // import { setupMyNearWallet } from "@near-wallet-selector/my-near-wallet"
 
+// Type definitions for @near-wallet-selector (external dependencies)
+// biome-ignore lint/suspicious/noExplicitAny: External library type not available
+declare const setupWalletSelector: any
+// biome-ignore lint/suspicious/noExplicitAny: External library type not available
+declare const setupModal: any
+// biome-ignore lint/suspicious/noExplicitAny: External library type not available
+declare const setupMyNearWallet: any
+type WalletSelectorState = {
+  accounts: Array<{ accountId: string; publicKey: string }>
+}
+
 async function main() {
   // 1. Setup wallet selector with your preferred wallets
-  const selector = await (setupWalletSelector as any)({
+  const selector = await setupWalletSelector({
     network: "testnet",
     modules: [
       // Add wallet modules you want to support
-      (setupMyNearWallet as any)(),
+      setupMyNearWallet(),
       // setupMeteorWallet(),
       // setupHereWallet(),
       // etc.
@@ -30,7 +41,7 @@ async function main() {
   })
 
   // 2. Setup modal UI (optional but recommended)
-  const modal = (setupModal as any)(selector, {
+  const modal = setupModal(selector, {
     contractId: "guest-book.testnet",
   })
 
@@ -39,7 +50,7 @@ async function main() {
 
   // 4. Wait for user to sign in
   const unsubscribe = selector.store.observable.subscribe(
-    async (state: any) => {
+    async (state: WalletSelectorState) => {
       if (state.accounts.length > 0) {
         console.log("User signed in:", state.accounts[0].accountId)
 

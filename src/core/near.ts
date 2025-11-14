@@ -126,6 +126,8 @@ export class Near {
           "NO_WALLET_ACCOUNTS",
         )
       }
+      // Safe to use non-null assertion after length check
+      // biome-ignore lint/style/noNonNullAssertion: verified accounts[0] exists above
       return accounts[0]!.accountId
     }
 

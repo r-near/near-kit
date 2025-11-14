@@ -109,7 +109,7 @@ export class RpcClient {
     // Total attempts = 1 (initial) + maxRetries
     const totalAttempts = 1 + this.retryConfig.maxRetries
     for (let attempt = 0; attempt < totalAttempts; attempt++) {
-      try{
+      try {
         const response = await fetch(this.url, {
           method: "POST",
           headers: {

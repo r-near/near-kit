@@ -69,7 +69,6 @@ export class FileKeyStore implements KeyStore {
    */
   constructor(basePath = "~/.near-credentials", network?: Network) {
     // Expand home directory
-    // biome-ignore lint/complexity/useLiteralKeys: TypeScript requires bracket notation for process.env properties
     this.basePath = basePath.replace(
       /^~/,
       process.env["HOME"] || process.env["USERPROFILE"] || "",

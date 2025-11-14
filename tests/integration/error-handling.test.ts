@@ -90,7 +90,7 @@ describe("Error Handling - Access Key Errors", () => {
     expect(listResult.keys.length).toBeGreaterThan(0)
 
     // Now get one of the access keys
-    const publicKey = listResult.keys[0]!.public_key
+    const publicKey = listResult.keys[0]?.public_key
     const accessKey = await rpc.getAccessKey(accountId, publicKey)
     expect(accessKey).toBeDefined()
     expect(accessKey.nonce).toBeDefined()

@@ -63,9 +63,12 @@ export function parseGas(gas: GasInput | number): string {
   // Parse "X Tgas" format (case insensitive)
   const tgasMatch = trimmed.match(/^([\d.]+)\s+Tgas$/i)
   if (tgasMatch) {
+    // Safe to use non-null assertion after match check
+    // biome-ignore lint/style/noNonNullAssertion: regex capture group guaranteed to exist when match succeeds
     const tgas = parseFloat(tgasMatch[1]!)
     if (Number.isNaN(tgas) || tgas < 0) {
-      throw new Error(`Invalid Tgas value: ${tgasMatch[1]}`)
+      // biome-ignore lint/style/noNonNullAssertion: same capture group as above
+      throw new Error(`Invalid Tgas value: ${tgasMatch[1]!}`)
     }
     return BigInt(Math.floor(tgas * 1e12)).toString()
   }

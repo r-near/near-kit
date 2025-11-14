@@ -12,6 +12,25 @@
 
 import { Near, type WalletConnection } from "../src/index.js"
 
+// Type definitions for external wallet libraries (not included as dependencies)
+type WalletSelectorWallet = {
+  getAccounts(): Promise<Array<{ accountId: string; publicKey: string }>>
+  signAndSendTransaction(params: {
+    receiverId: string
+    actions: unknown[]
+  }): Promise<unknown>
+}
+
+type HotConnectConnector = {
+  wallet(): Promise<{
+    getAccounts(): Promise<Array<{ accountId: string; publicKey: string }>>
+    signAndSendTransaction(params: {
+      receiverId: string
+      actions: unknown[]
+    }): Promise<unknown>
+  }>
+}
+
 /**
  * Business logic function that works with ANY signing method
  * This is the same code whether running server-side or browser-side!
@@ -81,7 +100,7 @@ async function serverSideExample() {
 // ============================================================================
 // Example 2: Browser usage with wallet-selector
 // ============================================================================
-async function browserWalletSelectorExample(wallet: any) {
+async function browserWalletSelectorExample(wallet: WalletSelectorWallet) {
   console.log("\n=== Browser (Wallet Selector) Example ===\n")
 
   // Import adapter (you would do this at the top in real code)
@@ -104,7 +123,7 @@ async function browserWalletSelectorExample(wallet: any) {
 // ============================================================================
 // Example 3: Browser usage with HOT Connect
 // ============================================================================
-async function browserHotConnectExample(connector: any) {
+async function browserHotConnectExample(connector: HotConnectConnector) {
   console.log("\n=== Browser (HOT Connect) Example ===\n")
 
   // Import adapter (you would do this at the top in real code)

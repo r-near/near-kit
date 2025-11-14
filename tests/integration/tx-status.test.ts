@@ -128,16 +128,16 @@ describe("txStatus - EXPERIMENTAL_tx_status RPC Method", () => {
       .send()
 
     // Try to create the same account again (will fail)
-    let failedTxHash: string
+    let _failedTxHash: string
     try {
       const failResult = await near
         .transaction(sandbox.rootAccount.id)
         .createAccount(recipientId) // This will fail - account already exists
         .send()
 
-      failedTxHash = failResult.transaction.hash
+      _failedTxHash = failResult.transaction.hash
       throw new Error("Expected transaction to fail")
-    } catch (error: any) {
+    } catch (error: unknown) {
       // The transaction should fail during send()
       expect(error.name).toBe("InvalidTransactionError")
       expect(error.message).toContain("AccountAlreadyExists")

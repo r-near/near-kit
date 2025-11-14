@@ -8,6 +8,44 @@
 
 import type { WalletConnection } from "../core/types.js"
 
+// External wallet types (not imported to avoid peer dependencies)
+type WalletAccount = {
+  accountId: string
+  publicKey: string
+}
+
+type WalletSelectorWallet = {
+  getAccounts(): Promise<WalletAccount[]>
+  signAndSendTransaction(params: {
+    signerId?: string
+    receiverId: string
+    actions: unknown[]
+  }): Promise<unknown>
+  signMessage?(params: {
+    message: string
+    recipient: string
+    nonce: Uint8Array
+  }): Promise<unknown>
+}
+
+type HotConnectWallet = {
+  getAccounts(): Promise<WalletAccount[]>
+  signAndSendTransaction(params: {
+    signerId?: string
+    receiverId: string
+    actions: unknown[]
+  }): Promise<unknown>
+  signMessage?(params: {
+    message: string
+    recipient: string
+    nonce: Uint8Array
+  }): Promise<unknown>
+}
+
+type HotConnectConnector = {
+  wallet(): Promise<HotConnectWallet>
+}
+
 /**
  * Adapter for @near-wallet-selector/core
  *
@@ -34,11 +72,13 @@ import type { WalletConnection } from "../core/types.js"
  * })
  * ```
  */
-export function fromWalletSelector(wallet: any): WalletConnection {
+export function fromWalletSelector(
+  wallet: WalletSelectorWallet,
+): WalletConnection {
   return {
     async getAccounts() {
       const accounts = await wallet.getAccounts()
-      return accounts.map((acc: any) => ({
+      return accounts.map((acc) => ({
         accountId: acc.accountId,
         publicKey: acc.publicKey,
       }))
@@ -93,12 +133,14 @@ export function fromWalletSelector(wallet: any): WalletConnection {
  * })
  * ```
  */
-export function fromHotConnect(connector: any): WalletConnection {
+export function fromHotConnect(
+  connector: HotConnectConnector,
+): WalletConnection {
   return {
     async getAccounts() {
       const wallet = await connector.wallet()
       const accounts = await wallet.getAccounts()
-      return accounts.map((acc: any) => ({
+      return accounts.map((acc) => ({
         accountId: acc.accountId,
         publicKey: acc.publicKey,
       }))
