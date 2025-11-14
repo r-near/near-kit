@@ -6,7 +6,7 @@
 import { describe, expect, test } from "bun:test"
 import { RpcClient } from "../../src/core/rpc/rpc.js"
 import { TransactionBuilder } from "../../src/core/transaction.js"
-import { InMemoryKeyStore } from "../../src/keys/keystore.js"
+import { InMemoryKeyStore } from "../../src/keys/index.js"
 import { Amount } from "../../src/utils/amount.js"
 import { Gas } from "../../src/utils/gas.js"
 

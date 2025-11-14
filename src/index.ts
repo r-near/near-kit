@@ -37,11 +37,17 @@ export {
   TransactionTimeoutError,
   WalletError,
 } from "./errors/index.js"
+// Credential schemas and types
+export type {
+  LegacyCredential,
+  NearCliCredential,
+  Network,
+} from "./keys/index.js"
 // Key stores
 export {
-  EncryptedKeyStore,
   FileKeyStore,
   InMemoryKeyStore,
+  NativeKeyStore,
 } from "./keys/index.js"
 export type { SandboxOptions } from "./sandbox/index.js"
 // Sandbox

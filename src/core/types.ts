@@ -217,7 +217,15 @@ export type {
 export type { NearConfig } from "./config-schemas.js"
 
 export interface KeyStore {
-  add(accountId: string, key: KeyPair): Promise<void>
+  add(
+    accountId: string,
+    key: KeyPair,
+    options?: {
+      seedPhrase?: string
+      derivationPath?: string
+      implicitAccountId?: string
+    },
+  ): Promise<void>
   get(accountId: string): Promise<KeyPair | null>
   remove(accountId: string): Promise<void>
   list(): Promise<string[]>
