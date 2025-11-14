@@ -30,7 +30,6 @@ describe("Contract Failure Modes", () => {
     sandbox = await Sandbox.start()
     near = new Near({
       network: sandbox,
-      privateKey: sandbox.rootAccount.secretKey as PrivateKey,
     })
 
     // Deploy guestbook contract

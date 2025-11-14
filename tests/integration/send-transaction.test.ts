@@ -17,7 +17,6 @@ describe("sendTransaction - RPC Response Validation", () => {
     sandbox = await Sandbox.start()
     near = new Near({
       network: sandbox,
-      privateKey: sandbox.rootAccount.secretKey as PrivateKey,
     })
     console.log(`✓ Sandbox started at ${sandbox.rpcUrl}`)
   }, 120000)

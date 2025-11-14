@@ -62,9 +62,10 @@ export class Near {
     // Store wallet if provided
     this.wallet = validatedConfig.wallet
 
-    // Set up signer and add key to keyStore if privateKey provided
+    // Set up signer
     const signer = validatedConfig.signer
     const privateKey = validatedConfig.privateKey
+
     if (signer) {
       this.signer = signer
     } else if (privateKey) {
@@ -77,11 +78,25 @@ export class Near {
 
       // If network is a Sandbox-like object with rootAccount, add key to keyStore
       // Use original config.network (before validation) to preserve extra properties
-      const network = config["network"] as unknown
+      const network = config.network as unknown
       if (network && typeof network === "object" && "rootAccount" in network) {
         const rootAccount = (network as { rootAccount: { id: string } })
           .rootAccount
         void this.keyStore.add(rootAccount.id, keyPair)
+      }
+    }
+
+    // Auto-add sandbox root key to keyStore if available and no explicit signer/privateKey
+    // This enables simple usage like: new Near({ network: sandbox })
+    // while still allowing multi-account scenarios via keyStore
+    if (!signer && !privateKey) {
+      const network = config.network as unknown
+      if (network && typeof network === "object" && "rootAccount" in network) {
+        const rootAccount = network as {
+          rootAccount: { id: string; secretKey: string }
+        }
+        const keyPair = parseKey(rootAccount.rootAccount.secretKey)
+        void this.keyStore.add(rootAccount.rootAccount.id, keyPair)
       }
     }
   }
