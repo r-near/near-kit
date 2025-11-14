@@ -33,7 +33,6 @@ export const GAS_PER_TGAS = BigInt("1000000000000")
 // ==================== Gas Defaults ====================
 
 export const DEFAULT_FUNCTION_CALL_GAS = "30000000000000" // 30 TGas
-export const DEFAULT_GAS_BUFFER = 1.2 // 20% buffer for auto gas estimation
 
 // ==================== Account ID Validation ====================
 

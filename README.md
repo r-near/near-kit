@@ -1,4 +1,4 @@
-# @near/client
+# near-kit
 
 A simple, intuitive TypeScript library for interacting with NEAR Protocol. Designed to feel like a modern fetch library - easy for beginners, powerful for advanced users.
 
@@ -13,15 +13,15 @@ A simple, intuitive TypeScript library for interacting with NEAR Protocol. Desig
 ## Installation
 
 ```bash
-npm install @near/client
+npm install near-kit
 # or
-bun install @near/client
+bun install near-kit
 ```
 
 ## Quick Start
 
 ```typescript
-import { Near } from '@near/client';
+import { Near } from 'near-kit';
 
 // Initialize client (defaults to mainnet)
 const near = new Near({ network: 'testnet' });
@@ -51,7 +51,6 @@ const near = new Near({ network: 'testnet' });
 const near = new Near({
   network: 'testnet',
   privateKey: 'ed25519:...',
-  autoGas: true,
 });
 ```
 
@@ -121,7 +120,7 @@ const [balance, status, exists] = await near.batch(
 ## Local Testing with Sandbox
 
 ```typescript
-import { Sandbox } from '@near/client';
+import { Sandbox } from 'near-kit';
 
 const sandbox = await Sandbox.start();
 const near = new Near({ network: sandbox });
@@ -141,7 +140,7 @@ afterAll(async () => { await sandbox.stop(); });
 ## Key Management
 
 ```typescript
-import { InMemoryKeyStore, FileKeyStore } from '@near/client';
+import { InMemoryKeyStore, FileKeyStore } from 'near-kit';
 
 // In-memory (runtime only)
 const near = new Near({
@@ -166,7 +165,7 @@ import {
   formatGas,
   generateKey,
   isValidAccountId,
-} from '@near/client';
+} from 'near-kit';
 
 // Unit conversion
 const yocto = parseNearAmount('10 NEAR'); // "10000000000000000000000000"
@@ -190,7 +189,7 @@ import {
   InsufficientBalanceError,
   FunctionCallError,
   NetworkError,
-} from '@near/client';
+} from 'near-kit';
 
 try {
   await near.call('contract.near', 'method', {});

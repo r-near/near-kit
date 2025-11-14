@@ -140,14 +140,6 @@ describe("Near Config Schema", () => {
     })
   })
 
-  test("should accept config with autoGas", () => {
-    const configTrue = NearConfigSchema.parse({ autoGas: true })
-    const configFalse = NearConfigSchema.parse({ autoGas: false })
-
-    expect(configTrue.autoGas).toBe(true)
-    expect(configFalse.autoGas).toBe(false)
-  })
-
   test("should accept config with keyStore as string", () => {
     const config = NearConfigSchema.parse({
       keyStore: "~/.near-credentials",
@@ -242,14 +234,6 @@ describe("Near Constructor", () => {
     expect(near).toBeInstanceOf(Near)
   })
 
-  test("should create instance with autoGas disabled", () => {
-    const near = new Near({
-      autoGas: false,
-    })
-
-    expect(near).toBeInstanceOf(Near)
-  })
-
   test("should create instance with in-memory keystore", () => {
     const near = new Near({
       keyStore: {
@@ -302,13 +286,11 @@ describe("Config Validation Edge Cases", () => {
       network: "testnet",
       rpcUrl: "https://custom.example.com",
       headers: { "X-Test": "value" },
-      autoGas: false,
     })
 
     expect(config.network).toBe("testnet")
     expect(config.rpcUrl).toBe("https://custom.example.com")
     expect(config.headers).toEqual({ "X-Test": "value" })
-    expect(config.autoGas).toBe(false)
   })
 
   test("should preserve unknown fields in keyStore object", () => {

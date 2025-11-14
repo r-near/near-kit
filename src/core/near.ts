@@ -22,7 +22,6 @@ export class Near {
   private signer?: Signer
   private _networkId: string
   private defaultSignerId?: string
-  private _autoGas: boolean
 
   constructor(config: NearConfig = {}) {
     // Validate configuration
@@ -52,8 +51,6 @@ export class Near {
 
       this.signer = async (message: Uint8Array) => keyPair.sign(message)
     }
-
-    this._autoGas = validatedConfig.autoGas ?? true
   }
 
   /**

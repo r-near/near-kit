@@ -314,7 +314,7 @@ async function runInit(binaryPath: string, homeDir: string): Promise<void> {
             "To fix on macOS:\n" +
             "  sudo launchctl limit maxfiles 65536 200000\n\n" +
             "For Docker, add: --ulimit nofile=65535:65535\n\n" +
-            "See: https://github.com/near/near-ts/blob/main/src/sandbox/README.md"
+            "See: https://github.com/r-near/near-kit/blob/main/src/sandbox/README.md"
         }
 
         reject(new Error(errorMsg))

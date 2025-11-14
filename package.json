@@ -1,5 +1,5 @@
 {
-  "name": "@near/client",
+  "name": "near-kit",
   "version": "0.1.0",
   "description": "A simple, intuitive TypeScript library for interacting with NEAR Protocol",
   "type": "module",

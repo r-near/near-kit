@@ -74,7 +74,6 @@ export const NearConfigSchema = z.object({
   keyStore: KeyStoreConfigSchema.optional(),
   signer: SignerSchema.optional(),
   privateKey: z.union([z.string(), z.instanceof(Uint8Array)]).optional(),
-  autoGas: z.boolean().optional(),
 })
 
 export type NearConfig = z.infer<typeof NearConfigSchema>

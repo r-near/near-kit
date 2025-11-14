@@ -9,11 +9,6 @@ const estimate = await near.estimateGas(
     .functionCall('market.near', 'list', { price: '100' })
 );
 // Returns: { total: '45 Tgas', breakdown: [...] }
-
-// Auto gas estimation (default on)
-const near = new Near({ 
-  autoGas: true  // automatically estimates and adds 20% buffer
-});
 ```
 
 ## Error handling
@@ -89,7 +84,6 @@ const near = new Near({
   rpcUrl?: string,
   archivalRpcUrl?: string,
   headers?: Record<string, string>,
-  autoGas?: boolean,  // default: true
   readOnly?: boolean
 });
 ```
@@ -369,7 +363,7 @@ interface SimulationResult {
 
 ### Gas Handling
 - Accept human-readable gas ("30 Tgas") or raw numbers
-- Default to auto-estimation with 20% buffer
+- Default to 30 TGas for function calls
 - Allow manual override
 
 ### Network Defaults
@@ -473,7 +467,7 @@ assert(balance === '1000');
 ## Package Structure
 
 ```
-@near/client
+near-kit
 ├── core/           # Core client implementation
 ├── contracts/      # Contract interface helpers
 ├── wallets/        # Wallet integrations
