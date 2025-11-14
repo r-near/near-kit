@@ -87,6 +87,51 @@ export type {
 import type { Action } from "./schema.js"
 export type { Action }
 
+/**
+ * Transaction execution status levels for wait_until parameter.
+ *
+ * Determines when the RPC should return a response after submitting a transaction:
+ *
+ * - **NONE**: Don't wait - returns immediately after basic validation (transaction structure is valid)
+ * - **INCLUDED**: Wait until transaction is included in a block (signature validated, nonce updated, converted to receipt)
+ * - **EXECUTED_OPTIMISTIC**: Wait until transaction execution completes (default - fast, works well for sandbox/testnet)
+ * - **INCLUDED_FINAL**: Wait until the block containing the transaction is finalized
+ * - **EXECUTED**: Wait until both INCLUDED_FINAL and EXECUTED_OPTIMISTIC conditions are met
+ * - **FINAL**: Wait until the block with the last non-refund receipt is finalized (full finality guarantee)
+ *
+ * @see {@link https://docs.near.org/api/rpc/transactions#send-transaction-await NEAR RPC Documentation}
+ */
+export type TxExecutionStatus =
+  | "NONE"
+  | "INCLUDED"
+  | "EXECUTED_OPTIMISTIC"
+  | "INCLUDED_FINAL"
+  | "EXECUTED"
+  | "FINAL"
+
+/**
+ * Options for sending a transaction
+ */
+export interface SendOptions {
+  /**
+   * Controls when the RPC returns after submitting the transaction.
+   *
+   * **Execution Flow:**
+   *
+   * 1. **NONE**: Transaction validated (structure check only) - no execution started
+   * 2. **INCLUDED**: Transaction included in block, signature validated, nonce updated, receipt created - execution started
+   * 3. **EXECUTED_OPTIMISTIC**: All receipts executed (may include cross-contract calls) - execution complete
+   * 4. **INCLUDED_FINAL**: Block with transaction is finalized
+   * 5. **EXECUTED**: Both INCLUDED_FINAL + EXECUTED_OPTIMISTIC
+   * 6. **FINAL**: Block with last non-refund receipt is finalized
+   *
+   * **Note:** INCLUDED_FINAL may resolve before or after EXECUTED_OPTIMISTIC depending on execution time.
+   *
+   * @default "EXECUTED_OPTIMISTIC"
+   */
+  waitUntil?: TxExecutionStatus
+}
+
 export interface Transaction {
   signerId: string
   publicKey: PublicKey

@@ -22,10 +22,12 @@ import type {
   Action,
   FinalExecutionOutcome,
   KeyStore,
+  SendOptions,
   SignedTransaction,
   Signer,
   SimulationResult,
   Transaction,
+  TxExecutionStatus,
 } from "./types.js"
 
 /**
@@ -68,12 +70,14 @@ export class TransactionBuilder {
   private rpc: RpcClient
   private keyStore: KeyStore
   private _signer?: Signer
+  private defaultWaitUntil: TxExecutionStatus
 
   constructor(
     signerId: string,
     rpc: RpcClient,
     keyStore: KeyStore,
     signer?: Signer,
+    defaultWaitUntil: TxExecutionStatus = "EXECUTED_OPTIMISTIC",
   ) {
     this.signerId = signerId
     this.actions = []
@@ -82,6 +86,7 @@ export class TransactionBuilder {
     if (signer !== undefined) {
       this._signer = signer
     }
+    this.defaultWaitUntil = defaultWaitUntil
   }
 
   /**
@@ -263,8 +268,23 @@ export class TransactionBuilder {
 
   /**
    * Sign and send the transaction
+   *
+   * @param options - Optional configuration for sending the transaction
+   * @param options.waitUntil - Controls when the RPC returns after submitting the transaction
+   * @returns Promise resolving to the final execution outcome
+   *
+   * @example
+   * ```typescript
+   * // Use default wait until
+   * await near.transaction(account).transfer(receiver, "1 NEAR").send()
+   *
+   * // Wait for full finality
+   * await near.transaction(account)
+   *   .transfer(receiver, "1 NEAR")
+   *   .send({ waitUntil: "FINAL" })
+   * ```
    */
-  async send(): Promise<FinalExecutionOutcome> {
+  async send(options?: SendOptions): Promise<FinalExecutionOutcome> {
     const transaction = await this.build()
 
     // Serialize transaction using Borsh
@@ -295,8 +315,11 @@ export class TransactionBuilder {
     // Serialize signed transaction using Borsh
     const signedSerialized = serializeSignedTransaction(signedTx)
 
+    // Determine waitUntil - use option if provided, otherwise use default
+    const waitUntil = options?.waitUntil ?? this.defaultWaitUntil
+
     // Send to network
-    const result = await this.rpc.sendTransaction(signedSerialized)
+    const result = await this.rpc.sendTransaction(signedSerialized, waitUntil)
 
     return result as FinalExecutionOutcome
   }

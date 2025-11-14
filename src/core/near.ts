@@ -14,7 +14,7 @@ import {
 } from "./config-schemas.js"
 import { RpcClient } from "./rpc/rpc.js"
 import { TransactionBuilder } from "./transaction.js"
-import type { CallOptions, KeyStore, Signer } from "./types.js"
+import type { CallOptions, KeyStore, Signer, TxExecutionStatus } from "./types.js"
 
 export class Near {
   private rpc: RpcClient
@@ -22,6 +22,7 @@ export class Near {
   private signer?: Signer
   private _networkId: string
   private defaultSignerId?: string
+  private defaultWaitUntil: TxExecutionStatus
 
   constructor(config: NearConfig = {}) {
     // Validate configuration
@@ -37,6 +38,9 @@ export class Near {
 
     // Initialize key store
     this.keyStore = this.resolveKeyStore(validatedConfig.keyStore)
+
+    // Initialize default wait until
+    this.defaultWaitUntil = validatedConfig.defaultWaitUntil || "EXECUTED_OPTIMISTIC"
 
     // Set up signer and add key to keyStore if privateKey provided
     const signer = validatedConfig["signer"]
@@ -223,6 +227,7 @@ export class Near {
       this.rpc,
       this.keyStore,
       this.signer,
+      this.defaultWaitUntil,
     )
   }
 

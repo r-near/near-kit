@@ -65,6 +65,18 @@ export const KeyStoreConfigSchema = z.union([
 export const SignerSchema = z.any() // Function schema validation - simplified
 
 /**
+ * Schema for transaction execution status
+ */
+export const TxExecutionStatusSchema = z.enum([
+  "NONE",
+  "INCLUDED",
+  "EXECUTED_OPTIMISTIC",
+  "INCLUDED_FINAL",
+  "EXECUTED",
+  "FINAL",
+])
+
+/**
  * Schema for NEAR client configuration
  */
 export const NearConfigSchema = z.object({
@@ -74,6 +86,7 @@ export const NearConfigSchema = z.object({
   keyStore: KeyStoreConfigSchema.optional(),
   signer: SignerSchema.optional(),
   privateKey: z.union([z.string(), z.instanceof(Uint8Array)]).optional(),
+  defaultWaitUntil: TxExecutionStatusSchema.optional(),
 })
 
 export type NearConfig = z.infer<typeof NearConfigSchema>

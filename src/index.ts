@@ -16,8 +16,10 @@ export type {
   NearConfig,
   NetworkConfig,
   PublicKey,
+  SendOptions,
   Signature,
   SimulationResult,
+  TxExecutionStatus,
   WalletSignInOptions,
 } from "./core/types.js"
 // Errors
