@@ -413,6 +413,26 @@ export class RpcClient {
         )
       }
 
+      // Helper function to extract panic message from FunctionCallError
+      const extractPanicMessage = (failureObj: any): string | undefined => {
+        const functionCallError =
+          failureObj.ActionError?.kind?.FunctionCallError ||
+          failureObj.FunctionCallError
+
+        if (!functionCallError) return undefined
+
+        // Extract from ExecutionError or HostError
+        if (typeof functionCallError.ExecutionError === 'string') {
+          return functionCallError.ExecutionError
+        }
+        if (typeof functionCallError.HostError === 'string') {
+          return functionCallError.HostError
+        }
+
+        // Fallback to stringified error
+        return JSON.stringify(functionCallError)
+      }
+
       // Check transaction_outcome first (direct contract failures without cross-contract calls)
       if (
         typeof parsed.transaction_outcome.outcome.status === "object" &&
@@ -432,7 +452,10 @@ export class RpcClient {
             ? functionCallAction.FunctionCall.method_name
             : undefined
 
-          throw new FunctionCallError(contractId, methodName, errorMessage, logs)
+          // Extract actual panic message from nested FunctionCallError
+          const panicMessage = extractPanicMessage(outcomeFailure)
+
+          throw new FunctionCallError(contractId, methodName, panicMessage, logs)
         }
       }
 
@@ -456,7 +479,10 @@ export class RpcClient {
             ? functionCallAction.FunctionCall.method_name
             : undefined
 
-          throw new FunctionCallError(contractId, methodName, errorMessage, logs)
+          // Extract actual panic message from nested FunctionCallError
+          const panicMessage = extractPanicMessage(receiptFailure)
+
+          throw new FunctionCallError(contractId, methodName, panicMessage, logs)
         }
       }
 
