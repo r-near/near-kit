@@ -400,13 +400,14 @@ export class RpcClient {
     const parsed = FinalExecutionOutcomeSchema.parse(result)
 
     // Check if transaction execution failed and throw appropriate error
-    if ("Failure" in parsed.status) {
+    // Status can be "Unknown", "Pending", or an object with SuccessValue/SuccessReceiptId/Failure
+    if (typeof parsed.status === "object" && "Failure" in parsed.status) {
       const failure = parsed.status.Failure
       const errorMessage = failure.error_message || failure.error_type || "Transaction execution failed"
 
       // Check if this is a function call error by looking at receipts
       const failedReceipt = parsed.receipts_outcome.find(
-        receipt => "Failure" in receipt.outcome.status
+        receipt => typeof receipt.outcome.status === "object" && "Failure" in receipt.outcome.status
       )
 
       if (failedReceipt) {
