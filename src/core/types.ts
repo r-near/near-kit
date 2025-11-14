@@ -148,34 +148,34 @@ export interface SignedTransaction {
 
 // ==================== Execution Outcomes ====================
 
-export type ExecutionStatus =
-  | { type: "Unknown" }
-  | { type: "Pending" }
-  | { type: "Failure"; error: string }
-  | { type: "SuccessValue"; value: string }
-  | { type: "SuccessReceiptId"; receiptId: string }
+/**
+ * Transaction execution types inferred from validated RPC schemas
+ *
+ * These types match the actual RPC response format and provide runtime validation.
+ *
+ * - ExecutionStatus: Status of transaction/receipt execution (SuccessValue, SuccessReceiptId, or Failure)
+ * - ExecutionOutcome: Details of transaction execution including gas, logs, and status
+ * - ExecutionOutcomeWithId: Execution outcome with transaction/receipt ID and block info
+ * - FinalExecutionOutcome: Complete transaction result including all receipts
+ * - FinalExecutionOutcomeWithReceipts: Extended outcome with full receipt details (from EXPERIMENTAL_tx_status)
+ *
+ * @see {@link https://docs.near.org/api/rpc/transactions NEAR RPC Transaction Documentation}
+ */
+export type {
+  ExecutionMetadata,
+  ExecutionOutcome,
+  ExecutionOutcomeWithId,
+  ExecutionStatus,
+  FinalExecutionOutcome,
+  FinalExecutionOutcomeWithReceipts,
+  MerklePathItem,
+  Receipt,
+  RpcAction,
+  RpcTransaction,
+} from "./rpc/rpc-schemas.js"
 
-export interface ExecutionOutcome {
-  logs: string[]
-  receipt_ids: string[]
-  gas_burnt: bigint
-  tokens_burnt: string
-  executor_id: string
-  status: ExecutionStatus
-}
-
-export interface ExecutionOutcomeWithId {
-  id: string
-  outcome: ExecutionOutcome
-  block_hash: string
-}
-
-export interface FinalExecutionOutcome {
-  status: ExecutionStatus
-  transaction: Transaction
-  transaction_outcome: ExecutionOutcomeWithId
-  receipts_outcome: ExecutionOutcomeWithId[]
-}
+// Import for use in this file
+import type { FinalExecutionOutcome } from "./rpc/rpc-schemas.js"
 
 export interface SimulationResult {
   outcome: FinalExecutionOutcome

@@ -346,9 +346,7 @@ export class TransactionBuilder {
     const waitUntil = options?.waitUntil ?? this.defaultWaitUntil
 
     // Send to network
-    const result = await this.rpc.sendTransaction(signedSerialized, waitUntil)
-
-    return result as FinalExecutionOutcome
+    return await this.rpc.sendTransaction(signedSerialized, waitUntil)
   }
 
   /**

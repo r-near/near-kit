@@ -29,6 +29,7 @@ import {
 import type {
   AccessKeyView,
   AccountView,
+  FinalExecutionOutcome,
   GasPriceResponse,
   StatusResponse,
   TxExecutionStatus,
@@ -37,6 +38,7 @@ import type {
 import {
   AccessKeyViewSchema,
   AccountViewSchema,
+  FinalExecutionOutcomeSchema,
   GasPriceResponseSchema,
   RpcErrorResponseSchema,
   StatusResponseSchema,
@@ -387,13 +389,15 @@ export class RpcClient {
   async sendTransaction(
     signedTransaction: Uint8Array,
     waitUntil: TxExecutionStatus = "EXECUTED_OPTIMISTIC",
-  ): Promise<unknown> {
+  ): Promise<FinalExecutionOutcome> {
     const base64Encoded = base64.encode(signedTransaction)
     // Use send_tx with wait_until parameter instead of deprecated broadcast_tx_commit
-    return this.call("send_tx", {
+    const result = await this.call("send_tx", {
       signed_tx_base64: base64Encoded,
       wait_until: waitUntil,
     })
+
+    return FinalExecutionOutcomeSchema.parse(result)
   }
 
   async getStatus(): Promise<StatusResponse> {

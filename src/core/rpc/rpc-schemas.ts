@@ -161,6 +161,202 @@ export const RpcErrorResponseSchema = z.object({
     .optional(),
 })
 
+// ==================== Transaction Schemas ====================
+
+/**
+ * Transaction execution status enum
+ */
+export const TxExecutionStatusSchema = z.enum([
+  "NONE",
+  "INCLUDED",
+  "EXECUTED_OPTIMISTIC",
+  "INCLUDED_FINAL",
+  "EXECUTED",
+  "FINAL",
+])
+
+/**
+ * Execution status - can be success with value/receipt or failure
+ */
+export const ExecutionStatusSchema = z.union([
+  z.object({ SuccessValue: z.string() }),
+  z.object({ SuccessReceiptId: z.string() }),
+  z.object({
+    Failure: z.object({
+      error_message: z.string().optional(),
+      error_type: z.string().optional(),
+    }).catchall(z.any()),
+  }),
+])
+
+/**
+ * Gas profile entry (for metadata)
+ */
+export const GasProfileEntrySchema = z.object({
+  cost: z.string().optional(),
+  cost_category: z.string().optional(),
+  gas_used: z.string().optional(),
+}).catchall(z.any())
+
+/**
+ * Execution metadata
+ */
+export const ExecutionMetadataSchema = z.object({
+  version: z.number(),
+  gas_profile: z.array(GasProfileEntrySchema).nullable().optional(),
+})
+
+/**
+ * Execution outcome
+ */
+export const ExecutionOutcomeSchema = z.object({
+  logs: z.array(z.string()),
+  receipt_ids: z.array(z.string()),
+  gas_burnt: z.number(),
+  tokens_burnt: z.string(),
+  executor_id: z.string(),
+  status: ExecutionStatusSchema,
+  metadata: ExecutionMetadataSchema.optional(),
+})
+
+/**
+ * Merkle path item for cryptographic proofs
+ */
+export const MerklePathItemSchema = z.object({
+  hash: z.string(),
+  direction: z.enum(["Left", "Right"]),
+})
+
+/**
+ * Execution outcome with ID (used in transaction results)
+ */
+export const ExecutionOutcomeWithIdSchema = z.object({
+  id: z.string(),
+  outcome: ExecutionOutcomeSchema,
+  block_hash: z.string(),
+  proof: z.array(MerklePathItemSchema),
+})
+
+/**
+ * Action schemas - matches RPC response format
+ */
+export const ActionSchema = z.union([
+  z.literal("CreateAccount"),
+  z.object({ Transfer: z.object({ deposit: z.string() }) }),
+  z.object({
+    FunctionCall: z.object({
+      method_name: z.string(),
+      args: z.string(),
+      gas: z.number(),
+      deposit: z.string(),
+    }),
+  }),
+  z.object({
+    DeployContract: z.object({
+      code: z.string(), // base64 encoded
+    }),
+  }),
+  z.object({
+    Stake: z.object({
+      stake: z.string(),
+      public_key: z.string(),
+    }),
+  }),
+  z.object({
+    AddKey: z.object({
+      public_key: z.string(),
+      access_key: z.object({
+        nonce: z.number(),
+        permission: AccessKeyPermissionSchema,
+      }),
+    }),
+  }),
+  z.object({
+    DeleteKey: z.object({
+      public_key: z.string(),
+    }),
+  }),
+  z.object({
+    DeleteAccount: z.object({
+      beneficiary_id: z.string(),
+    }),
+  }),
+  z.object({
+    Delegate: z.object({
+      delegate_action: z.object({
+        sender_id: z.string(),
+        receiver_id: z.string(),
+        actions: z.array(z.any()),
+        nonce: z.number(),
+        max_block_height: z.number(),
+        public_key: z.string(),
+      }),
+      signature: z.string(),
+    }),
+  }),
+])
+
+/**
+ * Transaction schema (as returned by RPC)
+ */
+export const TransactionSchema = z.object({
+  signer_id: z.string(),
+  public_key: z.string(),
+  nonce: z.number(),
+  receiver_id: z.string(),
+  actions: z.array(ActionSchema),
+  signature: z.string(),
+  hash: z.string(),
+  priority_fee: z.number().optional(),
+})
+
+/**
+ * Final execution outcome schema - the response from send_tx
+ */
+export const FinalExecutionOutcomeSchema = z.object({
+  final_execution_status: TxExecutionStatusSchema,
+  status: ExecutionStatusSchema,
+  transaction: TransactionSchema,
+  transaction_outcome: ExecutionOutcomeWithIdSchema,
+  receipts_outcome: z.array(ExecutionOutcomeWithIdSchema),
+})
+
+/**
+ * Receipt schema (for EXPERIMENTAL_tx_status)
+ */
+export const ReceiptSchema = z.object({
+  predecessor_id: z.string(),
+  receiver_id: z.string(),
+  receipt_id: z.string(),
+  receipt: z.union([
+    z.object({
+      Action: z.object({
+        signer_id: z.string(),
+        signer_public_key: z.string(),
+        gas_price: z.string(),
+        output_data_receivers: z.array(z.any()),
+        input_data_ids: z.array(z.string()),
+        actions: z.array(ActionSchema),
+        is_promise_yield: z.boolean().optional(),
+      }),
+    }),
+    z.object({
+      Data: z.object({
+        data_id: z.string(),
+        data: z.string().nullable().optional(),
+      }),
+    }),
+  ]),
+  priority: z.number().optional(),
+})
+
+/**
+ * Final execution outcome with receipts (EXPERIMENTAL_tx_status response)
+ */
+export const FinalExecutionOutcomeWithReceiptsSchema = FinalExecutionOutcomeSchema.extend({
+  receipts: z.array(ReceiptSchema),
+})
+
 // ==================== Type Inference ====================
 
 /**
@@ -180,3 +376,20 @@ export type StatusResponse = z.infer<typeof StatusResponseSchema>
 export type GasPriceResponse = z.infer<typeof GasPriceResponseSchema>
 export type AccessKeyListResponse = z.infer<typeof AccessKeyListResponseSchema>
 export type RpcErrorResponse = z.infer<typeof RpcErrorResponseSchema>
+
+/**
+ * Transaction-related types
+ */
+export type TxExecutionStatus = z.infer<typeof TxExecutionStatusSchema>
+export type ExecutionStatus = z.infer<typeof ExecutionStatusSchema>
+export type ExecutionMetadata = z.infer<typeof ExecutionMetadataSchema>
+export type ExecutionOutcome = z.infer<typeof ExecutionOutcomeSchema>
+export type MerklePathItem = z.infer<typeof MerklePathItemSchema>
+export type ExecutionOutcomeWithId = z.infer<typeof ExecutionOutcomeWithIdSchema>
+export type RpcAction = z.infer<typeof ActionSchema>
+export type RpcTransaction = z.infer<typeof TransactionSchema>
+export type FinalExecutionOutcome = z.infer<typeof FinalExecutionOutcomeSchema>
+export type Receipt = z.infer<typeof ReceiptSchema>
+export type FinalExecutionOutcomeWithReceipts = z.infer<
+  typeof FinalExecutionOutcomeWithReceiptsSchema
+>
