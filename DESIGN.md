@@ -473,7 +473,7 @@ assert(balance === '1000');
 ## Package Structure
 
 ```
-@near/client
+near-kit
 ├── core/           # Core client implementation
 ├── contracts/      # Contract interface helpers
 ├── wallets/        # Wallet integrations

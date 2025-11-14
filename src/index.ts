@@ -1,5 +1,5 @@
 /**
- * @near/client - A simple, intuitive TypeScript library for interacting with NEAR Protocol
+ * near-kit - A simple, intuitive TypeScript library for interacting with NEAR Protocol
  */
 
 // Main class

@@ -1,5 +1,5 @@
 /**
- * Basic usage examples for @near/client
+ * Basic usage examples for near-kit
  */
 
 import { Near } from "../src/index.js"

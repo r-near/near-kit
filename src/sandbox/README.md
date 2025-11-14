@@ -11,7 +11,7 @@ Local NEAR blockchain for testing.
 ## Usage
 
 ```typescript
-import { Near, Sandbox } from '@near/client';
+import { Near, Sandbox } from 'near-kit';
 
 const sandbox = await Sandbox.start();
 const near = new Near({ network: sandbox });
