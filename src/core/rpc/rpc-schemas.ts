@@ -486,3 +486,43 @@ export type FinalExecutionOutcomeMap = {
   >
   FINAL: Extract<FinalExecutionOutcome, { final_execution_status: "FINAL" }>
 }
+
+/**
+ * Mapped type for looking up the specific FinalExecutionOutcomeWithReceipts variant based on wait mode.
+ * This enables precise type inference when using waitUntil parameter with EXPERIMENTAL_tx_status.
+ *
+ * @example
+ * ```typescript
+ * type NoneResult = FinalExecutionOutcomeWithReceiptsMap["NONE"]
+ * // { final_execution_status: "NONE"; receipts: Receipt[] }
+ *
+ * type FinalResult = FinalExecutionOutcomeWithReceiptsMap["FINAL"]
+ * // { final_execution_status: "FINAL"; status: ...; transaction: ...; receipts: Receipt[]; ... }
+ * ```
+ */
+export type FinalExecutionOutcomeWithReceiptsMap = {
+  NONE: Extract<
+    FinalExecutionOutcomeWithReceipts,
+    { final_execution_status: "NONE" }
+  >
+  INCLUDED: Extract<
+    FinalExecutionOutcomeWithReceipts,
+    { final_execution_status: "INCLUDED" }
+  >
+  INCLUDED_FINAL: Extract<
+    FinalExecutionOutcomeWithReceipts,
+    { final_execution_status: "INCLUDED_FINAL" }
+  >
+  EXECUTED_OPTIMISTIC: Extract<
+    FinalExecutionOutcomeWithReceipts,
+    { final_execution_status: "EXECUTED_OPTIMISTIC" }
+  >
+  EXECUTED: Extract<
+    FinalExecutionOutcomeWithReceipts,
+    { final_execution_status: "EXECUTED" }
+  >
+  FINAL: Extract<
+    FinalExecutionOutcomeWithReceipts,
+    { final_execution_status: "FINAL" }
+  >
+}

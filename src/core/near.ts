@@ -339,6 +339,62 @@ export class Near {
   }
 
   /**
+   * Get transaction status with detailed receipt information
+   *
+   * Queries the status of a transaction by hash using the EXPERIMENTAL_tx_status RPC method,
+   * returning the final transaction result with detailed receipt information.
+   *
+   * @param txHash - Transaction hash to query
+   * @param senderAccountId - Account ID that sent the transaction (used to determine shard)
+   * @param waitUntil - Optional execution level to wait for (default: "EXECUTED_OPTIMISTIC")
+   *
+   * @returns Transaction status with receipts, typed based on waitUntil parameter
+   *
+   * @throws {InvalidTransactionError} If transaction execution failed
+   * @throws {NetworkError} If network request failed
+   *
+   * @example
+   * ```typescript
+   * // Get transaction status with default wait level
+   * const status = await near.txStatus(
+   *   '7AfonAhbK4ZbdBU9VPcQdrTZVZBXE25HmZAMEABs9To1',
+   *   'alice.near'
+   * )
+   *
+   * // Wait for full finality
+   * const finalStatus = await near.txStatus(
+   *   '7AfonAhbK4ZbdBU9VPcQdrTZVZBXE25HmZAMEABs9To1',
+   *   'alice.near',
+   *   'FINAL'
+   * )
+   *
+   * // Access receipt details
+   * console.log('Receipts:', finalStatus.receipts)
+   * ```
+   *
+   * @see {@link https://docs.near.org/api/rpc/transactions#transaction-status-with-receipts NEAR RPC Documentation}
+   */
+  async txStatus<
+    W extends
+      | "NONE"
+      | "INCLUDED"
+      | "EXECUTED_OPTIMISTIC"
+      | "INCLUDED_FINAL"
+      | "EXECUTED"
+      | "FINAL" = "EXECUTED_OPTIMISTIC",
+  >(
+    txHash: string,
+    senderAccountId: string,
+    waitUntil?: W,
+  ): Promise<
+    W extends keyof import("./rpc/rpc-schemas.js").FinalExecutionOutcomeWithReceiptsMap
+      ? import("./rpc/rpc-schemas.js").FinalExecutionOutcomeWithReceiptsMap[W]
+      : never
+  > {
+    return this.rpc.getTransactionStatus(txHash, senderAccountId, waitUntil)
+  }
+
+  /**
    * Get network status
    */
   async getStatus(): Promise<{

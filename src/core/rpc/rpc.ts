@@ -15,6 +15,8 @@ import type {
   AccountView,
   FinalExecutionOutcome,
   FinalExecutionOutcomeMap,
+  FinalExecutionOutcomeWithReceipts,
+  FinalExecutionOutcomeWithReceiptsMap,
   GasPriceResponse,
   StatusResponse,
   ViewFunctionCallResult,
@@ -29,6 +31,7 @@ import {
   AccessKeyViewSchema,
   AccountViewSchema,
   FinalExecutionOutcomeSchema,
+  FinalExecutionOutcomeWithReceiptsSchema,
   GasPriceResponseSchema,
   StatusResponseSchema,
   ViewFunctionCallResultSchema,
@@ -275,6 +278,92 @@ export class RpcClient {
     // Safe cast: TypeScript guarantees W is a valid key, Zod validates the structure,
     // and waitUntil determines which variant we get from the RPC
     return parsed as FinalExecutionOutcomeMap[W]
+  }
+
+  async getTransactionStatus<
+    W extends
+      keyof FinalExecutionOutcomeWithReceiptsMap = "EXECUTED_OPTIMISTIC",
+  >(
+    txHash: string,
+    senderAccountId: string,
+    waitUntil?: W,
+  ): Promise<FinalExecutionOutcomeWithReceiptsMap[W]> {
+    const actualWaitUntil = (waitUntil ?? "EXECUTED_OPTIMISTIC") as W
+
+    // Call EXPERIMENTAL_tx_status with wait_until parameter
+    const result = await this.call("EXPERIMENTAL_tx_status", {
+      tx_hash: txHash,
+      sender_account_id: senderAccountId,
+      wait_until: actualWaitUntil,
+    })
+
+    const parsed: FinalExecutionOutcomeWithReceipts =
+      FinalExecutionOutcomeWithReceiptsSchema.parse(result)
+
+    // Check for execution failures (only in modes that return execution status)
+    // NONE, INCLUDED, and INCLUDED_FINAL don't have status/transaction/outcome fields
+    if (
+      parsed.final_execution_status !== "NONE" &&
+      parsed.final_execution_status !== "INCLUDED" &&
+      parsed.final_execution_status !== "INCLUDED_FINAL"
+    ) {
+      // TypeScript now knows parsed has status, transaction, transaction_outcome, receipts_outcome
+      if (
+        parsed.status &&
+        typeof parsed.status === "object" &&
+        "Failure" in parsed.status
+      ) {
+        // Check transaction_outcome for direct failures
+        if (parsed.transaction_outcome) {
+          checkOutcomeForFunctionCallError(
+            parsed.transaction_outcome,
+            parsed.transaction,
+          )
+        }
+
+        // Check receipts_outcome for cross-contract failures
+        const failedReceipt = parsed.receipts_outcome?.find(
+          (receipt) =>
+            typeof receipt.outcome.status === "object" &&
+            "Failure" in receipt.outcome.status,
+        )
+
+        if (failedReceipt) {
+          checkOutcomeForFunctionCallError(failedReceipt, parsed.transaction)
+        }
+
+        // Generic transaction failure (non-function-call errors)
+        // Extract error message from the actual failure in transaction_outcome or receipts
+        let errorMessage = "Transaction execution failed"
+        let failureDetails = parsed.status.Failure
+
+        if (
+          parsed.transaction_outcome &&
+          typeof parsed.transaction_outcome.outcome.status === "object" &&
+          "Failure" in parsed.transaction_outcome.outcome.status
+        ) {
+          failureDetails = parsed.transaction_outcome.outcome.status.Failure
+          errorMessage = extractErrorMessage(
+            failureDetails as Record<string, unknown>,
+          )
+        } else if (
+          failedReceipt &&
+          typeof failedReceipt.outcome.status === "object" &&
+          "Failure" in failedReceipt.outcome.status
+        ) {
+          failureDetails = failedReceipt.outcome.status.Failure
+          errorMessage = extractErrorMessage(
+            failureDetails as Record<string, unknown>,
+          )
+        }
+
+        throw new InvalidTransactionError(errorMessage, failureDetails)
+      }
+    }
+
+    // Safe cast: TypeScript guarantees W is a valid key, Zod validates the structure,
+    // and waitUntil determines which variant we get from the RPC
+    return parsed as FinalExecutionOutcomeWithReceiptsMap[W]
   }
 
   async getStatus(): Promise<StatusResponse> {
