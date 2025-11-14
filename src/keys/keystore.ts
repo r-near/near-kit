@@ -55,7 +55,7 @@ export class FileKeyStore implements KeyStore {
     // Expand home directory
     this.basePath = basePath.replace(
       /^~/,
-      process.env["HOME"] || process.env["USERPROFILE"] || "",
+      process.env.HOME || process.env.USERPROFILE || "",
     )
   }
 
@@ -64,8 +64,8 @@ export class FileKeyStore implements KeyStore {
   }
 
   async add(accountId: string, key: KeyPair): Promise<void> {
-    const fs = await import("fs/promises")
-    const path = await import("path")
+    const fs = await import("node:fs/promises")
+    const _path = await import("node:path")
 
     // Ensure directory exists
     await fs.mkdir(this.basePath, { recursive: true })
@@ -82,7 +82,7 @@ export class FileKeyStore implements KeyStore {
 
   async get(accountId: string): Promise<KeyPair | null> {
     try {
-      const fs = await import("fs/promises")
+      const fs = await import("node:fs/promises")
       const filePath = this.getKeyFilePath(accountId)
       const content = await fs.readFile(filePath, "utf-8")
       const keyData = JSON.parse(content) as { secret_key: string }
@@ -97,7 +97,7 @@ export class FileKeyStore implements KeyStore {
   }
 
   async remove(accountId: string): Promise<void> {
-    const fs = await import("fs/promises")
+    const fs = await import("node:fs/promises")
     const filePath = this.getKeyFilePath(accountId)
 
     try {
@@ -112,7 +112,7 @@ export class FileKeyStore implements KeyStore {
 
   async list(): Promise<string[]> {
     try {
-      const fs = await import("fs/promises")
+      const fs = await import("node:fs/promises")
       const files = await fs.readdir(this.basePath)
 
       return files

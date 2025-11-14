@@ -21,7 +21,6 @@ import {
   SignatureSchema,
   serializeTransaction,
   signatureToZorsh,
-  TransactionSchema,
 } from "../schema.js"
 import {
   type Ed25519PublicKey,

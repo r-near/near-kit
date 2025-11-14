@@ -80,7 +80,7 @@ async function exampleNetworkStatus() {
 }
 
 // Run examples
-async function main() {
+async function _main() {
   console.log("=== NEAR Client Library Examples ===\n")
 
   try {
