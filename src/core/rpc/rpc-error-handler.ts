@@ -11,6 +11,7 @@ import {
   FunctionCallError,
   InternalServerError,
   InvalidAccountError,
+  InvalidNonceError,
   InvalidShardIdError,
   InvalidTransactionError,
   NearError,
@@ -329,8 +330,32 @@ export function parseRpcError(
     // === Transaction Errors ===
 
     if (causeName === "INVALID_TRANSACTION") {
-      // Check for retryable transaction errors in cause.info
-      throw new InvalidTransactionError(parsedError.message, causeInfo)
+      // Check for InvalidNonce error in data field
+      if (parsedError.data && typeof parsedError.data === "object") {
+        // Navigate nested error structure: TxExecutionError.InvalidTxError.InvalidNonce
+        const txExecError = parsedError.data.TxExecutionError
+        const invalidTxError =
+          txExecError?.InvalidTxError || parsedError.data.InvalidTxError
+        const invalidNonce = invalidTxError?.InvalidNonce
+
+        if (invalidNonce && "ak_nonce" in invalidNonce && "tx_nonce" in invalidNonce) {
+          throw new InvalidNonceError(
+            invalidNonce.tx_nonce as number,
+            invalidNonce.ak_nonce as number,
+          )
+        }
+      }
+
+      // Extract detailed error info from data field if available
+      let errorDetails = causeInfo
+      if (parsedError.data && typeof parsedError.data === "object") {
+        const txError =
+          parsedError.data.TxExecutionError || parsedError.data.InvalidTxError
+        if (txError) {
+          errorDetails = { ...causeInfo, ...txError }
+        }
+      }
+      throw new InvalidTransactionError(parsedError.message, errorDetails)
     }
 
     if (causeName === "UNKNOWN_RECEIPT") {

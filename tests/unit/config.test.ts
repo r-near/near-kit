@@ -168,10 +168,10 @@ describe("Near Config Schema", () => {
 
   test("should accept config with privateKey as string", () => {
     const config = NearConfigSchema.parse({
-      privateKey: "ed25519:abc123...",
+      privateKey: "ed25519:3D4YudUahN1HBVj3pSCbSqHy8FJMZcz3g3xakNY9Bfz7hWZL9vUQHb8DdMxP7KMR5qqaXDmqcA2UGKxpqx4RqjQz",
     })
 
-    expect(config.privateKey).toBe("ed25519:abc123...")
+    expect(config.privateKey).toBe("ed25519:3D4YudUahN1HBVj3pSCbSqHy8FJMZcz3g3xakNY9Bfz7hWZL9vUQHb8DdMxP7KMR5qqaXDmqcA2UGKxpqx4RqjQz")
   })
 
   test("should reject invalid RPC URL", () => {
@@ -307,7 +307,6 @@ describe("Config Validation Edge Cases", () => {
       },
     })
 
-    // @ts-expect-error - accessing keyStore internal structure for testing
     expect(Object.keys(config.keyStore)).toHaveLength(3)
   })
 })

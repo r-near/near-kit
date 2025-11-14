@@ -400,6 +400,27 @@ export class UnknownEpochError extends NearError {
 }
 
 /**
+ * Thrown when transaction nonce is invalid
+ * This happens when a transaction uses a nonce that has already been used
+ */
+export class InvalidNonceError extends NearError {
+  txNonce: number
+  akNonce: number
+  retryable = true // Can retry with updated nonce
+
+  constructor(txNonce: number, akNonce: number) {
+    super(
+      `Invalid transaction nonce: transaction nonce ${txNonce} must be greater than access key nonce ${akNonce}`,
+      "INVALID_NONCE",
+    )
+    this.name = "InvalidNonceError"
+    this.txNonce = txNonce
+    this.akNonce = akNonce
+    Object.setPrototypeOf(this, InvalidNonceError.prototype)
+  }
+}
+
+/**
  * Thrown when a transaction is invalid
  * Check details for specific reasons like ShardCongested or ShardStuck
  */

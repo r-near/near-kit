@@ -35,7 +35,7 @@ describe("Contract Failure Modes", () => {
     // Deploy guestbook contract
     contractId = `guestbook-${Date.now()}.${sandbox.rootAccount.id}`
     const contractWasm = readFileSync(
-      resolve(__dirname, "../contracts/guestbook.wasm"),
+      resolve(__dirname, "../contracts/guestbook.wasm")
     )
 
     const contractKey = generateKey()
@@ -172,7 +172,7 @@ describe("Contract Failure Modes", () => {
       expect("transaction_outcome" in result).toBe(false)
 
       console.log(
-        "✓ NONE mode does not throw error (transaction not executed yet)",
+        "✓ NONE mode does not throw error (transaction not executed yet)"
       )
     })
   })
@@ -305,7 +305,7 @@ describe("Contract Failure Modes", () => {
       expect(result.final_execution_status).toBe("EXECUTED_OPTIMISTIC")
       expect(typeof result.status).toBe("object")
       expect(
-        "SuccessValue" in result.status || "SuccessReceiptId" in result.status,
+        "SuccessValue" in result.status || "SuccessReceiptId" in result.status
       ).toBe(true)
 
       console.log("✓ Successful call did not throw error")

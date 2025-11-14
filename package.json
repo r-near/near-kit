@@ -20,7 +20,7 @@
     "dev": "tsc --watch",
     "test": "bun test",
     "lint": "biome check .",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit --project tsconfig.typecheck.json",
     "prepublishOnly": "bun run build"
   },
   "keywords": [

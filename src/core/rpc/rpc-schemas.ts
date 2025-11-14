@@ -141,7 +141,7 @@ export const RpcErrorResponseSchema = z.object({
   name: z.string(), // ERROR_TYPE (e.g., "HANDLER_ERROR", "REQUEST_VALIDATION_ERROR", "INTERNAL_ERROR")
   code: z.number(), // Legacy field (e.g., -32000)
   message: z.string(), // Error message
-  data: z.string().optional(), // Optional additional data
+  data: z.any().optional(), // Optional additional data (can be string or object with error details)
   cause: z
     .object({
       name: z.string(), // ERROR_CAUSE (e.g., "UNKNOWN_ACCOUNT", "TIMEOUT_ERROR")

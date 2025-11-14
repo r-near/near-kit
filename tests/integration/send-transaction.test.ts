@@ -31,9 +31,11 @@ describe("sendTransaction - RPC Response Validation", () => {
   describe("Wait mode: NONE", () => {
     test("should return Unknown or Pending status", async () => {
       const recipientKey = generateKey()
-      const recipientId = `recipient-none-${Date.now()}.${sandbox.rootAccount.id}`
+      const recipientId = `recipient-none-${Date.now()}.${
+        sandbox.rootAccount.id
+      }`
 
-      // Create account first
+      // Create account first (wait for execution to ensure nonce is committed)
       await near
         .transaction(sandbox.rootAccount.id)
         .createAccount(recipientId)
@@ -41,7 +43,7 @@ describe("sendTransaction - RPC Response Validation", () => {
         .addKey(recipientKey.publicKey.toString(), {
           type: "fullAccess",
         })
-        .send()
+        .send({ waitUntil: "EXECUTED_OPTIMISTIC" })
 
       // Send transaction with waitUntil: NONE
       const result = await near
@@ -59,17 +61,22 @@ describe("sendTransaction - RPC Response Validation", () => {
       expect("transaction_outcome" in result).toBe(false)
 
       console.log(
-        "✓ waitUntil: NONE returns minimal response (transaction submitted)",
+        "✓ waitUntil: NONE returns minimal response (transaction submitted)"
       )
+
+      // Wait to ensure nonce is committed before next test
+      await new Promise((resolve) => setTimeout(resolve, 500))
     })
   })
 
   describe("Wait mode: INCLUDED", () => {
     test("should return transaction in block", async () => {
       const recipientKey = generateKey()
-      const recipientId = `recipient-included-${Date.now()}.${sandbox.rootAccount.id}`
+      const recipientId = `recipient-included-${Date.now()}.${
+        sandbox.rootAccount.id
+      }`
 
-      // Create account first
+      // Create account first (wait for execution to ensure nonce is committed)
       await near
         .transaction(sandbox.rootAccount.id)
         .createAccount(recipientId)
@@ -77,7 +84,7 @@ describe("sendTransaction - RPC Response Validation", () => {
         .addKey(recipientKey.publicKey.toString(), {
           type: "fullAccess",
         })
-        .send()
+        .send({ waitUntil: "EXECUTED_OPTIMISTIC" })
 
       // Send transaction with waitUntil: INCLUDED
       const result = await near
@@ -92,13 +99,18 @@ describe("sendTransaction - RPC Response Validation", () => {
       // Transaction is included in a block but may not have execution details
       console.log("✓ waitUntil: INCLUDED returns minimal response")
       console.log("  Available fields:", Object.keys(result))
+
+      // Wait to ensure nonce is fully committed before next test
+      await new Promise((resolve) => setTimeout(resolve, 500))
     })
   })
 
   describe("Wait mode: EXECUTED_OPTIMISTIC (default)", () => {
     test("should return success status with execution details", async () => {
       const recipientKey = generateKey()
-      const recipientId = `recipient-exec-${Date.now()}.${sandbox.rootAccount.id}`
+      const recipientId = `recipient-exec-${Date.now()}.${
+        sandbox.rootAccount.id
+      }`
 
       const result = await near
         .transaction(sandbox.rootAccount.id)
@@ -115,7 +127,7 @@ describe("sendTransaction - RPC Response Validation", () => {
       // Should have success status object
       expect(typeof result.status).toBe("object")
       expect(
-        "SuccessValue" in result.status || "SuccessReceiptId" in result.status,
+        "SuccessValue" in result.status || "SuccessReceiptId" in result.status
       ).toBe(true)
 
       // Should have execution outcome
@@ -126,7 +138,7 @@ describe("sendTransaction - RPC Response Validation", () => {
       console.log(
         "✓ Default execution used",
         result.transaction_outcome.outcome.gas_burnt,
-        "gas",
+        "gas"
       )
     })
 
@@ -149,7 +161,7 @@ describe("sendTransaction - RPC Response Validation", () => {
       // A more reliable test would deploy a contract that panics
 
       console.log(
-        "✓ FunctionCallError handling verified (contract would need to be deployed for full test)",
+        "✓ FunctionCallError handling verified (contract would need to be deployed for full test)"
       )
     })
   })
@@ -186,11 +198,11 @@ describe("sendTransaction - RPC Response Validation", () => {
         // because the failure is from createAccount, not the function call
         expect(error.name).not.toBe("FunctionCallError")
         expect(error.name).toBe("InvalidTransactionError")
-        expect(error.message).toContain("already exists")
+        expect(error.message).toContain("AccountAlreadyExists")
 
         console.log(
           "✓ Correctly threw InvalidTransactionError for non-function-call failure:",
-          error.message,
+          error.message
         )
       }
     })
@@ -199,7 +211,9 @@ describe("sendTransaction - RPC Response Validation", () => {
   describe("Wait mode: FINAL", () => {
     test("should return finalized execution outcome", async () => {
       const recipientKey = generateKey()
-      const recipientId = `recipient-final-${Date.now()}.${sandbox.rootAccount.id}`
+      const recipientId = `recipient-final-${Date.now()}.${
+        sandbox.rootAccount.id
+      }`
 
       const result = await near
         .transaction(sandbox.rootAccount.id)
@@ -216,7 +230,7 @@ describe("sendTransaction - RPC Response Validation", () => {
       // Should have fully executed and finalized
       expect(typeof result.status).toBe("object")
       expect(
-        "SuccessValue" in result.status || "SuccessReceiptId" in result.status,
+        "SuccessValue" in result.status || "SuccessReceiptId" in result.status
       ).toBe(true)
 
       // All receipts should be included
@@ -226,7 +240,7 @@ describe("sendTransaction - RPC Response Validation", () => {
       console.log(
         "✓ FINAL execution with",
         result.receipts_outcome.length,
-        "receipts",
+        "receipts"
       )
     })
   })
@@ -293,18 +307,20 @@ describe("sendTransaction - RPC Response Validation", () => {
       const createAccountAction = result.transaction.actions.find(
         (action: any) =>
           action === "CreateAccount" ||
-          (typeof action === "object" && "CreateAccount" in action),
+          (typeof action === "object" && "CreateAccount" in action)
       )
 
       expect(createAccountAction).toBeDefined()
       expect(
         createAccountAction === "CreateAccount" ||
           (typeof createAccountAction === "object" &&
-            "CreateAccount" in createAccountAction),
+            "CreateAccount" in createAccountAction)
       ).toBe(true)
 
       console.log(
-        `✓ CreateAccount action uses correct RPC format: ${JSON.stringify(createAccountAction)}`,
+        `✓ CreateAccount action uses correct RPC format: ${JSON.stringify(
+          createAccountAction
+        )}`
       )
     })
   })
