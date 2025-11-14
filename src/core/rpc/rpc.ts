@@ -6,8 +6,25 @@ import { base64 } from "@scure/base"
 import {
   AccessKeyDoesNotExistError,
   AccountDoesNotExistError,
+  ContractExecutionError,
+  ContractNotDeployedError,
+  ContractStateTooLargeError,
   FunctionCallError,
+  InternalServerError,
+  InvalidAccountError,
+  InvalidShardIdError,
+  InvalidTransactionError,
+  NearError,
   NetworkError,
+  NodeNotSyncedError,
+  ParseError,
+  ShardUnavailableError,
+  TimeoutError,
+  UnknownAccessKeyError,
+  UnknownBlockError,
+  UnknownChunkError,
+  UnknownEpochError,
+  UnknownReceiptError,
 } from "../../errors/index.js"
 import type {
   AccessKeyView,
@@ -37,9 +54,14 @@ export interface RpcResponse<T = unknown> {
   id: string | number
   result?: T
   error?: {
-    code: number
+    name: string // ERROR_TYPE
+    code: number // Legacy field
     message: string
-    data?: unknown
+    data?: string
+    cause?: {
+      name: string // ERROR_CAUSE
+      info?: Record<string, unknown>
+    }
   }
 }
 
@@ -56,8 +78,9 @@ export class RpcClient {
 
   /**
    * Parse RPC error and throw appropriate typed error
+   * Follows NEAR RPC error documentation
    */
-  private parseRpcError(error: RpcResponse["error"]): never {
+  private parseRpcError(error: RpcResponse["error"], statusCode?: number): never {
     if (!error) {
       throw new NetworkError("Unknown RPC error")
     }
@@ -65,82 +88,154 @@ export class RpcClient {
     // Try to parse the error using the schema
     try {
       const parsedError = RpcErrorResponseSchema.parse(error)
+      const causeName = parsedError.cause?.name
+      const causeInfo = parsedError.cause?.info || {}
 
-      // Check for specific error types based on error name/message/cause
-      const errorName = parsedError.name.toLowerCase()
-      const errorMessage = parsedError.message.toLowerCase()
-      const errorData = parsedError.data?.toLowerCase() || ""
-      const causeName = parsedError.cause?.name?.toLowerCase() || ""
+      // Handle errors based on ERROR_CAUSE (as per documentation)
+      // This is more reliable than string matching on error messages
 
-      // Account does not exist
-      if (
-        causeName === "unknown_account" ||
-        errorName.includes("accountdoesnotexist") ||
-        errorMessage.includes("does not exist") ||
-        errorData.includes("does not exist")
-      ) {
-        // Try to extract account ID from error data or cause info
-        let accountId = "unknown"
-        if (parsedError.cause?.info?.requested_account_id) {
-          accountId = parsedError.cause.info.requested_account_id as string
-        } else {
-          const accountIdMatch =
-            parsedError.message.match(/account ([^\s]+) does not exist/i) ||
-            parsedError.data?.match(/account ([^\s]+) does not exist/i)
-          if (accountIdMatch?.[1]) {
-            accountId = accountIdMatch[1]
-          }
-        }
+      // === General Errors (HANDLER_ERROR) ===
+
+      if (causeName === "UNKNOWN_BLOCK") {
+        const blockRef = (causeInfo.block_reference as string) || parsedError.message
+        throw new UnknownBlockError(blockRef)
+      }
+
+      if (causeName === "INVALID_ACCOUNT") {
+        const accountId = (causeInfo.requested_account_id as string) || "unknown"
+        throw new InvalidAccountError(accountId)
+      }
+
+      if (causeName === "UNKNOWN_ACCOUNT") {
+        const accountId = (causeInfo.requested_account_id as string) || "unknown"
         throw new AccountDoesNotExistError(accountId)
       }
 
-      // Access key does not exist
-      if (
-        errorName.includes("accesskeydoesnotexist") ||
-        errorMessage.includes("access key") ||
-        errorData.includes("access key")
-      ) {
-        // Try to extract account ID and public key from error message
-        const match =
-          parsedError.message.match(
-            /access key ([^\s]+) does not exist.*account ([^\s]+)/i,
-          ) ||
-          parsedError.data?.match(
-            /access key ([^\s]+) does not exist.*account ([^\s]+)/i,
-          )
-        const publicKey = match?.[1] || "unknown"
-        const accountId = match?.[2] || "unknown"
-        throw new AccessKeyDoesNotExistError(accountId, publicKey)
+      if (causeName === "UNAVAILABLE_SHARD") {
+        throw new ShardUnavailableError(parsedError.message)
       }
 
-      // Function call error (panic)
-      if (parsedError.cause?.name === "ActionError") {
-        const contractId =
-          (parsedError.cause?.info?.contract_id as string) || "unknown"
-        const methodName =
-          (parsedError.cause?.info?.method_name as string) || "unknown"
+      if (causeName === "NO_SYNCED_BLOCKS" || causeName === "NOT_SYNCED_YET") {
+        throw new NodeNotSyncedError(parsedError.message)
+      }
+
+      // === Access Key Errors ===
+
+      if (causeName === "UNKNOWN_ACCESS_KEY") {
+        const accountId = (causeInfo.account_id as string) || "unknown"
+        const publicKey = (causeInfo.public_key as string) || "unknown"
+        throw new UnknownAccessKeyError(accountId, publicKey)
+      }
+
+      // === Contract Errors ===
+
+      if (causeName === "NO_CONTRACT_CODE") {
+        const accountId = (causeInfo.account_id as string) || (causeInfo.contract_id as string) || "unknown"
+        throw new ContractNotDeployedError(accountId)
+      }
+
+      if (causeName === "TOO_LARGE_CONTRACT_STATE") {
+        const accountId = (causeInfo.account_id as string) || (causeInfo.contract_id as string) || "unknown"
+        throw new ContractStateTooLargeError(accountId)
+      }
+
+      if (causeName === "CONTRACT_EXECUTION_ERROR") {
+        const contractId = (causeInfo.contract_id as string) || "unknown"
+        const methodName = causeInfo.method_name as string | undefined
+        throw new ContractExecutionError(contractId, methodName, causeInfo)
+      }
+
+      // ActionError is for function call panics during transaction execution
+      if (causeName === "ActionError") {
+        const contractId = (causeInfo.contract_id as string) || "unknown"
+        const methodName = (causeInfo.method_name as string) || "unknown"
         const panic = parsedError.message || undefined
         throw new FunctionCallError(contractId, methodName, panic)
       }
 
-      // Generic RPC error - fall back to NetworkError
+      // === Block / Chunk Errors ===
+
+      if (causeName === "UNKNOWN_CHUNK") {
+        const chunkRef = (causeInfo.chunk_reference as string) || parsedError.message
+        throw new UnknownChunkError(chunkRef)
+      }
+
+      if (causeName === "INVALID_SHARD_ID") {
+        const shardId = (causeInfo.shard_id as number | string) || "unknown"
+        throw new InvalidShardIdError(shardId)
+      }
+
+      // === Network Errors ===
+
+      if (causeName === "UNKNOWN_EPOCH") {
+        const blockRef = (causeInfo.block_reference as string) || parsedError.message
+        throw new UnknownEpochError(blockRef)
+      }
+
+      // === Transaction Errors ===
+
+      if (causeName === "INVALID_TRANSACTION") {
+        // Check for retryable transaction errors in cause.info
+        throw new InvalidTransactionError(parsedError.message, causeInfo)
+      }
+
+      if (causeName === "UNKNOWN_RECEIPT") {
+        const receiptId = (causeInfo.receipt_id as string) || "unknown"
+        throw new UnknownReceiptError(receiptId)
+      }
+
+      if (causeName === "TIMEOUT_ERROR") {
+        const txHash = causeInfo.transaction_hash as string | undefined
+        throw new TimeoutError(parsedError.message, txHash)
+      }
+
+      // === Request Validation Errors (400) ===
+
+      if (causeName === "PARSE_ERROR" || parsedError.name === "REQUEST_VALIDATION_ERROR") {
+        throw new ParseError(parsedError.message, causeInfo)
+      }
+
+      // === Internal Errors (500) ===
+
+      if (causeName === "INTERNAL_ERROR" || parsedError.name === "INTERNAL_ERROR") {
+        throw new InternalServerError(parsedError.message, causeInfo)
+      }
+
+      // === Fallback for unknown error types ===
+
+      // Determine if error is retryable based on HTTP status code
+      const retryable = statusCode ? this.isRetryableStatus(statusCode) : false
+
       throw new NetworkError(
-        `RPC error: ${parsedError.message}`,
+        `RPC error [${causeName || parsedError.name}]: ${parsedError.message}`,
         parsedError.code,
-        false,
+        retryable,
       )
     } catch (parseError) {
-      // If parsing fails, fall back to generic error
-      if (
-        parseError instanceof AccountDoesNotExistError ||
-        parseError instanceof AccessKeyDoesNotExistError ||
-        parseError instanceof FunctionCallError
-      ) {
+      // If parsing fails or we already threw a specific error, re-throw it
+      if (parseError instanceof NearError) {
         throw parseError
       }
 
+      // Parsing failed, fall back to generic error
       throw new NetworkError(`RPC error: ${error.message}`, error.code, false)
     }
+  }
+
+  /**
+   * Determine if an HTTP status code indicates a retryable error
+   */
+  private isRetryableStatus(statusCode: number): boolean {
+    // 408 Request Timeout - retryable
+    // 429 Too Many Requests - retryable (rate limiting)
+    // 503 Service Unavailable - retryable
+    // 5xx Server Errors - retryable
+    return (
+      statusCode === 408 ||
+      statusCode === 429 ||
+      statusCode === 503 ||
+      (statusCode >= 500 && statusCode < 600)
+    )
   }
 
   async call<T = unknown>(method: string, params: unknown): Promise<T> {
@@ -162,17 +257,19 @@ export class RpcClient {
       })
 
       if (!response.ok) {
+        // Use isRetryableStatus to determine if this HTTP error is retryable
         throw new NetworkError(
           `HTTP ${response.status}: ${response.statusText}`,
           response.status,
-          response.status >= 500,
+          this.isRetryableStatus(response.status),
         )
       }
 
       const data: RpcResponse<T> = await response.json()
 
       if (data.error) {
-        this.parseRpcError(data.error)
+        // Pass status code to parseRpcError for better retryable detection
+        this.parseRpcError(data.error, response.status)
       }
 
       if (data.result === undefined) {
@@ -181,20 +278,16 @@ export class RpcClient {
 
       return data.result
     } catch (error) {
-      if (
-        error instanceof NetworkError ||
-        error instanceof AccountDoesNotExistError ||
-        error instanceof AccessKeyDoesNotExistError ||
-        error instanceof FunctionCallError
-      ) {
+      // Re-throw all NearError instances (includes all our custom error types)
+      if (error instanceof NearError) {
         throw error
       }
 
-      // Network failure
+      // Network failure (fetch threw an error)
       throw new NetworkError(
         `Network request failed: ${(error as Error).message}`,
         undefined,
-        true,
+        true, // Network failures are always retryable
       )
     }
   }

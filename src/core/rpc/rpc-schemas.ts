@@ -135,22 +135,27 @@ export const AccessKeyListResponseSchema = z.object({
 
 /**
  * RPC error response schema
+ * Follows the NEAR RPC error structure with name, cause, code, message, and data
  */
 export const RpcErrorResponseSchema = z.object({
-  name: z.string(),
-  code: z.number(),
-  message: z.string(),
-  data: z.string().optional(),
+  name: z.string(), // ERROR_TYPE (e.g., "HANDLER_ERROR", "REQUEST_VALIDATION_ERROR", "INTERNAL_ERROR")
+  code: z.number(), // Legacy field (e.g., -32000)
+  message: z.string(), // Error message
+  data: z.string().optional(), // Optional additional data
   cause: z
     .object({
-      name: z.string(),
+      name: z.string(), // ERROR_CAUSE (e.g., "UNKNOWN_ACCOUNT", "TIMEOUT_ERROR")
       info: z
         .object({
+          // Common fields
           requested_account_id: z.string().optional(),
           contract_id: z.string().optional(),
           method_name: z.string().optional(),
+          // Transaction-specific fields
+          ShardCongested: z.boolean().optional(),
+          ShardStuck: z.boolean().optional(),
         })
-        .catchall(z.any())
+        .catchall(z.any()) // Allow any other fields
         .optional(),
     })
     .optional(),
