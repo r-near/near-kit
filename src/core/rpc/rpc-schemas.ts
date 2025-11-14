@@ -150,7 +150,7 @@ export const RpcErrorResponseSchema = z.object({
           contract_id: z.string().optional(),
           method_name: z.string().optional(),
         })
-        .passthrough()
+        .catchall(z.any())
         .optional(),
     })
     .optional(),
