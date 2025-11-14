@@ -74,3 +74,13 @@ export {
 } from "./utils/index.js"
 // Wallet adapters
 export { fromWalletSelector, fromHotConnect } from "./wallets/index.js"
+// Delegate actions
+export {
+  DelegateAction,
+  SignedDelegate,
+} from "./core/actions.js"
+export { DelegateActionPrefix } from "./core/prefix.js"
+export {
+  encodeDelegateAction,
+  encodeSignedDelegate,
+} from "./core/schema.js"

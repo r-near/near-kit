@@ -8,6 +8,7 @@
  */
 
 import { b } from "@zorsh/zorsh"
+import { DelegateActionPrefix } from "./prefix.js"
 import type {
   Ed25519PublicKey,
   Ed25519Signature,
@@ -204,6 +205,14 @@ const UseGlobalContractSchema = b.struct({
 })
 
 // ==================== Delegate Actions ====================
+
+/**
+ * NEP-461 prefix for delegate actions
+ * Must be serialized before the delegate action when signing
+ */
+const DelegateActionPrefixSchema = b.struct({
+  prefix: b.u32(),
+})
 
 /**
  * ClassicActions enum - same as Action but without SignedDelegate
@@ -445,5 +454,96 @@ export function serializeSignedTransaction(
       actions: signedTx.transaction.actions.map(actionToZorsh),
     },
     signature: signatureToZorsh(signedTx.signature),
+  })
+}
+
+// ==================== Delegate Action Encoding ====================
+
+/**
+ * Borsh-encode a delegate action for signing
+ *
+ * Per NEP-461, this requires prepending a Borsh-serialized prefix specific
+ * to delegate actions, ensuring signed delegate actions may never be
+ * identical to signed transactions with the same fields.
+ *
+ * This function should be used when you need to sign a DelegateAction
+ * to create a SignedDelegate.
+ *
+ * @param delegateAction - The delegate action to encode
+ * @returns Uint8Array - The prefixed and serialized delegate action
+ *
+ * @example
+ * ```typescript
+ * import { encodeDelegateAction } from "near-ts"
+ * import { DelegateAction } from "near-ts/actions"
+ *
+ * const delegateAction = new DelegateAction(...)
+ * const encoded = encodeDelegateAction(delegateAction)
+ * const hash = await crypto.subtle.digest("SHA-256", encoded)
+ * const signature = await signer.sign(new Uint8Array(hash))
+ * ```
+ */
+export function encodeDelegateAction(
+  delegateAction: import("./actions.js").DelegateAction,
+): Uint8Array {
+  // Serialize the prefix
+  const prefixBytes = DelegateActionPrefixSchema.serialize({
+    prefix: new DelegateActionPrefix().prefix,
+  })
+
+  // Serialize the delegate action
+  const delegateBytes = DelegateActionSchema.serialize({
+    senderId: delegateAction.senderId,
+    receiverId: delegateAction.receiverId,
+    actions: delegateAction.actions,
+    nonce: delegateAction.nonce,
+    maxBlockHeight: delegateAction.maxBlockHeight,
+    publicKey: publicKeyToZorsh(delegateAction.publicKey),
+  })
+
+  // Concatenate prefix + delegate action
+  const result = new Uint8Array(prefixBytes.length + delegateBytes.length)
+  result.set(prefixBytes, 0)
+  result.set(delegateBytes, prefixBytes.length)
+
+  return result
+}
+
+/**
+ * Borsh-encode a signed delegate action for inclusion in a transaction
+ *
+ * This function serializes a SignedDelegate (which contains a DelegateAction
+ * and its signature) for use as an action within a meta transaction.
+ *
+ * Note: This does NOT include the NEP-461 prefix, as the prefix is only
+ * needed when signing the DelegateAction itself, not when including
+ * the SignedDelegate in a transaction.
+ *
+ * @param signedDelegate - The signed delegate action to encode
+ * @returns Uint8Array - The serialized signed delegate action
+ *
+ * @example
+ * ```typescript
+ * import { encodeSignedDelegate } from "near-ts"
+ * import { SignedDelegate } from "near-ts/actions"
+ *
+ * const signedDelegate = new SignedDelegate(delegateAction, signature)
+ * const encoded = encodeSignedDelegate(signedDelegate)
+ * // Use encoded bytes in transaction action
+ * ```
+ */
+export function encodeSignedDelegate(
+  signedDelegate: import("./actions.js").SignedDelegate,
+): Uint8Array {
+  return SignedDelegateSchema.serialize({
+    delegateAction: {
+      senderId: signedDelegate.delegateAction.senderId,
+      receiverId: signedDelegate.delegateAction.receiverId,
+      actions: signedDelegate.delegateAction.actions,
+      nonce: signedDelegate.delegateAction.nonce,
+      maxBlockHeight: signedDelegate.delegateAction.maxBlockHeight,
+      publicKey: publicKeyToZorsh(signedDelegate.delegateAction.publicKey),
+    },
+    signature: signatureToZorsh(signedDelegate.signature),
   })
 }
