@@ -29,6 +29,7 @@ export interface KeyPair {
   publicKey: PublicKey
   secretKey: string
   sign(message: Uint8Array): Signature
+  signNep413Message?(accountId: string, params: SignMessageParams): SignedMessage
 }
 
 export enum KeyType {

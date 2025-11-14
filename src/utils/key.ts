@@ -3,7 +3,7 @@
  */
 
 import { ed25519 } from "@noble/curves/ed25519.js"
-import { base58 } from "@scure/base"
+import { base58, base64 } from "@scure/base"
 import { HDKey } from "@scure/bip32"
 import * as bip39 from "@scure/bip39"
 import { wordlist } from "@scure/bip39/wordlists/english.js"
@@ -13,8 +13,11 @@ import {
   KeyType,
   type PublicKey,
   type Signature,
+  type SignMessageParams,
+  type SignedMessage,
 } from "../core/types.js"
 import { InvalidKeyError } from "../errors/index.js"
+import { serializeNep413Message } from "./nep413.js"
 
 /**
  * Ed25519 key pair implementation
@@ -43,6 +46,47 @@ export class Ed25519KeyPair implements KeyPair {
     return {
       keyType: KeyType.ED25519,
       data: signature,
+    }
+  }
+
+  /**
+   * Sign a message according to NEP-413 specification
+   *
+   * NEP-413 enables off-chain message signing for authentication and ownership verification.
+   * The message is signed with a full-access key but does not require gas or blockchain state.
+   *
+   * @param accountId - The NEAR account ID that owns this key
+   * @param params - Message signing parameters (message, recipient, nonce)
+   * @returns Signed message with account ID, public key, and base64-encoded signature
+   *
+   * @see https://github.com/near/NEPs/blob/master/neps/nep-0413.md
+   *
+   * @example
+   * ```typescript
+   * const nonce = crypto.getRandomValues(new Uint8Array(32))
+   * const signedMessage = keyPair.signNep413Message("alice.near", {
+   *   message: "Login to MyApp",
+   *   recipient: "myapp.near",
+   *   nonce,
+   * })
+   * console.log(signedMessage.signature) // Base64-encoded signature
+   * ```
+   */
+  signNep413Message(
+    accountId: string,
+    params: SignMessageParams,
+  ): SignedMessage {
+    // Serialize and hash the message according to NEP-413
+    const hash = serializeNep413Message(params)
+
+    // Sign the hash
+    const signature = ed25519.sign(hash, this.privateKey)
+
+    // Return signed message with base64-encoded signature
+    return {
+      accountId,
+      publicKey: this.publicKey.toString(),
+      signature: base64.encode(signature),
     }
   }
 

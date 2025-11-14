@@ -9,6 +9,7 @@ import { InMemoryKeyStore } from "../keys/index.js"
 import { parseKey } from "../utils/key.js"
 import type { Amount } from "../utils/validation.js"
 import { normalizeAmount, normalizeGas } from "../utils/validation.js"
+import { generateNep413Nonce } from "../utils/nep413.js"
 import * as actions from "./actions.js"
 import {
   type NearConfig,
@@ -22,6 +23,8 @@ import type {
   CallOptions,
   KeyStore,
   Signer,
+  SignMessageParams,
+  SignedMessage,
   TxExecutionStatus,
   WalletConnection,
 } from "./types.js"
@@ -231,6 +234,82 @@ export class Near {
 
     // Use private key/signer approach
     return await this.transaction(signerId).transfer(receiverId, amount).send()
+  }
+
+  /**
+   * Sign a message using NEP-413 standard
+   *
+   * NEP-413 enables off-chain message signing for authentication and ownership verification
+   * without gas fees or blockchain transactions. Useful for:
+   * - Login/authentication flows
+   * - Proving account ownership
+   * - Signing intents for meta-transactions
+   * - Off-chain authorization
+   *
+   * @param params - Message signing parameters
+   * @param options - Optional signer ID (defaults to first account)
+   * @returns Signed message with account ID, public key, and signature
+   *
+   * @throws {NearError} If no wallet or keystore is configured
+   * @throws {NearError} If the key doesn't support NEP-413 signing
+   *
+   * @see https://github.com/near/NEPs/blob/master/neps/nep-0413.md
+   *
+   * @example
+   * ```typescript
+   * // Sign a message for authentication
+   * const signedMessage = await near.signMessage({
+   *   message: "Login to MyApp",
+   *   recipient: "myapp.near",
+   *   nonce: crypto.getRandomValues(new Uint8Array(32)),
+   * })
+   *
+   * // Send to backend for verification
+   * await fetch("/api/auth", {
+   *   method: "POST",
+   *   body: JSON.stringify(signedMessage),
+   * })
+   * ```
+   */
+  async signMessage(
+    params: SignMessageParams | Omit<SignMessageParams, "nonce">,
+    options?: { signerId?: string },
+  ): Promise<SignedMessage> {
+    const signerId = await this.getSignerId(options?.signerId)
+
+    // Add nonce if not provided
+    const fullParams: SignMessageParams = {
+      ...params,
+      nonce: "nonce" in params ? params.nonce : generateNep413Nonce(),
+    }
+
+    // Try wallet first if available
+    if (this.wallet?.signMessage) {
+      try {
+        return await this.wallet.signMessage(fullParams)
+      } catch (error) {
+        // Fall through to keystore if wallet doesn't support it
+        console.warn("Wallet signMessage failed, trying keystore:", error)
+      }
+    }
+
+    // Use keystore approach
+    const keyPair = await this.keyStore.get(signerId)
+    if (!keyPair) {
+      throw new NearError(
+        `No key found for account ${signerId}. Add a key using keyStore.add() or configure a wallet.`,
+        "NO_KEY_FOUND",
+      )
+    }
+
+    if (!keyPair.signNep413Message) {
+      throw new NearError(
+        "Key pair does not support NEP-413 message signing",
+        "UNSUPPORTED_OPERATION",
+      )
+    }
+
+    return keyPair.signNep413Message(signerId, fullParams)
   }
 
   /**
