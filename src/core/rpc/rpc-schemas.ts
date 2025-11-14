@@ -144,7 +144,14 @@ export const RpcErrorResponseSchema = z.object({
   cause: z
     .object({
       name: z.string(),
-      info: z.record(z.unknown()).optional(),
+      info: z
+        .object({
+          requested_account_id: z.string().optional(),
+          contract_id: z.string().optional(),
+          method_name: z.string().optional(),
+        })
+        .passthrough()
+        .optional(),
     })
     .optional(),
 })
