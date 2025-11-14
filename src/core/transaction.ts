@@ -316,15 +316,20 @@ export class TransactionBuilder {
   /**
    * Override the signing function for this specific transaction.
    *
-   * Use this to sign a transaction with a different signer than the one
-   * configured in the Near client. Useful for:
+   * Use this to sign with a different signer than the one configured in the
+   * Near client, while keeping the same signerId. Useful for:
    *
-   * - Multi-account scenarios (different hardware wallet per account)
+   * - Using a hardware wallet for a specific transaction
    * - Testing with mock signers
+   * - Signing with a specific private key for the same account
    * - One-off custom signing logic
-   * - Signing with a specific private key
+   *
+   * **Important:** This overrides HOW the transaction is signed, not WHO signs it.
+   * The signerId (set via `.transaction()`) remains the same. To sign as a different
+   * account, use `.transaction(otherAccountId)` instead.
    *
    * @param key - Either a custom signer function or a private key string (e.g., 'ed25519:...')
+   *              Note: Account IDs are NOT supported - only private keys or Signer functions
    * @returns This builder instance for chaining
    *
    * @example
@@ -355,6 +360,14 @@ export class TransactionBuilder {
    */
   signWith(key: string | Signer): this {
     if (typeof key === "string") {
+      // Check if it looks like an account ID (common mistake)
+      if (key.includes(".") && !key.startsWith("ed25519:")) {
+        throw new SignatureError(
+          `signWith() requires a private key (e.g., 'ed25519:...'), not an account ID ('${key}'). ` +
+            `To sign as a different account, use .transaction('${key}') instead.`,
+        )
+      }
+
       // Parse key and create signer
       const keyPair = parseKey(key)
       this.signer = async (message: Uint8Array) => keyPair.sign(message)
