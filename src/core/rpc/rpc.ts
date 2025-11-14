@@ -397,7 +397,36 @@ export class RpcClient {
       wait_until: waitUntil,
     })
 
-    return FinalExecutionOutcomeSchema.parse(result)
+    const parsed = FinalExecutionOutcomeSchema.parse(result)
+
+    // Check if transaction execution failed and throw appropriate error
+    if ("Failure" in parsed.status) {
+      const failure = parsed.status.Failure
+      const errorMessage = failure.error_message || failure.error_type || "Transaction execution failed"
+
+      // Check if this is a function call error by looking at receipts
+      const failedReceipt = parsed.receipts_outcome.find(
+        receipt => "Failure" in receipt.outcome.status
+      )
+
+      if (failedReceipt) {
+        const contractId = failedReceipt.outcome.executor_id
+        // Try to extract method name from transaction actions
+        const functionCallAction = parsed.transaction.actions.find(
+          action => typeof action === "object" && "FunctionCall" in action
+        )
+        const methodName = functionCallAction && typeof functionCallAction === "object" && "FunctionCall" in functionCallAction
+          ? functionCallAction.FunctionCall.method_name
+          : undefined
+
+        throw new FunctionCallError(contractId, methodName, errorMessage)
+      }
+
+      // Generic transaction failure
+      throw new InvalidTransactionError(errorMessage, failure)
+    }
+
+    return parsed
   }
 
   async getStatus(): Promise<StatusResponse> {
