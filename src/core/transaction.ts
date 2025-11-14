@@ -29,6 +29,7 @@ import type {
   SimulationResult,
   Transaction,
   TxExecutionStatus,
+  WalletConnection,
 } from "./types.js"
 
 /**
@@ -71,6 +72,7 @@ export class TransactionBuilder {
   private rpc: RpcClient
   private keyStore: KeyStore
   private signer?: Signer
+  private wallet?: WalletConnection
   private defaultWaitUntil: TxExecutionStatus
 
   constructor(
@@ -79,6 +81,7 @@ export class TransactionBuilder {
     keyStore: KeyStore,
     signer?: Signer,
     defaultWaitUntil: TxExecutionStatus = "EXECUTED_OPTIMISTIC",
+    wallet?: WalletConnection
   ) {
     this.signerId = signerId
     this.actions = []
@@ -88,6 +91,7 @@ export class TransactionBuilder {
       this.signer = signer
     }
     this.defaultWaitUntil = defaultWaitUntil
+    this.wallet = wallet
   }
 
   /**
@@ -286,6 +290,23 @@ export class TransactionBuilder {
    * ```
    */
   async send(options?: SendOptions): Promise<FinalExecutionOutcome> {
+    if (!this.receiverId) {
+      throw new NearError(
+        "No receiver ID set for transaction",
+        "INVALID_TRANSACTION"
+      )
+    }
+
+    // Use wallet if available
+    if (this.wallet) {
+      return await this.wallet.signAndSendTransaction({
+        signerId: this.signerId,
+        receiverId: this.receiverId,
+        actions: this.actions,
+      })
+    }
+
+    // Build transaction using private key/signer approach
     const transaction = await this.build()
 
     // Serialize transaction using Borsh

@@ -252,6 +252,57 @@ export interface WalletSignInOptions {
   failureUrl?: string
 }
 
+/**
+ * Account information returned by wallet
+ */
+export interface WalletAccount {
+  accountId: string
+  publicKey?: string
+}
+
+/**
+ * Parameters for signing a message
+ */
+export interface SignMessageParams {
+  message: string
+  recipient: string
+  nonce: Uint8Array
+}
+
+/**
+ * Signed message result
+ */
+export interface SignedMessage {
+  accountId: string
+  publicKey: string
+  signature: string
+}
+
+/**
+ * Wallet connection interface
+ * Compatible with both @near-wallet-selector and @hot-labs/near-connect
+ */
+export interface WalletConnection {
+  /**
+   * Get connected accounts from wallet
+   */
+  getAccounts(): Promise<WalletAccount[]>
+
+  /**
+   * Sign and send a transaction using the wallet
+   */
+  signAndSendTransaction(params: {
+    signerId?: string
+    receiverId: string
+    actions: Action[]
+  }): Promise<FinalExecutionOutcome>
+
+  /**
+   * Sign a message using the wallet (optional)
+   */
+  signMessage?(params: SignMessageParams): Promise<SignedMessage>
+}
+
 // ==================== Gas Estimation ====================
 
 export interface GasEstimate {

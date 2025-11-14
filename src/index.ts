@@ -18,8 +18,12 @@ export type {
   PublicKey,
   SendOptions,
   Signature,
+  SignedMessage,
+  SignMessageParams,
   SimulationResult,
   TxExecutionStatus,
+  WalletAccount,
+  WalletConnection,
   WalletSignInOptions,
 } from "./core/types.js"
 // Errors
@@ -67,3 +71,5 @@ export {
   parseKey,
   parseSeedPhrase,
 } from "./utils/index.js"
+// Wallet adapters
+export { fromWalletSelector, fromHotConnect } from "./wallets/index.js"

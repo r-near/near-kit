@@ -8,11 +8,14 @@ import { NearError } from "../errors/index.js"
 import { InMemoryKeyStore } from "../keys/index.js"
 import { parseKey } from "../utils/key.js"
 import type { Amount } from "../utils/validation.js"
+import { normalizeAmount, normalizeGas } from "../utils/validation.js"
+import * as actions from "./actions.js"
 import {
   type NearConfig,
   NearConfigSchema,
   resolveNetworkConfig,
 } from "./config-schemas.js"
+import { DEFAULT_FUNCTION_CALL_GAS } from "./constants.js"
 import { RpcClient } from "./rpc/rpc.js"
 import { TransactionBuilder } from "./transaction.js"
 import type {
@@ -20,12 +23,15 @@ import type {
   KeyStore,
   Signer,
   TxExecutionStatus,
+  WalletConnection,
 } from "./types.js"
 
 export class Near {
   private rpc: RpcClient
   private keyStore: KeyStore
   private signer?: Signer
+  private wallet?: WalletConnection
+  private _networkId: string
   private defaultSignerId?: string
   private defaultWaitUntil: TxExecutionStatus
 
@@ -46,6 +52,9 @@ export class Near {
     // Initialize default wait until
     this.defaultWaitUntil =
       validatedConfig.defaultWaitUntil || "EXECUTED_OPTIMISTIC"
+
+    // Store wallet if provided
+    this.wallet = validatedConfig.wallet
 
     // Set up signer and add key to keyStore if privateKey provided
     const signer = validatedConfig.signer
@@ -96,6 +105,31 @@ export class Near {
   }
 
   /**
+   * Get signer ID from options, default, or wallet
+   */
+  private async getSignerId(signerId?: string): Promise<string> {
+    if (signerId) return signerId
+    if (this.defaultSignerId) return this.defaultSignerId
+
+    // Get from wallet if available
+    if (this.wallet) {
+      const accounts = await this.wallet.getAccounts()
+      if (accounts.length === 0) {
+        throw new NearError(
+          "No accounts connected to wallet",
+          "NO_WALLET_ACCOUNTS",
+        )
+      }
+      return accounts[0].accountId
+    }
+
+    throw new NearError(
+      "No signer ID provided. Set signerId in options or config.",
+      "MISSING_SIGNER",
+    )
+  }
+
+  /**
    * Call a view function on a contract (read-only, no gas)
    */
   async view<T = unknown>(
@@ -129,14 +163,38 @@ export class Near {
     args: object = {},
     options: CallOptions = {},
   ): Promise<T> {
-    const signerId = options.signerId || this.defaultSignerId
-    if (!signerId) {
-      throw new NearError(
-        "No signer ID provided. Set signerId in options or config.",
-        "MISSING_SIGNER",
-      )
+    const signerId = await this.getSignerId(options.signerId)
+
+    // Use wallet if available
+    if (this.wallet) {
+      const argsJson = JSON.stringify(args)
+      const argsBytes = new TextEncoder().encode(argsJson)
+
+      const gas = options.gas
+        ? normalizeGas(options.gas)
+        : DEFAULT_FUNCTION_CALL_GAS
+
+      const deposit = options.attachedDeposit
+        ? normalizeAmount(options.attachedDeposit)
+        : "0"
+
+      const result = await this.wallet.signAndSendTransaction({
+        signerId,
+        receiverId: contractId,
+        actions: [
+          actions.functionCall(
+            methodName,
+            argsBytes,
+            BigInt(gas),
+            BigInt(deposit),
+          ),
+        ],
+      })
+
+      return result as T
     }
 
+    // Use private key/signer approach
     const functionCallOptions: {
       gas?: string
       attachedDeposit?: string | bigint
@@ -159,16 +217,21 @@ export class Near {
    * Send NEAR tokens to an account
    */
   async send(receiverId: string, amount: Amount): Promise<unknown> {
-    if (!this.defaultSignerId) {
-      throw new NearError(
-        "No signer ID configured. Cannot send tokens.",
-        "MISSING_SIGNER",
-      )
+    const signerId = await this.getSignerId()
+
+    // Use wallet if available
+    if (this.wallet) {
+      const amountYocto = normalizeAmount(amount)
+
+      return await this.wallet.signAndSendTransaction({
+        signerId,
+        receiverId,
+        actions: [actions.transfer(BigInt(amountYocto))],
+      })
     }
 
-    return await this.transaction(this.defaultSignerId)
-      .transfer(receiverId, amount)
-      .send()
+    // Use private key/signer approach
+    return await this.transaction(signerId).transfer(receiverId, amount).send()
   }
 
   /**
@@ -233,6 +296,7 @@ export class Near {
       this.keyStore,
       this.signer,
       this.defaultWaitUntil,
+      this.wallet,
     )
   }
 

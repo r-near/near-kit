@@ -86,6 +86,7 @@ export const NearConfigSchema = z.object({
   keyStore: KeyStoreConfigSchema.optional(),
   signer: SignerSchema.optional(),
   privateKey: z.union([z.string(), z.instanceof(Uint8Array)]).optional(),
+  wallet: z.any().optional(), // WalletConnection interface
   defaultWaitUntil: TxExecutionStatusSchema.optional(),
 })
 
