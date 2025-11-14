@@ -9,13 +9,19 @@ import {
   deleteAccount,
   deleteKey,
   deployContract,
+  DelegateAction,
   functionCall,
+  SignedDelegate,
+  signedDelegate,
   stake,
   transfer,
 } from "../../src/core/actions.js"
+import { DelegateActionPrefix } from "../../src/core/prefix.js"
 import {
   type Action,
   ActionSchema,
+  encodeDelegateAction,
+  encodeSignedDelegate,
   PublicKeySchema,
   publicKeyToZorsh,
   SignatureSchema,
@@ -278,5 +284,225 @@ describe("Schema validation", () => {
 
     expect(serialized).toBeInstanceOf(Uint8Array)
     expect(serialized.length).toBe(65) // 1 byte discriminant + 64 bytes data
+  })
+})
+
+describe("Delegate Action prefix (NEP-461)", () => {
+  test("DelegateActionPrefix has correct value", () => {
+    const prefix = new DelegateActionPrefix()
+    // 2^30 + 366 = 1073742190
+    expect(prefix.prefix).toBe(1073742190)
+  })
+
+  test("encodeDelegateAction prepends prefix to serialized delegate action", () => {
+    const pk: Ed25519PublicKey = {
+      keyType: KeyType.ED25519,
+      data: new Uint8Array(32).fill(10),
+      toString: () => "ed25519:test",
+    }
+
+    const delegateAction = new DelegateAction(
+      "sender.near",
+      "receiver.near",
+      [transfer(BigInt(1000000))],
+      BigInt(123),
+      BigInt(1000),
+      pk,
+    )
+
+    const encoded = encodeDelegateAction(delegateAction)
+
+    // Should produce bytes
+    expect(encoded).toBeInstanceOf(Uint8Array)
+    expect(encoded.length).toBeGreaterThan(4) // At least prefix (4 bytes) + some data
+
+    // First 4 bytes should be the prefix in little-endian format
+    // 1073742190 = 0x4000016E
+    // Little-endian: 6E 01 00 40
+    expect(encoded[0]).toBe(0x6e)
+    expect(encoded[1]).toBe(0x01)
+    expect(encoded[2]).toBe(0x00)
+    expect(encoded[3]).toBe(0x40)
+  })
+
+  test("encodeDelegateAction with multiple actions", () => {
+    const pk: Ed25519PublicKey = {
+      keyType: KeyType.ED25519,
+      data: new Uint8Array(32).fill(11),
+      toString: () => "ed25519:test",
+    }
+
+    const delegateAction = new DelegateAction(
+      "sender.near",
+      "receiver.near",
+      [
+        transfer(BigInt(1000000)),
+        functionCall(
+          "test_method",
+          new TextEncoder().encode("{}"),
+          BigInt(30000000000000),
+          BigInt(0),
+        ),
+      ],
+      BigInt(456),
+      BigInt(2000),
+      pk,
+    )
+
+    const encoded = encodeDelegateAction(delegateAction)
+
+    // Should produce bytes with prefix
+    expect(encoded).toBeInstanceOf(Uint8Array)
+    expect(encoded.length).toBeGreaterThan(4)
+
+    // Verify prefix is present
+    expect(encoded[0]).toBe(0x6e)
+    expect(encoded[1]).toBe(0x01)
+    expect(encoded[2]).toBe(0x00)
+    expect(encoded[3]).toBe(0x40)
+  })
+})
+
+describe("Signed Delegate Action", () => {
+  test("creates SignedDelegate with DelegateAction and signature", () => {
+    const pk: Ed25519PublicKey = {
+      keyType: KeyType.ED25519,
+      data: new Uint8Array(32).fill(12),
+      toString: () => "ed25519:test",
+    }
+
+    const sig: Ed25519Signature = {
+      keyType: KeyType.ED25519,
+      data: new Uint8Array(64).fill(13),
+    }
+
+    const delegateAction = new DelegateAction(
+      "sender.near",
+      "receiver.near",
+      [transfer(BigInt(5000000))],
+      BigInt(789),
+      BigInt(3000),
+      pk,
+    )
+
+    const signed = new SignedDelegate(delegateAction, sig)
+
+    expect(signed.delegateAction).toBe(delegateAction)
+    expect(signed.signature).toBe(sig)
+  })
+
+  test("encodeSignedDelegate produces valid bytes", () => {
+    const pk: Ed25519PublicKey = {
+      keyType: KeyType.ED25519,
+      data: new Uint8Array(32).fill(14),
+      toString: () => "ed25519:test",
+    }
+
+    const sig: Ed25519Signature = {
+      keyType: KeyType.ED25519,
+      data: new Uint8Array(64).fill(15),
+    }
+
+    const delegateAction = new DelegateAction(
+      "sender.near",
+      "receiver.near",
+      [transfer(BigInt(2000000))],
+      BigInt(999),
+      BigInt(4000),
+      pk,
+    )
+
+    const signed = new SignedDelegate(delegateAction, sig)
+    const encoded = encodeSignedDelegate(signed)
+
+    // Should produce bytes
+    expect(encoded).toBeInstanceOf(Uint8Array)
+    expect(encoded.length).toBeGreaterThan(0)
+
+    // Note: This encoding does NOT include the NEP-461 prefix
+    // The prefix is only used when signing the DelegateAction
+    // Verify it doesn't start with the prefix
+    const hasPrefix =
+      encoded[0] === 0x6e &&
+      encoded[1] === 0x01 &&
+      encoded[2] === 0x00 &&
+      encoded[3] === 0x40
+    expect(hasPrefix).toBe(false)
+  })
+
+  test("signedDelegate helper creates valid action", () => {
+    const pk: Ed25519PublicKey = {
+      keyType: KeyType.ED25519,
+      data: new Uint8Array(32).fill(16),
+      toString: () => "ed25519:test",
+    }
+
+    const sig: Ed25519Signature = {
+      keyType: KeyType.ED25519,
+      data: new Uint8Array(64).fill(17),
+    }
+
+    const delegateAction = new DelegateAction(
+      "sender.near",
+      "receiver.near",
+      [createAccount(), transfer(BigInt(3000000))],
+      BigInt(111),
+      BigInt(5000),
+      pk,
+    )
+
+    const action = signedDelegate(delegateAction, sig)
+
+    // Should have the right shape
+    expect("signedDelegate" in action).toBe(true)
+    expect(action.signedDelegate.delegateAction.senderId).toBe("sender.near")
+    expect(action.signedDelegate.delegateAction.receiverId).toBe("receiver.near")
+    expect(action.signedDelegate.delegateAction.nonce).toBe(BigInt(111))
+  })
+})
+
+describe("Delegate Action integration", () => {
+  test("serializes transaction with SignedDelegate action", () => {
+    const pk: Ed25519PublicKey = {
+      keyType: KeyType.ED25519,
+      data: new Uint8Array(32).fill(18),
+      toString: () => "ed25519:test",
+    }
+
+    const sig: Ed25519Signature = {
+      keyType: KeyType.ED25519,
+      data: new Uint8Array(64).fill(19),
+    }
+
+    const delegateAction = new DelegateAction(
+      "user.near",
+      "contract.near",
+      [
+        functionCall(
+          "do_something",
+          new TextEncoder().encode('{"value":42}'),
+          BigInt(50000000000000),
+          BigInt(1000000),
+        ),
+      ],
+      BigInt(555),
+      BigInt(6000),
+      pk,
+    )
+
+    const transaction = {
+      signerId: "relayer.near",
+      publicKey: pk,
+      nonce: BigInt(777),
+      receiverId: "user.near", // DelegateAction receiver should match user
+      blockHash: new Uint8Array(32).fill(20),
+      actions: [signedDelegate(delegateAction, sig)],
+    }
+
+    const serialized = serializeTransaction(transaction)
+
+    // Should produce bytes
+    expect(serialized).toBeInstanceOf(Uint8Array)
+    expect(serialized.length).toBeGreaterThan(0)
   })
 })
