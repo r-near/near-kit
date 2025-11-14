@@ -41,7 +41,8 @@ describe("Global Contracts API", () => {
       "CodeHash",
     )
     expect(
-      (action.useGlobalContract.contractIdentifier as { CodeHash: number[] }).CodeHash,
+      (action.useGlobalContract.contractIdentifier as { CodeHash: number[] })
+        .CodeHash,
     ).toEqual(Array.from(codeHash))
   })
 
@@ -55,7 +56,8 @@ describe("Global Contracts API", () => {
       "CodeHash",
     )
     expect(
-      (action.useGlobalContract.contractIdentifier as { CodeHash: number[] }).CodeHash,
+      (action.useGlobalContract.contractIdentifier as { CodeHash: number[] })
+        .CodeHash,
     ).toEqual(Array.from(hashBytes))
   })
 

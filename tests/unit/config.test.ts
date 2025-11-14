@@ -4,8 +4,8 @@
 
 import { describe, expect, test } from "bun:test"
 import {
-  type NetworkConfig,
   NearConfigSchema,
+  type NetworkConfig,
   resolveNetworkConfig,
 } from "../../src/core/config-schemas.js"
 import { Near } from "../../src/core/near.js"

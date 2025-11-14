@@ -18,8 +18,8 @@ import {
   InvalidTransactionError,
 } from "../../src/errors/index.js"
 import { Sandbox } from "../../src/sandbox/sandbox.js"
-import type { PrivateKey } from "../../src/utils/validation.js"
 import { generateKey } from "../../src/utils/key.js"
+import type { PrivateKey } from "../../src/utils/validation.js"
 
 describe("Contract Failure Modes", () => {
   let sandbox: Sandbox
@@ -306,7 +306,9 @@ describe("Contract Failure Modes", () => {
       expect(result.final_execution_status).toBe("EXECUTED_OPTIMISTIC")
       expect(typeof result.status).toBe("object")
       expect(
-        typeof result.status === "object" && ("SuccessValue" in result.status || "SuccessReceiptId" in result.status),
+        typeof result.status === "object" &&
+          ("SuccessValue" in result.status ||
+            "SuccessReceiptId" in result.status),
       ).toBe(true)
 
       console.log("✓ Successful call did not throw error")

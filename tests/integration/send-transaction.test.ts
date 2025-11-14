@@ -128,7 +128,9 @@ describe("sendTransaction - RPC Response Validation", () => {
       // Should have success status object
       expect(typeof result.status).toBe("object")
       expect(
-        typeof result.status === "object" && ("SuccessValue" in result.status || "SuccessReceiptId" in result.status),
+        typeof result.status === "object" &&
+          ("SuccessValue" in result.status ||
+            "SuccessReceiptId" in result.status),
       ).toBe(true)
 
       // Should have execution outcome
@@ -231,7 +233,9 @@ describe("sendTransaction - RPC Response Validation", () => {
       // Should have fully executed and finalized
       expect(typeof result.status).toBe("object")
       expect(
-        typeof result.status === "object" && ("SuccessValue" in result.status || "SuccessReceiptId" in result.status),
+        typeof result.status === "object" &&
+          ("SuccessValue" in result.status ||
+            "SuccessReceiptId" in result.status),
       ).toBe(true)
 
       // All receipts should be included
