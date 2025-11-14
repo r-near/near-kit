@@ -66,22 +66,31 @@ export class RpcClient {
     try {
       const parsedError = RpcErrorResponseSchema.parse(error)
 
-      // Check for specific error types based on error name/message
+      // Check for specific error types based on error name/message/cause
       const errorName = parsedError.name.toLowerCase()
       const errorMessage = parsedError.message.toLowerCase()
       const errorData = parsedError.data?.toLowerCase() || ""
+      const causeName = parsedError.cause?.name?.toLowerCase() || ""
 
       // Account does not exist
       if (
+        causeName === "unknown_account" ||
         errorName.includes("accountdoesnotexist") ||
         errorMessage.includes("does not exist") ||
         errorData.includes("does not exist")
       ) {
-        // Try to extract account ID from error message
-        const accountIdMatch =
-          parsedError.message.match(/account ([^\s]+) does not exist/i) ||
-          parsedError.data?.match(/account ([^\s]+) does not exist/i)
-        const accountId = accountIdMatch?.[1] || "unknown"
+        // Try to extract account ID from error data or cause info
+        let accountId = "unknown"
+        if (parsedError.cause?.info?.requested_account_id) {
+          accountId = parsedError.cause.info.requested_account_id as string
+        } else {
+          const accountIdMatch =
+            parsedError.message.match(/account ([^\s]+) does not exist/i) ||
+            parsedError.data?.match(/account ([^\s]+) does not exist/i)
+          if (accountIdMatch?.[1]) {
+            accountId = accountIdMatch[1]
+          }
+        }
         throw new AccountDoesNotExistError(accountId)
       }
 
@@ -218,6 +227,12 @@ export class RpcClient {
       args_base64: argsBase64,
     })
 
+    // Check for errors in result (NEAR returns view function errors this way)
+    if (result && typeof result === "object" && "error" in result) {
+      const errorMsg = (result as { error: string }).error
+      throw new FunctionCallError(contractId, methodName, errorMsg)
+    }
+
     return ViewFunctionCallResultSchema.parse(result)
   }
 
@@ -241,6 +256,16 @@ export class RpcClient {
       account_id: accountId,
       public_key: publicKey,
     })
+
+    // Check for errors in result (NEAR returns access key errors this way)
+    if (result && typeof result === "object" && "error" in result) {
+      const errorMsg = (result as { error: string }).error
+      // Check if it's an access key not found error
+      if (errorMsg.includes("does not exist")) {
+        throw new AccessKeyDoesNotExistError(accountId, publicKey)
+      }
+      throw new NetworkError(`Query error: ${errorMsg}`)
+    }
 
     return AccessKeyViewSchema.parse(result)
   }
