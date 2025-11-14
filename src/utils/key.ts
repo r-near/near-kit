@@ -14,6 +14,7 @@ import {
   type PublicKey,
   type Signature,
 } from "../core/types.js"
+import { InvalidKeyError } from "../errors/index.js"
 
 /**
  * Ed25519 key pair implementation
@@ -82,7 +83,7 @@ export function parseKey(keyString: string): KeyPair {
     return Ed25519KeyPair.fromString(keyString)
   }
 
-  throw new Error(`Unsupported key type: ${keyString}`)
+  throw new InvalidKeyError(`Unsupported key type: ${keyString}`)
 }
 
 /**
@@ -118,7 +119,7 @@ export function parseSeedPhrase(
 ): KeyPair {
   // Validate the mnemonic
   if (!bip39.validateMnemonic(phrase, wordlist)) {
-    throw new Error("Invalid BIP39 seed phrase")
+    throw new InvalidKeyError("Invalid BIP39 seed phrase")
   }
 
   // Convert mnemonic to seed (64 bytes)
@@ -130,7 +131,7 @@ export function parseSeedPhrase(
   const derived = hdkey.derive(path)
 
   if (!derived.privateKey) {
-    throw new Error("Failed to derive private key from seed phrase")
+    throw new InvalidKeyError("Failed to derive private key from seed phrase")
   }
 
   // Get the ed25519 public key from private key

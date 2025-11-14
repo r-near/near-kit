@@ -9,7 +9,7 @@ import {
   MIN_ACCOUNT_ID_LENGTH,
   SECP256K1_KEY_PREFIX,
 } from "../core/constants.js"
-import { InvalidAccountIdError } from "../errors/index.js"
+import { InvalidAccountIdError, NearError } from "../errors/index.js"
 
 /**
  * Validate a NEAR account ID
@@ -103,8 +103,8 @@ export function normalizeAmount(amount: string | number | bigint): string {
 
   // If it's a string, try to parse it as a number
   const num = parseFloat(amount)
-  if (isNaN(num)) {
-    throw new Error(`Invalid amount: ${amount}`)
+  if (Number.isNaN(num)) {
+    throw new NearError(`Invalid amount: ${amount}`, "INVALID_AMOUNT")
   }
 
   return BigInt(Math.floor(num)).toString()

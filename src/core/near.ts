@@ -4,7 +4,7 @@
 
 import type { ContractMethods } from "../contracts/contract.js"
 import { createContract } from "../contracts/contract.js"
-import { AccountDoesNotExistError, NetworkError } from "../errors/index.js"
+import { NearError } from "../errors/index.js"
 import { InMemoryKeyStore } from "../keys/index.js"
 import { parseKey } from "../utils/key.js"
 import { NETWORK_PRESETS } from "./constants.js"
@@ -64,7 +64,7 @@ export class Near {
   } {
     // Default to mainnet
     if (!network) {
-      const envNetwork = process.env["NEAR_NETWORK"]
+      const envNetwork = process.env.NEAR_NETWORK
       if (envNetwork && envNetwork in NETWORK_PRESETS) {
         return NETWORK_PRESETS[envNetwork as keyof typeof NETWORK_PRESETS]
       }
@@ -140,8 +140,9 @@ export class Near {
   ): Promise<T> {
     const signerId = options.signerId || this.defaultSignerId
     if (!signerId) {
-      throw new Error(
+      throw new NearError(
         "No signer ID provided. Set signerId in options or config.",
+        "MISSING_SIGNER",
       )
     }
 
@@ -157,7 +158,10 @@ export class Near {
    */
   async send(receiverId: string, amount: string | number): Promise<unknown> {
     if (!this.defaultSignerId) {
-      throw new Error("No signer ID configured. Cannot send tokens.")
+      throw new NearError(
+        "No signer ID configured. Cannot send tokens.",
+        "MISSING_SIGNER",
+      )
     }
 
     return await this.transaction(this.defaultSignerId)
@@ -169,20 +173,14 @@ export class Near {
    * Get account balance in NEAR
    */
   async getBalance(accountId: string): Promise<string> {
-    try {
-      const account = await this.rpc.getAccount(accountId)
+    // RPC client now throws AccountDoesNotExistError directly
+    const account = await this.rpc.getAccount(accountId)
 
-      // Convert yoctoNEAR to NEAR
-      const balanceYocto = BigInt(account.amount)
-      const balanceNear = Number(balanceYocto) / 1e24
+    // Convert yoctoNEAR to NEAR
+    const balanceYocto = BigInt(account.amount)
+    const balanceNear = Number(balanceYocto) / 1e24
 
-      return balanceNear.toFixed(2)
-    } catch (error) {
-      if (error instanceof NetworkError && error.data) {
-        throw new AccountDoesNotExistError(accountId)
-      }
-      throw error
-    }
+    return balanceNear.toFixed(2)
   }
 
   /**

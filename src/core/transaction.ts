@@ -3,6 +3,7 @@
  */
 
 import { base58 } from "@scure/base"
+import { InvalidKeyError, NearError, SignatureError } from "../errors/index.js"
 import { parseGas, parseNearAmount } from "../utils/format.js"
 import * as actions from "./actions.js"
 import { DEFAULT_FUNCTION_CALL_GAS } from "./constants.js"
@@ -29,7 +30,6 @@ export class TransactionBuilder {
   private receiverId?: string
   private rpc: RpcClient
   private keyStore: KeyStore
-  private signer?: Signer
 
   constructor(
     signerId: string,
@@ -191,7 +191,7 @@ export class TransactionBuilder {
     if (typeof key === "string") {
       // Parse key and create signer
       // This would require parseKey implementation
-      throw new Error("String key signing not yet implemented")
+      throw new SignatureError("String key signing not yet implemented")
     } else {
       this.signer = key
     }
@@ -204,13 +204,16 @@ export class TransactionBuilder {
    */
   async build(): Promise<Transaction> {
     if (!this.receiverId) {
-      throw new Error("No receiver ID set for transaction")
+      throw new NearError(
+        "No receiver ID set for transaction",
+        "INVALID_TRANSACTION",
+      )
     }
 
     // Get access key info for nonce and block hash
     const keyPair = await this.keyStore.get(this.signerId)
     if (!keyPair) {
-      throw new Error(`No key found for account: ${this.signerId}`)
+      throw new InvalidKeyError(`No key found for account: ${this.signerId}`)
     }
 
     const publicKey = keyPair.publicKey
@@ -245,7 +248,7 @@ export class TransactionBuilder {
 
     const keyPair = await this.keyStore.get(this.signerId)
     if (!keyPair) {
-      throw new Error(`No key found for account: ${this.signerId}`)
+      throw new InvalidKeyError(`No key found for account: ${this.signerId}`)
     }
 
     const signature = keyPair.sign(serialized)

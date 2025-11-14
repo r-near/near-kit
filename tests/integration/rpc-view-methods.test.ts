@@ -13,6 +13,7 @@ import type {
   StatusResponse,
   ViewFunctionCallResult,
 } from "../../src/core/types.js"
+import { AccountDoesNotExistError } from "../../src/errors/index.js"
 
 // Use the new FastNEAR endpoints
 const MAINNET_RPC = "https://free.rpc.fastnear.com"
@@ -191,14 +192,15 @@ describe("RPC Error Handling", () => {
       // Should not reach here
       expect(false).toBe(true)
     } catch (error) {
-      // Should throw a NetworkError
+      // Should throw an AccountDoesNotExistError
       expect(error).toBeDefined()
-      // Error message should contain either "Server error" or account info
-      const message = (error as Error).message
-      expect(message).toBeTruthy()
-      // Verify it's an RPC error (not a network failure)
-      expect(message).toMatch(/RPC error|does not exist|Server error/)
-      console.log(`✓ Correctly handled non-existent account error: ${message}`)
+      expect(error).toBeInstanceOf(AccountDoesNotExistError)
+      const accountError = error as AccountDoesNotExistError
+      expect(accountError.accountId).toBeDefined()
+      expect(accountError.code).toBe("ACCOUNT_NOT_FOUND")
+      console.log(
+        `✓ Correctly handled non-existent account error: ${accountError.message}`,
+      )
     }
   }, 10000)
 
