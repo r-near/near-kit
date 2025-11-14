@@ -2,13 +2,13 @@
  * Integration tests for Near class with wallet support
  */
 
-import { describe, expect, it, beforeEach } from "bun:test"
+import { beforeEach, describe, expect, it } from "bun:test"
 import { Near } from "../../src/core/near.js"
 import {
-  fromWalletSelector,
   fromHotConnect,
+  fromWalletSelector,
 } from "../../src/wallets/adapters.js"
-import { MockWalletSelector, MockHotConnect } from "./mock-wallets.js"
+import { MockHotConnect, MockWalletSelector } from "./mock-wallets.js"
 
 describe("Near class with wallets", () => {
   describe("With wallet-selector", () => {

@@ -36,7 +36,8 @@ export class MockWalletSelector {
       final_execution_status: "FINAL",
       status: { SuccessValue: "" },
       transaction: {
-        signer_id: params.signerId || this.accounts[0]?.accountId || "test.near",
+        signer_id:
+          params.signerId || this.accounts[0]?.accountId || "test.near",
         public_key: "ed25519:...",
         nonce: 1,
         receiver_id: params.receiverId,
@@ -153,7 +154,8 @@ class MockHotConnectWallet {
       final_execution_status: "FINAL",
       status: { SuccessValue: "" },
       transaction: {
-        signer_id: params.signerId || this.accounts[0]?.accountId || "test.near",
+        signer_id:
+          params.signerId || this.accounts[0]?.accountId || "test.near",
         public_key: "ed25519:...",
         nonce: 1,
         receiver_id: params.receiverId,
@@ -229,7 +231,8 @@ export class MockWalletWithoutSignMessage {
       final_execution_status: "FINAL",
       status: { SuccessValue: "" },
       transaction: {
-        signer_id: params.signerId || this.accounts[0]?.accountId || "test.near",
+        signer_id:
+          params.signerId || this.accounts[0]?.accountId || "test.near",
         public_key: "ed25519:...",
         nonce: 1,
         receiver_id: params.receiverId,

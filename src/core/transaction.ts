@@ -112,7 +112,7 @@ export class TransactionBuilder {
     keyStore: KeyStore,
     signer?: Signer,
     defaultWaitUntil: TxExecutionStatus = "EXECUTED_OPTIMISTIC",
-    wallet?: WalletConnection
+    wallet?: WalletConnection,
   ) {
     this.signerId = signerId
     this.actions = []
@@ -451,15 +451,15 @@ export class TransactionBuilder {
    */
   async send(): Promise<FinalExecutionOutcomeMap["EXECUTED_OPTIMISTIC"]>
   async send<W extends keyof FinalExecutionOutcomeMap>(
-    options: SendOptions<W>
+    options: SendOptions<W>,
   ): Promise<FinalExecutionOutcomeMap[W]>
   async send<W extends keyof FinalExecutionOutcomeMap = "EXECUTED_OPTIMISTIC">(
-    options?: SendOptions<W>
+    options?: SendOptions<W>,
   ): Promise<FinalExecutionOutcomeMap[W]> {
     if (!this.receiverId) {
       throw new NearError(
         "No receiver ID set for transaction",
-        "INVALID_TRANSACTION"
+        "INVALID_TRANSACTION",
       )
     }
 

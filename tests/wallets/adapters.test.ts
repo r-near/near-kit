@@ -3,13 +3,13 @@
  */
 
 import { describe, expect, it } from "bun:test"
-import { fromWalletSelector, fromHotConnect } from "../../src/wallets/index.js"
+import * as actions from "../../src/core/actions.js"
+import { fromHotConnect, fromWalletSelector } from "../../src/wallets/index.js"
 import {
-  MockWalletSelector,
   MockHotConnect,
+  MockWalletSelector,
   MockWalletWithoutSignMessage,
 } from "./mock-wallets.js"
-import * as actions from "../../src/core/actions.js"
 
 describe("Wallet Adapters", () => {
   describe("fromWalletSelector", () => {
@@ -35,7 +35,9 @@ describe("Wallet Adapters", () => {
 
       const adapter = fromWalletSelector(mockWallet)
 
-      const transferAction = actions.transfer(BigInt("1000000000000000000000000"))
+      const transferAction = actions.transfer(
+        BigInt("1000000000000000000000000"),
+      )
 
       const result = await adapter.signAndSendTransaction({
         signerId: "alice.near",
@@ -112,7 +114,9 @@ describe("Wallet Adapters", () => {
 
       const adapter = fromHotConnect(mockConnector)
 
-      const transferAction = actions.transfer(BigInt("1000000000000000000000000"))
+      const transferAction = actions.transfer(
+        BigInt("1000000000000000000000000"),
+      )
 
       const result = await adapter.signAndSendTransaction({
         signerId: "alice.near",
@@ -179,7 +183,12 @@ describe("Wallet Adapters", () => {
       const argsBytes = new TextEncoder().encode('{"method":"test"}')
       const multipleActions = [
         actions.transfer(BigInt("1000000000000000000000000")),
-        actions.functionCall("method", argsBytes, BigInt(30000000000000), BigInt(0)),
+        actions.functionCall(
+          "method",
+          argsBytes,
+          BigInt(30000000000000),
+          BigInt(0),
+        ),
         actions.createAccount(),
       ]
 

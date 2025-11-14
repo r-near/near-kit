@@ -6,8 +6,8 @@
  */
 
 import { describe, expect, it } from "bun:test"
-import type { FinalExecutionOutcome } from "@near-js/types"
 import type { Action } from "@near-js/transactions"
+import type { FinalExecutionOutcome } from "@near-js/types"
 import * as ourActions from "../../src/core/actions.js"
 import type { Action as OurAction } from "../../src/core/schema.js"
 

@@ -6,9 +6,12 @@
  */
 
 import { describe, expect, it } from "bun:test"
-import { fromWalletSelector, fromHotConnect } from "../../src/wallets/adapters.js"
-import type { WalletSelector, Wallet } from "@near-wallet-selector/core"
 import type { NearWalletBase } from "@hot-labs/near-connect/dist/types/wallet"
+import type { Wallet, WalletSelector } from "@near-wallet-selector/core"
+import {
+  fromHotConnect,
+  fromWalletSelector,
+} from "../../src/wallets/adapters.js"
 
 describe("Real Package Integration", () => {
   describe("@near-wallet-selector/core", () => {
@@ -358,7 +361,9 @@ describe("Real Package Integration", () => {
       const adapter = fromWalletSelector(mockWallet as any)
 
       // Create real actions using our action builders
-      const transferAction = actions.transfer(BigInt("1000000000000000000000000"))
+      const transferAction = actions.transfer(
+        BigInt("1000000000000000000000000"),
+      )
       const functionCallAction = actions.functionCall(
         "method",
         new TextEncoder().encode('{"arg":"value"}'),

@@ -20,6 +20,12 @@ import type {
   ViewFunctionCallResult,
 } from "../types.js"
 import {
+  checkOutcomeForFunctionCallError,
+  extractErrorMessage,
+  isRetryableStatus,
+  parseRpcError,
+} from "./rpc-error-handler.js"
+import {
   AccessKeyViewSchema,
   AccountViewSchema,
   FinalExecutionOutcomeSchema,
@@ -27,12 +33,6 @@ import {
   StatusResponseSchema,
   ViewFunctionCallResultSchema,
 } from "./rpc-schemas.js"
-import {
-  checkOutcomeForFunctionCallError,
-  extractErrorMessage,
-  isRetryableStatus,
-  parseRpcError,
-} from "./rpc-error-handler.js"
 
 export interface RpcRequest {
   jsonrpc: "2.0"
@@ -67,7 +67,6 @@ export class RpcClient {
     this.headers = headers || {}
     this.requestId = 0
   }
-
 
   async call<T = unknown>(method: string, params: unknown): Promise<T> {
     const request: RpcRequest = {
@@ -194,7 +193,9 @@ export class RpcClient {
     return AccessKeyViewSchema.parse(result)
   }
 
-  async sendTransaction<W extends keyof FinalExecutionOutcomeMap = "EXECUTED_OPTIMISTIC">(
+  async sendTransaction<
+    W extends keyof FinalExecutionOutcomeMap = "EXECUTED_OPTIMISTIC",
+  >(
     signedTransaction: Uint8Array,
     waitUntil?: W,
   ): Promise<FinalExecutionOutcomeMap[W]> {
@@ -207,7 +208,8 @@ export class RpcClient {
       wait_until: actualWaitUntil,
     })
 
-    const parsed: FinalExecutionOutcome = FinalExecutionOutcomeSchema.parse(result)
+    const parsed: FinalExecutionOutcome =
+      FinalExecutionOutcomeSchema.parse(result)
 
     // Check for execution failures (only in modes that return execution status)
     // NONE, INCLUDED, and INCLUDED_FINAL don't have status/transaction/outcome fields
@@ -217,25 +219,28 @@ export class RpcClient {
       parsed.final_execution_status !== "INCLUDED_FINAL"
     ) {
       // TypeScript now knows parsed has status, transaction, transaction_outcome, receipts_outcome
-      if (parsed.status && typeof parsed.status === "object" && "Failure" in parsed.status) {
+      if (
+        parsed.status &&
+        typeof parsed.status === "object" &&
+        "Failure" in parsed.status
+      ) {
         // Check transaction_outcome for direct failures
         if (parsed.transaction_outcome) {
           checkOutcomeForFunctionCallError(
             parsed.transaction_outcome,
-            parsed.transaction
+            parsed.transaction,
           )
         }
 
         // Check receipts_outcome for cross-contract failures
         const failedReceipt = parsed.receipts_outcome?.find(
-          receipt => typeof receipt.outcome.status === "object" && "Failure" in receipt.outcome.status
+          (receipt) =>
+            typeof receipt.outcome.status === "object" &&
+            "Failure" in receipt.outcome.status,
         )
 
         if (failedReceipt) {
-          checkOutcomeForFunctionCallError(
-            failedReceipt,
-            parsed.transaction
-          )
+          checkOutcomeForFunctionCallError(failedReceipt, parsed.transaction)
         }
 
         // Generic transaction failure (non-function-call errors)
@@ -243,16 +248,24 @@ export class RpcClient {
         let errorMessage = "Transaction execution failed"
         let failureDetails = parsed.status.Failure
 
-        if (parsed.transaction_outcome &&
-            typeof parsed.transaction_outcome.outcome.status === "object" &&
-            "Failure" in parsed.transaction_outcome.outcome.status) {
+        if (
+          parsed.transaction_outcome &&
+          typeof parsed.transaction_outcome.outcome.status === "object" &&
+          "Failure" in parsed.transaction_outcome.outcome.status
+        ) {
           failureDetails = parsed.transaction_outcome.outcome.status.Failure
-          errorMessage = extractErrorMessage(failureDetails as Record<string, unknown>)
-        } else if (failedReceipt &&
-                   typeof failedReceipt.outcome.status === "object" &&
-                   "Failure" in failedReceipt.outcome.status) {
+          errorMessage = extractErrorMessage(
+            failureDetails as Record<string, unknown>,
+          )
+        } else if (
+          failedReceipt &&
+          typeof failedReceipt.outcome.status === "object" &&
+          "Failure" in failedReceipt.outcome.status
+        ) {
           failureDetails = failedReceipt.outcome.status.Failure
-          errorMessage = extractErrorMessage(failureDetails as Record<string, unknown>)
+          errorMessage = extractErrorMessage(
+            failureDetails as Record<string, unknown>,
+          )
         }
 
         throw new InvalidTransactionError(errorMessage, failureDetails)

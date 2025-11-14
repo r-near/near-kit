@@ -14,14 +14,18 @@ import { describe, expect, it, test } from "bun:test"
 describe("Real Wallet Package Integration", () => {
   describe("@near-wallet-selector/core compatibility", () => {
     it("should have fromWalletSelector adapter available", async () => {
-      const { fromWalletSelector } = await import("../../src/wallets/adapters.js")
+      const { fromWalletSelector } = await import(
+        "../../src/wallets/adapters.js"
+      )
       expect(fromWalletSelector).toBeDefined()
       expect(typeof fromWalletSelector).toBe("function")
     })
 
     it("should create compatible WalletConnection from wallet-selector types", async () => {
       // This test verifies type compatibility without requiring the actual package
-      const { fromWalletSelector } = await import("../../src/wallets/adapters.js")
+      const { fromWalletSelector } = await import(
+        "../../src/wallets/adapters.js"
+      )
 
       // Create a minimal mock that matches wallet-selector's interface
       const mockWalletSelectorWallet = {
@@ -81,7 +85,9 @@ describe("Real Wallet Package Integration", () => {
     })
 
     test("adapter interface matches wallet-selector return types", async () => {
-      const { fromWalletSelector } = await import("../../src/wallets/adapters.js")
+      const { fromWalletSelector } = await import(
+        "../../src/wallets/adapters.js"
+      )
       const { MockWalletSelector } = await import("./mock-wallets.js")
 
       const mock = new MockWalletSelector([
@@ -196,7 +202,9 @@ describe("Real Wallet Package Integration", () => {
 
   describe("Type compatibility", () => {
     test("adapters preserve action types", async () => {
-      const { fromWalletSelector } = await import("../../src/wallets/adapters.js")
+      const { fromWalletSelector } = await import(
+        "../../src/wallets/adapters.js"
+      )
       const { MockWalletSelector } = await import("./mock-wallets.js")
       const actions = await import("../../src/core/actions.js")
 
@@ -207,7 +215,9 @@ describe("Real Wallet Package Integration", () => {
       const adapter = fromWalletSelector(mock)
 
       // Create various action types
-      const transferAction = actions.transfer(BigInt("1000000000000000000000000"))
+      const transferAction = actions.transfer(
+        BigInt("1000000000000000000000000"),
+      )
       const functionCallAction = actions.functionCall(
         "method",
         new TextEncoder().encode("{}"),

@@ -30,14 +30,14 @@ function toHex(bytes: Uint8Array, start = 0, length = bytes.length): string {
     .join(" ")
 }
 
-console.log("=" .repeat(70))
+console.log("=".repeat(70))
 console.log("DelegateAction Serialization Validation")
-console.log("=" .repeat(70))
+console.log("=".repeat(70))
 console.log()
 
 // Test 1: Verify NEP-461 prefix
 console.log("Test 1: NEP-461 Prefix Validation")
-console.log("-" .repeat(70))
+console.log("-".repeat(70))
 
 const pk1 = createTestPublicKey(42)
 const delegate1 = new DelegateAction(
@@ -77,7 +77,7 @@ console.log()
 
 // Test 2: Deterministic serialization
 console.log("Test 2: Deterministic Serialization")
-console.log("-" .repeat(70))
+console.log("-".repeat(70))
 
 // Create same delegate action again
 const pk2 = createTestPublicKey(42)
@@ -123,7 +123,7 @@ console.log()
 
 // Test 3: Structure validation
 console.log("Test 3: Serialization Structure")
-console.log("-" .repeat(70))
+console.log("-".repeat(70))
 
 console.log("Expected structure after prefix:")
 console.log("  - senderId (string): 'sender.near'")
@@ -151,7 +151,11 @@ const senderIdLength =
   (senderIdLengthBytes[2] << 16) |
   (senderIdLengthBytes[3] << 24)
 
-console.log("Parsed senderId length:", senderIdLength, "(expected: 11 for 'sender.near')")
+console.log(
+  "Parsed senderId length:",
+  senderIdLength,
+  "(expected: 11 for 'sender.near')",
+)
 
 if (senderIdLength === 11) {
   const senderIdBytes = encoded1.slice(8, 8 + senderIdLength)
@@ -173,7 +177,7 @@ console.log()
 
 // Test 4: Multiple actions
 console.log("Test 4: Multiple Actions")
-console.log("-" .repeat(70))
+console.log("-".repeat(70))
 
 const pk3 = createTestPublicKey(99)
 const delegate3 = new DelegateAction(
@@ -207,7 +211,7 @@ if (prefix3Matches) {
 }
 
 console.log()
-console.log("=" .repeat(70))
+console.log("=".repeat(70))
 console.log()
 console.log("🎉 All validation tests PASSED!")
 console.log()
@@ -217,5 +221,7 @@ console.log("  ✅ Serialization is deterministic")
 console.log("  ✅ Structure is correctly serialized")
 console.log("  ✅ Multiple actions are handled correctly")
 console.log()
-console.log("The DelegateAction implementation follows NEP-366 and NEP-461 specs.")
+console.log(
+  "The DelegateAction implementation follows NEP-366 and NEP-461 specs.",
+)
 console.log()

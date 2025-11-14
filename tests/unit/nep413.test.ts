@@ -3,14 +3,14 @@
  */
 
 import { describe, expect, test } from "bun:test"
+import type { SignMessageParams } from "../../src/core/types.js"
 import {
   Ed25519KeyPair,
   generateNep413Nonce,
+  NEP413_TAG,
   serializeNep413Message,
   verifyNep413Signature,
-  NEP413_TAG,
 } from "../../src/utils/index.js"
-import type { SignMessageParams } from "../../src/core/types.js"
 
 describe("NEP-413 Message Signing", () => {
   test("should generate a 32-byte nonce", () => {

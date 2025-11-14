@@ -13,9 +13,12 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test"
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { Near } from "../../src/core/near.js"
+import {
+  FunctionCallError,
+  InvalidTransactionError,
+} from "../../src/errors/index.js"
 import { Sandbox } from "../../src/sandbox/sandbox.js"
 import { generateKey } from "../../src/utils/key.js"
-import { FunctionCallError, InvalidTransactionError } from "../../src/errors/index.js"
 
 describe("Contract Failure Modes", () => {
   let sandbox: Sandbox
@@ -32,7 +35,7 @@ describe("Contract Failure Modes", () => {
     // Deploy guestbook contract
     contractId = `guestbook-${Date.now()}.${sandbox.rootAccount.id}`
     const contractWasm = readFileSync(
-      resolve(__dirname, "../contracts/guestbook.wasm")
+      resolve(__dirname, "../contracts/guestbook.wasm"),
     )
 
     const contractKey = generateKey()
@@ -168,7 +171,9 @@ describe("Contract Failure Modes", () => {
       expect("status" in result).toBe(false)
       expect("transaction_outcome" in result).toBe(false)
 
-      console.log("✓ NONE mode does not throw error (transaction not executed yet)")
+      console.log(
+        "✓ NONE mode does not throw error (transaction not executed yet)",
+      )
     })
   })
 
@@ -299,7 +304,9 @@ describe("Contract Failure Modes", () => {
       expect(result).toBeDefined()
       expect(result.final_execution_status).toBe("EXECUTED_OPTIMISTIC")
       expect(typeof result.status).toBe("object")
-      expect("SuccessValue" in result.status || "SuccessReceiptId" in result.status).toBe(true)
+      expect(
+        "SuccessValue" in result.status || "SuccessReceiptId" in result.status,
+      ).toBe(true)
 
       console.log("✓ Successful call did not throw error")
     })

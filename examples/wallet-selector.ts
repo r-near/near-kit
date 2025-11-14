@@ -9,7 +9,7 @@
  * npm install @near-wallet-selector/my-near-wallet
  */
 
-import { Near, fromWalletSelector } from "../src/index.js"
+import { fromWalletSelector, Near } from "../src/index.js"
 
 // Uncomment to use in a real project:
 // import { setupWalletSelector } from "@near-wallet-selector/core"

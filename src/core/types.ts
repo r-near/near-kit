@@ -29,7 +29,10 @@ export interface KeyPair {
   publicKey: PublicKey
   secretKey: string
   sign(message: Uint8Array): Signature
-  signNep413Message?(accountId: string, params: SignMessageParams): SignedMessage
+  signNep413Message?(
+    accountId: string,
+    params: SignMessageParams,
+  ): SignedMessage
 }
 
 export enum KeyType {
@@ -154,7 +157,9 @@ export type TxExecutionStatus =
 // Import for use in SendOptions
 import type { FinalExecutionOutcomeMap } from "./rpc/rpc-schemas.js"
 
-export interface SendOptions<W extends keyof FinalExecutionOutcomeMap = keyof FinalExecutionOutcomeMap> {
+export interface SendOptions<
+  W extends keyof FinalExecutionOutcomeMap = keyof FinalExecutionOutcomeMap,
+> {
   /**
    * Controls when the RPC returns after submitting the transaction.
    *
@@ -209,8 +214,8 @@ export type {
   ExecutionOutcomeWithId,
   ExecutionStatus,
   FinalExecutionOutcome,
-  FinalExecutionOutcomeWithReceipts,
   FinalExecutionOutcomeMap,
+  FinalExecutionOutcomeWithReceipts,
   MerklePathItem,
   Receipt,
   RpcAction,

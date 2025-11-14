@@ -25,10 +25,7 @@ import {
   UnknownEpochError,
   UnknownReceiptError,
 } from "../../errors/index.js"
-import type {
-  ExecutionOutcomeWithId,
-  RpcTransaction,
-} from "../types.js"
+import type { ExecutionOutcomeWithId, RpcTransaction } from "../types.js"
 import { RpcErrorResponseSchema } from "./rpc-schemas.js"
 
 // ==================== Failure Type Definitions ====================
@@ -89,7 +86,8 @@ export interface RpcErrorResponse {
  */
 function isFunctionCallError(failure: ExecutionFailure): boolean {
   return (
-    (failure as ActionErrorFailure).ActionError?.kind?.FunctionCallError !== undefined ||
+    (failure as ActionErrorFailure).ActionError?.kind?.FunctionCallError !==
+      undefined ||
     (failure as DirectFunctionCallFailure).FunctionCallError !== undefined
   )
 }
@@ -104,10 +102,10 @@ function extractPanicMessage(failure: ExecutionFailure): string | undefined {
 
   if (!functionCallError) return undefined
 
-  if (typeof functionCallError.ExecutionError === 'string') {
+  if (typeof functionCallError.ExecutionError === "string") {
     return functionCallError.ExecutionError
   }
-  if (typeof functionCallError.HostError === 'string') {
+  if (typeof functionCallError.HostError === "string") {
     return functionCallError.HostError
   }
 
@@ -117,14 +115,20 @@ function extractPanicMessage(failure: ExecutionFailure): string | undefined {
 /**
  * Extract method name from transaction actions
  */
-function extractMethodName(transaction: RpcTransaction | undefined): string | undefined {
+function extractMethodName(
+  transaction: RpcTransaction | undefined,
+): string | undefined {
   if (!transaction) return undefined
 
   const functionCallAction = transaction.actions.find(
-    action => typeof action === "object" && "FunctionCall" in action
+    (action) => typeof action === "object" && "FunctionCall" in action,
   )
 
-  if (functionCallAction && typeof functionCallAction === "object" && "FunctionCall" in functionCallAction) {
+  if (
+    functionCallAction &&
+    typeof functionCallAction === "object" &&
+    "FunctionCall" in functionCallAction
+  ) {
     return functionCallAction.FunctionCall.method_name
   }
 
@@ -136,9 +140,17 @@ function extractMethodName(transaction: RpcTransaction | undefined): string | un
  */
 export function extractErrorMessage(failure: Record<string, unknown>): string {
   // Handle ActionError structure
-  if ("ActionError" in failure && typeof failure["ActionError"] === "object" && failure["ActionError"] !== null) {
+  if (
+    "ActionError" in failure &&
+    typeof failure["ActionError"] === "object" &&
+    failure["ActionError"] !== null
+  ) {
     const actionError = failure["ActionError"] as Record<string, unknown>
-    if ("kind" in actionError && typeof actionError["kind"] === "object" && actionError["kind"] !== null) {
+    if (
+      "kind" in actionError &&
+      typeof actionError["kind"] === "object" &&
+      actionError["kind"] !== null
+    ) {
       const kind = actionError["kind"] as Record<string, unknown>
 
       // Get the error type (first key in kind object)
@@ -171,7 +183,7 @@ export function extractErrorMessage(failure: Record<string, unknown>): string {
  */
 export function checkOutcomeForFunctionCallError(
   outcome: ExecutionOutcomeWithId,
-  transaction: RpcTransaction | undefined
+  transaction: RpcTransaction | undefined,
 ): void {
   if (
     typeof outcome.outcome.status === "object" &&
@@ -236,14 +248,12 @@ export function parseRpcError(
     }
 
     if (causeName === "INVALID_ACCOUNT") {
-      const accountId =
-        (causeInfo.requested_account_id as string) || "unknown"
+      const accountId = (causeInfo.requested_account_id as string) || "unknown"
       throw new InvalidAccountError(accountId)
     }
 
     if (causeName === "UNKNOWN_ACCOUNT") {
-      const accountId =
-        (causeInfo.requested_account_id as string) || "unknown"
+      const accountId = (causeInfo.requested_account_id as string) || "unknown"
       throw new AccountDoesNotExistError(accountId)
     }
 

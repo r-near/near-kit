@@ -58,7 +58,9 @@ describe("sendTransaction - RPC Response Validation", () => {
       expect("transaction" in result).toBe(false)
       expect("transaction_outcome" in result).toBe(false)
 
-      console.log("✓ waitUntil: NONE returns minimal response (transaction submitted)")
+      console.log(
+        "✓ waitUntil: NONE returns minimal response (transaction submitted)",
+      )
     })
   })
 
@@ -112,14 +114,20 @@ describe("sendTransaction - RPC Response Validation", () => {
 
       // Should have success status object
       expect(typeof result.status).toBe("object")
-      expect("SuccessValue" in result.status || "SuccessReceiptId" in result.status).toBe(true)
+      expect(
+        "SuccessValue" in result.status || "SuccessReceiptId" in result.status,
+      ).toBe(true)
 
       // Should have execution outcome
       expect(result.transaction_outcome).toBeDefined()
       expect(result.transaction_outcome.outcome.gas_burnt).toBeGreaterThan(0)
       expect(result.transaction_outcome.outcome.logs).toBeDefined()
 
-      console.log("✓ Default execution used", result.transaction_outcome.outcome.gas_burnt, "gas")
+      console.log(
+        "✓ Default execution used",
+        result.transaction_outcome.outcome.gas_burnt,
+        "gas",
+      )
     })
 
     test("should throw FunctionCallError on contract failure", async () => {
@@ -140,7 +148,9 @@ describe("sendTransaction - RPC Response Validation", () => {
       // This test verifies that IF a failure occurs, it's properly caught and typed
       // A more reliable test would deploy a contract that panics
 
-      console.log("✓ FunctionCallError handling verified (contract would need to be deployed for full test)")
+      console.log(
+        "✓ FunctionCallError handling verified (contract would need to be deployed for full test)",
+      )
     })
   })
 
@@ -178,7 +188,10 @@ describe("sendTransaction - RPC Response Validation", () => {
         expect(error.name).toBe("InvalidTransactionError")
         expect(error.message).toContain("already exists")
 
-        console.log("✓ Correctly threw InvalidTransactionError for non-function-call failure:", error.message)
+        console.log(
+          "✓ Correctly threw InvalidTransactionError for non-function-call failure:",
+          error.message,
+        )
       }
     })
   })
@@ -202,13 +215,19 @@ describe("sendTransaction - RPC Response Validation", () => {
 
       // Should have fully executed and finalized
       expect(typeof result.status).toBe("object")
-      expect("SuccessValue" in result.status || "SuccessReceiptId" in result.status).toBe(true)
+      expect(
+        "SuccessValue" in result.status || "SuccessReceiptId" in result.status,
+      ).toBe(true)
 
       // All receipts should be included
       expect(result.receipts_outcome).toBeDefined()
       expect(result.receipts_outcome.length).toBeGreaterThan(0)
 
-      console.log("✓ FINAL execution with", result.receipts_outcome.length, "receipts")
+      console.log(
+        "✓ FINAL execution with",
+        result.receipts_outcome.length,
+        "receipts",
+      )
     })
   })
 
@@ -274,16 +293,19 @@ describe("sendTransaction - RPC Response Validation", () => {
       const createAccountAction = result.transaction.actions.find(
         (action: any) =>
           action === "CreateAccount" ||
-          (typeof action === "object" && "CreateAccount" in action)
+          (typeof action === "object" && "CreateAccount" in action),
       )
 
       expect(createAccountAction).toBeDefined()
       expect(
         createAccountAction === "CreateAccount" ||
-        (typeof createAccountAction === "object" && "CreateAccount" in createAccountAction)
+          (typeof createAccountAction === "object" &&
+            "CreateAccount" in createAccountAction),
       ).toBe(true)
 
-      console.log(`✓ CreateAccount action uses correct RPC format: ${JSON.stringify(createAccountAction)}`)
+      console.log(
+        `✓ CreateAccount action uses correct RPC format: ${JSON.stringify(createAccountAction)}`,
+      )
     })
   })
 })

@@ -6,10 +6,10 @@ import { describe, expect, test } from "bun:test"
 import {
   addKey,
   createAccount,
+  DelegateAction,
   deleteAccount,
   deleteKey,
   deployContract,
-  DelegateAction,
   functionCall,
   SignedDelegate,
   signedDelegate,
@@ -20,11 +20,11 @@ import {
   type Action,
   ActionSchema,
   DELEGATE_ACTION_PREFIX,
-  serializeDelegateAction,
-  serializeSignedDelegate,
   PublicKeySchema,
   publicKeyToZorsh,
   SignatureSchema,
+  serializeDelegateAction,
+  serializeSignedDelegate,
   serializeTransaction,
   signatureToZorsh,
 } from "../../src/core/schema.js"
@@ -455,7 +455,9 @@ describe("Signed Delegate Action", () => {
     // Should have the right shape
     expect("signedDelegate" in action).toBe(true)
     expect(action.signedDelegate.delegateAction.senderId).toBe("sender.near")
-    expect(action.signedDelegate.delegateAction.receiverId).toBe("receiver.near")
+    expect(action.signedDelegate.delegateAction.receiverId).toBe(
+      "receiver.near",
+    )
     expect(action.signedDelegate.delegateAction.nonce).toBe(BigInt(111))
   })
 })

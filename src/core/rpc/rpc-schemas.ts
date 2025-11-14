@@ -188,21 +188,25 @@ export const ExecutionStatusSchema = z.union([
   z.object({ SuccessValue: z.string() }),
   z.object({ SuccessReceiptId: z.string() }),
   z.object({
-    Failure: z.object({
-      error_message: z.string().optional(),
-      error_type: z.string().optional(),
-    }).catchall(z.any()),
+    Failure: z
+      .object({
+        error_message: z.string().optional(),
+        error_type: z.string().optional(),
+      })
+      .catchall(z.any()),
   }),
 ])
 
 /**
  * Gas profile entry (for metadata)
  */
-export const GasProfileEntrySchema = z.object({
-  cost: z.string().optional(),
-  cost_category: z.string().optional(),
-  gas_used: z.string().optional(),
-}).catchall(z.any())
+export const GasProfileEntrySchema = z
+  .object({
+    cost: z.string().optional(),
+    cost_category: z.string().optional(),
+    gas_used: z.string().optional(),
+  })
+  .catchall(z.any())
 
 /**
  * Execution metadata
@@ -367,7 +371,7 @@ export const FinalExecutionOutcomeSchema = z.discriminatedUnion(
       transaction_outcome: ExecutionOutcomeWithIdSchema,
       receipts_outcome: z.array(ExecutionOutcomeWithIdSchema),
     }),
-  ]
+  ],
 )
 
 /**
@@ -407,7 +411,7 @@ export const FinalExecutionOutcomeWithReceiptsSchema = z.intersection(
   FinalExecutionOutcomeSchema,
   z.object({
     receipts: z.array(ReceiptSchema),
-  })
+  }),
 )
 
 // ==================== Type Inference ====================
@@ -438,7 +442,9 @@ export type ExecutionStatus = z.infer<typeof ExecutionStatusSchema>
 export type ExecutionMetadata = z.infer<typeof ExecutionMetadataSchema>
 export type ExecutionOutcome = z.infer<typeof ExecutionOutcomeSchema>
 export type MerklePathItem = z.infer<typeof MerklePathItemSchema>
-export type ExecutionOutcomeWithId = z.infer<typeof ExecutionOutcomeWithIdSchema>
+export type ExecutionOutcomeWithId = z.infer<
+  typeof ExecutionOutcomeWithIdSchema
+>
 export type RpcAction = z.infer<typeof ActionSchema>
 export type RpcTransaction = z.infer<typeof TransactionSchema>
 export type FinalExecutionOutcome = z.infer<typeof FinalExecutionOutcomeSchema>
@@ -462,9 +468,21 @@ export type FinalExecutionOutcomeWithReceipts = z.infer<
  */
 export type FinalExecutionOutcomeMap = {
   NONE: Extract<FinalExecutionOutcome, { final_execution_status: "NONE" }>
-  INCLUDED: Extract<FinalExecutionOutcome, { final_execution_status: "INCLUDED" }>
-  INCLUDED_FINAL: Extract<FinalExecutionOutcome, { final_execution_status: "INCLUDED_FINAL" }>
-  EXECUTED_OPTIMISTIC: Extract<FinalExecutionOutcome, { final_execution_status: "EXECUTED_OPTIMISTIC" }>
-  EXECUTED: Extract<FinalExecutionOutcome, { final_execution_status: "EXECUTED" }>
+  INCLUDED: Extract<
+    FinalExecutionOutcome,
+    { final_execution_status: "INCLUDED" }
+  >
+  INCLUDED_FINAL: Extract<
+    FinalExecutionOutcome,
+    { final_execution_status: "INCLUDED_FINAL" }
+  >
+  EXECUTED_OPTIMISTIC: Extract<
+    FinalExecutionOutcome,
+    { final_execution_status: "EXECUTED_OPTIMISTIC" }
+  >
+  EXECUTED: Extract<
+    FinalExecutionOutcome,
+    { final_execution_status: "EXECUTED" }
+  >
   FINAL: Extract<FinalExecutionOutcome, { final_execution_status: "FINAL" }>
 }

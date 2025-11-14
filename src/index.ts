@@ -2,10 +2,19 @@
  * near-kit - A simple, intuitive TypeScript library for interacting with NEAR Protocol
  */
 
+// Delegate actions
+export {
+  DelegateAction,
+  SignedDelegate,
+} from "./core/actions.js"
 // Main class
 export { Near } from "./core/near.js"
+export {
+  DELEGATE_ACTION_PREFIX,
+  serializeDelegateAction,
+  serializeSignedDelegate,
+} from "./core/schema.js"
 export { TransactionBuilder } from "./core/transaction.js"
-
 // Types
 export type {
   CallOptions,
@@ -68,22 +77,12 @@ export {
   isPrivateKey,
   isValidAccountId,
   isValidPublicKey,
+  type PrivateKey,
   parseAmount,
   parseGas,
   parseKey,
   parseSeedPhrase,
-  type PrivateKey,
   validatePrivateKey,
 } from "./utils/index.js"
 // Wallet adapters
-export { fromWalletSelector, fromHotConnect } from "./wallets/index.js"
-// Delegate actions
-export {
-  DelegateAction,
-  SignedDelegate,
-} from "./core/actions.js"
-export {
-  DELEGATE_ACTION_PREFIX,
-  serializeDelegateAction,
-  serializeSignedDelegate,
-} from "./core/schema.js"
+export { fromHotConnect, fromWalletSelector } from "./wallets/index.js"

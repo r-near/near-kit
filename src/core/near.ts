@@ -7,9 +7,9 @@ import { createContract } from "../contracts/contract.js"
 import { NearError } from "../errors/index.js"
 import { InMemoryKeyStore } from "../keys/index.js"
 import { parseKey } from "../utils/key.js"
+import { generateNep413Nonce } from "../utils/nep413.js"
 import type { Amount } from "../utils/validation.js"
 import { normalizeAmount, normalizeGas } from "../utils/validation.js"
-import { generateNep413Nonce } from "../utils/nep413.js"
 import * as actions from "./actions.js"
 import {
   type NearConfig,
@@ -22,9 +22,9 @@ import { TransactionBuilder } from "./transaction.js"
 import type {
   CallOptions,
   KeyStore,
+  SignedMessage,
   Signer,
   SignMessageParams,
-  SignedMessage,
   TxExecutionStatus,
   WalletConnection,
 } from "./types.js"

@@ -7,11 +7,11 @@
  * @see https://github.com/near/NEPs/blob/master/neps/nep-0413.md
  */
 
-import { b } from "@zorsh/zorsh"
-import { sha256 } from "@noble/hashes/sha2.js"
 import { ed25519 } from "@noble/curves/ed25519.js"
+import { sha256 } from "@noble/hashes/sha2.js"
 import { base58, base64 } from "@scure/base"
-import type { SignMessageParams, SignedMessage } from "../core/types.js"
+import { b } from "@zorsh/zorsh"
+import type { SignedMessage, SignMessageParams } from "../core/types.js"
 import { parsePublicKey } from "./key.js"
 
 /**
@@ -112,7 +112,7 @@ export function serializeNep413Message(params: SignMessageParams): Uint8Array {
  */
 export function verifyNep413Signature(
   signedMessage: SignedMessage,
-  params: SignMessageParams
+  params: SignMessageParams,
 ): boolean {
   try {
     // Parse the public key

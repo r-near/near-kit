@@ -14,8 +14,8 @@ import {
   KeyType,
   type PublicKey,
   type Signature,
-  type SignMessageParams,
   type SignedMessage,
+  type SignMessageParams,
 } from "../core/types.js"
 import { InvalidKeyError } from "../errors/index.js"
 import { serializeNep413Message } from "./nep413.js"
