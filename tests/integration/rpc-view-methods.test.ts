@@ -50,7 +50,7 @@ describe("RPC View Methods - Mainnet", () => {
     expect(Array.isArray(status.validators)).toBe(true)
     if (status.validators.length > 0) {
       expect(status.validators[0]).toHaveProperty("account_id")
-      expect(typeof status.validators[0].account_id).toBe("string")
+      expect(typeof status.validators[0]!.account_id).toBe("string")
     }
 
     // Verify sync info

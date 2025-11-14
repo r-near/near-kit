@@ -40,9 +40,9 @@ describe("Global Contracts API", () => {
     expect(action.useGlobalContract.contractIdentifier).toHaveProperty(
       "CodeHash",
     )
-    expect(action.useGlobalContract.contractIdentifier.CodeHash).toEqual(
-      Array.from(codeHash),
-    )
+    expect(
+      (action.useGlobalContract.contractIdentifier as { CodeHash: number[] }).CodeHash,
+    ).toEqual(Array.from(codeHash))
   })
 
   test("deployFromPublished with codeHash as base58 string", () => {
@@ -54,9 +54,9 @@ describe("Global Contracts API", () => {
     expect(action.useGlobalContract.contractIdentifier).toHaveProperty(
       "CodeHash",
     )
-    expect(action.useGlobalContract.contractIdentifier.CodeHash).toEqual(
-      Array.from(hashBytes),
-    )
+    expect(
+      (action.useGlobalContract.contractIdentifier as { CodeHash: number[] }).CodeHash,
+    ).toEqual(Array.from(hashBytes))
   })
 
   test("deployFromPublished throws on invalid hash length", () => {

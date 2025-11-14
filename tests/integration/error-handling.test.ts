@@ -90,7 +90,7 @@ describe("Error Handling - Access Key Errors", () => {
     expect(listResult.keys.length).toBeGreaterThan(0)
 
     // Now get one of the access keys
-    const publicKey = listResult.keys[0].public_key
+    const publicKey = listResult.keys[0]!.public_key
     const accessKey = await rpc.getAccessKey(accountId, publicKey)
     expect(accessKey).toBeDefined()
     expect(accessKey.nonce).toBeDefined()
@@ -219,9 +219,9 @@ describe("Error Handling - Error Properties", () => {
         expect(error).toHaveProperty("code")
         expect(error).toHaveProperty("name")
         expect(error).toHaveProperty("message")
-        // @ts-expect-error - error is unknown type, accessing properties for logging
+        const err = error as { code: string; name: string }
         console.log(
-          `✓ ${testCase.name} has required properties: code=${error.code}, name=${error.name}`,
+          `✓ ${testCase.name} has required properties: code=${err.code}, name=${err.name}`,
         )
       }
     }

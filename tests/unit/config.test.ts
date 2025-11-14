@@ -4,6 +4,7 @@
 
 import { describe, expect, test } from "bun:test"
 import {
+  type NetworkConfig,
   NearConfigSchema,
   resolveNetworkConfig,
 } from "../../src/core/config-schemas.js"
@@ -67,8 +68,7 @@ describe("Network Configuration", () => {
 
   test("should reject invalid network preset", () => {
     expect(() => {
-      // @ts-expect-error - testing invalid input
-      resolveNetworkConfig("invalid")
+      resolveNetworkConfig("invalid" as NetworkConfig)
     }).toThrow()
   })
 
@@ -254,8 +254,7 @@ describe("Near Constructor", () => {
   test("should throw on invalid network", () => {
     expect(() => {
       new Near({
-        // @ts-expect-error - testing invalid input
-        network: "invalid",
+        network: "invalid" as NetworkConfig,
       })
     }).toThrow()
   })
