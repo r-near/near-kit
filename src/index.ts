@@ -56,3 +56,6 @@ export {
   toGas,
   toTGas,
 } from "./utils/index.js"
+// Sandbox
+export { Sandbox } from "./sandbox/index.js"
+export type { SandboxOptions } from "./sandbox/index.js"

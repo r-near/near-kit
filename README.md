@@ -118,6 +118,48 @@ const [balance, status, exists] = await near.batch(
 );
 ```
 
+## Local Testing with Sandbox
+
+```typescript
+import { Sandbox } from '@near/client';
+
+// Start local NEAR blockchain
+const sandbox = await Sandbox.start();
+
+// Use with Near client
+const near = new Near({ network: sandbox });
+
+// ... run your tests
+
+// Clean up
+await sandbox.stop();
+```
+
+**Test Framework Integration:**
+
+```typescript
+import { beforeAll, afterAll, test } from 'bun:test';
+
+let sandbox: Sandbox;
+let near: Near;
+
+beforeAll(async () => {
+  sandbox = await Sandbox.start();
+  near = new Near({ network: sandbox });
+});
+
+afterAll(async () => {
+  await sandbox.stop();
+});
+
+test('my test', async () => {
+  const balance = await near.getBalance(sandbox.rootAccount.id);
+  // ...
+});
+```
+
+> **Note:** Sandbox requires system file descriptor limit ≥65,535. See [Sandbox README](./src/sandbox/README.md) for setup instructions.
+
 ## Key Management
 
 ```typescript
