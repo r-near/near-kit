@@ -198,16 +198,17 @@ The wallet receives our plain object actions and just uses them. No type checkin
 
 ## Proof
 
-Run the type compatibility tests:
+The adapter tests demonstrate structural compatibility:
 ```bash
-bun test tests/wallets/type-compatibility.test.ts
+bun test tests/wallets/adapters.test.ts
+bun test tests/wallets/integration.test.ts
 ```
 
 These tests demonstrate:
 1. Our actions have the expected structure
-2. Actions pass through wallets unchanged
-3. The runtime behavior is identical
-4. Wallets successfully use our plain object actions
+2. Actions pass through wallet adapters unchanged
+3. The runtime behavior works correctly with wallets
+4. Our plain object actions work seamlessly with wallet interfaces
 
 ## Recommendations
 
@@ -237,7 +238,7 @@ const adapter = fromWalletSelector(wallet)
 
 ## Related Files
 
-- `tests/wallets/type-compatibility.test.ts` - Tests demonstrating compatibility
 - `src/core/schema.ts` - Our Action type definitions
 - `src/wallets/adapters.ts` - Adapter implementations
-- `tests/wallets/real-packages.test.ts` - Tests with actual wallet packages
+- `tests/wallets/adapters.test.ts` - Tests for adapter functionality
+- `tests/wallets/integration.test.ts` - Integration tests with mocked wallets

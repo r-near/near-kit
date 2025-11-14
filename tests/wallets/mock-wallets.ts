@@ -107,7 +107,7 @@ export class MockHotConnect {
   }
 
   // Event handlers (simplified for testing)
-  on(event: string, callback: Function) {
+  on(_event: string, _callback: Function) {
     // Mock implementation - not used in tests
   }
 

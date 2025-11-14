@@ -118,7 +118,7 @@ export function resolveNetworkConfig(network?: NetworkConfig): {
         envNetwork === "testnet" ||
         envNetwork === "localnet")
     ) {
-      return NETWORK_PRESETS[envNetwork]
+      return NETWORK_PRESETS[envNetwork as NetworkPreset]
     }
     return NETWORK_PRESETS.mainnet
   }
@@ -128,7 +128,7 @@ export function resolveNetworkConfig(network?: NetworkConfig): {
 
   // Network preset
   if (typeof validated === "string") {
-    return NETWORK_PRESETS[validated]
+    return NETWORK_PRESETS[validated as NetworkPreset]
   }
 
   // Custom network config (already validated)

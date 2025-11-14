@@ -45,10 +45,10 @@ describe("Wallet Adapters", () => {
         actions: [transferAction],
       })
 
-      expect("SuccessValue" in result.status).toBe(true)
+      expect("status" in result && typeof result.status === "object" && "SuccessValue" in result.status).toBe(true)
       expect(mockWallet.getCallLog()).toHaveLength(1)
-      expect(mockWallet.getCallLog()[0].method).toBe("signAndSendTransaction")
-      expect(mockWallet.getCallLog()[0].params.receiverId).toBe("bob.near")
+      expect(mockWallet.getCallLog()[0]!.method).toBe("signAndSendTransaction")
+      expect(mockWallet.getCallLog()[0]!.params.receiverId).toBe("bob.near")
     })
 
     it("should adapt wallet-selector signMessage", async () => {
@@ -66,7 +66,7 @@ describe("Wallet Adapters", () => {
 
       expect(result?.accountId).toBe("alice.near")
       expect(result?.signature).toBe("mock-signature")
-      expect(mockWallet.getCallLog()[0].method).toBe("signMessage")
+      expect(mockWallet.getCallLog()[0]!.method).toBe("signMessage")
     })
 
     it("should throw error if wallet doesn't support signMessage", async () => {
@@ -124,7 +124,7 @@ describe("Wallet Adapters", () => {
         actions: [transferAction],
       })
 
-      expect("SuccessValue" in result.status).toBe(true)
+      expect("status" in result && typeof result.status === "object" && "SuccessValue" in result.status).toBe(true)
 
       const log = mockConnector.getCallLog()
       const txCall = log.find((l) => l.method === "signAndSendTransaction")

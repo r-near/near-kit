@@ -426,8 +426,8 @@ function actionToZorsh(action: Action): Action {
           senderId: action.signedDelegate.delegateAction.senderId,
           receiverId: action.signedDelegate.delegateAction.receiverId,
           // Recursively convert nested actions
-          actions: action.signedDelegate.delegateAction.actions.map((a) =>
-            actionToZorsh(a as Action),
+          actions: action.signedDelegate.delegateAction.actions.map(
+            (a: Action) => actionToZorsh(a as Action),
           ) as ClassicAction[],
           nonce: action.signedDelegate.delegateAction.nonce,
           maxBlockHeight: action.signedDelegate.delegateAction.maxBlockHeight,

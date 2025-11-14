@@ -73,7 +73,7 @@ export class Near {
 
       // If network is a Sandbox-like object with rootAccount, add key to keyStore
       // Use original config.network (before validation) to preserve extra properties
-      const network = config.network as unknown
+      const network = config["network"] as unknown
       if (network && typeof network === "object" && "rootAccount" in network) {
         const rootAccount = (network as { rootAccount: { id: string } })
           .rootAccount

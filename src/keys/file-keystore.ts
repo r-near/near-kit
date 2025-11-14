@@ -204,7 +204,7 @@ export class FileKeyStore implements KeyStore {
 
       // Find first ed25519 key file
       const keyFile = files.find(
-        (file) => file.startsWith("ed25519_") && file.endsWith(".json"),
+        (file: string) => file.startsWith("ed25519_") && file.endsWith(".json"),
       )
       if (!keyFile) {
         return null
@@ -281,7 +281,8 @@ export class FileKeyStore implements KeyStore {
           try {
             const files = await fs.readdir(dirPath)
             const hasKeyFiles = files.some(
-              (file) => file.startsWith("ed25519_") && file.endsWith(".json"),
+              (file: string) =>
+                file.startsWith("ed25519_") && file.endsWith(".json"),
             )
             if (hasKeyFiles) {
               accountIds.add(entry.name)

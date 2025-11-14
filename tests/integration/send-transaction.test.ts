@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test"
 import { Near } from "../../src/core/near.js"
 import { Sandbox } from "../../src/sandbox/sandbox.js"
 import { generateKey } from "../../src/utils/key.js"
+import type { PrivateKey } from "../../src/utils/validation.js"
 
 describe("sendTransaction - RPC Response Validation", () => {
   let sandbox: Sandbox
@@ -16,7 +17,7 @@ describe("sendTransaction - RPC Response Validation", () => {
     sandbox = await Sandbox.start()
     near = new Near({
       network: sandbox,
-      privateKey: sandbox.rootAccount.secretKey,
+      privateKey: sandbox.rootAccount.secretKey as PrivateKey,
     })
     console.log(`✓ Sandbox started at ${sandbox.rpcUrl}`)
   }, 120000)
@@ -127,7 +128,9 @@ describe("sendTransaction - RPC Response Validation", () => {
       // Should have success status object
       expect(typeof result.status).toBe("object")
       expect(
-        "SuccessValue" in result.status || "SuccessReceiptId" in result.status,
+        typeof result.status === "object" &&
+          ("SuccessValue" in result.status ||
+            "SuccessReceiptId" in result.status),
       ).toBe(true)
 
       // Should have execution outcome
@@ -230,7 +233,9 @@ describe("sendTransaction - RPC Response Validation", () => {
       // Should have fully executed and finalized
       expect(typeof result.status).toBe("object")
       expect(
-        "SuccessValue" in result.status || "SuccessReceiptId" in result.status,
+        typeof result.status === "object" &&
+          ("SuccessValue" in result.status ||
+            "SuccessReceiptId" in result.status),
       ).toBe(true)
 
       // All receipts should be included

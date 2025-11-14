@@ -13,6 +13,7 @@ import {
 import type {
   AccessKeyView,
   AccountView,
+  ExecutionOutcomeWithId,
   FinalExecutionOutcome,
   FinalExecutionOutcomeMap,
   FinalExecutionOutcomeWithReceipts,
@@ -237,7 +238,7 @@ export class RpcClient {
 
         // Check receipts_outcome for cross-contract failures
         const failedReceipt = parsed.receipts_outcome?.find(
-          (receipt) =>
+          (receipt: ExecutionOutcomeWithId) =>
             typeof receipt.outcome.status === "object" &&
             "Failure" in receipt.outcome.status,
         )

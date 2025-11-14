@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test"
 import { Near } from "../../src/core/near.js"
 import { Sandbox } from "../../src/sandbox/sandbox.js"
 import { generateKey } from "../../src/utils/key.js"
+import type { PrivateKey } from "../../src/utils/validation.js"
 
 describe("Near Client - Integration Tests", () => {
   let sandbox: Sandbox
@@ -17,7 +18,7 @@ describe("Near Client - Integration Tests", () => {
     sandbox = await Sandbox.start()
     near = new Near({
       network: sandbox,
-      privateKey: sandbox.rootAccount.secretKey,
+      privateKey: sandbox.rootAccount.secretKey as PrivateKey,
     })
     console.log(`✓ Sandbox started: ${sandbox.rootAccount.id}`)
   }, 120000)
@@ -88,7 +89,7 @@ describe("Near Client - Integration Tests", () => {
       expect(balance).toBeDefined()
       expect(typeof balance).toBe("string")
       expect(status).toBeDefined()
-      expect(status.chainId).toBe("localnet")
+      expect((status as { chainId: string }).chainId).toBe("localnet")
       expect(exists).toBe(true)
       console.log("✓ Batch operation completed")
     })
@@ -322,8 +323,6 @@ describe("TransactionBuilder - Integration Tests", () => {
           type: "fullAccess",
         })
         .send()
-
-      const _initialBalance = await near.getBalance(recipientId)
 
       // Use Near.send() convenience method
       // Note: This requires defaultSignerId to be set, which we haven't done

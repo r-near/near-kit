@@ -19,6 +19,7 @@ import {
 } from "../../src/errors/index.js"
 import { Sandbox } from "../../src/sandbox/sandbox.js"
 import { generateKey } from "../../src/utils/key.js"
+import type { PrivateKey } from "../../src/utils/validation.js"
 
 describe("Contract Failure Modes", () => {
   let sandbox: Sandbox
@@ -29,7 +30,7 @@ describe("Contract Failure Modes", () => {
     sandbox = await Sandbox.start()
     near = new Near({
       network: sandbox,
-      privateKey: sandbox.rootAccount.secretKey,
+      privateKey: sandbox.rootAccount.secretKey as PrivateKey,
     })
 
     // Deploy guestbook contract
@@ -305,7 +306,9 @@ describe("Contract Failure Modes", () => {
       expect(result.final_execution_status).toBe("EXECUTED_OPTIMISTIC")
       expect(typeof result.status).toBe("object")
       expect(
-        "SuccessValue" in result.status || "SuccessReceiptId" in result.status,
+        typeof result.status === "object" &&
+          ("SuccessValue" in result.status ||
+            "SuccessReceiptId" in result.status),
       ).toBe(true)
 
       console.log("✓ Successful call did not throw error")

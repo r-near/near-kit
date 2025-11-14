@@ -26,7 +26,11 @@ import {
   UnknownEpochError,
   UnknownReceiptError,
 } from "../../errors/index.js"
-import type { ExecutionOutcomeWithId, RpcTransaction } from "../types.js"
+import type {
+  ExecutionOutcomeWithId,
+  RpcAction,
+  RpcTransaction,
+} from "../types.js"
 import { RpcErrorResponseSchema } from "./rpc-schemas.js"
 
 // ==================== Failure Type Definitions ====================
@@ -122,7 +126,8 @@ function extractMethodName(
   if (!transaction) return undefined
 
   const functionCallAction = transaction.actions.find(
-    (action) => typeof action === "object" && "FunctionCall" in action,
+    (action: RpcAction) =>
+      typeof action === "object" && "FunctionCall" in action,
   )
 
   if (
