@@ -216,6 +216,7 @@ export type {
   FinalExecutionOutcome,
   FinalExecutionOutcomeMap,
   FinalExecutionOutcomeWithReceipts,
+  FinalExecutionOutcomeWithReceiptsMap,
   MerklePathItem,
   Receipt,
   RpcAction,
