@@ -253,7 +253,9 @@ export class TransactionBuilder {
       : await (async () => {
           const keyPair = await this.keyStore.get(this.signerId)
           if (!keyPair) {
-            throw new InvalidKeyError(`No key found for account: ${this.signerId}`)
+            throw new InvalidKeyError(
+              `No key found for account: ${this.signerId}`,
+            )
           }
           return keyPair.sign(serialized)
         })()

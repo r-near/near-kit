@@ -417,9 +417,7 @@ describe("TransactionBuilder - Edge Cases", () => {
     const builder = createBuilder().transfer("bob.near", largeAmount)
 
     // @ts-expect-error - accessing private field for testing
-    expect(builder.actions[0].transfer.deposit).toBe(
-      BigInt(largeAmount),
-    )
+    expect(builder.actions[0].transfer.deposit).toBe(BigInt(largeAmount))
   })
 
   test("should handle very large gas values", () => {

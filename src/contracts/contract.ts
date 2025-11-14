@@ -13,8 +13,8 @@ import type { CallOptions } from "../core/types.js"
  * - Call methods: (args?: ArgsType, options?: CallOptions) => Promise<ReturnType>
  */
 export interface ContractMethods {
-  view: Record<string, (args?: any) => Promise<any>>
-  call: Record<string, (args?: any, options?: CallOptions) => Promise<any>>
+  view: Record<string, (args?: unknown) => Promise<unknown>>
+  call: Record<string, (args?: unknown, options?: CallOptions) => Promise<unknown>>
 }
 
 /**

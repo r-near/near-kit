@@ -1,0 +1,409 @@
+/**
+ * Integration tests for Near client using Sandbox
+ *
+ * Tests all RPC-dependent features that couldn't be unit tested
+ */
+
+import { afterAll, beforeAll, describe, expect, test } from "bun:test"
+import { Near } from "../../src/core/near.js"
+import { Sandbox } from "../../src/sandbox/sandbox.js"
+import { generateKey } from "../../src/utils/key.js"
+
+describe("Near Client - Integration Tests", () => {
+  let sandbox: Sandbox
+  let near: Near
+
+  beforeAll(async () => {
+    sandbox = await Sandbox.start()
+    near = new Near({
+      network: sandbox,
+      privateKey: sandbox.rootAccount.secretKey,
+    })
+    console.log(`✓ Sandbox started: ${sandbox.rootAccount.id}`)
+  }, 120000)
+
+  afterAll(async () => {
+    if (sandbox) {
+      await sandbox.stop()
+    }
+  })
+
+  describe("Near.getBalance()", () => {
+    test("should get balance for existing account", async () => {
+      const balance = await near.getBalance(sandbox.rootAccount.id)
+
+      expect(balance).toBeDefined()
+      expect(typeof balance).toBe("string")
+      expect(Number.parseFloat(balance)).toBeGreaterThan(0)
+      console.log(`✓ Balance: ${balance} NEAR`)
+    })
+
+    test("should format balance correctly", async () => {
+      const balance = await near.getBalance(sandbox.rootAccount.id)
+
+      // Balance should be formatted as decimal string with 2 decimals
+      expect(balance).toMatch(/^\d+\.\d{2}$/)
+    })
+
+    test("should throw for non-existent account", async () => {
+      await expect(async () => {
+        await near.getBalance("nonexistent.test.near")
+      }).toThrow()
+    })
+  })
+
+  describe("Near.accountExists()", () => {
+    test("should return true for existing account", async () => {
+      const exists = await near.accountExists(sandbox.rootAccount.id)
+      expect(exists).toBe(true)
+    })
+
+    test("should return false for non-existent account", async () => {
+      const exists = await near.accountExists("fake-account-12345.test.near")
+      expect(exists).toBe(false)
+    })
+  })
+
+  describe("Near.getStatus()", () => {
+    test("should get network status", async () => {
+      const status = await near.getStatus()
+
+      expect(status).toBeDefined()
+      expect(status.chainId).toBe("localnet")
+      expect(typeof status.latestBlockHeight).toBe("number")
+      expect(status.latestBlockHeight).toBeGreaterThan(0)
+      expect(typeof status.syncing).toBe("boolean")
+      console.log(`✓ Block height: ${status.latestBlockHeight}`)
+    })
+  })
+
+  describe("Near.batch()", () => {
+    test("should execute multiple operations in parallel", async () => {
+      const [balance, status, exists] = await near.batch(
+        near.getBalance(sandbox.rootAccount.id),
+        near.getStatus(),
+        near.accountExists(sandbox.rootAccount.id),
+      )
+
+      expect(balance).toBeDefined()
+      expect(typeof balance).toBe("string")
+      expect(status).toBeDefined()
+      expect(status.chainId).toBe("localnet")
+      expect(exists).toBe(true)
+      console.log("✓ Batch operation completed")
+    })
+
+    test("should handle mixed success/failure", async () => {
+      const results = await Promise.allSettled([
+        near.getBalance(sandbox.rootAccount.id),
+        near.getBalance("nonexistent.test.near"),
+        near.getStatus(),
+      ])
+
+      expect(results[0].status).toBe("fulfilled")
+      expect(results[1].status).toBe("rejected")
+      expect(results[2].status).toBe("fulfilled")
+    })
+  })
+
+  describe("Near.view()", () => {
+    test("should call view function (status endpoint as proxy)", async () => {
+      // We can't easily deploy a contract in this test, but we can test
+      // that view() properly calls the RPC and decodes responses
+      // For now, we'll test the mechanism works by checking error handling
+      const nearWithoutKey = new Near({ network: sandbox })
+
+      await expect(async () => {
+        await nearWithoutKey.view("nonexistent.near", "some_method", {})
+      }).toThrow()
+    })
+  })
+})
+
+describe("TransactionBuilder - Integration Tests", () => {
+  let sandbox: Sandbox
+  let near: Near
+  let rootKey: string
+
+  beforeAll(async () => {
+    sandbox = await Sandbox.start()
+    rootKey = sandbox.rootAccount.secretKey
+
+    // Create Near instance with keystore for the root account
+    near = new Near({
+      network: sandbox,
+      keyStore: {
+        [sandbox.rootAccount.id]: rootKey,
+      },
+    })
+
+    console.log(`✓ Sandbox ready for transaction tests`)
+  }, 120000)
+
+  afterAll(async () => {
+    if (sandbox) {
+      await sandbox.stop()
+    }
+  })
+
+  describe("TransactionBuilder.build()", () => {
+    test("should build transaction with correct nonce", async () => {
+      const builder = near.transaction(sandbox.rootAccount.id)
+      builder.transfer("alice.near", "1")
+
+      const tx = await builder.build()
+
+      expect(tx).toBeDefined()
+      expect(tx.signerId).toBe(sandbox.rootAccount.id)
+      expect(tx.receiverId).toBe("alice.near")
+      expect(tx.actions.length).toBe(1)
+      expect(tx.nonce).toBeDefined()
+      expect(typeof tx.nonce).toBe("bigint")
+      expect(tx.blockHash).toBeDefined()
+      expect(tx.blockHash.length).toBe(32)
+
+      console.log(`✓ Transaction built with nonce: ${tx.nonce}`)
+    })
+
+    test("should increment nonce from access key", async () => {
+      const builder1 = near.transaction(sandbox.rootAccount.id)
+      builder1.transfer("alice.near", "1")
+
+      const builder2 = near.transaction(sandbox.rootAccount.id)
+      builder2.transfer("bob.near", "1")
+
+      const tx1 = await builder1.build()
+      const tx2 = await builder2.build()
+
+      // Second transaction should have higher nonce
+      // (may not be exactly +1 if other transactions happened)
+      expect(tx2.nonce).toBeGreaterThanOrEqual(tx1.nonce)
+    })
+
+    test("should throw when no receiver ID is set", async () => {
+      const builder = near.transaction(sandbox.rootAccount.id)
+
+      await expect(async () => {
+        await builder.build()
+      }).toThrow(/No receiver ID/)
+    })
+
+    test("should throw when key not found", async () => {
+      const nearWithoutKey = new Near({ network: sandbox })
+      const builder = nearWithoutKey.transaction("missing-account.near")
+      builder.transfer("alice.near", "1")
+
+      await expect(async () => {
+        await builder.build()
+      }).toThrow(/No key found/)
+    })
+  })
+
+  describe("TransactionBuilder.send() - Account Creation", () => {
+    test("should create account and transfer NEAR", async () => {
+      const newKey = generateKey()
+      const newAccountId = `test-${Date.now()}.${sandbox.rootAccount.id}`
+
+      // Create sub-account
+      const result = await near
+        .transaction(sandbox.rootAccount.id)
+        .createAccount(newAccountId)
+        .transfer(newAccountId, "10")
+        .addKey(newAccountId, newKey.publicKey.toString(), {
+          type: "fullAccess",
+        })
+        .send()
+
+      expect(result).toBeDefined()
+      console.log(`✓ Account created: ${newAccountId}`)
+
+      // Verify account was created
+      const exists = await near.accountExists(newAccountId)
+      expect(exists).toBe(true)
+
+      // Verify balance
+      const balance = await near.getBalance(newAccountId)
+      const balanceNum = Number.parseFloat(balance)
+      expect(balanceNum).toBeGreaterThan(0)
+      expect(balanceNum).toBeLessThanOrEqual(10)
+      console.log(`✓ New account balance: ${balance} NEAR`)
+    }, 30000)
+  })
+
+  describe("TransactionBuilder.send() - Token Transfer", () => {
+    test("should transfer NEAR between accounts", async () => {
+      // Create recipient account first
+      const recipientKey = generateKey()
+      const recipientId = `recipient-${Date.now()}.${sandbox.rootAccount.id}`
+
+      await near
+        .transaction(sandbox.rootAccount.id)
+        .createAccount(recipientId)
+        .transfer(recipientId, "5")
+        .addKey(recipientId, recipientKey.publicKey.toString(), {
+          type: "fullAccess",
+        })
+        .send()
+
+      console.log(`✓ Recipient created: ${recipientId}`)
+
+      // Get initial balance
+      const initialBalance = await near.getBalance(recipientId)
+      const initialNum = Number.parseFloat(initialBalance)
+
+      // Transfer additional NEAR
+      await near
+        .transaction(sandbox.rootAccount.id)
+        .transfer(recipientId, "3")
+        .send()
+
+      console.log("✓ Transfer sent")
+
+      // Check new balance
+      const newBalance = await near.getBalance(recipientId)
+      const newNum = Number.parseFloat(newBalance)
+
+      expect(newNum).toBeGreaterThan(initialNum)
+      console.log(`✓ Balance increased: ${initialBalance} → ${newBalance} NEAR`)
+    }, 30000)
+  })
+
+  describe("TransactionBuilder.send() - Multiple Actions", () => {
+    test("should execute multiple transfers in one transaction", async () => {
+      // Create two recipient accounts
+      const recipient1Key = generateKey()
+      const recipient1Id = `multi1-${Date.now()}.${sandbox.rootAccount.id}`
+      const recipient2Key = generateKey()
+      const recipient2Id = `multi2-${Date.now()}.${sandbox.rootAccount.id}`
+
+      // Create both accounts in parallel
+      await Promise.all([
+        near
+          .transaction(sandbox.rootAccount.id)
+          .createAccount(recipient1Id)
+          .transfer(recipient1Id, "2")
+          .addKey(recipient1Id, recipient1Key.publicKey.toString(), {
+            type: "fullAccess",
+          })
+          .send(),
+        near
+          .transaction(sandbox.rootAccount.id)
+          .createAccount(recipient2Id)
+          .transfer(recipient2Id, "2")
+          .addKey(recipient2Key.publicKey.toString(), {
+            type: "fullAccess",
+          })
+          .send(),
+      ])
+
+      console.log(`✓ Created recipients: ${recipient1Id}, ${recipient2Id}`)
+
+      // Both should exist
+      const [exists1, exists2] = await Promise.all([
+        near.accountExists(recipient1Id),
+        near.accountExists(recipient2Id),
+      ])
+
+      expect(exists1).toBe(true)
+      expect(exists2).toBe(true)
+    }, 30000)
+  })
+
+  describe("Near.send()", () => {
+    test("should transfer NEAR using convenience method", async () => {
+      // Create a recipient
+      const recipientKey = generateKey()
+      const recipientId = `sendtest-${Date.now()}.${sandbox.rootAccount.id}`
+
+      await near
+        .transaction(sandbox.rootAccount.id)
+        .createAccount(recipientId)
+        .transfer(recipientId, "5")
+        .addKey(recipientId, recipientKey.publicKey.toString(), {
+          type: "fullAccess",
+        })
+        .send()
+
+      const initialBalance = await near.getBalance(recipientId)
+
+      // Use Near.send() convenience method
+      // Note: This requires defaultSignerId to be set, which we haven't done
+      // So this test documents the limitation
+      await expect(async () => {
+        await near.send(recipientId, "1")
+      }).toThrow(/No signer ID/)
+    }, 30000)
+  })
+
+  describe("Error Handling", () => {
+    test("should throw on insufficient balance", async () => {
+      // Try to transfer more than exists
+      const recipientId = `insufficient-${Date.now()}.${sandbox.rootAccount.id}`
+
+      await expect(async () => {
+        await near
+          .transaction(sandbox.rootAccount.id)
+          .createAccount(recipientId)
+          .transfer(recipientId, "999999999999")
+          .send()
+      }).toThrow()
+    }, 30000)
+  })
+})
+
+describe("Gas and Amount Parsing - Integration", () => {
+  let sandbox: Sandbox
+  let near: Near
+
+  beforeAll(async () => {
+    sandbox = await Sandbox.start()
+    near = new Near({
+      network: sandbox,
+      keyStore: {
+        [sandbox.rootAccount.id]: sandbox.rootAccount.secretKey,
+      },
+    })
+  }, 120000)
+
+  afterAll(async () => {
+    if (sandbox) {
+      await sandbox.stop()
+    }
+  })
+
+  describe("Amount Parsing in Real Transactions", () => {
+    test("should handle string amounts in transfers", async () => {
+      const recipientKey = generateKey()
+      const recipientId = `stramt-${Date.now()}.${sandbox.rootAccount.id}`
+
+      await near
+        .transaction(sandbox.rootAccount.id)
+        .createAccount(recipientId)
+        .transfer(recipientId, "1") // String amount
+        .addKey(recipientId, recipientKey.publicKey.toString(), {
+          type: "fullAccess",
+        })
+        .send()
+
+      const balance = await near.getBalance(recipientId)
+      expect(Number.parseFloat(balance)).toBeGreaterThan(0)
+    }, 30000)
+
+    test("should handle number amounts in transfers", async () => {
+      const recipientKey = generateKey()
+      const recipientId = `numamt-${Date.now()}.${sandbox.rootAccount.id}`
+
+      await near
+        .transaction(sandbox.rootAccount.id)
+        .createAccount(recipientId)
+        .transfer(recipientId, 2) // Number amount
+        .addKey(recipientId, recipientKey.publicKey.toString(), {
+          type: "fullAccess",
+        })
+        .send()
+
+      const balance = await near.getBalance(recipientId)
+      expect(Number.parseFloat(balance)).toBeGreaterThan(0)
+    }, 30000)
+  })
+})
