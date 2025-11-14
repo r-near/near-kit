@@ -85,13 +85,16 @@ export type PublicKeyString = z.infer<typeof PublicKeySchema>
  * Accepts:
  * - String with unit: "10 NEAR", "1000000 yocto"
  * - Created via Amount.NEAR(10) or Amount.yocto(1000000n)
+ * - Raw bigint: 1000000n (treated as yoctoNEAR)
  *
  * Rejects bare numbers to prevent unit confusion.
  * Normalizes to yoctoNEAR string.
  */
-export const AmountSchema = z.string().transform((amount): string => {
-  return parseAmount(amount)
-})
+export const AmountSchema = z
+  .union([z.string(), z.bigint()])
+  .transform((amount): string => {
+    return parseAmount(amount)
+  })
 
 export type Amount = z.input<typeof AmountSchema>
 

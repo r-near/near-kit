@@ -166,6 +166,19 @@ describe("Amount Schema", () => {
     expect(AmountSchema.parse(Amount.yocto(1000000n))).toBe("1000000")
   })
 
+  test("should parse raw bigint as yoctoNEAR", () => {
+    expect(AmountSchema.parse(1000000n)).toBe("1000000")
+    expect(AmountSchema.parse(0n)).toBe("0")
+    expect(AmountSchema.parse(10000000000000000000000000n)).toBe(
+      "10000000000000000000000000",
+    )
+  })
+
+  test("should parse very large bigint", () => {
+    const largeAmount = 123456789000000000000000000n
+    expect(AmountSchema.parse(largeAmount)).toBe(largeAmount.toString())
+  })
+
   test("should convert NEAR suffix to yoctoNEAR (case insensitive)", () => {
     // 1 NEAR = 10^24 yoctoNEAR
     expect(AmountSchema.parse("10 NEAR")).toBe("10000000000000000000000000")

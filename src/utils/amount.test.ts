@@ -138,6 +138,28 @@ describe("parseAmount", () => {
     })
   })
 
+  describe("bigint input", () => {
+    test("parses bigint as yoctoNEAR", () => {
+      const result = parseAmount(1000000n)
+      expect(result).toBe("1000000")
+    })
+
+    test("parses zero bigint", () => {
+      const result = parseAmount(0n)
+      expect(result).toBe("0")
+    })
+
+    test("parses large bigint", () => {
+      const result = parseAmount(10000000000000000000000000n)
+      expect(result).toBe("10000000000000000000000000")
+    })
+
+    test("parses very large bigint (multiple NEAR)", () => {
+      const result = parseAmount(123456789000000000000000000n)
+      expect(result).toBe("123456789000000000000000000")
+    })
+  })
+
   describe("error cases", () => {
     test("throws on bare number string", () => {
       expect(() => parseAmount("10")).toThrow("Ambiguous amount")
@@ -177,8 +199,9 @@ describe("parseAmount", () => {
         expect(error).toBeInstanceOf(Error)
         const err = error as Error
         expect(err.message).toContain("Amount.NEAR(100)")
-        expect(err.message).toContain("Amount.yocto(100)")
+        expect(err.message).toContain("Amount.yocto(100n)")
         expect(err.message).toContain('"100 NEAR"')
+        expect(err.message).toContain("100n as bigint")
       }
     })
   })
