@@ -245,8 +245,7 @@ async function downloadBinary(version: string): Promise<string> {
       }
 
       const stream = fs.createWriteStream(archivePath)
-      // @ts-expect-error - Bun supports this pattern
-      await pipeline(Readable.fromWeb(response.body), stream)
+      await pipeline(Readable.fromWeb(response.body as any), stream)
     } finally {
       clearTimeout(timeout)
     }
