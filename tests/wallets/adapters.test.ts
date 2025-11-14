@@ -43,7 +43,7 @@ describe("Wallet Adapters", () => {
         actions: [transferAction],
       })
 
-      expect(result.status.type).toBe("SuccessValue")
+      expect("SuccessValue" in result.status).toBe(true)
       expect(mockWallet.getCallLog()).toHaveLength(1)
       expect(mockWallet.getCallLog()[0].method).toBe("signAndSendTransaction")
       expect(mockWallet.getCallLog()[0].params.receiverId).toBe("bob.near")
@@ -120,7 +120,7 @@ describe("Wallet Adapters", () => {
         actions: [transferAction],
       })
 
-      expect(result.status.type).toBe("SuccessValue")
+      expect("SuccessValue" in result.status).toBe(true)
 
       const log = mockConnector.getCallLog()
       const txCall = log.find((l) => l.method === "signAndSendTransaction")

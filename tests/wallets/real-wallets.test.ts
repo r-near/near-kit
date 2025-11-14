@@ -29,20 +29,31 @@ describe("Real Wallet Package Integration", () => {
           return [{ accountId: "test.near", publicKey: "ed25519:..." }]
         },
         async signAndSendTransaction(params: any) {
+          // Return in RPC format
           return {
-            status: { type: "SuccessValue" as const, value: "" },
-            transaction: {} as any,
+            final_execution_status: "FINAL" as const,
+            status: { SuccessValue: "" },
+            transaction: {
+              signer_id: "test.near",
+              public_key: "ed25519:...",
+              nonce: 1,
+              receiver_id: params.receiverId,
+              actions: params.actions,
+              signature: "ed25519:...",
+              hash: "test-hash",
+            },
             transaction_outcome: {
               id: "test",
               outcome: {
                 logs: [],
                 receipt_ids: [],
-                gas_burnt: BigInt(0),
+                gas_burnt: 0,
                 tokens_burnt: "0",
                 executor_id: "test.near",
-                status: { type: "SuccessValue" as const, value: "" },
+                status: { SuccessValue: "" },
               },
               block_hash: "test",
+              proof: [],
             },
             receipts_outcome: [],
           }
@@ -93,7 +104,7 @@ describe("Real Wallet Package Integration", () => {
 
       expect(result).toHaveProperty("status")
       expect(result).toHaveProperty("transaction_outcome")
-      expect(result.status.type).toBe("SuccessValue")
+      expect("SuccessValue" in result.status).toBe(true)
     })
   })
 
@@ -113,20 +124,31 @@ describe("Real Wallet Package Integration", () => {
           return [{ accountId: "test.near", publicKey: "ed25519:..." }]
         },
         async signAndSendTransaction(params: any) {
+          // Return in RPC format
           return {
-            status: { type: "SuccessValue" as const, value: "" },
-            transaction: {} as any,
+            final_execution_status: "FINAL" as const,
+            status: { SuccessValue: "" },
+            transaction: {
+              signer_id: "test.near",
+              public_key: "ed25519:...",
+              nonce: 1,
+              receiver_id: params.receiverId,
+              actions: params.actions,
+              signature: "ed25519:...",
+              hash: "test-hash",
+            },
             transaction_outcome: {
               id: "test",
               outcome: {
                 logs: [],
                 receipt_ids: [],
-                gas_burnt: BigInt(0),
+                gas_burnt: 0,
                 tokens_burnt: "0",
                 executor_id: "test.near",
-                status: { type: "SuccessValue" as const, value: "" },
+                status: { SuccessValue: "" },
               },
               block_hash: "test",
+              proof: [],
             },
             receipts_outcome: [],
           }

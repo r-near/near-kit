@@ -31,21 +31,31 @@ export class MockWalletSelector {
   }): Promise<FinalExecutionOutcome> {
     this.callLog.push({ method: "signAndSendTransaction", params })
 
-    // Return a mock successful outcome
+    // Return a mock successful outcome in RPC format
     return {
-      status: { type: "SuccessValue", value: "" },
-      transaction: {} as any,
+      final_execution_status: "FINAL",
+      status: { SuccessValue: "" },
+      transaction: {
+        signer_id: params.signerId || this.accounts[0]?.accountId || "test.near",
+        public_key: "ed25519:...",
+        nonce: 1,
+        receiver_id: params.receiverId,
+        actions: params.actions as any,
+        signature: "ed25519:...",
+        hash: "mock-tx-hash",
+      },
       transaction_outcome: {
         id: "mock-tx-id",
         outcome: {
           logs: [],
           receipt_ids: [],
-          gas_burnt: BigInt(1000000),
+          gas_burnt: 1000000,
           tokens_burnt: "0",
           executor_id: params.signerId || this.accounts[0]?.accountId || "",
-          status: { type: "SuccessValue", value: "" },
+          status: { SuccessValue: "" },
         },
         block_hash: "mock-block-hash",
+        proof: [],
       },
       receipts_outcome: [],
     }
@@ -138,20 +148,31 @@ class MockHotConnectWallet {
   }): Promise<FinalExecutionOutcome> {
     this.callLog.push({ method: "signAndSendTransaction", params })
 
+    // Return a mock successful outcome in RPC format
     return {
-      status: { type: "SuccessValue", value: "" },
-      transaction: {} as any,
+      final_execution_status: "FINAL",
+      status: { SuccessValue: "" },
+      transaction: {
+        signer_id: params.signerId || this.accounts[0]?.accountId || "test.near",
+        public_key: "ed25519:...",
+        nonce: 1,
+        receiver_id: params.receiverId,
+        actions: params.actions as any,
+        signature: "ed25519:...",
+        hash: "mock-tx-hash",
+      },
       transaction_outcome: {
         id: "mock-tx-id",
         outcome: {
           logs: [],
           receipt_ids: [],
-          gas_burnt: BigInt(1000000),
+          gas_burnt: 1000000,
           tokens_burnt: "0",
           executor_id: params.signerId || this.accounts[0]?.accountId || "",
-          status: { type: "SuccessValue", value: "" },
+          status: { SuccessValue: "" },
         },
         block_hash: "mock-block-hash",
+        proof: [],
       },
       receipts_outcome: [],
     }
@@ -203,20 +224,31 @@ export class MockWalletWithoutSignMessage {
     receiverId: string
     actions: any[]
   }): Promise<FinalExecutionOutcome> {
+    // Return a mock successful outcome in RPC format
     return {
-      status: { type: "SuccessValue", value: "" },
-      transaction: {} as any,
+      final_execution_status: "FINAL",
+      status: { SuccessValue: "" },
+      transaction: {
+        signer_id: params.signerId || this.accounts[0]?.accountId || "test.near",
+        public_key: "ed25519:...",
+        nonce: 1,
+        receiver_id: params.receiverId,
+        actions: params.actions as any,
+        signature: "ed25519:...",
+        hash: "mock-tx-hash",
+      },
       transaction_outcome: {
         id: "mock-tx-id",
         outcome: {
           logs: [],
           receipt_ids: [],
-          gas_burnt: BigInt(1000000),
+          gas_burnt: 1000000,
           tokens_burnt: "0",
           executor_id: params.signerId || this.accounts[0]?.accountId || "",
-          status: { type: "SuccessValue", value: "" },
+          status: { SuccessValue: "" },
         },
         block_hash: "mock-block-hash",
+        proof: [],
       },
       receipts_outcome: [],
     }

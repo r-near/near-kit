@@ -177,8 +177,14 @@ export const TxExecutionStatusSchema = z.enum([
 
 /**
  * Execution status - can be success with value/receipt or failure
+ *
+ * Variants returned depend on waitUntil level:
+ * - NONE/INCLUDED: Unknown or Pending (execution not started/incomplete)
+ * - EXECUTED_OPTIMISTIC/EXECUTED/FINAL: SuccessValue, SuccessReceiptId, or Failure
  */
 export const ExecutionStatusSchema = z.union([
+  z.literal("Unknown"),
+  z.literal("Pending"),
   z.object({ SuccessValue: z.string() }),
   z.object({ SuccessReceiptId: z.string() }),
   z.object({
