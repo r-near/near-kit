@@ -31,12 +31,11 @@
  */
 
 import { base58 } from "@scure/base"
-import { InvalidKeyError, NearError, SignatureError } from "../errors/index.js"
+import { InvalidKeyError, NearError } from "../errors/index.js"
 import { parseKey, parsePublicKey } from "../utils/key.js"
 import {
   type Amount,
   type Gas,
-  isPrivateKey,
   normalizeAmount,
   normalizeGas,
   type PrivateKey,
@@ -332,8 +331,8 @@ export class TransactionBuilder {
    * The signerId (set via `.transaction()`) remains the same. To sign as a different
    * account, use `.transaction(otherAccountId)` instead.
    *
-   * @param key - Either a custom signer function or a private key string
-   *              (e.g., 'ed25519:...' or 'secp256k1:...')
+   * @param key - Either a custom signer function or an ed25519 private key string
+   *              (e.g., 'ed25519:...')
    *              Type-safe: TypeScript will enforce the correct format at compile time
    * @returns This builder instance for chaining
    *
@@ -345,7 +344,7 @@ export class TransactionBuilder {
    *   .transfer('bob.near', '5 NEAR')
    *   .send()
    *
-   * // Sign with specific private key (type-safe)
+   * // Sign with specific ed25519 private key (type-safe)
    * await near.transaction('alice.near')
    *   .signWith('ed25519:...')  // ✅ TypeScript ensures correct format
    *   .transfer('bob.near', '1 NEAR')
@@ -366,6 +365,9 @@ export class TransactionBuilder {
    *   .transfer('receiver.near', '1')
    *   .send()
    * ```
+   *
+   * @remarks
+   * Currently only ed25519 keys are supported. secp256k1 support is planned.
    */
   signWith(key: PrivateKey | Signer): this {
     if (typeof key === "string") {

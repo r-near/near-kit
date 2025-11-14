@@ -83,7 +83,7 @@ export type PublicKeyString = z.infer<typeof PublicKeySchema>
  * Type-safe private key string using template literal types.
  *
  * Provides compile-time type safety for private keys.
- * Accepts keys in the format "ed25519:..." or "secp256k1:..." only.
+ * Currently only ed25519 keys are supported.
  *
  * @example
  * ```typescript
@@ -95,28 +95,30 @@ export type PublicKeyString = z.infer<typeof PublicKeySchema>
  * signWith('ed25519:abc')    // ✅ Valid
  * signWith('alice.near')     // ❌ Type error
  * ```
+ *
+ * @remarks
+ * secp256k1 keys are not yet supported in this library. The type will be
+ * updated to `'ed25519:${string}' | 'secp256k1:${string}'` once implemented.
  */
-export type PrivateKey = `ed25519:${string}` | `secp256k1:${string}`
+export type PrivateKey = `ed25519:${string}`
 
 /**
  * Schema for validating NEAR private keys
  *
- * Supports:
+ * Currently supports:
  * - Ed25519: "ed25519:..." (base58 encoded, 64 bytes)
- * - Secp256k1: "secp256k1:..." (base58 encoded)
+ *
+ * @remarks
+ * secp256k1 support is planned but not yet implemented.
  */
 export const PrivateKeySchema = z
   .string()
   .refine(
-    (key) =>
-      key.startsWith(ED25519_KEY_PREFIX) ||
-      key.startsWith(SECP256K1_KEY_PREFIX),
-    "Private key must start with 'ed25519:' or 'secp256k1:'",
+    (key) => key.startsWith(ED25519_KEY_PREFIX),
+    "Private key must start with 'ed25519:' (secp256k1 not yet supported)",
   )
   .refine((key) => {
-    const keyData = key.startsWith(ED25519_KEY_PREFIX)
-      ? key.slice(ED25519_KEY_PREFIX.length)
-      : key.slice(SECP256K1_KEY_PREFIX.length)
+    const keyData = key.slice(ED25519_KEY_PREFIX.length)
     return keyData.length > 0 && isValidBase58(keyData)
   }, "Private key must be valid base58 encoding")
 
