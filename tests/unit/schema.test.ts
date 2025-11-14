@@ -16,12 +16,12 @@ import {
   stake,
   transfer,
 } from "../../src/core/actions.js"
-import { DelegateActionPrefix } from "../../src/core/prefix.js"
 import {
   type Action,
   ActionSchema,
-  encodeDelegateAction,
-  encodeSignedDelegate,
+  DELEGATE_ACTION_PREFIX,
+  serializeDelegateAction,
+  serializeSignedDelegate,
   PublicKeySchema,
   publicKeyToZorsh,
   SignatureSchema,
@@ -288,13 +288,12 @@ describe("Schema validation", () => {
 })
 
 describe("Delegate Action prefix (NEP-461)", () => {
-  test("DelegateActionPrefix has correct value", () => {
-    const prefix = new DelegateActionPrefix()
+  test("DELEGATE_ACTION_PREFIX has correct value", () => {
     // 2^30 + 366 = 1073742190
-    expect(prefix.prefix).toBe(1073742190)
+    expect(DELEGATE_ACTION_PREFIX).toBe(1073742190)
   })
 
-  test("encodeDelegateAction prepends prefix to serialized delegate action", () => {
+  test("serializeDelegateAction prepends prefix to serialized delegate action", () => {
     const pk: Ed25519PublicKey = {
       keyType: KeyType.ED25519,
       data: new Uint8Array(32).fill(10),
@@ -310,7 +309,7 @@ describe("Delegate Action prefix (NEP-461)", () => {
       pk,
     )
 
-    const encoded = encodeDelegateAction(delegateAction)
+    const encoded = serializeDelegateAction(delegateAction)
 
     // Should produce bytes
     expect(encoded).toBeInstanceOf(Uint8Array)
@@ -325,7 +324,7 @@ describe("Delegate Action prefix (NEP-461)", () => {
     expect(encoded[3]).toBe(0x40)
   })
 
-  test("encodeDelegateAction with multiple actions", () => {
+  test("serializeDelegateAction with multiple actions", () => {
     const pk: Ed25519PublicKey = {
       keyType: KeyType.ED25519,
       data: new Uint8Array(32).fill(11),
@@ -349,7 +348,7 @@ describe("Delegate Action prefix (NEP-461)", () => {
       pk,
     )
 
-    const encoded = encodeDelegateAction(delegateAction)
+    const encoded = serializeDelegateAction(delegateAction)
 
     // Should produce bytes with prefix
     expect(encoded).toBeInstanceOf(Uint8Array)
@@ -391,7 +390,7 @@ describe("Signed Delegate Action", () => {
     expect(signed.signature).toBe(sig)
   })
 
-  test("encodeSignedDelegate produces valid bytes", () => {
+  test("serializeSignedDelegate produces valid bytes", () => {
     const pk: Ed25519PublicKey = {
       keyType: KeyType.ED25519,
       data: new Uint8Array(32).fill(14),
@@ -413,7 +412,7 @@ describe("Signed Delegate Action", () => {
     )
 
     const signed = new SignedDelegate(delegateAction, sig)
-    const encoded = encodeSignedDelegate(signed)
+    const encoded = serializeSignedDelegate(signed)
 
     // Should produce bytes
     expect(encoded).toBeInstanceOf(Uint8Array)

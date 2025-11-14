@@ -79,8 +79,8 @@ export {
   DelegateAction,
   SignedDelegate,
 } from "./core/actions.js"
-export { DelegateActionPrefix } from "./core/prefix.js"
 export {
-  encodeDelegateAction,
-  encodeSignedDelegate,
+  DELEGATE_ACTION_PREFIX,
+  serializeDelegateAction,
+  serializeSignedDelegate,
 } from "./core/schema.js"
