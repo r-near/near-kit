@@ -1,15 +1,44 @@
 /**
- * Transaction builder for creating and sending NEAR transactions
+ * Fluent API for building and sending NEAR transactions.
+ *
+ * Allows chaining multiple actions (transfers, function calls, account creation, etc.)
+ * into a single atomic transaction. All actions either succeed together or fail together.
+ *
+ * The builder is created via {@link Near.transaction} with a signer account ID. This
+ * account must have signing credentials available (via keyStore, privateKey, custom
+ * signer, or wallet connection).
+ *
+ * @example
+ * ```typescript
+ * // Single action
+ * await near.transaction('alice.near')
+ *   .transfer('bob.near', '10 NEAR')
+ *   .send()
+ *
+ * // Multiple actions (atomic)
+ * await near.transaction('alice.near')
+ *   .createAccount('sub.alice.near')
+ *   .transfer('sub.alice.near', '5 NEAR')
+ *   .addKey(newKey, { type: 'fullAccess' })
+ *   .send()
+ * ```
+ *
+ * @remarks
+ * - The `signerId` (set via `Near.transaction()`) is the account that signs and pays for gas
+ * - All actions execute in the order they are added
+ * - Transaction is only sent when `.send()` is called
+ * - Use `.build()` to get unsigned transaction, or `.simulate()` to test without sending
  */
 
 import { base58 } from "@scure/base"
-import { InvalidKeyError, NearError, SignatureError } from "../errors/index.js"
-import { parsePublicKey } from "../utils/key.js"
+import { InvalidKeyError, NearError } from "../errors/index.js"
+import { parseKey, parsePublicKey } from "../utils/key.js"
 import {
   type Amount,
   type Gas,
   normalizeAmount,
   normalizeGas,
+  type PrivateKey,
 } from "../utils/validation.js"
 import * as actions from "./actions.js"
 import { DEFAULT_FUNCTION_CALL_GAS } from "./constants.js"
@@ -22,6 +51,7 @@ import {
 import type {
   Action,
   FinalExecutionOutcome,
+  KeyPair,
   KeyStore,
   SendOptions,
   SignedTransaction,
@@ -72,6 +102,7 @@ export class TransactionBuilder {
   private rpc: RpcClient
   private keyStore: KeyStore
   private signer?: Signer
+  private keyPair?: KeyPair // KeyPair from signWith() for building transaction
   private wallet?: WalletConnection
   private defaultWaitUntil: TxExecutionStatus
 
@@ -286,14 +317,74 @@ export class TransactionBuilder {
   }
 
   /**
-   * Override the signer for this transaction
+   * Override the signing function for this specific transaction.
+   *
+   * Use this to sign with a different signer than the one configured in the
+   * Near client, while keeping the same signerId. Useful for:
+   *
+   * - Using a hardware wallet for a specific transaction
+   * - Testing with mock signers
+   * - Signing with a specific private key for the same account
+   * - One-off custom signing logic
+   *
+   * **Important:** This overrides HOW the transaction is signed, not WHO signs it.
+   * The signerId (set via `.transaction()`) remains the same. To sign as a different
+   * account, use `.transaction(otherAccountId)` instead.
+   *
+   * @param key - Either a custom signer function or a private key string
+   *              (e.g., 'ed25519:...' or 'secp256k1:...')
+   *              Type-safe: TypeScript will enforce the correct format at compile time
+   * @returns This builder instance for chaining
+   *
+   * @example
+   * ```typescript
+   * // Override with different hardware wallet
+   * await near.transaction('alice.near')
+   *   .signWith(aliceHardwareWallet)
+   *   .transfer('bob.near', '5 NEAR')
+   *   .send()
+   *
+   * // Sign with specific ed25519 private key (type-safe)
+   * await near.transaction('alice.near')
+   *   .signWith('ed25519:...')  // ✅ TypeScript ensures correct format
+   *   .transfer('bob.near', '1 NEAR')
+   *   .send()
+   *
+   * // Sign with specific secp256k1 private key
+   * await near.transaction('alice.near')
+   *   .signWith('secp256k1:...')  // ✅ TypeScript ensures correct format
+   *   .transfer('bob.near', '1 NEAR')
+   *   .send()
+   *
+   * // TypeScript will catch mistakes at compile time:
+   * await near.transaction('alice.near')
+   *   .signWith('alice.near')  // ❌ Type error: not a PrivateKey
+   *
+   * // Mock signer for testing
+   * const mockSigner: Signer = async (msg) => ({
+   *   keyType: KeyType.ED25519,
+   *   data: new Uint8Array(64)
+   * })
+   *
+   * await near.transaction('test.near')
+   *   .signWith(mockSigner)
+   *   .transfer('receiver.near', '1')
+   *   .send()
+   * ```
+   *
+   * @remarks
+   * Supports both ed25519 and secp256k1 keys.
    */
-  signWith(key: string | Signer): this {
+  signWith(key: PrivateKey | Signer): this {
     if (typeof key === "string") {
       // Parse key and create signer
-      // This would require parseKey implementation
-      throw new SignatureError("String key signing not yet implemented")
+      // TypeScript ensures key is PrivateKey format, but we still validate at runtime
+      const keyPair = parseKey(key)
+      this.keyPair = keyPair // Store for build() to use
+      this.signer = async (message: Uint8Array) => keyPair.sign(message)
     } else {
+      // Clear cached keyPair when using custom signer to prevent stale public key
+      delete this.keyPair
       this.signer = key
     }
 
@@ -311,8 +402,8 @@ export class TransactionBuilder {
       )
     }
 
-    // Get access key info for nonce and block hash
-    const keyPair = await this.keyStore.get(this.signerId)
+    // Get key pair - either from signWith() or keyStore
+    const keyPair = this.keyPair || (await this.keyStore.get(this.signerId))
     if (!keyPair) {
       throw new InvalidKeyError(`No key found for account: ${this.signerId}`)
     }

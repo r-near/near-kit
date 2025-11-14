@@ -64,6 +64,44 @@ export interface Secp256k1Signature extends Signature {
   keyType: KeyType.SECP256K1
 }
 
+/**
+ * Custom signing function for transactions.
+ *
+ * A Signer is an async function that takes a message (the SHA-256 hash of a
+ * serialized transaction) and returns a cryptographic signature. Use custom
+ * signers to integrate with:
+ *
+ * - Hardware wallets (Ledger, Trezor)
+ * - Key Management Systems (AWS KMS, HashiCorp Vault)
+ * - Multi-signature schemes
+ * - Custom key derivation logic
+ *
+ * @param message - SHA-256 hash of the serialized transaction (32 bytes)
+ * @returns Promise resolving to a signature with key type info
+ *
+ * @example
+ * ```typescript
+ * // Hardware wallet signer
+ * const hwSigner: Signer = async (message) => {
+ *   const sig = await ledger.signTransaction(message)
+ *   return {
+ *     keyType: KeyType.ED25519,
+ *     data: sig
+ *   }
+ * }
+ *
+ * const near = new Near({
+ *   network: 'testnet',
+ *   signer: hwSigner
+ * })
+ *
+ * // All transactions now use hardware wallet
+ * await near.transaction('alice.near').transfer('bob.near', '1').send()
+ * ```
+ *
+ * @see {@link NearConfig.signer} for configuration
+ * @see {@link TransactionBuilder.signWith} to override per-transaction
+ */
 export type Signer = (message: Uint8Array) => Promise<Signature>
 
 // ==================== Permissions ====================

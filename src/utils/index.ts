@@ -17,8 +17,11 @@ export {
   verifyNep413Signature,
 } from "./nep413.js"
 export {
+  isPrivateKey,
   isValidAccountId,
   isValidPublicKey,
+  type PrivateKey,
   validateAccountId,
+  validatePrivateKey,
   validatePublicKey,
 } from "./validation.js"

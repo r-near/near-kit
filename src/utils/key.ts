@@ -3,11 +3,12 @@
  */
 
 import { ed25519 } from "@noble/curves/ed25519.js"
+import { secp256k1 } from "@noble/curves/secp256k1.js"
 import { base58, base64 } from "@scure/base"
 import { HDKey } from "@scure/bip32"
 import * as bip39 from "@scure/bip39"
 import { wordlist } from "@scure/bip39/wordlists/english.js"
-import { ED25519_KEY_PREFIX } from "../core/constants.js"
+import { ED25519_KEY_PREFIX, SECP256K1_KEY_PREFIX } from "../core/constants.js"
 import {
   type KeyPair,
   KeyType,
@@ -110,6 +111,116 @@ export class Ed25519KeyPair implements KeyPair {
 }
 
 /**
+ * Secp256k1 key pair implementation
+ *
+ * NEAR expects secp256k1 public keys to be 64 bytes (uncompressed without 0x04 header).
+ * The secp256k1 library returns 65-byte uncompressed keys (with 0x04 header), so we
+ * manually remove/add that byte as needed.
+ *
+ * Signatures are 65 bytes: 64-byte signature + 1-byte recovery ID.
+ */
+export class Secp256k1KeyPair implements KeyPair {
+  publicKey: PublicKey
+  secretKey: string
+  private privateKey: Uint8Array
+
+  constructor(secretKey: Uint8Array) {
+    // secretKey is 96 bytes: [32 bytes private key][64 bytes public key]
+    this.privateKey = secretKey.slice(0, 32)
+    const publicKeyData = secretKey.slice(32) // 64 bytes without 0x04 header
+
+    this.publicKey = {
+      keyType: KeyType.SECP256K1,
+      data: publicKeyData,
+      toString: () => SECP256K1_KEY_PREFIX + base58.encode(publicKeyData),
+    }
+
+    this.secretKey = SECP256K1_KEY_PREFIX + base58.encode(secretKey)
+  }
+
+  sign(message: Uint8Array): Signature {
+    // Sign with format: 'recovered' to get 65 bytes (recovery ID + signature)
+    // This is what NEAR expects: [recovery][r][s]
+    const signatureBytes = secp256k1.sign(message, this.privateKey, {
+      format: "recovered",
+    })
+
+    return {
+      keyType: KeyType.SECP256K1,
+      data: signatureBytes, // 65 bytes
+    }
+  }
+
+  /**
+   * Sign a message according to NEP-413 specification
+   *
+   * NEP-413 enables off-chain message signing for authentication and ownership verification.
+   * The message is signed with a full-access key but does not require gas or blockchain state.
+   *
+   * @param accountId - The NEAR account ID that owns this key
+   * @param params - Message signing parameters (message, recipient, nonce)
+   * @returns Signed message with account ID, public key, and base64-encoded signature
+   *
+   * @see https://github.com/near/NEPs/blob/master/neps/nep-0413.md
+   *
+   * @example
+   * ```typescript
+   * const nonce = crypto.getRandomValues(new Uint8Array(32))
+   * const signedMessage = keyPair.signNep413Message("alice.near", {
+   *   message: "Login to MyApp",
+   *   recipient: "myapp.near",
+   *   nonce,
+   * })
+   * console.log(signedMessage.signature) // Base64-encoded signature
+   * ```
+   */
+  signNep413Message(
+    accountId: string,
+    params: SignMessageParams,
+  ): SignedMessage {
+    // Serialize and hash the message according to NEP-413
+    const hash = serializeNep413Message(params)
+
+    // Sign the hash with format: 'recovered' for secp256k1
+    const signature = secp256k1.sign(hash, this.privateKey, {
+      format: "recovered",
+    })
+
+    // Return signed message with base64-encoded signature
+    return {
+      accountId,
+      publicKey: this.publicKey.toString(),
+      signature: base64.encode(signature),
+    }
+  }
+
+  static fromRandom(): Secp256k1KeyPair {
+    // Generate random 32-byte private key
+    const privateKey = new Uint8Array(32)
+    crypto.getRandomValues(privateKey)
+
+    // Get uncompressed public key (65 bytes with 0x04 header)
+    const publicKeyFull = secp256k1.getPublicKey(privateKey, false)
+
+    // Remove 0x04 header to get 64 bytes for NEAR
+    const publicKey = publicKeyFull.slice(1)
+
+    // Combine into 96-byte format: 32 bytes private + 64 bytes public
+    const secretKey = new Uint8Array(96)
+    secretKey.set(privateKey, 0)
+    secretKey.set(publicKey, 32)
+
+    return new Secp256k1KeyPair(secretKey)
+  }
+
+  static fromString(keyString: string): Secp256k1KeyPair {
+    const key = keyString.replace(SECP256K1_KEY_PREFIX, "")
+    const decoded = base58.decode(key)
+    return new Secp256k1KeyPair(decoded)
+  }
+}
+
+/**
  * Generate a new random Ed25519 key pair
  * @returns A new KeyPair instance
  */
@@ -119,7 +230,7 @@ export function generateKey(): KeyPair {
 
 /**
  * Parse a key string to a KeyPair
- * @param keyString - Key string (e.g., "ed25519:...")
+ * @param keyString - Key string (e.g., "ed25519:..." or "secp256k1:...")
  * @returns KeyPair instance
  */
 export function parseKey(keyString: string): KeyPair {
@@ -127,12 +238,16 @@ export function parseKey(keyString: string): KeyPair {
     return Ed25519KeyPair.fromString(keyString)
   }
 
+  if (keyString.startsWith(SECP256K1_KEY_PREFIX)) {
+    return Secp256k1KeyPair.fromString(keyString)
+  }
+
   throw new InvalidKeyError(`Unsupported key type: ${keyString}`)
 }
 
 /**
  * Parse a public key string to a PublicKey object
- * @param publicKeyString - Public key string (e.g., "ed25519:...")
+ * @param publicKeyString - Public key string (e.g., "ed25519:..." or "secp256k1:...")
  * @returns PublicKey instance
  */
 export function parsePublicKey(publicKeyString: string): PublicKey {
@@ -141,6 +256,16 @@ export function parsePublicKey(publicKeyString: string): PublicKey {
     const decoded = base58.decode(key)
     return {
       keyType: KeyType.ED25519,
+      data: decoded,
+      toString: () => publicKeyString,
+    }
+  }
+
+  if (publicKeyString.startsWith(SECP256K1_KEY_PREFIX)) {
+    const key = publicKeyString.replace(SECP256K1_KEY_PREFIX, "")
+    const decoded = base58.decode(key)
+    return {
+      keyType: KeyType.SECP256K1,
       data: decoded,
       toString: () => publicKeyString,
     }

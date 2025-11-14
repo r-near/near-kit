@@ -365,7 +365,32 @@ export class Near {
   }
 
   /**
-   * Create a transaction builder
+   * Create a transaction builder for the specified signer account.
+   *
+   * The `signerId` determines which account will sign and send this transaction.
+   * This account must have keys available in the configured keyStore, privateKey,
+   * custom signer, or be connected via wallet.
+   *
+   * @param signerId - The account ID that will sign and pay for this transaction
+   *
+   * @returns A transaction builder for chaining actions
+   *
+   * @example
+   * ```typescript
+   * // Alice sends NEAR to Bob
+   * await near.transaction('alice.near')
+   *   .transfer('bob.near', '10 NEAR')
+   *   .send()
+   *
+   * // Alice calls a contract and creates a new account
+   * await near.transaction('alice.near')
+   *   .functionCall('market.near', 'buy', { id: 123 })
+   *   .createAccount('sub.alice.near')
+   *   .transfer('sub.alice.near', '5 NEAR')
+   *   .send()
+   * ```
+   *
+   * @see {@link TransactionBuilder} for available actions
    */
   transaction(signerId: string): TransactionBuilder {
     return new TransactionBuilder(

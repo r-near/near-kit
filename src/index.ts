@@ -65,12 +65,15 @@ export {
   Gas,
   generateKey,
   generateSeedPhrase,
+  isPrivateKey,
   isValidAccountId,
   isValidPublicKey,
   parseAmount,
   parseGas,
   parseKey,
   parseSeedPhrase,
+  type PrivateKey,
+  validatePrivateKey,
 } from "./utils/index.js"
 // Wallet adapters
 export { fromWalletSelector, fromHotConnect } from "./wallets/index.js"

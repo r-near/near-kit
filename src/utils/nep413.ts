@@ -74,7 +74,7 @@ export function serializeNep413Message(params: SignMessageParams): Uint8Array {
     message: params.message,
     nonce: Array.from(params.nonce),
     recipient: params.recipient,
-    callbackUrl: undefined, // Optional, not typically used in direct signing
+    callbackUrl: null, // Optional, not typically used in direct signing
   })
 
   // Concatenate tag + payload

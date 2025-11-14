@@ -99,10 +99,13 @@ const info = await contract.view.get_info();
 ### Transaction Builder
 
 ```typescript
-// Complex transactions with multiple actions
-const receipt = await near.transaction('alice.near')
-  .transfer('bob.near', '10')
-  .functionCall('market.near', 'buy', { id: '123' }, { attachedDeposit: '5' })
+// Alice builds a transaction with multiple actions
+// 'alice.near' is the signer - the account that signs and pays for this transaction
+const receipt = await near.transaction('alice.near')  // Alice signs
+  .transfer('bob.near', '10')                         // Alice sends Bob 10 NEAR
+  .functionCall('market.near', 'buy', { id: '123' }, {
+    attachedDeposit: '5'                              // Alice attaches 5 NEAR to the call
+  })
   .send();
 ```
 
