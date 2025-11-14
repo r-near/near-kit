@@ -44,7 +44,7 @@ describe("Account ID Schema", () => {
   })
 
   test("should reject account IDs that are too long", () => {
-    const longId = "a".repeat(65) + ".near"
+    const longId = `${"a".repeat(65)}.near`
     expect(() => AccountIdSchema.parse(longId)).toThrow()
     expect(isValidAccountId(longId)).toBe(false)
   })
@@ -221,9 +221,7 @@ describe("Amount Schema", () => {
   test("normalizeAmount() should normalize with explicit units", () => {
     expect(normalizeAmount("10 NEAR")).toBe("10000000000000000000000000")
     expect(normalizeAmount("1000 yocto")).toBe("1000")
-    expect(normalizeAmount(Amount.NEAR(10))).toBe(
-      "10000000000000000000000000",
-    )
+    expect(normalizeAmount(Amount.NEAR(10))).toBe("10000000000000000000000000")
   })
 })
 

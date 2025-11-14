@@ -323,7 +323,7 @@ describe("TransactionBuilder - Integration Tests", () => {
         })
         .send()
 
-      const initialBalance = await near.getBalance(recipientId)
+      const _initialBalance = await near.getBalance(recipientId)
 
       // Use Near.send() convenience method
       // Note: This requires defaultSignerId to be set, which we haven't done

@@ -41,8 +41,8 @@ export type NetworkConfig = z.infer<typeof NetworkConfigSchema>
  * Schema for function call options
  */
 export const CallOptionsSchema = z.object({
-  gas: z.union([z.string(), z.number()]).optional(),
-  attachedDeposit: z.union([z.string(), z.number()]).optional(),
+  gas: z.string().optional(),
+  attachedDeposit: z.union([z.string(), z.bigint()]).optional(),
   signerId: z.string().optional(),
 })
 

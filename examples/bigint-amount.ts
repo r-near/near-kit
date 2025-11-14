@@ -45,9 +45,10 @@ const baseAmount = 10000000000000000000000000n // 10 NEAR
 const commission = baseAmount / 100n // 1% commission = 0.1 NEAR
 const finalAmount = baseAmount - commission // 9.9 NEAR
 
-await near.transaction({
-  account: "sender.near",
-})
+await near
+  .transaction({
+    account: "sender.near",
+  })
   .transfer({ to: "alice.near", amount: finalAmount })
   .send()
 

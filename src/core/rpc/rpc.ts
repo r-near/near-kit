@@ -81,7 +81,10 @@ export class RpcClient {
    * Parse RPC error and throw appropriate typed error
    * Follows NEAR RPC error documentation
    */
-  private parseRpcError(error: RpcResponse["error"], statusCode?: number): never {
+  private parseRpcError(
+    error: RpcResponse["error"],
+    statusCode?: number,
+  ): never {
     if (!error) {
       throw new NetworkError("Unknown RPC error")
     }
@@ -98,17 +101,20 @@ export class RpcClient {
       // === General Errors (HANDLER_ERROR) ===
 
       if (causeName === "UNKNOWN_BLOCK") {
-        const blockRef = (causeInfo.block_reference as string) || parsedError.message
+        const blockRef =
+          (causeInfo["block_reference"] as string) || parsedError.message
         throw new UnknownBlockError(blockRef)
       }
 
       if (causeName === "INVALID_ACCOUNT") {
-        const accountId = (causeInfo.requested_account_id as string) || "unknown"
+        const accountId =
+          (causeInfo.requested_account_id as string) || "unknown"
         throw new InvalidAccountError(accountId)
       }
 
       if (causeName === "UNKNOWN_ACCOUNT") {
-        const accountId = (causeInfo.requested_account_id as string) || "unknown"
+        const accountId =
+          (causeInfo.requested_account_id as string) || "unknown"
         throw new AccountDoesNotExistError(accountId)
       }
 
@@ -123,20 +129,26 @@ export class RpcClient {
       // === Access Key Errors ===
 
       if (causeName === "UNKNOWN_ACCESS_KEY") {
-        const accountId = (causeInfo.account_id as string) || "unknown"
-        const publicKey = (causeInfo.public_key as string) || "unknown"
+        const accountId = (causeInfo["account_id"] as string) || "unknown"
+        const publicKey = (causeInfo["public_key"] as string) || "unknown"
         throw new UnknownAccessKeyError(accountId, publicKey)
       }
 
       // === Contract Errors ===
 
       if (causeName === "NO_CONTRACT_CODE") {
-        const accountId = (causeInfo.account_id as string) || (causeInfo.contract_id as string) || "unknown"
+        const accountId =
+          (causeInfo["account_id"] as string) ||
+          (causeInfo["contract_id"] as string) ||
+          "unknown"
         throw new ContractNotDeployedError(accountId)
       }
 
       if (causeName === "TOO_LARGE_CONTRACT_STATE") {
-        const accountId = (causeInfo.account_id as string) || (causeInfo.contract_id as string) || "unknown"
+        const accountId =
+          (causeInfo["account_id"] as string) ||
+          (causeInfo.contract_id as string) ||
+          "unknown"
         throw new ContractStateTooLargeError(accountId)
       }
 
@@ -157,19 +169,21 @@ export class RpcClient {
       // === Block / Chunk Errors ===
 
       if (causeName === "UNKNOWN_CHUNK") {
-        const chunkRef = (causeInfo.chunk_reference as string) || parsedError.message
+        const chunkRef =
+          (causeInfo["chunk_reference"] as string) || parsedError.message
         throw new UnknownChunkError(chunkRef)
       }
 
       if (causeName === "INVALID_SHARD_ID") {
-        const shardId = (causeInfo.shard_id as number | string) || "unknown"
+        const shardId = (causeInfo["shard_id"] as number | string) || "unknown"
         throw new InvalidShardIdError(shardId)
       }
 
       // === Network Errors ===
 
       if (causeName === "UNKNOWN_EPOCH") {
-        const blockRef = (causeInfo.block_reference as string) || parsedError.message
+        const blockRef =
+          (causeInfo["block_reference"] as string) || parsedError.message
         throw new UnknownEpochError(blockRef)
       }
 
@@ -181,24 +195,30 @@ export class RpcClient {
       }
 
       if (causeName === "UNKNOWN_RECEIPT") {
-        const receiptId = (causeInfo.receipt_id as string) || "unknown"
+        const receiptId = (causeInfo["receipt_id"] as string) || "unknown"
         throw new UnknownReceiptError(receiptId)
       }
 
       if (causeName === "TIMEOUT_ERROR") {
-        const txHash = causeInfo.transaction_hash as string | undefined
+        const txHash = causeInfo["transaction_hash"] as string | undefined
         throw new TimeoutError(parsedError.message, txHash)
       }
 
       // === Request Validation Errors (400) ===
 
-      if (causeName === "PARSE_ERROR" || parsedError.name === "REQUEST_VALIDATION_ERROR") {
+      if (
+        causeName === "PARSE_ERROR" ||
+        parsedError.name === "REQUEST_VALIDATION_ERROR"
+      ) {
         throw new ParseError(parsedError.message, causeInfo)
       }
 
       // === Internal Errors (500) ===
 
-      if (causeName === "INTERNAL_ERROR" || parsedError.name === "INTERNAL_ERROR") {
+      if (
+        causeName === "INTERNAL_ERROR" ||
+        parsedError.name === "INTERNAL_ERROR"
+      ) {
         throw new InternalServerError(parsedError.message, causeInfo)
       }
 
@@ -333,7 +353,7 @@ export class RpcClient {
   async getAccount(accountId: string): Promise<AccountView> {
     const result = await this.call("query", {
       request_type: "view_account",
-      finality: "optimistic",  // Use optimistic for latest state (important for sandbox/localnet)
+      finality: "optimistic", // Use optimistic for latest state (important for sandbox/localnet)
       account_id: accountId,
     })
 
@@ -346,7 +366,7 @@ export class RpcClient {
   ): Promise<AccessKeyView> {
     const result = await this.call("query", {
       request_type: "view_access_key",
-      finality: "optimistic",  // Use optimistic for latest state (important for sandbox/localnet)
+      finality: "optimistic", // Use optimistic for latest state (important for sandbox/localnet)
       account_id: accountId,
       public_key: publicKey,
     })

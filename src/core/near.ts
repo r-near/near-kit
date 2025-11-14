@@ -7,6 +7,7 @@ import { createContract } from "../contracts/contract.js"
 import { NearError } from "../errors/index.js"
 import { InMemoryKeyStore } from "../keys/index.js"
 import { parseKey } from "../utils/key.js"
+import type { Amount } from "../utils/validation.js"
 import {
   type NearConfig,
   NearConfigSchema,
@@ -14,13 +15,17 @@ import {
 } from "./config-schemas.js"
 import { RpcClient } from "./rpc/rpc.js"
 import { TransactionBuilder } from "./transaction.js"
-import type { CallOptions, KeyStore, Signer, TxExecutionStatus } from "./types.js"
+import type {
+  CallOptions,
+  KeyStore,
+  Signer,
+  TxExecutionStatus,
+} from "./types.js"
 
 export class Near {
   private rpc: RpcClient
   private keyStore: KeyStore
   private signer?: Signer
-  private _networkId: string
   private defaultSignerId?: string
   private defaultWaitUntil: TxExecutionStatus
 
@@ -34,16 +39,16 @@ export class Near {
     // Initialize RPC client
     const rpcUrl = validatedConfig.rpcUrl || networkConfig.rpcUrl
     this.rpc = new RpcClient(rpcUrl, validatedConfig.headers)
-    this._networkId = networkConfig.networkId
 
     // Initialize key store
     this.keyStore = this.resolveKeyStore(validatedConfig.keyStore)
 
     // Initialize default wait until
-    this.defaultWaitUntil = validatedConfig.defaultWaitUntil || "EXECUTED_OPTIMISTIC"
+    this.defaultWaitUntil =
+      validatedConfig.defaultWaitUntil || "EXECUTED_OPTIMISTIC"
 
     // Set up signer and add key to keyStore if privateKey provided
-    const signer = validatedConfig["signer"]
+    const signer = validatedConfig.signer
     const privateKey = validatedConfig.privateKey
     if (signer) {
       this.signer = signer
@@ -133,8 +138,8 @@ export class Near {
     }
 
     const functionCallOptions: {
-      gas?: string | number
-      attachedDeposit?: string | number
+      gas?: string
+      attachedDeposit?: string | bigint
     } = {}
     if (options.gas !== undefined) {
       functionCallOptions.gas = options.gas
@@ -153,7 +158,7 @@ export class Near {
   /**
    * Send NEAR tokens to an account
    */
-  async send(receiverId: string, amount: string | number): Promise<unknown> {
+  async send(receiverId: string, amount: Amount): Promise<unknown> {
     if (!this.defaultSignerId) {
       throw new NearError(
         "No signer ID configured. Cannot send tokens.",

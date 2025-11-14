@@ -55,7 +55,7 @@ export class FileKeyStore implements KeyStore {
     // Expand home directory
     this.basePath = basePath.replace(
       /^~/,
-      process.env.HOME || process.env.USERPROFILE || "",
+      process.env["HOME"] || process.env["USERPROFILE"] || "",
     )
   }
 
@@ -65,7 +65,6 @@ export class FileKeyStore implements KeyStore {
 
   async add(accountId: string, key: KeyPair): Promise<void> {
     const fs = await import("node:fs/promises")
-    const _path = await import("node:path")
 
     // Ensure directory exists
     await fs.mkdir(this.basePath, { recursive: true })

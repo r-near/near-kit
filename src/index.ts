@@ -48,16 +48,16 @@ export type { SandboxOptions } from "./sandbox/index.js"
 export { Sandbox } from "./sandbox/index.js"
 // Utilities
 export {
+  Amount,
+  formatAmount,
   formatGas,
-  formatNearAmount,
+  Gas,
   generateKey,
   generateSeedPhrase,
   isValidAccountId,
   isValidPublicKey,
+  parseAmount,
   parseGas,
   parseKey,
-  parseNearAmount,
   parseSeedPhrase,
-  toGas,
-  toTGas,
 } from "./utils/index.js"

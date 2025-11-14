@@ -7,6 +7,7 @@ import { InvalidKeyError, NearError, SignatureError } from "../errors/index.js"
 import { parsePublicKey } from "../utils/key.js"
 import {
   type Amount,
+  type Gas,
   normalizeAmount,
   normalizeGas,
 } from "../utils/validation.js"
@@ -39,14 +40,14 @@ export type AccessKeyPermission =
       type: "functionCall"
       receiverId: string
       methodNames?: string[]
-      allowance?: string | number
+      allowance?: Amount
     }
 
 /**
  * Convert user-friendly permission format to Borsh format
  */
 function toAccessKeyPermissionBorsh(
-  permission: AccessKeyPermission
+  permission: AccessKeyPermission,
 ): AccessKeyPermissionBorsh {
   if (permission.type === "fullAccess") {
     return { fullAccess: {} }
@@ -77,7 +78,7 @@ export class TransactionBuilder {
     rpc: RpcClient,
     keyStore: KeyStore,
     signer?: Signer,
-    defaultWaitUntil: TxExecutionStatus = "EXECUTED_OPTIMISTIC"
+    defaultWaitUntil: TxExecutionStatus = "EXECUTED_OPTIMISTIC",
   ) {
     this.signerId = signerId
     this.actions = []
@@ -110,7 +111,7 @@ export class TransactionBuilder {
     contractId: string,
     methodName: string,
     args: object = {},
-    options: { gas?: string | number; attachedDeposit?: string | number } = {}
+    options: { gas?: Gas; attachedDeposit?: Amount } = {},
   ): this {
     const argsJson = JSON.stringify(args)
     const argsBytes = new TextEncoder().encode(argsJson)
@@ -124,7 +125,7 @@ export class TransactionBuilder {
       : "0"
 
     this.actions.push(
-      actions.functionCall(methodName, argsBytes, BigInt(gas), BigInt(deposit))
+      actions.functionCall(methodName, argsBytes, BigInt(gas), BigInt(deposit)),
     )
 
     if (!this.receiverId) {
@@ -171,7 +172,7 @@ export class TransactionBuilder {
   /**
    * Add a stake action
    */
-  stake(publicKey: string, amount: string | number): this {
+  stake(publicKey: string, amount: Amount): this {
     const amountYocto = normalizeAmount(amount)
     const pk = parsePublicKey(publicKey)
     this.actions.push(actions.stake(BigInt(amountYocto), pk))
@@ -233,7 +234,7 @@ export class TransactionBuilder {
     if (!this.receiverId) {
       throw new NearError(
         "No receiver ID set for transaction",
-        "INVALID_TRANSACTION"
+        "INVALID_TRANSACTION",
       )
     }
 
@@ -246,7 +247,7 @@ export class TransactionBuilder {
     const publicKey = keyPair.publicKey
     const accessKey = await this.rpc.getAccessKey(
       this.signerId,
-      publicKey.toString()
+      publicKey.toString(),
     )
 
     const status = await this.rpc.getStatus()
@@ -291,7 +292,10 @@ export class TransactionBuilder {
     const serialized = serializeTransaction(transaction)
 
     // NEAR protocol requires signing the SHA256 hash of the serialized transaction
-    const messageHash = await crypto.subtle.digest("SHA-256", serialized)
+    const messageHash = (await crypto.subtle.digest(
+      "SHA-256",
+      serialized as Uint8Array<ArrayBuffer>,
+    )) as ArrayBuffer
     const messageHashArray = new Uint8Array(messageHash)
 
     // Use custom signer if provided, otherwise fall back to keyStore
@@ -301,7 +305,7 @@ export class TransactionBuilder {
           const keyPair = await this.keyStore.get(this.signerId)
           if (!keyPair) {
             throw new InvalidKeyError(
-              `No key found for account: ${this.signerId}`
+              `No key found for account: ${this.signerId}`,
             )
           }
           return keyPair.sign(messageHashArray)

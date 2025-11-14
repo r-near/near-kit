@@ -384,11 +384,15 @@ describe("TransactionBuilder - Complex Scenarios", () => {
     // @ts-expect-error - accessing private field for testing
     expect(builder.actions[0].functionCall.gas).toBe(50000000000000n)
     // @ts-expect-error - accessing private field for testing
-    expect(builder.actions[0].functionCall.deposit).toBe(1000000000000000000000000n)
+    expect(builder.actions[0].functionCall.deposit).toBe(
+      1000000000000000000000000n,
+    )
     // @ts-expect-error - accessing private field for testing
     expect(builder.actions[1].functionCall.gas).toBe(100000000000000n)
     // @ts-expect-error - accessing private field for testing
-    expect(builder.actions[1].functionCall.deposit).toBe(2000000000000000000000000n)
+    expect(builder.actions[1].functionCall.deposit).toBe(
+      2000000000000000000000000n,
+    )
   })
 
   test("should build transaction with all action types", () => {
@@ -409,9 +413,14 @@ describe("TransactionBuilder - Edge Cases", () => {
   test("should handle zero amounts", () => {
     const builder = createBuilder()
       .transfer("bob.near", Amount.NEAR(0))
-      .functionCall("contract.near", "method", {}, {
-        attachedDeposit: Amount.NEAR(0),
-      })
+      .functionCall(
+        "contract.near",
+        "method",
+        {},
+        {
+          attachedDeposit: Amount.NEAR(0),
+        },
+      )
 
     // @ts-expect-error - accessing private field for testing
     expect(builder.actions[0].transfer.deposit).toBe(0n)

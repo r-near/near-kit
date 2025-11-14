@@ -288,10 +288,7 @@ export class ContractNotDeployedError extends NearError {
   accountId: string
 
   constructor(accountId: string) {
-    super(
-      `No contract deployed on account: ${accountId}`,
-      "NO_CONTRACT_CODE",
-    )
+    super(`No contract deployed on account: ${accountId}`, "NO_CONTRACT_CODE")
     this.name = "ContractNotDeployedError"
     this.accountId = accountId
     Object.setPrototypeOf(this, ContractNotDeployedError.prototype)
@@ -408,7 +405,9 @@ export class InvalidTransactionError extends NearError {
     this.details = details
 
     // Check if this is a retryable transaction error
-    const detailsObj = details as { ShardCongested?: boolean; ShardStuck?: boolean } | undefined
+    const detailsObj = details as
+      | { ShardCongested?: boolean; ShardStuck?: boolean }
+      | undefined
     this.shardCongested = !!detailsObj?.ShardCongested
     this.shardStuck = !!detailsObj?.ShardStuck
     this.retryable = this.shardCongested || this.shardStuck
@@ -480,7 +479,8 @@ export class InternalServerError extends NearError {
 
   constructor(message?: string, details?: unknown) {
     super(
-      message || "Internal server error. The node may be overloaded. Try again or use a different node.",
+      message ||
+        "Internal server error. The node may be overloaded. Try again or use a different node.",
       "INTERNAL_ERROR",
       details,
     )
