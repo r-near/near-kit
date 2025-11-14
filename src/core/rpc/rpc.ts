@@ -405,22 +405,33 @@ export class RpcClient {
       const failure = parsed.status.Failure
       const errorMessage = failure.error_message || failure.error_type || "Transaction execution failed"
 
+      // Helper function to check if a failure is a FunctionCallError
+      const isFunctionCallError = (failureObj: any): boolean => {
+        return (
+          failureObj.ActionError?.kind?.FunctionCallError !== undefined ||
+          failureObj.FunctionCallError !== undefined
+        )
+      }
+
       // Check transaction_outcome first (direct contract failures without cross-contract calls)
       if (
         typeof parsed.transaction_outcome.outcome.status === "object" &&
         "Failure" in parsed.transaction_outcome.outcome.status
       ) {
-        const contractId = parsed.transaction_outcome.outcome.executor_id
-        const logs = parsed.transaction_outcome.outcome.logs
-        // Try to extract method name from transaction actions
-        const functionCallAction = parsed.transaction.actions.find(
-          action => typeof action === "object" && "FunctionCall" in action
-        )
-        const methodName = functionCallAction && typeof functionCallAction === "object" && "FunctionCall" in functionCallAction
-          ? functionCallAction.FunctionCall.method_name
-          : undefined
+        const outcomeFailure = parsed.transaction_outcome.outcome.status.Failure
 
-        if (functionCallAction) {
+        // Only throw FunctionCallError if the failure is actually from a function call
+        if (isFunctionCallError(outcomeFailure)) {
+          const contractId = parsed.transaction_outcome.outcome.executor_id
+          const logs = parsed.transaction_outcome.outcome.logs
+          // Try to extract method name from transaction actions
+          const functionCallAction = parsed.transaction.actions.find(
+            action => typeof action === "object" && "FunctionCall" in action
+          )
+          const methodName = functionCallAction && typeof functionCallAction === "object" && "FunctionCall" in functionCallAction
+            ? functionCallAction.FunctionCall.method_name
+            : undefined
+
           throw new FunctionCallError(contractId, methodName, errorMessage, logs)
         }
       }
@@ -430,21 +441,26 @@ export class RpcClient {
         receipt => typeof receipt.outcome.status === "object" && "Failure" in receipt.outcome.status
       )
 
-      if (failedReceipt) {
-        const contractId = failedReceipt.outcome.executor_id
-        const logs = failedReceipt.outcome.logs
-        // Try to extract method name from transaction actions
-        const functionCallAction = parsed.transaction.actions.find(
-          action => typeof action === "object" && "FunctionCall" in action
-        )
-        const methodName = functionCallAction && typeof functionCallAction === "object" && "FunctionCall" in functionCallAction
-          ? functionCallAction.FunctionCall.method_name
-          : undefined
+      if (failedReceipt && typeof failedReceipt.outcome.status === "object" && "Failure" in failedReceipt.outcome.status) {
+        const receiptFailure = failedReceipt.outcome.status.Failure
 
-        throw new FunctionCallError(contractId, methodName, errorMessage, logs)
+        // Only throw FunctionCallError if the failure is actually from a function call
+        if (isFunctionCallError(receiptFailure)) {
+          const contractId = failedReceipt.outcome.executor_id
+          const logs = failedReceipt.outcome.logs
+          // Try to extract method name from transaction actions
+          const functionCallAction = parsed.transaction.actions.find(
+            action => typeof action === "object" && "FunctionCall" in action
+          )
+          const methodName = functionCallAction && typeof functionCallAction === "object" && "FunctionCall" in functionCallAction
+            ? functionCallAction.FunctionCall.method_name
+            : undefined
+
+          throw new FunctionCallError(contractId, methodName, errorMessage, logs)
+        }
       }
 
-      // Generic transaction failure (not a function call)
+      // Generic transaction failure (ActionError from other actions, or other failure types)
       throw new InvalidTransactionError(errorMessage, failure)
     }
 

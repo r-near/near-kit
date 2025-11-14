@@ -139,6 +139,45 @@ describe("sendTransaction - RPC Response Validation", () => {
     })
   })
 
+  describe("Error handling for multi-action transactions", () => {
+    test("should throw InvalidTransactionError for non-function-call failures", async () => {
+      const recipientKey = generateKey()
+      const recipientId = `multi-action-${Date.now()}.${sandbox.rootAccount.id}`
+
+      // First create the account
+      await near
+        .transaction(sandbox.rootAccount.id)
+        .createAccount(recipientId)
+        .transfer(recipientId, "5 NEAR")
+        .addKey(recipientKey.publicKey.toString(), {
+          type: "fullAccess",
+        })
+        .send()
+
+      // Try to create the same account again in a multi-action transaction
+      // that also includes a function call. The createAccount should fail,
+      // but it should throw InvalidTransactionError, not FunctionCallError
+      try {
+        await near
+          .transaction(sandbox.rootAccount.id)
+          .createAccount(recipientId) // This will fail - account already exists
+          .transfer(recipientId, "1 NEAR")
+          .functionCall(recipientId, "some_method", {})
+          .send()
+
+        throw new Error("Expected transaction to fail")
+      } catch (error: any) {
+        // Should be InvalidTransactionError, not FunctionCallError
+        // because the failure is from createAccount, not the function call
+        expect(error.name).not.toBe("FunctionCallError")
+        expect(error.name).toBe("InvalidTransactionError")
+        expect(error.message).toContain("already exists")
+
+        console.log("✓ Correctly threw InvalidTransactionError for non-function-call failure:", error.message)
+      }
+    })
+  })
+
   describe("Wait mode: FINAL", () => {
     test("should return finalized execution outcome", async () => {
       const recipientKey = generateKey()
