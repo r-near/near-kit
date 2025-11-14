@@ -31,7 +31,6 @@ export class Near {
   private keyStore: KeyStore
   private signer?: Signer
   private wallet?: WalletConnection
-  private _networkId: string
   private defaultSignerId?: string
   private defaultWaitUntil: TxExecutionStatus
 
@@ -120,7 +119,7 @@ export class Near {
           "NO_WALLET_ACCOUNTS",
         )
       }
-      return accounts[0].accountId
+      return accounts[0]!.accountId
     }
 
     throw new NearError(

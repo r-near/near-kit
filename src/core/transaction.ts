@@ -91,7 +91,9 @@ export class TransactionBuilder {
       this.signer = signer
     }
     this.defaultWaitUntil = defaultWaitUntil
-    this.wallet = wallet
+    if (wallet !== undefined) {
+      this.wallet = wallet
+    }
   }
 
   /**
