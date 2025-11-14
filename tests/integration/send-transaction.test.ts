@@ -22,6 +22,10 @@ describe("sendTransaction - RPC Response Validation", () => {
     console.log(`✓ Sandbox started at ${sandbox.rpcUrl}`)
   }, 120000)
 
+  // Increase default timeout for all tests
+  // Sandbox operations can be slow, especially finalized transactions
+  const TEST_TIMEOUT = 30000
+
   afterAll(async () => {
     if (sandbox) {
       await sandbox.stop()
@@ -36,7 +40,7 @@ describe("sendTransaction - RPC Response Validation", () => {
         sandbox.rootAccount.id
       }`
 
-      // Create account first (wait for execution to ensure nonce is committed)
+      // Create account first
       await near
         .transaction(sandbox.rootAccount.id)
         .createAccount(recipientId)
@@ -44,7 +48,11 @@ describe("sendTransaction - RPC Response Validation", () => {
         .addKey(recipientKey.publicKey.toString(), {
           type: "fullAccess",
         })
-        .send({ waitUntil: "EXECUTED_OPTIMISTIC" })
+        .send({ waitUntil: "NONE" })
+
+      // Wait for the execution status because we have to deal with nonce issues
+      // before sending the next transaction
+      //await new Promise((resolve) => setTimeout(resolve, 500))
 
       // Send transaction with waitUntil: NONE
       const result = await near
@@ -62,7 +70,7 @@ describe("sendTransaction - RPC Response Validation", () => {
       expect("transaction_outcome" in result).toBe(false)
 
       console.log(
-        "✓ waitUntil: NONE returns minimal response (transaction submitted)",
+        "✓ waitUntil: NONE returns minimal response (transaction submitted)"
       )
 
       // Wait to ensure nonce is committed before next test
@@ -71,7 +79,9 @@ describe("sendTransaction - RPC Response Validation", () => {
   })
 
   describe("Wait mode: INCLUDED", () => {
-    test("should return transaction in block", async () => {
+    test(
+      "should return transaction in block",
+      async () => {
       const recipientKey = generateKey()
       const recipientId = `recipient-included-${Date.now()}.${
         sandbox.rootAccount.id
@@ -103,7 +113,9 @@ describe("sendTransaction - RPC Response Validation", () => {
 
       // Wait to ensure nonce is fully committed before next test
       await new Promise((resolve) => setTimeout(resolve, 500))
-    })
+      },
+      TEST_TIMEOUT,
+    )
   })
 
   describe("Wait mode: EXECUTED_OPTIMISTIC (default)", () => {
@@ -130,7 +142,7 @@ describe("sendTransaction - RPC Response Validation", () => {
       expect(
         typeof result.status === "object" &&
           ("SuccessValue" in result.status ||
-            "SuccessReceiptId" in result.status),
+            "SuccessReceiptId" in result.status)
       ).toBe(true)
 
       // Should have execution outcome
@@ -141,7 +153,7 @@ describe("sendTransaction - RPC Response Validation", () => {
       console.log(
         "✓ Default execution used",
         result.transaction_outcome.outcome.gas_burnt,
-        "gas",
+        "gas"
       )
     })
 
@@ -164,13 +176,15 @@ describe("sendTransaction - RPC Response Validation", () => {
       // A more reliable test would deploy a contract that panics
 
       console.log(
-        "✓ FunctionCallError handling verified (contract would need to be deployed for full test)",
+        "✓ FunctionCallError handling verified (contract would need to be deployed for full test)"
       )
     })
   })
 
   describe("Error handling for multi-action transactions", () => {
-    test("should throw InvalidTransactionError for non-function-call failures", async () => {
+    test(
+      "should throw InvalidTransactionError for non-function-call failures",
+      async () => {
       const recipientKey = generateKey()
       const recipientId = `multi-action-${Date.now()}.${sandbox.rootAccount.id}`
 
@@ -196,23 +210,29 @@ describe("sendTransaction - RPC Response Validation", () => {
           .send()
 
         throw new Error("Expected transaction to fail")
-      } catch (error: any) {
+      } catch (err: unknown) {
         // Should be InvalidTransactionError, not FunctionCallError
         // because the failure is from createAccount, not the function call
+        expect(err).toBeInstanceOf(Error)
+        const error = err as Error
         expect(error.name).not.toBe("FunctionCallError")
         expect(error.name).toBe("InvalidTransactionError")
         expect(error.message).toContain("AccountAlreadyExists")
 
         console.log(
           "✓ Correctly threw InvalidTransactionError for non-function-call failure:",
-          error.message,
+          error.message
         )
       }
-    })
+      },
+      TEST_TIMEOUT,
+    )
   })
 
   describe("Wait mode: FINAL", () => {
-    test("should return finalized execution outcome", async () => {
+    test(
+      "should return finalized execution outcome",
+      async () => {
       const recipientKey = generateKey()
       const recipientId = `recipient-final-${Date.now()}.${
         sandbox.rootAccount.id
@@ -235,7 +255,7 @@ describe("sendTransaction - RPC Response Validation", () => {
       expect(
         typeof result.status === "object" &&
           ("SuccessValue" in result.status ||
-            "SuccessReceiptId" in result.status),
+            "SuccessReceiptId" in result.status)
       ).toBe(true)
 
       // All receipts should be included
@@ -245,13 +265,17 @@ describe("sendTransaction - RPC Response Validation", () => {
       console.log(
         "✓ FINAL execution with",
         result.receipts_outcome.length,
-        "receipts",
+        "receipts"
       )
-    })
+      },
+      TEST_TIMEOUT,
+    )
   })
 
   describe("Response schema validation", () => {
-    test("should have correct RPC format fields", async () => {
+    test(
+      "should have correct RPC format fields",
+      async () => {
       // Create recipient account first
       const recipientKey = generateKey()
       const recipientId = `test-${Date.now()}.${sandbox.rootAccount.id}`
@@ -292,9 +316,13 @@ describe("sendTransaction - RPC Response Validation", () => {
       expect(result.transaction_outcome.proof).toBeDefined()
 
       console.log("✓ All RPC format fields present and correctly typed")
-    })
+      },
+      TEST_TIMEOUT,
+    )
 
-    test("should validate CreateAccount action format", async () => {
+    test(
+      "should validate CreateAccount action format",
+      async () => {
       const newKey = generateKey()
       const newAccountId = `create-test-${Date.now()}.${sandbox.rootAccount.id}`
 
@@ -310,23 +338,27 @@ describe("sendTransaction - RPC Response Validation", () => {
       // Find CreateAccount action in transaction
       // RPC returns CreateAccount as a string (no params) or object (with params)
       const createAccountAction = result.transaction.actions.find(
-        (action: any) =>
+        (action: unknown) =>
           action === "CreateAccount" ||
-          (typeof action === "object" && "CreateAccount" in action),
+          (typeof action === "object" &&
+            action !== null &&
+            "CreateAccount" in action)
       )
 
       expect(createAccountAction).toBeDefined()
       expect(
         createAccountAction === "CreateAccount" ||
           (typeof createAccountAction === "object" &&
-            "CreateAccount" in createAccountAction),
+            "CreateAccount" in createAccountAction)
       ).toBe(true)
 
       console.log(
         `✓ CreateAccount action uses correct RPC format: ${JSON.stringify(
-          createAccountAction,
-        )}`,
+          createAccountAction
+        )}`
       )
-    })
+      },
+      TEST_TIMEOUT,
+    )
   })
 })
