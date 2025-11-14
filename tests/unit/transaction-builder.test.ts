@@ -8,6 +8,9 @@ import { RpcClient } from "../../src/core/rpc/rpc.js"
 import { TransactionBuilder } from "../../src/core/transaction.js"
 import { InMemoryKeyStore } from "../../src/keys/keystore.js"
 
+// Valid test public key for testing
+const TEST_PUBLIC_KEY = "ed25519:DcA2MzgpJbrUATQLLceocVckhhAqrkingax4oJ9kZ847"
+
 // Helper to create a transaction builder for testing
 function createBuilder(): TransactionBuilder {
   const rpc = new RpcClient("https://rpc.testnet.fastnear.com")
@@ -82,7 +85,7 @@ describe("TransactionBuilder - Fluent API", () => {
   })
 
   test("should chain stake action", () => {
-    const builder = createBuilder().stake("ed25519:...", "100")
+    const builder = createBuilder().stake(TEST_PUBLIC_KEY, "100")
 
     // @ts-expect-error - accessing private field for testing
     expect(builder.actions.length).toBe(1)
@@ -229,7 +232,7 @@ describe("TransactionBuilder - Amount Parsing", () => {
   })
 
   test("should parse stake amount", () => {
-    const builder = createBuilder().stake("ed25519:...", "100")
+    const builder = createBuilder().stake(TEST_PUBLIC_KEY, "100")
 
     // @ts-expect-error - accessing private field for testing
     const action = builder.actions[0].stake
@@ -392,7 +395,7 @@ describe("TransactionBuilder - Complex Scenarios", () => {
       .transfer("new.near", "10")
       .deployContract("new.near", new Uint8Array())
       .functionCall("new.near", "init", {})
-      .stake("ed25519:...", "100")
+      .stake(TEST_PUBLIC_KEY, "100")
       .deleteAccount("beneficiary.near")
 
     // @ts-expect-error - accessing private field for testing

@@ -38,7 +38,7 @@ export class Near {
     // Initialize key store
     this.keyStore = this.resolveKeyStore(validatedConfig.keyStore)
 
-    // Set up signer
+    // Set up signer and add key to keyStore if privateKey provided
     const signer = validatedConfig["signer"]
     const privateKey = validatedConfig.privateKey
     if (signer) {
@@ -50,6 +50,15 @@ export class Near {
           : parseKey(privateKey.toString())
 
       this.signer = async (message: Uint8Array) => keyPair.sign(message)
+
+      // If network is a Sandbox-like object with rootAccount, add key to keyStore
+      // Use original config.network (before validation) to preserve extra properties
+      const network = config.network as unknown
+      if (network && typeof network === "object" && "rootAccount" in network) {
+        const rootAccount = (network as { rootAccount: { id: string } })
+          .rootAccount
+        void this.keyStore.add(rootAccount.id, keyPair)
+      }
     }
   }
 

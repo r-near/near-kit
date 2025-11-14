@@ -152,11 +152,27 @@ describe("Amount Schema", () => {
     expect(AmountSchema.parse(1000000n)).toBe("1000000")
   })
 
-  test("should strip NEAR suffix", () => {
-    expect(AmountSchema.parse("10 NEAR")).toBe("10")
-    expect(AmountSchema.parse("10 near")).toBe("10")
-    expect(AmountSchema.parse("10 N")).toBe("10")
-    expect(AmountSchema.parse("10NEAR")).toBe("10")
+  test("should convert NEAR suffix to yoctoNEAR", () => {
+    // 1 NEAR = 10^24 yoctoNEAR
+    expect(AmountSchema.parse("10 NEAR")).toBe("10000000000000000000000000")
+    expect(AmountSchema.parse("10 near")).toBe("10000000000000000000000000")
+    expect(AmountSchema.parse("10 N")).toBe("10000000000000000000000000")
+    expect(AmountSchema.parse("10NEAR")).toBe("10000000000000000000000000")
+  })
+
+  test("should convert decimal NEAR to yoctoNEAR with precision", () => {
+    // 1.5 NEAR = 1.5 * 10^24 yoctoNEAR
+    expect(AmountSchema.parse("1.5 NEAR")).toBe("1500000000000000000000000")
+    // 0.1 NEAR = 0.1 * 10^24 yoctoNEAR
+    expect(AmountSchema.parse("0.1 NEAR")).toBe("100000000000000000000000")
+    // Very small fractional amount with full precision (24 decimal places)
+    expect(AmountSchema.parse("1.123456789012345678901234 NEAR")).toBe(
+      "1123456789012345678901234",
+    )
+    // Fractional part longer than 24 places should truncate
+    expect(AmountSchema.parse("1.1234567890123456789012345678 NEAR")).toBe(
+      "1123456789012345678901234",
+    )
   })
 
   test("should handle decimal strings", () => {
@@ -186,7 +202,7 @@ describe("Amount Schema", () => {
     expect(normalizeAmount("1000")).toBe("1000")
     expect(normalizeAmount(1000)).toBe("1000")
     expect(normalizeAmount(1000n)).toBe("1000")
-    expect(normalizeAmount("10 NEAR")).toBe("10")
+    expect(normalizeAmount("10 NEAR")).toBe("10000000000000000000000000")
   })
 })
 
@@ -262,7 +278,7 @@ describe("Edge Cases", () => {
   })
 
   test("should handle whitespace in amounts", () => {
-    expect(AmountSchema.parse("10 NEAR")).toBe("10")
+    expect(AmountSchema.parse("10 NEAR")).toBe("10000000000000000000000000")
     expect(GasSchema.parse("30 Tgas")).toBe("30000000000000")
     // Note: Extra whitespace in gas strings may not be handled by the regex
   })

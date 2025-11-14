@@ -239,7 +239,7 @@ export class RpcClient {
   async getAccount(accountId: string): Promise<AccountView> {
     const result = await this.call("query", {
       request_type: "view_account",
-      finality: "final",
+      finality: "optimistic",  // Use optimistic for latest state (important for sandbox/localnet)
       account_id: accountId,
     })
 
@@ -252,7 +252,7 @@ export class RpcClient {
   ): Promise<AccessKeyView> {
     const result = await this.call("query", {
       request_type: "view_access_key",
-      finality: "final",
+      finality: "optimistic",  // Use optimistic for latest state (important for sandbox/localnet)
       account_id: accountId,
       public_key: publicKey,
     })
@@ -272,7 +272,11 @@ export class RpcClient {
 
   async sendTransaction(signedTransaction: Uint8Array): Promise<unknown> {
     const base64Encoded = base64.encode(signedTransaction)
-    return this.call("broadcast_tx_commit", [base64Encoded])
+    // Use send_tx with wait_until parameter instead of deprecated broadcast_tx_commit
+    return this.call("send_tx", {
+      signed_tx_base64: base64Encoded,
+      wait_until: "EXECUTED_OPTIMISTIC",  // Wait until optimistically executed
+    })
   }
 
   async getStatus(): Promise<StatusResponse> {

@@ -90,10 +90,12 @@ export type PublicKeyString = z.infer<typeof PublicKeySchema>
 export const AmountSchema = z
   .union([z.string(), z.number(), z.bigint()])
   .transform((amount): string => {
+    // BigInt: already in yoctoNEAR (base unit)
     if (typeof amount === "bigint") {
       return amount.toString()
     }
 
+    // Number: treat as yoctoNEAR (base unit)
     if (typeof amount === "number") {
       if (!Number.isFinite(amount)) {
         throw new Error("Amount must be a finite number")
@@ -104,24 +106,40 @@ export const AmountSchema = z
       return BigInt(Math.floor(amount)).toString()
     }
 
-    // String: strip suffix and parse
-    const stripped = amount.replace(/\s*(NEAR|near|N)$/i, "").trim()
+    // String: check if it has NEAR/N suffix
+    const hasSuffix = /\s*(NEAR|near|N|n)$/i.test(amount)
+    const stripped = amount.replace(/\s*(NEAR|near|N|n)$/i, "").trim()
 
     // Check if it's a valid number format
     if (!/^\d+(\.\d+)?$/.test(stripped)) {
       throw new Error(`Invalid amount: ${amount}`)
     }
 
-    // For large numbers, use BigInt directly to preserve precision
-    // Split on decimal point and floor the result
-    const parts = stripped.split(".")
-    const integerPart = parts[0]
+    if (hasSuffix) {
+      // String with suffix: convert NEAR to yoctoNEAR (1 NEAR = 10^24 yoctoNEAR)
+      // Split into integer and fractional parts to preserve precision
+      const parts = stripped.split(".")
+      const integerPart = parts[0] ?? "0"
+      const fractionalPart = (parts[1] || "").padEnd(24, "0").slice(0, 24)
 
-    if (integerPart.startsWith("-")) {
-      throw new Error("Amount must be non-negative")
+      if (integerPart.startsWith("-")) {
+        throw new Error("Amount must be non-negative")
+      }
+
+      // Combine: integerPart * 10^24 + fractionalPart
+      const yoctoNear = BigInt(integerPart + fractionalPart)
+      return yoctoNear.toString()
+    } else {
+      // String without suffix: treat as yoctoNEAR (base unit)
+      const parts = stripped.split(".")
+      const integerPart = parts[0] ?? "0"
+
+      if (integerPart.startsWith("-")) {
+        throw new Error("Amount must be non-negative")
+      }
+
+      return integerPart
     }
-
-    return integerPart
   })
 
 export type Amount = z.input<typeof AmountSchema>
@@ -157,7 +175,7 @@ export const GasSchema = z
 
     // String: check for Tgas/TGas suffix
     const tgasMatch = gas.match(/^(\d+(?:\.\d+)?)\s*(Tgas|TGas|tgas)/i)
-    if (tgasMatch && tgasMatch[1]) {
+    if (tgasMatch?.[1]) {
       const tgas = parseFloat(tgasMatch[1])
       if (Number.isNaN(tgas)) {
         throw new Error(`Invalid gas amount: ${gas}`)
@@ -176,7 +194,7 @@ export const GasSchema = z
 
     // Split on decimal point and floor the result
     const parts = stripped.split(".")
-    const integerPart = parts[0]
+    const integerPart = parts[0] ?? "0"
 
     if (integerPart.startsWith("-")) {
       throw new Error("Gas must be non-negative")

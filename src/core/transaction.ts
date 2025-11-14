@@ -4,7 +4,12 @@
 
 import { base58 } from "@scure/base"
 import { InvalidKeyError, NearError, SignatureError } from "../errors/index.js"
-import { normalizeAmount, normalizeGas } from "../utils/validation.js"
+import { parsePublicKey } from "../utils/key.js"
+import {
+  type Amount,
+  normalizeAmount,
+  normalizeGas,
+} from "../utils/validation.js"
 import * as actions from "./actions.js"
 import { DEFAULT_FUNCTION_CALL_GAS } from "./constants.js"
 import type { RpcClient } from "./rpc/rpc.js"
@@ -17,12 +22,44 @@ import type {
   Action,
   FinalExecutionOutcome,
   KeyStore,
-  PublicKey,
   SignedTransaction,
   Signer,
   SimulationResult,
   Transaction,
 } from "./types.js"
+
+/**
+ * User-friendly access key permission format
+ */
+export type AccessKeyPermission =
+  | { type: "fullAccess" }
+  | {
+      type: "functionCall"
+      receiverId: string
+      methodNames?: string[]
+      allowance?: string | number
+    }
+
+/**
+ * Convert user-friendly permission format to Borsh format
+ */
+function toAccessKeyPermissionBorsh(
+  permission: AccessKeyPermission,
+): AccessKeyPermissionBorsh {
+  if (permission.type === "fullAccess") {
+    return { fullAccess: {} }
+  } else {
+    return {
+      functionCall: {
+        receiverId: permission.receiverId,
+        methodNames: permission.methodNames || [],
+        allowance: permission.allowance
+          ? BigInt(normalizeAmount(permission.allowance))
+          : null,
+      },
+    }
+  }
+}
 
 export class TransactionBuilder {
   private signerId: string
@@ -50,7 +87,7 @@ export class TransactionBuilder {
   /**
    * Add a token transfer action
    */
-  transfer(receiverId: string, amount: string | number): this {
+  transfer(receiverId: string, amount: Amount): this {
     const amountYocto = normalizeAmount(amount)
     this.actions.push(actions.transfer(BigInt(amountYocto)))
 
@@ -131,36 +168,25 @@ export class TransactionBuilder {
    */
   stake(publicKey: string, amount: string | number): this {
     const amountYocto = normalizeAmount(amount)
-
-    // Parse public key (simplified)
-    const pk: PublicKey = {
-      keyType: 0,
-      data: new Uint8Array(),
-      toString: () => publicKey,
-    }
-
+    const pk = parsePublicKey(publicKey)
     this.actions.push(actions.stake(BigInt(amountYocto), pk))
     return this
   }
 
   /**
    * Add an add key action
+   *
+   * The key is added to the receiverId of the transaction.
+   * If receiverId is not set, it defaults to signerId.
    */
-  addKey(
-    accountId: string,
-    publicKey: string,
-    permission: AccessKeyPermissionBorsh,
-  ): this {
-    const pk: PublicKey = {
-      keyType: 0,
-      data: new Uint8Array(),
-      toString: () => publicKey,
-    }
+  addKey(publicKey: string, permission: AccessKeyPermission): this {
+    const pk = parsePublicKey(publicKey)
+    const borshPermission = toAccessKeyPermissionBorsh(permission)
+    this.actions.push(actions.addKey(pk, borshPermission))
 
-    this.actions.push(actions.addKey(pk, permission))
-
+    // Set receiverId if not already set
     if (!this.receiverId) {
-      this.receiverId = accountId
+      this.receiverId = this.signerId
     }
 
     return this
@@ -170,12 +196,7 @@ export class TransactionBuilder {
    * Add a delete key action
    */
   deleteKey(accountId: string, publicKey: string): this {
-    const pk: PublicKey = {
-      keyType: 0,
-      data: new Uint8Array(),
-      toString: () => publicKey,
-    }
-
+    const pk = parsePublicKey(publicKey)
     this.actions.push(actions.deleteKey(pk))
 
     if (!this.receiverId) {
@@ -229,6 +250,8 @@ export class TransactionBuilder {
     const transaction: Transaction = {
       signerId: this.signerId,
       publicKey,
+      // NEAR access key nonce represents the last used nonce,
+      // so next transaction should use nonce + 1
       nonce: BigInt(accessKey.nonce) + BigInt(1),
       receiverId: this.receiverId,
       actions: this.actions,
@@ -247,9 +270,13 @@ export class TransactionBuilder {
     // Serialize transaction using Borsh
     const serialized = serializeTransaction(transaction)
 
+    // NEAR protocol requires signing the SHA256 hash of the serialized transaction
+    const messageHash = await crypto.subtle.digest("SHA-256", serialized)
+    const messageHashArray = new Uint8Array(messageHash)
+
     // Use custom signer if provided, otherwise fall back to keyStore
     const signature = this._signer
-      ? await this._signer(serialized)
+      ? await this._signer(messageHashArray)
       : await (async () => {
           const keyPair = await this.keyStore.get(this.signerId)
           if (!keyPair) {
@@ -257,7 +284,7 @@ export class TransactionBuilder {
               `No key found for account: ${this.signerId}`,
             )
           }
-          return keyPair.sign(serialized)
+          return keyPair.sign(messageHashArray)
         })()
 
     const signedTx: SignedTransaction = {

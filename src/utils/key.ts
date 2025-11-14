@@ -87,6 +87,25 @@ export function parseKey(keyString: string): KeyPair {
 }
 
 /**
+ * Parse a public key string to a PublicKey object
+ * @param publicKeyString - Public key string (e.g., "ed25519:...")
+ * @returns PublicKey instance
+ */
+export function parsePublicKey(publicKeyString: string): PublicKey {
+  if (publicKeyString.startsWith(ED25519_KEY_PREFIX)) {
+    const key = publicKeyString.replace(ED25519_KEY_PREFIX, "")
+    const decoded = base58.decode(key)
+    return {
+      keyType: KeyType.ED25519,
+      data: decoded,
+      toString: () => publicKeyString,
+    }
+  }
+
+  throw new InvalidKeyError(`Unsupported public key type: ${publicKeyString}`)
+}
+
+/**
  * Generate a BIP39 seed phrase (12 words by default)
  * Uses proper BIP39 implementation with cryptographically secure randomness
  * @param wordCount - Number of words (12, 15, 18, 21, or 24). Defaults to 12
