@@ -4,7 +4,7 @@
 
 import { base58 } from "@scure/base"
 import { InvalidKeyError, NearError, SignatureError } from "../errors/index.js"
-import { parseGas, parseNearAmount } from "../utils/format.js"
+import { normalizeAmount, normalizeGas } from "../utils/validation.js"
 import * as actions from "./actions.js"
 import { DEFAULT_FUNCTION_CALL_GAS } from "./constants.js"
 import type { RpcClient } from "./rpc/rpc.js"
@@ -30,6 +30,7 @@ export class TransactionBuilder {
   private receiverId?: string
   private rpc: RpcClient
   private keyStore: KeyStore
+  private _signer?: Signer
 
   constructor(
     signerId: string,
@@ -42,7 +43,7 @@ export class TransactionBuilder {
     this.rpc = rpc
     this.keyStore = keyStore
     if (signer !== undefined) {
-      this.signer = signer
+      this._signer = signer
     }
   }
 
@@ -50,7 +51,7 @@ export class TransactionBuilder {
    * Add a token transfer action
    */
   transfer(receiverId: string, amount: string | number): this {
-    const amountYocto = parseNearAmount(amount.toString())
+    const amountYocto = normalizeAmount(amount)
     this.actions.push(actions.transfer(BigInt(amountYocto)))
 
     if (!this.receiverId) {
@@ -72,12 +73,10 @@ export class TransactionBuilder {
     const argsJson = JSON.stringify(args)
     const argsBytes = new TextEncoder().encode(argsJson)
 
-    const gas = options.gas
-      ? parseGas(options.gas.toString())
-      : DEFAULT_FUNCTION_CALL_GAS
+    const gas = options.gas ? normalizeGas(options.gas) : DEFAULT_FUNCTION_CALL_GAS
 
     const deposit = options.attachedDeposit
-      ? parseNearAmount(options.attachedDeposit.toString())
+      ? normalizeAmount(options.attachedDeposit)
       : "0"
 
     this.actions.push(
@@ -129,7 +128,7 @@ export class TransactionBuilder {
    * Add a stake action
    */
   stake(publicKey: string, amount: string | number): this {
-    const amountYocto = parseNearAmount(amount.toString())
+    const amountYocto = normalizeAmount(amount)
 
     // Parse public key (simplified)
     const pk: PublicKey = {
@@ -193,7 +192,7 @@ export class TransactionBuilder {
       // This would require parseKey implementation
       throw new SignatureError("String key signing not yet implemented")
     } else {
-      this.signer = key
+      this._signer = key
     }
 
     return this

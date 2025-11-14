@@ -19,7 +19,7 @@ import { InvalidKeyError } from "../errors/index.js"
 /**
  * Ed25519 key pair implementation
  */
-class Ed25519KeyPair implements KeyPair {
+export class Ed25519KeyPair implements KeyPair {
   publicKey: PublicKey
   secretKey: string
   private privateKey: Uint8Array

@@ -4,80 +4,56 @@
 
 import type { ContractMethods } from "../contracts/contract.js"
 import { createContract } from "../contracts/contract.js"
+import {
+  type NearConfig,
+  NearConfigSchema,
+  resolveNetworkConfig,
+} from "./config-schemas.js"
 import { NearError } from "../errors/index.js"
 import { InMemoryKeyStore } from "../keys/index.js"
 import { parseKey } from "../utils/key.js"
-import { NETWORK_PRESETS } from "./constants.js"
 import { RpcClient } from "./rpc/rpc.js"
 import { TransactionBuilder } from "./transaction.js"
-import type {
-  CallOptions,
-  KeyStore,
-  NearConfig,
-  NetworkConfig,
-  Signer,
-} from "./types.js"
+import type { CallOptions, KeyStore, Signer } from "./types.js"
 
 export class Near {
   private rpc: RpcClient
   private keyStore: KeyStore
   private signer?: Signer
-  private networkId: string
+  private _networkId: string
   private defaultSignerId?: string
-  private autoGas: boolean
+  private _autoGas: boolean
 
   constructor(config: NearConfig = {}) {
+    // Validate configuration
+    const validatedConfig = NearConfigSchema.parse(config)
+
     // Determine network configuration
-    const networkConfig = this.resolveNetworkConfig(config.network)
+    const networkConfig = resolveNetworkConfig(validatedConfig.network)
 
     // Initialize RPC client
-    const rpcUrl = config.rpcUrl || networkConfig.rpcUrl
-    this.rpc = new RpcClient(rpcUrl, config.headers)
-    this.networkId = networkConfig.networkId
+    const rpcUrl = validatedConfig.rpcUrl || networkConfig.rpcUrl
+    this.rpc = new RpcClient(rpcUrl, validatedConfig.headers)
+    this._networkId = networkConfig.networkId
 
     // Initialize key store
-    this.keyStore = this.resolveKeyStore(config.keyStore)
+    this.keyStore = this.resolveKeyStore(validatedConfig.keyStore)
 
     // Set up signer
-    if (config.signer) {
-      this.signer = config.signer
-    } else if (config.privateKey) {
+    const signer = validatedConfig["signer"]
+    const privateKey = validatedConfig.privateKey
+    if (signer) {
+      this.signer = signer
+    } else if (privateKey) {
       const keyPair =
-        typeof config.privateKey === "string"
-          ? parseKey(config.privateKey)
-          : parseKey(config.privateKey.toString())
+        typeof privateKey === "string"
+          ? parseKey(privateKey)
+          : parseKey(privateKey.toString())
 
       this.signer = async (message: Uint8Array) => keyPair.sign(message)
     }
 
-    this.autoGas = config.autoGas ?? true
-  }
-
-  /**
-   * Resolve network configuration from config input
-   */
-  private resolveNetworkConfig(network?: NetworkConfig): {
-    rpcUrl: string
-    networkId: string
-    walletUrl?: string
-    helperUrl?: string
-  } {
-    // Default to mainnet
-    if (!network) {
-      const envNetwork = process.env.NEAR_NETWORK
-      if (envNetwork && envNetwork in NETWORK_PRESETS) {
-        return NETWORK_PRESETS[envNetwork as keyof typeof NETWORK_PRESETS]
-      }
-      return NETWORK_PRESETS.mainnet
-    }
-
-    // Network preset
-    if (typeof network === "string") {
-      return NETWORK_PRESETS[network]
-    }
-
-    // Custom network config
-    return network
+    this._autoGas = validatedConfig.autoGas ?? true
   }
 
   /**
@@ -146,8 +122,16 @@ export class Near {
       )
     }
 
+    const functionCallOptions: {gas?: string | number, attachedDeposit?: string | number} = {}
+    if (options.gas !== undefined) {
+      functionCallOptions.gas = options.gas
+    }
+    if (options.attachedDeposit !== undefined) {
+      functionCallOptions.attachedDeposit = options.attachedDeposit
+    }
+
     const result = await this.transaction(signerId)
-      .functionCall(contractId, methodName, args, options)
+      .functionCall(contractId, methodName, args, functionCallOptions)
       .send()
 
     return result as T

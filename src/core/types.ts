@@ -3,18 +3,15 @@
  */
 
 // ==================== Network Configuration ====================
+// Re-exported from config-schemas.ts for backward compatibility
+
+export type {
+  NetworkPreset,
+  CustomNetworkConfig,
+  NetworkConfig,
+} from "./config-schemas.js"
 
 export type NetworkId = "mainnet" | "testnet" | "localnet"
-
-export type NetworkConfig =
-  | NetworkId
-  | {
-      rpcUrl: string
-      networkId: string
-      nodeUrl?: string
-      walletUrl?: string
-      helperUrl?: string
-    }
 
 // ==================== Key Configuration ====================
 
@@ -170,19 +167,9 @@ export type {
 } from "./rpc/rpc-schemas.js"
 
 // ==================== Client Configuration ====================
+// Re-exported from config-schemas.ts for backward compatibility
 
-export interface NearConfig {
-  network?: NetworkConfig
-  privateKey?: string | KeyConfig
-  keyStore?: KeyStore | string | Record<string, string>
-  signer?: Signer
-  wallet?: boolean | "near-wallet" | "sender" | "meteor"
-  rpcUrl?: string
-  archivalRpcUrl?: string
-  headers?: Record<string, string>
-  autoGas?: boolean
-  readOnly?: boolean
-}
+export type { NearConfig } from "./config-schemas.js"
 
 export interface KeyStore {
   add(accountId: string, key: KeyPair): Promise<void>
@@ -192,12 +179,9 @@ export interface KeyStore {
 }
 
 // ==================== Function Call Options ====================
+// Re-exported from config-schemas.ts for backward compatibility
 
-export interface CallOptions {
-  gas?: string | number
-  attachedDeposit?: string | number
-  signerId?: string
-}
+export type { CallOptions } from "./config-schemas.js"
 
 // ==================== Contract Interface ====================
 
