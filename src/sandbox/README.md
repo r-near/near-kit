@@ -2,6 +2,12 @@
 
 Local NEAR blockchain for testing.
 
+## What You Get
+
+- Root account: `test.near` (accessible via `sandbox.rootAccount`)
+- Initial balance: 1,000,000,000 NEAR
+- Fresh blockchain state (block height 0)
+
 ## Usage
 
 ```typescript
