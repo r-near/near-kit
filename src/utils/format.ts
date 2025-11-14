@@ -5,7 +5,7 @@
 import { GAS_PER_TGAS, YOCTO_PER_NEAR } from "../core/constants.js"
 
 /**
- * Parse a human-readable NEAR amount to yoctoNEAR
+ * Parse a human-readable NEAR amount to yoctoNEARCom
  * @param amount - Amount in NEAR (e.g., "10", "10 NEAR", 10)
  * @returns Amount in yoctoNEAR as string
  */
@@ -34,7 +34,7 @@ export function parseNearAmount(amount: string | number): string {
  */
 export function formatNearAmount(
   yocto: string | bigint,
-  precision = 2,
+  precision = 2
 ): string {
   const amount = typeof yocto === "string" ? BigInt(yocto) : yocto
 

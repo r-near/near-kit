@@ -44,7 +44,7 @@ export type AccessKeyPermission =
  * Convert user-friendly permission format to Borsh format
  */
 function toAccessKeyPermissionBorsh(
-  permission: AccessKeyPermission,
+  permission: AccessKeyPermission
 ): AccessKeyPermissionBorsh {
   if (permission.type === "fullAccess") {
     return { fullAccess: {} }
@@ -67,20 +67,20 @@ export class TransactionBuilder {
   private receiverId?: string
   private rpc: RpcClient
   private keyStore: KeyStore
-  private _signer?: Signer
+  private signer?: Signer
 
   constructor(
     signerId: string,
     rpc: RpcClient,
     keyStore: KeyStore,
-    signer?: Signer,
+    signer?: Signer
   ) {
     this.signerId = signerId
     this.actions = []
     this.rpc = rpc
     this.keyStore = keyStore
     if (signer !== undefined) {
-      this._signer = signer
+      this.signer = signer
     }
   }
 
@@ -105,7 +105,7 @@ export class TransactionBuilder {
     contractId: string,
     methodName: string,
     args: object = {},
-    options: { gas?: string | number; attachedDeposit?: string | number } = {},
+    options: { gas?: string | number; attachedDeposit?: string | number } = {}
   ): this {
     const argsJson = JSON.stringify(args)
     const argsBytes = new TextEncoder().encode(argsJson)
@@ -119,7 +119,7 @@ export class TransactionBuilder {
       : "0"
 
     this.actions.push(
-      actions.functionCall(methodName, argsBytes, BigInt(gas), BigInt(deposit)),
+      actions.functionCall(methodName, argsBytes, BigInt(gas), BigInt(deposit))
     )
 
     if (!this.receiverId) {
@@ -215,7 +215,7 @@ export class TransactionBuilder {
       // This would require parseKey implementation
       throw new SignatureError("String key signing not yet implemented")
     } else {
-      this._signer = key
+      this.signer = key
     }
 
     return this
@@ -228,7 +228,7 @@ export class TransactionBuilder {
     if (!this.receiverId) {
       throw new NearError(
         "No receiver ID set for transaction",
-        "INVALID_TRANSACTION",
+        "INVALID_TRANSACTION"
       )
     }
 
@@ -241,7 +241,7 @@ export class TransactionBuilder {
     const publicKey = keyPair.publicKey
     const accessKey = await this.rpc.getAccessKey(
       this.signerId,
-      publicKey.toString(),
+      publicKey.toString()
     )
 
     const status = await this.rpc.getStatus()
@@ -275,13 +275,13 @@ export class TransactionBuilder {
     const messageHashArray = new Uint8Array(messageHash)
 
     // Use custom signer if provided, otherwise fall back to keyStore
-    const signature = this._signer
-      ? await this._signer(messageHashArray)
+    const signature = this.signer
+      ? await this.signer(messageHashArray)
       : await (async () => {
           const keyPair = await this.keyStore.get(this.signerId)
           if (!keyPair) {
             throw new InvalidKeyError(
-              `No key found for account: ${this.signerId}`,
+              `No key found for account: ${this.signerId}`
             )
           }
           return keyPair.sign(messageHashArray)
