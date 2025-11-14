@@ -83,42 +83,42 @@ export type PublicKeyString = z.infer<typeof PublicKeySchema>
  * Type-safe private key string using template literal types.
  *
  * Provides compile-time type safety for private keys.
- * Currently only ed25519 keys are supported.
+ * Supports both ed25519 and secp256k1 keys.
  *
  * @example
  * ```typescript
- * const key: PrivateKey = 'ed25519:...'  // ✅ Valid
- * const key: PrivateKey = 'alice.near'   // ❌ Type error at compile time
+ * const key: PrivateKey = 'ed25519:...'     // ✅ Valid
+ * const key: PrivateKey = 'secp256k1:...'   // ✅ Valid
+ * const key: PrivateKey = 'alice.near'      // ❌ Type error at compile time
  *
  * // Function signature ensures type safety
  * function signWith(key: PrivateKey) { ... }
- * signWith('ed25519:abc')    // ✅ Valid
- * signWith('alice.near')     // ❌ Type error
+ * signWith('ed25519:abc')      // ✅ Valid
+ * signWith('secp256k1:abc')    // ✅ Valid
+ * signWith('alice.near')       // ❌ Type error
  * ```
- *
- * @remarks
- * secp256k1 keys are not yet supported in this library. The type will be
- * updated to `'ed25519:${string}' | 'secp256k1:${string}'` once implemented.
  */
-export type PrivateKey = `ed25519:${string}`
+export type PrivateKey = `ed25519:${string}` | `secp256k1:${string}`
 
 /**
  * Schema for validating NEAR private keys
  *
- * Currently supports:
+ * Supports:
  * - Ed25519: "ed25519:..." (base58 encoded, 64 bytes)
- *
- * @remarks
- * secp256k1 support is planned but not yet implemented.
+ * - Secp256k1: "secp256k1:..." (base58 encoded, 96 bytes)
  */
 export const PrivateKeySchema = z
   .string()
   .refine(
-    (key) => key.startsWith(ED25519_KEY_PREFIX),
-    "Private key must start with 'ed25519:' (secp256k1 not yet supported)",
+    (key) =>
+      key.startsWith(ED25519_KEY_PREFIX) ||
+      key.startsWith(SECP256K1_KEY_PREFIX),
+    "Private key must start with 'ed25519:' or 'secp256k1:'",
   )
   .refine((key) => {
-    const keyData = key.slice(ED25519_KEY_PREFIX.length)
+    const keyData = key.startsWith(ED25519_KEY_PREFIX)
+      ? key.slice(ED25519_KEY_PREFIX.length)
+      : key.slice(SECP256K1_KEY_PREFIX.length)
     return keyData.length > 0 && isValidBase58(keyData)
   }, "Private key must be valid base58 encoding")
 

@@ -331,8 +331,8 @@ export class TransactionBuilder {
    * The signerId (set via `.transaction()`) remains the same. To sign as a different
    * account, use `.transaction(otherAccountId)` instead.
    *
-   * @param key - Either a custom signer function or an ed25519 private key string
-   *              (e.g., 'ed25519:...')
+   * @param key - Either a custom signer function or a private key string
+   *              (e.g., 'ed25519:...' or 'secp256k1:...')
    *              Type-safe: TypeScript will enforce the correct format at compile time
    * @returns This builder instance for chaining
    *
@@ -347,6 +347,12 @@ export class TransactionBuilder {
    * // Sign with specific ed25519 private key (type-safe)
    * await near.transaction('alice.near')
    *   .signWith('ed25519:...')  // ✅ TypeScript ensures correct format
+   *   .transfer('bob.near', '1 NEAR')
+   *   .send()
+   *
+   * // Sign with specific secp256k1 private key
+   * await near.transaction('alice.near')
+   *   .signWith('secp256k1:...')  // ✅ TypeScript ensures correct format
    *   .transfer('bob.near', '1 NEAR')
    *   .send()
    *
@@ -367,7 +373,7 @@ export class TransactionBuilder {
    * ```
    *
    * @remarks
-   * Currently only ed25519 keys are supported. secp256k1 support is planned.
+   * Supports both ed25519 and secp256k1 keys.
    */
   signWith(key: PrivateKey | Signer): this {
     if (typeof key === "string") {
