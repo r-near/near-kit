@@ -61,7 +61,7 @@ describe("sendTransaction - RPC Response Validation", () => {
       expect("transaction_outcome" in result).toBe(false)
 
       console.log(
-        "✓ waitUntil: NONE returns minimal response (transaction submitted)"
+        "✓ waitUntil: NONE returns minimal response (transaction submitted)",
       )
 
       // Wait to ensure nonce is committed before next test
@@ -127,7 +127,7 @@ describe("sendTransaction - RPC Response Validation", () => {
       // Should have success status object
       expect(typeof result.status).toBe("object")
       expect(
-        "SuccessValue" in result.status || "SuccessReceiptId" in result.status
+        "SuccessValue" in result.status || "SuccessReceiptId" in result.status,
       ).toBe(true)
 
       // Should have execution outcome
@@ -138,7 +138,7 @@ describe("sendTransaction - RPC Response Validation", () => {
       console.log(
         "✓ Default execution used",
         result.transaction_outcome.outcome.gas_burnt,
-        "gas"
+        "gas",
       )
     })
 
@@ -161,7 +161,7 @@ describe("sendTransaction - RPC Response Validation", () => {
       // A more reliable test would deploy a contract that panics
 
       console.log(
-        "✓ FunctionCallError handling verified (contract would need to be deployed for full test)"
+        "✓ FunctionCallError handling verified (contract would need to be deployed for full test)",
       )
     })
   })
@@ -202,7 +202,7 @@ describe("sendTransaction - RPC Response Validation", () => {
 
         console.log(
           "✓ Correctly threw InvalidTransactionError for non-function-call failure:",
-          error.message
+          error.message,
         )
       }
     })
@@ -230,7 +230,7 @@ describe("sendTransaction - RPC Response Validation", () => {
       // Should have fully executed and finalized
       expect(typeof result.status).toBe("object")
       expect(
-        "SuccessValue" in result.status || "SuccessReceiptId" in result.status
+        "SuccessValue" in result.status || "SuccessReceiptId" in result.status,
       ).toBe(true)
 
       // All receipts should be included
@@ -240,7 +240,7 @@ describe("sendTransaction - RPC Response Validation", () => {
       console.log(
         "✓ FINAL execution with",
         result.receipts_outcome.length,
-        "receipts"
+        "receipts",
       )
     })
   })
@@ -307,20 +307,20 @@ describe("sendTransaction - RPC Response Validation", () => {
       const createAccountAction = result.transaction.actions.find(
         (action: any) =>
           action === "CreateAccount" ||
-          (typeof action === "object" && "CreateAccount" in action)
+          (typeof action === "object" && "CreateAccount" in action),
       )
 
       expect(createAccountAction).toBeDefined()
       expect(
         createAccountAction === "CreateAccount" ||
           (typeof createAccountAction === "object" &&
-            "CreateAccount" in createAccountAction)
+            "CreateAccount" in createAccountAction),
       ).toBe(true)
 
       console.log(
         `✓ CreateAccount action uses correct RPC format: ${JSON.stringify(
-          createAccountAction
-        )}`
+          createAccountAction,
+        )}`,
       )
     })
   })

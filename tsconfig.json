@@ -1,10 +1,7 @@
 {
   "compilerOptions": {
     // Environment setup & latest features
-    "lib": [
-      "ESNext",
-      "DOM"
-    ],
+    "lib": ["ESNext", "DOM"],
     "target": "ES2020",
     "module": "ESNext",
     "moduleDetection": "force",
@@ -34,11 +31,6 @@
     // Other
     "skipLibCheck": true
   },
-  "include": [
-    "src/**/*"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist"
-  ]
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
 }

@@ -5,9 +5,9 @@
  * packages to verify our adapters work correctly with real wallet types.
  */
 
+import { describe, expect, it } from "bun:test"
 import type { NearWalletBase } from "@hot-labs/near-connect/dist/types/wallet"
 import type { Wallet } from "@near-wallet-selector/core"
-import { describe, expect, it } from "bun:test"
 import {
   fromHotConnect,
   fromWalletSelector,
@@ -361,13 +361,13 @@ describe("Real Package Integration", () => {
 
       // Create real actions using our action builders
       const transferAction = actions.transfer(
-        BigInt("1000000000000000000000000")
+        BigInt("1000000000000000000000000"),
       )
       const functionCallAction = actions.functionCall(
         "method",
         new TextEncoder().encode('{"arg":"value"}'),
         BigInt(30000000000000),
-        BigInt(0)
+        BigInt(0),
       )
 
       await adapter.signAndSendTransaction({

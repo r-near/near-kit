@@ -338,7 +338,11 @@ export function parseRpcError(
           txExecError?.InvalidTxError || parsedError.data.InvalidTxError
         const invalidNonce = invalidTxError?.InvalidNonce
 
-        if (invalidNonce && "ak_nonce" in invalidNonce && "tx_nonce" in invalidNonce) {
+        if (
+          invalidNonce &&
+          "ak_nonce" in invalidNonce &&
+          "tx_nonce" in invalidNonce
+        ) {
           throw new InvalidNonceError(
             invalidNonce.tx_nonce as number,
             invalidNonce.ak_nonce as number,
