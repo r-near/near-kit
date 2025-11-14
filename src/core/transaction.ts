@@ -383,6 +383,8 @@ export class TransactionBuilder {
       this.keyPair = keyPair // Store for build() to use
       this.signer = async (message: Uint8Array) => keyPair.sign(message)
     } else {
+      // Clear cached keyPair when using custom signer to prevent stale public key
+      delete this.keyPair
       this.signer = key
     }
 
