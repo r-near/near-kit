@@ -10,7 +10,7 @@ import {
   parseNearAmount,
   toGas,
   toTGas,
-} from "./format.js"
+} from "../../src/utils/format.js"
 
 describe("parseNearAmount", () => {
   test("parses simple NEAR amount", () => {

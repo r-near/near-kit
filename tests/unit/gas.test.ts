@@ -3,7 +3,7 @@
  */
 
 import { describe, expect, test } from "bun:test"
-import { formatGas, Gas, parseGas } from "./gas.js"
+import { formatGas, Gas, parseGas } from "../../src/utils/gas.js"
 
 describe("Gas", () => {
   describe("Gas.Tgas()", () => {

@@ -3,7 +3,7 @@
  */
 
 import { describe, expect, test } from "bun:test"
-import { Amount, formatAmount, parseAmount } from "./amount.js"
+import { Amount, formatAmount, parseAmount } from "../../src/utils/amount.js"
 
 describe("Amount", () => {
   describe("Amount.NEAR()", () => {
