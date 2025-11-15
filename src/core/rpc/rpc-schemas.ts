@@ -325,27 +325,52 @@ export const TransactionSchema = z.object({
 })
 
 /**
+ * Minimal transaction schema for NONE/INCLUDED/INCLUDED_FINAL responses.
+ *
+ * This contains just enough information for transaction tracking:
+ * - hash: Transaction hash for lookups
+ * - signer_id: Account that signed the transaction
+ * - receiver_id: Account receiving the transaction
+ * - nonce: Transaction nonce for debugging
+ *
+ * Note: The client library injects this object for NONE/INCLUDED/INCLUDED_FINAL
+ * responses to ensure transaction.hash is always available.
+ */
+export const MinimalTransactionSchema = z.object({
+  hash: z.string(),
+  signer_id: z.string(),
+  receiver_id: z.string(),
+  nonce: z.number(),
+})
+
+/**
  * Final execution outcome schema - the response from send_tx
  *
  * Uses discriminated union based on final_execution_status for type safety:
- * - NONE: Transaction submitted but not executed yet (minimal response)
- * - INCLUDED: Transaction included in block
+ * - NONE: Transaction submitted but not executed yet (minimal response with transaction hash)
+ * - INCLUDED: Transaction included in block (minimal response with transaction hash)
  * - EXECUTED_OPTIMISTIC/EXECUTED/FINAL: Transaction executed (full response)
+ *
+ * Note: For NONE/INCLUDED/INCLUDED_FINAL, the RPC doesn't return transaction details,
+ * but the client library injects a minimal transaction object to ensure hash tracking.
  */
 export const FinalExecutionOutcomeSchema = z.discriminatedUnion(
   "final_execution_status",
   [
-    // NONE: Transaction submitted, no execution yet
+    // NONE: Transaction submitted, no execution yet (transaction is injected client-side)
     z.object({
       final_execution_status: z.literal("NONE"),
+      transaction: MinimalTransactionSchema.optional(),
     }),
-    // INCLUDED: Transaction in block (minimal response like NONE in sandbox)
+    // INCLUDED: Transaction in block (transaction is injected client-side)
     z.object({
       final_execution_status: z.literal("INCLUDED"),
+      transaction: MinimalTransactionSchema.optional(),
     }),
-    // INCLUDED_FINAL: Alternative name for INCLUDED with finality (minimal response)
+    // INCLUDED_FINAL: Alternative name for INCLUDED with finality (transaction is injected client-side)
     z.object({
       final_execution_status: z.literal("INCLUDED_FINAL"),
+      transaction: MinimalTransactionSchema.optional(),
     }),
     // EXECUTED_OPTIMISTIC: Executed but not finalized
     z.object({

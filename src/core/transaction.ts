@@ -110,6 +110,10 @@ export class TransactionBuilder {
   private wallet?: WalletConnection
   private defaultWaitUntil: TxExecutionStatus
   private ensureKeyStoreReady?: () => Promise<void>
+  private cachedSignedTx?: {
+    signedTx: SignedTransaction
+    hash: string
+  }
 
   constructor(
     signerId: string,
@@ -135,6 +139,14 @@ export class TransactionBuilder {
   }
 
   /**
+   * Invalidate cached signed transaction when builder state changes
+   */
+  private invalidateCache(): this {
+    this.cachedSignedTx = undefined
+    return this
+  }
+
+  /**
    * Add a token transfer action
    */
   transfer(receiverId: string, amount: Amount): this {
@@ -145,7 +157,7 @@ export class TransactionBuilder {
       this.receiverId = receiverId
     }
 
-    return this
+    return this.invalidateCache()
   }
 
   /**
@@ -176,7 +188,7 @@ export class TransactionBuilder {
       this.receiverId = contractId
     }
 
-    return this
+    return this.invalidateCache()
   }
 
   /**
@@ -189,7 +201,7 @@ export class TransactionBuilder {
       this.receiverId = accountId
     }
 
-    return this
+    return this.invalidateCache()
   }
 
   /**
@@ -197,7 +209,7 @@ export class TransactionBuilder {
    */
   deleteAccount(beneficiaryId: string): this {
     this.actions.push(actions.deleteAccount(beneficiaryId))
-    return this
+    return this.invalidateCache()
   }
 
   /**
@@ -210,7 +222,7 @@ export class TransactionBuilder {
       this.receiverId = accountId
     }
 
-    return this
+    return this.invalidateCache()
   }
 
   /**
@@ -240,7 +252,7 @@ export class TransactionBuilder {
       this.receiverId = this.signerId
     }
 
-    return this
+    return this.invalidateCache()
   }
 
   /**
@@ -277,7 +289,7 @@ export class TransactionBuilder {
       this.receiverId = this.signerId
     }
 
-    return this
+    return this.invalidateCache()
   }
 
   /**
@@ -287,7 +299,7 @@ export class TransactionBuilder {
     const amountYocto = normalizeAmount(amount)
     const pk = parsePublicKey(publicKey)
     this.actions.push(actions.stake(BigInt(amountYocto), pk))
-    return this
+    return this.invalidateCache()
   }
 
   /**
@@ -306,7 +318,7 @@ export class TransactionBuilder {
       this.receiverId = this.signerId
     }
 
-    return this
+    return this.invalidateCache()
   }
 
   /**
@@ -320,7 +332,7 @@ export class TransactionBuilder {
       this.receiverId = accountId
     }
 
-    return this
+    return this.invalidateCache()
   }
 
   /**
@@ -395,7 +407,7 @@ export class TransactionBuilder {
       this.signer = key
     }
 
-    return this
+    return this.invalidateCache()
   }
 
   /**
@@ -447,7 +459,149 @@ export class TransactionBuilder {
   }
 
   /**
+   * Sign the transaction without sending it.
+   *
+   * This creates a signed transaction that can be:
+   * - Inspected via `getHash()`
+   * - Serialized via `serialize()`
+   * - Sent later via `send()`
+   *
+   * The signed transaction is cached internally. If you modify the transaction
+   * (add actions, change signer, etc.), the cache is automatically invalidated.
+   *
+   * @returns This builder instance (now in a signed state)
+   *
+   * @example
+   * ```typescript
+   * // Sign and inspect hash
+   * const tx = await near.transaction('alice.near')
+   *   .transfer('bob.near', '1 NEAR')
+   *   .sign()
+   *
+   * console.log('Transaction hash:', tx.getHash())
+   *
+   * // Serialize for offline use
+   * const bytes = tx.serialize()
+   *
+   * // Send when ready
+   * const result = await tx.send({ waitUntil: 'FINAL' })
+   * ```
+   */
+  async sign(): Promise<this> {
+    if (this.cachedSignedTx) {
+      // Already signed, return this
+      return this
+    }
+
+    if (!this.receiverId) {
+      throw new NearError(
+        "No receiver ID set for transaction",
+        "INVALID_TRANSACTION",
+      )
+    }
+
+    // Build the transaction
+    const transaction = await this.build()
+
+    // Serialize transaction using Borsh
+    const serialized = serializeTransaction(transaction)
+
+    // NEAR protocol requires signing the SHA256 hash of the serialized transaction
+    const messageHash = (await crypto.subtle.digest(
+      "SHA-256",
+      serialized as Uint8Array<ArrayBuffer>,
+    )) as ArrayBuffer
+    const messageHashArray = new Uint8Array(messageHash)
+
+    // Compute transaction hash (base58 of SHA256)
+    const txHash = base58.encode(messageHashArray)
+
+    // Use custom signer if provided, otherwise fall back to keyStore
+    const signature = this.signer
+      ? await this.signer(messageHashArray)
+      : await (async () => {
+          // Ensure any pending keystore initialization is complete
+          if (this.ensureKeyStoreReady) {
+            await this.ensureKeyStoreReady()
+          }
+          const keyPair = await this.keyStore.get(this.signerId)
+          if (!keyPair) {
+            throw new InvalidKeyError(
+              `No key found for account: ${this.signerId}`,
+            )
+          }
+          return keyPair.sign(messageHashArray)
+        })()
+
+    // Cache the signed transaction
+    this.cachedSignedTx = {
+      signedTx: {
+        transaction,
+        signature,
+      },
+      hash: txHash,
+    }
+
+    return this
+  }
+
+  /**
+   * Get the transaction hash (only available after signing).
+   *
+   * @returns The base58-encoded transaction hash, or null if not yet signed
+   *
+   * @example
+   * ```typescript
+   * const tx = await near.transaction('alice.near')
+   *   .transfer('bob.near', '1 NEAR')
+   *   .sign()
+   *
+   * console.log(tx.getHash()) // "8ZQ7..."
+   * ```
+   */
+  getHash(): string | null {
+    return this.cachedSignedTx?.hash ?? null
+  }
+
+  /**
+   * Serialize the signed transaction to bytes.
+   *
+   * This is useful for:
+   * - Storing signed transactions for later broadcast
+   * - Sending transactions through external tools
+   * - Multi-sig workflows
+   *
+   * @returns Borsh-serialized signed transaction bytes
+   * @throws {NearError} If transaction has not been signed yet
+   *
+   * @example
+   * ```typescript
+   * const tx = await near.transaction('alice.near')
+   *   .transfer('bob.near', '1 NEAR')
+   *   .sign()
+   *
+   * const bytes = tx.serialize()
+   * fs.writeFileSync('transaction.bin', bytes)
+   * ```
+   */
+  serialize(): Uint8Array {
+    if (!this.cachedSignedTx) {
+      throw new NearError(
+        "Transaction must be signed before serializing. Call .sign() first.",
+        "INVALID_STATE",
+      )
+    }
+    return serializeSignedTransaction(this.cachedSignedTx.signedTx)
+  }
+
+  /**
    * Sign and send the transaction
+   *
+   * If the transaction has already been signed (via `.sign()`), it will use the
+   * cached signed transaction. Otherwise, it will sign the transaction automatically.
+   *
+   * The response will always include `transaction.hash` for tracking, even when
+   * using `waitUntil: "NONE"` which normally doesn't return transaction details.
    *
    * @param options - Optional configuration for sending the transaction
    * @param options.waitUntil - Controls when the RPC returns after submitting the transaction
@@ -462,6 +616,12 @@ export class TransactionBuilder {
    * await near.transaction(account)
    *   .transfer(receiver, "1 NEAR")
    *   .send({ waitUntil: "FINAL" })
+   *
+   * // Fire and forget with NONE - hash still available
+   * const result = await near.transaction(account)
+   *   .transfer(receiver, "1 NEAR")
+   *   .send({ waitUntil: "NONE" })
+   * console.log(result.transaction.hash) // Always available!
    * ```
    */
   async send(): Promise<FinalExecutionOutcomeMap["EXECUTED_OPTIMISTIC"]>
@@ -499,47 +659,33 @@ export class TransactionBuilder {
 
     for (let attempt = 0; attempt < MAX_NONCE_RETRIES; attempt++) {
       try {
-        // Build transaction using private key/signer approach
-        // This fetches a fresh nonce from the network each time
-        const transaction = await this.build()
-
-        // Serialize transaction using Borsh
-        const serialized = serializeTransaction(transaction)
-
-        // NEAR protocol requires signing the SHA256 hash of the serialized transaction
-        const messageHash = (await crypto.subtle.digest(
-          "SHA-256",
-          serialized as Uint8Array<ArrayBuffer>,
-        )) as ArrayBuffer
-        const messageHashArray = new Uint8Array(messageHash)
-
-        // Use custom signer if provided, otherwise fall back to keyStore
-        const signature = this.signer
-          ? await this.signer(messageHashArray)
-          : await (async () => {
-              // Ensure any pending keystore initialization is complete
-              if (this.ensureKeyStoreReady) {
-                await this.ensureKeyStoreReady()
-              }
-              const keyPair = await this.keyStore.get(this.signerId)
-              if (!keyPair) {
-                throw new InvalidKeyError(
-                  `No key found for account: ${this.signerId}`,
-                )
-              }
-              return keyPair.sign(messageHashArray)
-            })()
-
-        const signedTx: SignedTransaction = {
-          transaction,
-          signature,
+        // Sign if not already signed (or re-sign on retry for fresh nonce)
+        if (!this.cachedSignedTx || attempt > 0) {
+          // Clear cache on retry to get fresh nonce
+          this.cachedSignedTx = undefined
+          await this.sign()
         }
+
+        const { signedTx, hash } = this.cachedSignedTx!
 
         // Serialize signed transaction using Borsh
         const signedSerialized = serializeSignedTransaction(signedTx)
 
         // Send to network
-        return await this.rpc.sendTransaction(signedSerialized, waitUntil)
+        const result = await this.rpc.sendTransaction(signedSerialized, waitUntil)
+
+        // Inject minimal transaction fields if not present (for NONE/INCLUDED/INCLUDED_FINAL)
+        // This ensures transaction.hash is always available
+        if (!("transaction" in result) || !result.transaction) {
+          ;(result as any).transaction = {
+            hash,
+            signer_id: signedTx.transaction.signerId,
+            receiver_id: this.receiverId,
+            nonce: Number(signedTx.transaction.nonce),
+          }
+        }
+
+        return result
       } catch (error) {
         lastError = error as Error
 
