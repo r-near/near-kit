@@ -64,7 +64,7 @@ describe("sendTransaction - RPC Response Validation", () => {
       // NONE mode returns minimal response with transaction hash for tracking
       // Transaction field is injected client-side to provide the hash
       expect(result.transaction).toBeDefined()
-      expect(result.transaction.hash).toBeDefined()
+      expect(result.transaction?.hash).toBeDefined()
 
       // But execution-related fields are not present since execution hasn't started
       expect("status" in result).toBe(false)

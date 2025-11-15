@@ -14,7 +14,8 @@ import {
 describe("parseQueryError", () => {
   test("should throw FunctionCallError for contract method errors containing 'does not exist'", () => {
     const result = {
-      error: "wasm execution failed with error: FunctionCallError(MethodResolveError(MethodNotFound))",
+      error:
+        "wasm execution failed with error: FunctionCallError(MethodResolveError(MethodNotFound))",
     }
 
     expect(() =>
@@ -66,7 +67,8 @@ describe("parseQueryError", () => {
 
   test("should throw AccessKeyDoesNotExistError for access key queries with 'does not exist'", () => {
     const result = {
-      error: "access key ed25519:He7QeRuwizNEhzeKNn2CLdCKfzkH6KLSaFKvJLYtnrFa does not exist",
+      error:
+        "access key ed25519:He7QeRuwizNEhzeKNn2CLdCKfzkH6KLSaFKvJLYtnrFa does not exist",
     }
 
     expect(() =>
