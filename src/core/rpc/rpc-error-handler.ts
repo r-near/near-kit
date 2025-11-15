@@ -258,7 +258,11 @@ export function parseQueryError(
 
   // Function call errors (method not found, execution failures, etc.)
   if (context.contractId) {
-    throw new FunctionCallError(context.contractId, context.methodName, errorMsg)
+    throw new FunctionCallError(
+      context.contractId,
+      context.methodName,
+      errorMsg,
+    )
   }
 
   // Generic query error
