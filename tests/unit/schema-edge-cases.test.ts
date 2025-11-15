@@ -5,36 +5,35 @@
 
 import { describe, expect, test } from "bun:test"
 import {
-  DelegateAction,
-  SignedDelegate,
   addKey,
   createAccount,
+  DelegateAction,
   deleteAccount,
   deleteKey,
   deployContract,
   deployFromPublished,
   functionCall,
   publishContract,
+  SignedDelegate,
   signedDelegate,
   stake,
   transfer,
 } from "../../src/core/actions.js"
 import {
   ActionSchema,
-  DELEGATE_ACTION_PREFIX,
   PublicKeySchema,
-  SignatureSchema,
-  TransactionSchema,
   publicKeyToZorsh,
+  SignatureSchema,
   serializeDelegateAction,
   serializeSignedDelegate,
   serializeTransaction,
   signatureToZorsh,
+  TransactionSchema,
 } from "../../src/core/schema.js"
 import {
-  KeyType,
   type Ed25519PublicKey,
   type Ed25519Signature,
+  KeyType,
   type Secp256k1PublicKey,
   type Secp256k1Signature,
 } from "../../src/core/types.js"
@@ -139,7 +138,12 @@ describe("Delegate Action Serialization - Edge Cases", () => {
         createAccount(),
         transfer(BigInt(1000000)),
         deployContract(new Uint8Array([0x00, 0x61, 0x73, 0x6d])),
-        functionCall("method", new Uint8Array([1, 2, 3]), BigInt(30000000000000), BigInt(0)),
+        functionCall(
+          "method",
+          new Uint8Array([1, 2, 3]),
+          BigInt(30000000000000),
+          BigInt(0),
+        ),
         stake(BigInt(1000000000000000000000000), pk),
         addKey(pk, { fullAccess: {} }),
         deleteKey(pk),
@@ -157,7 +161,9 @@ describe("Delegate Action Serialization - Edge Cases", () => {
     expect(encoded).toBeInstanceOf(Uint8Array)
     expect(encoded.length).toBeGreaterThan(4)
     // Verify prefix
-    expect(encoded.slice(0, 4)).toEqual(new Uint8Array([0x6e, 0x01, 0x00, 0x40]))
+    expect(encoded.slice(0, 4)).toEqual(
+      new Uint8Array([0x6e, 0x01, 0x00, 0x40]),
+    )
   })
 
   test("serializeDelegateAction with Secp256k1 public key", () => {
@@ -293,7 +299,9 @@ describe("Public Key Types - Secp256k1 in Actions", () => {
     const action = addKey(pk, permission)
 
     expect("addKey" in action).toBe(true)
-    expect(action.addKey.publicKey.secp256k1Key.data).toEqual(Array(64).fill(31))
+    expect(action.addKey.publicKey.secp256k1Key.data).toEqual(
+      Array(64).fill(31),
+    )
     expect(action.addKey.accessKey.permission).toEqual(permission)
   })
 
@@ -302,7 +310,9 @@ describe("Public Key Types - Secp256k1 in Actions", () => {
     const action = deleteKey(pk)
 
     expect("deleteKey" in action).toBe(true)
-    expect(action.deleteKey.publicKey.secp256k1Key.data).toEqual(Array(64).fill(32))
+    expect(action.deleteKey.publicKey.secp256k1Key.data).toEqual(
+      Array(64).fill(32),
+    )
   })
 
   test("Secp256k1 key serialization size", () => {
@@ -344,7 +354,9 @@ describe("Signature Types - Edge Cases", () => {
 
 describe("Global Contract Actions - Serialization", () => {
   test("publishContract with CodeHash mode (immutable)", () => {
-    const code = new Uint8Array([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00])
+    const code = new Uint8Array([
+      0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00,
+    ])
     const action = publishContract(code)
 
     expect("deployGlobalContract" in action).toBe(true)
@@ -357,7 +369,9 @@ describe("Global Contract Actions - Serialization", () => {
   })
 
   test("publishContract with AccountId mode (mutable)", () => {
-    const code = new Uint8Array([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00])
+    const code = new Uint8Array([
+      0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00,
+    ])
     const action = publishContract(code, "publisher.near")
 
     expect("deployGlobalContract" in action).toBe(true)
@@ -386,15 +400,16 @@ describe("Global Contract Actions - Serialization", () => {
   test("deployFromPublished with code hash (base58 string)", () => {
     // Create a valid 32-byte hash and encode as base58
     const hashBytes = new Uint8Array(32).fill(51)
-    const base58Hash = "6fPZmGkrSgNn5dsYs6K7A8VxE3LxLHhGJQV6Jb4TrNaW" // Example
+    // const base58Hash = "6fPZmGkrSgNn5dsYs6K7A8VxE3LxLHhGJQV6Jb4TrNaW" // Example
 
     // For testing, we'll just pass the Uint8Array directly since base58 encoding is tested elsewhere
     const action = deployFromPublished({ codeHash: hashBytes })
 
     expect("useGlobalContract" in action).toBe(true)
-    expect(action.useGlobalContract.contractIdentifier.CodeHash).toEqual(
-      Array.from(hashBytes),
-    )
+    expect(
+      (action.useGlobalContract.contractIdentifier as { CodeHash: number[] })
+        .CodeHash,
+    ).toEqual(Array.from(hashBytes))
   })
 
   test("deployFromPublished with account ID", () => {
@@ -436,7 +451,12 @@ describe("Complex Action Combinations", () => {
         createAccount(),
         transfer(BigInt(1000000000000000000000000)),
         deployContract(code),
-        functionCall("init", new Uint8Array([]), BigInt(30000000000000), BigInt(0)),
+        functionCall(
+          "init",
+          new Uint8Array([]),
+          BigInt(30000000000000),
+          BigInt(0),
+        ),
         addKey(pk, { fullAccess: {} }),
         publishContract(code, "publisher.near"),
         deployFromPublished({ accountId: "publisher.near" }),
@@ -459,7 +479,12 @@ describe("Complex Action Combinations", () => {
       [
         createAccount(),
         transfer(BigInt(500000)),
-        functionCall("method", new Uint8Array([1, 2, 3]), BigInt(10000000000000), BigInt(0)),
+        functionCall(
+          "method",
+          new Uint8Array([1, 2, 3]),
+          BigInt(10000000000000),
+          BigInt(0),
+        ),
       ],
       BigInt(100),
       BigInt(5000),
@@ -488,7 +513,12 @@ describe("Complex Action Combinations", () => {
 
 describe("Edge Cases - Extreme Values", () => {
   test("function call with empty method name", () => {
-    const action = functionCall("", new Uint8Array([]), BigInt(30000000000000), BigInt(0))
+    const action = functionCall(
+      "",
+      new Uint8Array([]),
+      BigInt(30000000000000),
+      BigInt(0),
+    )
 
     expect("functionCall" in action).toBe(true)
     expect(action.functionCall.methodName).toBe("")
@@ -499,7 +529,12 @@ describe("Edge Cases - Extreme Values", () => {
   })
 
   test("function call with empty args", () => {
-    const action = functionCall("method", new Uint8Array([]), BigInt(30000000000000), BigInt(0))
+    const action = functionCall(
+      "method",
+      new Uint8Array([]),
+      BigInt(30000000000000),
+      BigInt(0),
+    )
 
     expect("functionCall" in action).toBe(true)
     expect(action.functionCall.args).toEqual(new Uint8Array([]))
@@ -523,7 +558,12 @@ describe("Edge Cases - Extreme Values", () => {
 
   test("function call with large gas value", () => {
     const largeGas = BigInt("300000000000000") // 300 Tgas
-    const action = functionCall("method", new Uint8Array([1]), largeGas, BigInt(0))
+    const action = functionCall(
+      "method",
+      new Uint8Array([1]),
+      largeGas,
+      BigInt(0),
+    )
 
     expect("functionCall" in action).toBe(true)
     expect(action.functionCall.gas).toBe(largeGas)
@@ -585,7 +625,7 @@ describe("Round-trip Serialization", () => {
     const serialized = serializeDelegateAction(delegateAction)
 
     // Remove the 4-byte prefix and deserialize
-    const withoutPrefix = serialized.slice(4)
+    // const withoutPrefix = serialized.slice(4)
 
     // Note: We would deserialize here if we expose the DelegateActionSchema
     // For now, we verify the serialization is consistent
@@ -640,7 +680,12 @@ describe("Round-trip Serialization", () => {
       blockHash: new Uint8Array(32).fill(86),
       actions: [
         transfer(BigInt(1000000)),
-        functionCall("method", new Uint8Array([1, 2, 3]), BigInt(30000000000000), BigInt(0)),
+        functionCall(
+          "method",
+          new Uint8Array([1, 2, 3]),
+          BigInt(30000000000000),
+          BigInt(0),
+        ),
       ],
     }
 

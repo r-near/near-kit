@@ -195,7 +195,9 @@ describe("parseAmount", () => {
 
     test("throws on NEAR format with mixed invalid characters", () => {
       expect(() => parseAmount("10abc NEAR")).toThrow("Invalid amount format")
-      expect(() => parseAmount("hello123 NEAR")).toThrow("Invalid amount format")
+      expect(() => parseAmount("hello123 NEAR")).toThrow(
+        "Invalid amount format",
+      )
     })
   })
 })

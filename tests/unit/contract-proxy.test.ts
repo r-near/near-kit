@@ -5,14 +5,17 @@
  * Coverage targets: lines 67-101, 108-112
  */
 
-import { describe, expect, test, mock } from "bun:test"
+import { describe, expect, mock, test } from "bun:test"
 import {
-  createContract,
   addContractMethod,
   type ContractMethods,
+  createContract,
 } from "../../src/contracts/contract.js"
+import type {
+  BlockReference,
+  CallOptions,
+} from "../../src/core/config-schemas.js"
 import { Near } from "../../src/core/near.js"
-import type { BlockReference, CallOptions } from "../../src/core/config-schemas.js"
 
 describe("createContract()", () => {
   describe("view proxy", () => {
@@ -24,7 +27,9 @@ describe("createContract()", () => {
 
       const contract = createContract(mockNear as any, "contract.near")
 
-      const result = await contract.view.getBalance({ account_id: "alice.near" })
+      const result = await contract.view["getBalance"]({
+        account_id: "alice.near",
+      })
 
       expect(result).toBe("view-result")
       expect(mockNear.view).toHaveBeenCalledTimes(1)
@@ -44,7 +49,7 @@ describe("createContract()", () => {
 
       const contract = createContract(mockNear as any, "contract.near")
 
-      const result = await contract.view.getTotalSupply()
+      const result = await contract.view["getTotalSupply"]()
 
       expect(result).toBe(42)
       expect(mockNear.view).toHaveBeenCalledWith(
@@ -63,7 +68,7 @@ describe("createContract()", () => {
 
       const contract = createContract(mockNear as any, "contract.near")
 
-      const result = await contract.view.getMetadata(undefined)
+      const result = await contract.view["getMetadata"](undefined)
 
       expect(result).toBe("result")
       expect(mockNear.view).toHaveBeenCalledWith(
@@ -82,7 +87,7 @@ describe("createContract()", () => {
 
       const contract = createContract(mockNear as any, "contract.near")
 
-      const result = await contract.view.getAll({})
+      const result = await contract.view["getAll"]({})
 
       expect(result).toBe("result")
       expect(mockNear.view).toHaveBeenCalledWith(
@@ -102,7 +107,7 @@ describe("createContract()", () => {
       const contract = createContract(mockNear as any, "contract.near")
       const binaryArgs = new Uint8Array([1, 2, 3, 4])
 
-      const result = await contract.view.decodeData(binaryArgs)
+      const result = await contract.view["decodeData"](binaryArgs)
 
       expect(result).toBe("result")
       expect(mockNear.view).toHaveBeenCalledWith(
@@ -122,7 +127,7 @@ describe("createContract()", () => {
       const contract = createContract(mockNear as any, "contract.near")
       const blockRef: BlockReference = { blockId: "12345" }
 
-      const result = await contract.view.getBalance(
+      const result = await contract.view["getBalance"](
         { account_id: "alice.near" },
         blockRef,
       )
@@ -145,7 +150,7 @@ describe("createContract()", () => {
       const contract = createContract(mockNear as any, "contract.near")
       const blockRef: BlockReference = { finality: "final" }
 
-      const result = await contract.view.getBalance(
+      const result = await contract.view["getBalance"](
         { account_id: "alice.near" },
         blockRef,
       )
@@ -167,9 +172,9 @@ describe("createContract()", () => {
 
       const contract = createContract(mockNear as any, "contract.near")
 
-      await contract.view.method1({ arg: "a" })
-      await contract.view.method2({ arg: "b" })
-      await contract.view.method3({ arg: "c" })
+      await contract.view["method1"]({ arg: "a" })
+      await contract.view["method2"]({ arg: "b" })
+      await contract.view["method3"]({ arg: "c" })
 
       expect(mockNear.view).toHaveBeenCalledTimes(3)
       expect(mockNear.view).toHaveBeenNthCalledWith(
@@ -203,9 +208,9 @@ describe("createContract()", () => {
 
       const contract = createContract(mockNear as any, "contract.near")
 
-      await contract.view.get_balance()
-      await contract.view.ft_balance_of({ account_id: "alice.near" })
-      await contract.view.nft_token({ token_id: "1" })
+      await contract.view["get_balance"]()
+      await contract.view["ft_balance_of"]({ account_id: "alice.near" })
+      await contract.view["nft_token"]({ token_id: "1" })
 
       expect(mockNear.view).toHaveBeenCalledTimes(3)
       expect(mockNear.view).toHaveBeenNthCalledWith(
@@ -241,7 +246,7 @@ describe("createContract()", () => {
 
       const contract = createContract(mockNear as any, "contract.near")
 
-      const result = await contract.call.transfer({
+      const result = await contract.call["transfer"]({
         receiver_id: "bob.near",
         amount: "100",
       })
@@ -264,7 +269,7 @@ describe("createContract()", () => {
 
       const contract = createContract(mockNear as any, "contract.near")
 
-      const result = await contract.call.initialize()
+      const result = await contract.call["initialize"]()
 
       expect(result).toEqual({ status: "success" })
       expect(mockNear.call).toHaveBeenCalledWith(
@@ -283,7 +288,7 @@ describe("createContract()", () => {
 
       const contract = createContract(mockNear as any, "contract.near")
 
-      const result = await contract.call.reset(undefined)
+      const result = await contract.call["reset"](undefined)
 
       expect(result).toEqual({ status: "success" })
       expect(mockNear.call).toHaveBeenCalledWith(
@@ -302,7 +307,7 @@ describe("createContract()", () => {
 
       const contract = createContract(mockNear as any, "contract.near")
 
-      const result = await contract.call.clearAll({})
+      const result = await contract.call["clearAll"]({})
 
       expect(result).toEqual({ status: "success" })
       expect(mockNear.call).toHaveBeenCalledWith(
@@ -322,7 +327,7 @@ describe("createContract()", () => {
       const contract = createContract(mockNear as any, "contract.near")
       const binaryArgs = new Uint8Array([10, 20, 30])
 
-      const result = await contract.call.uploadData(binaryArgs)
+      const result = await contract.call["uploadData"](binaryArgs)
 
       expect(result).toEqual({ status: "success" })
       expect(mockNear.call).toHaveBeenCalledWith(
@@ -345,7 +350,7 @@ describe("createContract()", () => {
         attachedDeposit: "1 NEAR",
       }
 
-      const result = await contract.call.stakeTokens(
+      const result = await contract.call["stakeTokens"](
         { amount: "10" },
         options,
       )
@@ -373,7 +378,7 @@ describe("createContract()", () => {
         waitUntil: "FINAL",
       }
 
-      const result = await contract.call.complexOperation(
+      const result = await contract.call["complexOperation"](
         { param: "value" },
         options,
       )
@@ -395,7 +400,10 @@ describe("createContract()", () => {
 
       const contract = createContract(mockNear as any, "contract.near")
 
-      const result = await contract.call.doSomething({ value: 123 }, undefined)
+      const result = await contract.call["doSomething"](
+        { value: 123 },
+        undefined,
+      )
 
       expect(result).toEqual({ status: "success" })
       expect(mockNear.call).toHaveBeenCalledWith(
@@ -414,9 +422,9 @@ describe("createContract()", () => {
 
       const contract = createContract(mockNear as any, "contract.near")
 
-      await contract.call.method1({ arg: "a" })
-      await contract.call.method2({ arg: "b" })
-      await contract.call.method3({ arg: "c" })
+      await contract.call["method1"]({ arg: "a" })
+      await contract.call["method2"]({ arg: "b" })
+      await contract.call["method3"]({ arg: "c" })
 
       expect(mockNear.call).toHaveBeenCalledTimes(3)
       expect(mockNear.call).toHaveBeenNthCalledWith(
@@ -450,9 +458,15 @@ describe("createContract()", () => {
 
       const contract = createContract(mockNear as any, "contract.near")
 
-      await contract.call.ft_transfer({ receiver_id: "bob.near", amount: "100" })
-      await contract.call.nft_mint({ token_id: "1", receiver_id: "alice.near" })
-      await contract.call.storage_deposit({ account_id: "charlie.near" })
+      await contract.call["ft_transfer"]({
+        receiver_id: "bob.near",
+        amount: "100",
+      })
+      await contract.call["nft_mint"]({
+        token_id: "1",
+        receiver_id: "alice.near",
+      })
+      await contract.call["storage_deposit"]({ account_id: "charlie.near" })
 
       expect(mockNear.call).toHaveBeenCalledTimes(3)
     })
@@ -505,9 +519,10 @@ describe("createContract()", () => {
           getTotalSupply: () => Promise<number>
         }
         call: {
-          transfer: (
-            args: { receiver_id: string; amount: string },
-          ) => Promise<void>
+          transfer: (args: {
+            receiver_id: string
+            amount: string
+          }) => Promise<void>
         }
       }
 
@@ -519,10 +534,12 @@ describe("createContract()", () => {
       const contract = createContract<MyContract>(mockNear as any, "ft.near")
 
       // TypeScript should enforce correct types
-      const balance = await contract.view.getBalance({ account_id: "alice.near" })
+      const balance = await contract.view["getBalance"]({
+        account_id: "alice.near",
+      })
       expect(typeof balance).toBe("string")
 
-      await contract.call.transfer({
+      await contract.call["transfer"]({
         receiver_id: "bob.near",
         amount: "50",
       })
@@ -585,7 +602,7 @@ describe("createContract()", () => {
         },
       }
 
-      await contract.view.getComplexData(complexArgs)
+      await contract.view["getComplexData"](complexArgs)
 
       expect(mockNear.view).toHaveBeenCalledWith(
         "contract.near",
@@ -608,7 +625,7 @@ describe("createContract()", () => {
         amounts: [100, 200, 300],
       }
 
-      await contract.call.batchProcess(arrayArgs)
+      await contract.call["batchProcess"](arrayArgs)
 
       expect(mockNear.call).toHaveBeenCalledWith(
         "contract.near",
@@ -663,7 +680,7 @@ describe("addContractMethod()", () => {
     const contract = near.contract("test.near")
 
     // Test that the proxy works correctly
-    await contract.view.getBalance({ account_id: "alice.near" })
+    await contract.view["getBalance"]({ account_id: "alice.near" })
 
     expect(near.view).toHaveBeenCalledWith(
       "test.near",
@@ -714,7 +731,7 @@ describe("addContractMethod()", () => {
   test("should maintain 'this' context correctly", async () => {
     class MockNear {
       private testProperty = "test-value"
-      view = mock(async (contractId: string) => {
+      view = mock(async (/* contractId: string */) => {
         // Verify 'this' context is preserved
         expect(this.testProperty).toBe("test-value")
         return "result"
@@ -727,7 +744,7 @@ describe("addContractMethod()", () => {
     const near = new MockNear() as any
     const contract = near.contract("contract.near")
 
-    await contract.view.getData()
+    await contract.view["getData"]()
 
     expect(near.view).toHaveBeenCalled()
   })
@@ -738,9 +755,10 @@ describe("addContractMethod()", () => {
         getBalance: (args: { account_id: string }) => Promise<string>
       }
       call: {
-        transfer: (
-          args: { receiver_id: string; amount: string },
-        ) => Promise<void>
+        transfer: (args: {
+          receiver_id: string
+          amount: string
+        }) => Promise<void>
       }
     }
 
@@ -752,7 +770,7 @@ describe("addContractMethod()", () => {
     addContractMethod(MockNear.prototype as any)
 
     const near = new MockNear() as any
-    const contract = near.contract<MyContract>("ft.near")
+    const contract = near.contract("ft.near")
 
     // TypeScript should infer correct types
     expect(contract).toHaveProperty("view")

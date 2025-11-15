@@ -2,7 +2,7 @@
  * Comprehensive tests for FileKeyStore class
  */
 
-import { describe, expect, test, beforeEach, afterEach } from "bun:test"
+import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import * as fs from "node:fs/promises"
 import * as os from "node:os"
 import * as path from "node:path"
@@ -12,7 +12,10 @@ import { generateKey } from "../../src/utils/key.js"
 // Helper to create a unique temporary directory for each test
 async function createTempDir(): Promise<string> {
   const tempBase = os.tmpdir()
-  const tempDir = path.join(tempBase, `near-ts-test-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+  const tempDir = path.join(
+    tempBase,
+    `near-ts-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  )
   await fs.mkdir(tempDir, { recursive: true })
   return tempDir
 }
@@ -38,7 +41,7 @@ describe("FileKeyStore - Constructor & Path Handling", () => {
   })
 
   test("should use default path ~/.near-credentials when no path provided", () => {
-    const keyStore = new FileKeyStore()
+    // const keyStore = new FileKeyStore()
     const homeDir = process.env["HOME"] || process.env["USERPROFILE"] || ""
 
     // Test that it expands ~ to home directory by checking add() creates files in right place
@@ -59,15 +62,26 @@ describe("FileKeyStore - Constructor & Path Handling", () => {
 
     try {
       await keyStore.add("test.testnet", key)
-      const expandedPath = path.join(homeDir, ".near-test", "testnet", "test.testnet.json")
+      const expandedPath = path.join(
+        homeDir,
+        ".near-test",
+        "testnet",
+        "test.testnet.json",
+      )
       const stat = await fs.stat(expandedPath)
       expect(stat.isFile()).toBe(true)
 
       // Cleanup
-      await fs.rm(path.join(homeDir, ".near-test"), { recursive: true, force: true })
+      await fs.rm(path.join(homeDir, ".near-test"), {
+        recursive: true,
+        force: true,
+      })
     } catch (error) {
       // Cleanup on error
-      await fs.rm(path.join(homeDir, ".near-test"), { recursive: true, force: true })
+      await fs.rm(path.join(homeDir, ".near-test"), {
+        recursive: true,
+        force: true,
+      })
       throw error
     }
   })
@@ -154,7 +168,8 @@ describe("FileKeyStore - add() method", () => {
   test("should preserve seed phrase metadata", async () => {
     const keyStore = new FileKeyStore(tempDir, "testnet")
     const key = generateKey()
-    const seedPhrase = "witch collapse practice feed shame open despair creek road again ice least"
+    const seedPhrase =
+      "witch collapse practice feed shame open despair creek road again ice least"
 
     await keyStore.add("test.testnet", key, { seedPhrase })
 
@@ -182,7 +197,8 @@ describe("FileKeyStore - add() method", () => {
   test("should preserve implicit account ID", async () => {
     const keyStore = new FileKeyStore(tempDir, "testnet")
     const key = generateKey()
-    const implicitAccountId = "e3cb032dbb6e8f45239c79652ba94172378f940d340b429ce5076d1a2f7366e2"
+    const implicitAccountId =
+      "e3cb032dbb6e8f45239c79652ba94172378f940d340b429ce5076d1a2f7366e2"
 
     await keyStore.add("test.testnet", key, { implicitAccountId })
 
@@ -197,9 +213,11 @@ describe("FileKeyStore - add() method", () => {
     const keyStore = new FileKeyStore(tempDir, "testnet")
     const key = generateKey()
     const metadata = {
-      seedPhrase: "witch collapse practice feed shame open despair creek road again ice least",
+      seedPhrase:
+        "witch collapse practice feed shame open despair creek road again ice least",
       derivationPath: "m/44'/397'/0'",
-      implicitAccountId: "e3cb032dbb6e8f45239c79652ba94172378f940d340b429ce5076d1a2f7366e2",
+      implicitAccountId:
+        "e3cb032dbb6e8f45239c79652ba94172378f940d340b429ce5076d1a2f7366e2",
     }
 
     await keyStore.add("test.testnet", key, metadata)
@@ -418,7 +436,9 @@ describe("FileKeyStore - remove() method", () => {
     const keyStore = new FileKeyStore(tempDir, "testnet")
 
     // Should not throw when removing non-existent key
-    await expect(keyStore.remove("nonexistent.testnet")).resolves.toBeUndefined()
+    await expect(
+      keyStore.remove("nonexistent.testnet"),
+    ).resolves.toBeUndefined()
   })
 
   test("should remove both simple and multi-key formats if they exist", async () => {
@@ -531,7 +551,7 @@ describe("FileKeyStore - list() method", () => {
   })
 
   test("should return empty array for non-existent directory", async () => {
-    const keyStore = new FileKeyStore(tempDir, "nonexistent")
+    const keyStore = new FileKeyStore(tempDir, "nonexistent" as any)
 
     const accounts = await keyStore.list()
 
@@ -580,7 +600,7 @@ describe("FileKeyStore - list() method", () => {
     const accounts = await keyStore.list()
 
     // Should only appear once
-    expect(accounts.filter(acc => acc === "duplicate.testnet").length).toBe(1)
+    expect(accounts.filter((acc) => acc === "duplicate.testnet").length).toBe(1)
   })
 
   test("should ignore directories without key files", async () => {

@@ -77,7 +77,7 @@ export interface RpcErrorResponse {
   name: string
   code: number
   message: string
-  data?: string
+  data?: string | Record<string, unknown>
   cause?: {
     name: string
     info?: Record<string, unknown>

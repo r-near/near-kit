@@ -3,13 +3,13 @@
  */
 
 import { describe, expect, test } from "bun:test"
-import type { SignMessageParams } from "../../src/core/types.js"
 import { base58, base64 } from "@scure/base"
+import type { SignMessageParams } from "../../src/core/types.js"
 import {
   Ed25519KeyPair,
-  Secp256k1KeyPair,
   generateNep413Nonce,
   NEP413_TAG,
+  Secp256k1KeyPair,
   serializeNep413Message,
   verifyNep413Signature,
 } from "../../src/utils/index.js"

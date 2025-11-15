@@ -315,8 +315,8 @@ describe("Config Validation Edge Cases", () => {
 
 describe("NEAR_NETWORK Environment Variable", () => {
   test("should use mainnet from NEAR_NETWORK env", () => {
-    const originalEnv = process.env.NEAR_NETWORK
-    process.env.NEAR_NETWORK = "mainnet"
+    const originalEnv = process.env["NEAR_NETWORK"]
+    process.env["NEAR_NETWORK"] = "mainnet"
 
     const config = resolveNetworkConfig()
 
@@ -325,15 +325,15 @@ describe("NEAR_NETWORK Environment Variable", () => {
 
     // Restore original env
     if (originalEnv === undefined) {
-      delete process.env.NEAR_NETWORK
+      delete process.env["NEAR_NETWORK"]
     } else {
-      process.env.NEAR_NETWORK = originalEnv
+      process.env["NEAR_NETWORK"] = originalEnv
     }
   })
 
   test("should use testnet from NEAR_NETWORK env", () => {
-    const originalEnv = process.env.NEAR_NETWORK
-    process.env.NEAR_NETWORK = "testnet"
+    const originalEnv = process.env["NEAR_NETWORK"]
+    process.env["NEAR_NETWORK"] = "testnet"
 
     const config = resolveNetworkConfig()
 
@@ -342,15 +342,15 @@ describe("NEAR_NETWORK Environment Variable", () => {
 
     // Restore original env
     if (originalEnv === undefined) {
-      delete process.env.NEAR_NETWORK
+      delete process.env["NEAR_NETWORK"]
     } else {
-      process.env.NEAR_NETWORK = originalEnv
+      process.env["NEAR_NETWORK"] = originalEnv
     }
   })
 
   test("should use localnet from NEAR_NETWORK env", () => {
-    const originalEnv = process.env.NEAR_NETWORK
-    process.env.NEAR_NETWORK = "localnet"
+    const originalEnv = process.env["NEAR_NETWORK"]
+    process.env["NEAR_NETWORK"] = "localnet"
 
     const config = resolveNetworkConfig()
 
@@ -359,15 +359,15 @@ describe("NEAR_NETWORK Environment Variable", () => {
 
     // Restore original env
     if (originalEnv === undefined) {
-      delete process.env.NEAR_NETWORK
+      delete process.env["NEAR_NETWORK"]
     } else {
-      process.env.NEAR_NETWORK = originalEnv
+      process.env["NEAR_NETWORK"] = originalEnv
     }
   })
 
   test("should fallback to mainnet for invalid NEAR_NETWORK env", () => {
-    const originalEnv = process.env.NEAR_NETWORK
-    process.env.NEAR_NETWORK = "invalid"
+    const originalEnv = process.env["NEAR_NETWORK"]
+    process.env["NEAR_NETWORK"] = "invalid"
 
     const config = resolveNetworkConfig()
 
@@ -376,9 +376,9 @@ describe("NEAR_NETWORK Environment Variable", () => {
 
     // Restore original env
     if (originalEnv === undefined) {
-      delete process.env.NEAR_NETWORK
+      delete process.env["NEAR_NETWORK"]
     } else {
-      process.env.NEAR_NETWORK = originalEnv
+      process.env["NEAR_NETWORK"] = originalEnv
     }
   })
 })

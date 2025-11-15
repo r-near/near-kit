@@ -148,14 +148,16 @@ describe("Private Key Schema", () => {
   })
 
   test("should accept valid Secp256k1 private keys", () => {
-    const validSecp256k1 = "secp256k1:3nYJjpbNczpvt9zJaQZvnv4YTwN4h8gxhJr6Jq3BqR8qA7Z7N3K9M5V1X8J9Q2L4"
+    const validSecp256k1 =
+      "secp256k1:3nYJjpbNczpvt9zJaQZvnv4YTwN4h8gxhJr6Jq3BqR8qA7Z7N3K9M5V1X8J9Q2L4"
 
     expect(PrivateKeySchema.parse(validSecp256k1)).toBe(validSecp256k1)
     expect(isPrivateKey(validSecp256k1)).toBe(true)
   })
 
   test("should accept manually constructed Ed25519 private key", () => {
-    const validEd25519 = "ed25519:3J4DuFq9YC5JHLk3M1V6Wj8bNqKpT2xF9sR5vH7nL2gE4wB8yA9cD1mP3tX6kZq"
+    const validEd25519 =
+      "ed25519:3J4DuFq9YC5JHLk3M1V6Wj8bNqKpT2xF9sR5vH7nL2gE4wB8yA9cD1mP3tX6kZq"
 
     expect(PrivateKeySchema.parse(validEd25519)).toBe(validEd25519)
     expect(isPrivateKey(validEd25519)).toBe(true)
@@ -163,16 +165,28 @@ describe("Private Key Schema", () => {
 
   test("should reject keys without prefix", () => {
     expect(() =>
-      PrivateKeySchema.parse("3J4DuFq9YC5JHLk3M1V6Wj8bNqKpT2xF9sR5vH7nL2gE4wB8yA9cD1mP3tX6kZq"),
+      PrivateKeySchema.parse(
+        "3J4DuFq9YC5JHLk3M1V6Wj8bNqKpT2xF9sR5vH7nL2gE4wB8yA9cD1mP3tX6kZq",
+      ),
     ).toThrow()
     expect(
-      isPrivateKey("3J4DuFq9YC5JHLk3M1V6Wj8bNqKpT2xF9sR5vH7nL2gE4wB8yA9cD1mP3tX6kZq"),
+      isPrivateKey(
+        "3J4DuFq9YC5JHLk3M1V6Wj8bNqKpT2xF9sR5vH7nL2gE4wB8yA9cD1mP3tX6kZq",
+      ),
     ).toBe(false)
   })
 
   test("should reject keys with invalid prefix", () => {
-    expect(() => PrivateKeySchema.parse("invalid:3J4DuFq9YC5JHLk3M1V6Wj8bNqKpT2xF9sR5vH7nL2gE4wB8yA9cD1mP3tX6kZq")).toThrow()
-    expect(isPrivateKey("invalid:3J4DuFq9YC5JHLk3M1V6Wj8bNqKpT2xF9sR5vH7nL2gE4wB8yA9cD1mP3tX6kZq")).toBe(false)
+    expect(() =>
+      PrivateKeySchema.parse(
+        "invalid:3J4DuFq9YC5JHLk3M1V6Wj8bNqKpT2xF9sR5vH7nL2gE4wB8yA9cD1mP3tX6kZq",
+      ),
+    ).toThrow()
+    expect(
+      isPrivateKey(
+        "invalid:3J4DuFq9YC5JHLk3M1V6Wj8bNqKpT2xF9sR5vH7nL2gE4wB8yA9cD1mP3tX6kZq",
+      ),
+    ).toBe(false)
   })
 
   test("should reject keys with invalid base58", () => {
@@ -191,12 +205,14 @@ describe("Private Key Schema", () => {
   })
 
   test("validatePrivateKey() should return valid Ed25519 key", () => {
-    const validEd25519 = "ed25519:3J4DuFq9YC5JHLk3M1V6Wj8bNqKpT2xF9sR5vH7nL2gE4wB8yA9cD1mP3tX6kZq"
+    const validEd25519 =
+      "ed25519:3J4DuFq9YC5JHLk3M1V6Wj8bNqKpT2xF9sR5vH7nL2gE4wB8yA9cD1mP3tX6kZq"
     expect(validatePrivateKey(validEd25519)).toBe(validEd25519)
   })
 
   test("validatePrivateKey() should return valid Secp256k1 key", () => {
-    const validSecp256k1 = "secp256k1:3nYJjpbNczpvt9zJaQZvnv4YTwN4h8gxhJr6Jq3BqR8qA7Z7N3K9M5V1X8J9Q2L4"
+    const validSecp256k1 =
+      "secp256k1:3nYJjpbNczpvt9zJaQZvnv4YTwN4h8gxhJr6Jq3BqR8qA7Z7N3K9M5V1X8J9Q2L4"
     expect(validatePrivateKey(validSecp256k1)).toBe(validSecp256k1)
   })
 
@@ -205,7 +221,11 @@ describe("Private Key Schema", () => {
   })
 
   test("validatePrivateKey() should throw on missing prefix", () => {
-    expect(() => validatePrivateKey("3J4DuFq9YC5JHLk3M1V6Wj8bNqKpT2xF9sR5vH7nL2gE4wB8yA9cD1mP3tX6kZq")).toThrow()
+    expect(() =>
+      validatePrivateKey(
+        "3J4DuFq9YC5JHLk3M1V6Wj8bNqKpT2xF9sR5vH7nL2gE4wB8yA9cD1mP3tX6kZq",
+      ),
+    ).toThrow()
   })
 
   test("validatePrivateKey() should throw on empty suffix", () => {

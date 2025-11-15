@@ -5,8 +5,8 @@
  */
 
 import { describe, expect, test } from "bun:test"
-import { InvalidNonceError } from "../../src/errors/index.js"
 import { NonceManager } from "../../src/core/nonce-manager.js"
+import { InvalidNonceError } from "../../src/errors/index.js"
 
 describe("InvalidNonceError", () => {
   test("should be retryable", () => {
@@ -476,11 +476,7 @@ describe("NonceManager", () => {
   test("should clear all cached nonces", async () => {
     const manager = new NonceManager()
 
-    await manager.getNextNonce(
-      "alice.near",
-      "ed25519:test1",
-      async () => 100n,
-    )
+    await manager.getNextNonce("alice.near", "ed25519:test1", async () => 100n)
     await manager.getNextNonce("bob.near", "ed25519:test2", async () => 200n)
 
     // Clear all caches

@@ -4,7 +4,11 @@
 
 import { describe, expect, test } from "bun:test"
 import { InMemoryKeyStore } from "../../src/keys/in-memory-keystore.js"
-import { Ed25519KeyPair, Secp256k1KeyPair, generateKey } from "../../src/utils/key.js"
+import {
+  Ed25519KeyPair,
+  generateKey,
+  Secp256k1KeyPair,
+} from "../../src/utils/key.js"
 
 describe("InMemoryKeyStore - Constructor", () => {
   test("should create empty keystore", async () => {
@@ -457,7 +461,7 @@ describe("InMemoryKeyStore - Edge cases", () => {
 
   test("should handle special characters in account IDs", async () => {
     const keyStore = new InMemoryKeyStore()
-    const key = generateKey()
+    // const key = generateKey()
 
     const specialAccounts = [
       "alice-bob.near",
@@ -482,7 +486,8 @@ describe("InMemoryKeyStore - Edge cases", () => {
   test("should handle implicit account IDs (hex strings)", async () => {
     const keyStore = new InMemoryKeyStore()
     const key = generateKey()
-    const implicitAccountId = "e3cb032dbb6e8f45239c79652ba94172378f940d340b429ce5076d1a2f7366e2"
+    const implicitAccountId =
+      "e3cb032dbb6e8f45239c79652ba94172378f940d340b429ce5076d1a2f7366e2"
 
     await keyStore.add(implicitAccountId, key)
 

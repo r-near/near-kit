@@ -9,12 +9,12 @@ import { KeyType } from "../../src/core/types.js"
 import { InvalidKeyError } from "../../src/errors/index.js"
 import {
   Ed25519KeyPair,
-  Secp256k1KeyPair,
   generateKey,
   generateSeedPhrase,
   parseKey,
   parsePublicKey,
   parseSeedPhrase,
+  Secp256k1KeyPair,
 } from "../../src/utils/key.js"
 
 describe("Key Generation", () => {
@@ -273,7 +273,7 @@ describe("Secp256k1KeyPair - Constructor", () => {
     const keyPair = Secp256k1KeyPair.fromRandom()
 
     expect(keyPair.publicKey.keyType).toBe(KeyType.SECP256K1)
-    expect(keyPair.publicKey.data.length).toBe(64) // 64 bytes without 0x04 header
+    expect(keyPair.publicKey.data?.length).toBe(64) // 64 bytes without 0x04 header
     expect(keyPair.secretKey).toMatch(/^secp256k1:/)
   })
 
@@ -281,7 +281,7 @@ describe("Secp256k1KeyPair - Constructor", () => {
     const keyPair = Secp256k1KeyPair.fromRandom()
 
     // Public key should be part of the secret key
-    expect(keyPair.publicKey.data.length).toBe(64)
+    expect(keyPair.publicKey.data?.length).toBe(64)
     expect(keyPair.publicKey.keyType).toBe(KeyType.SECP256K1)
   })
 
@@ -313,7 +313,7 @@ describe("Secp256k1KeyPair - fromRandom", () => {
     const keyPair = Secp256k1KeyPair.fromRandom()
 
     // NEAR expects 64 bytes (uncompressed without 0x04 header)
-    expect(keyPair.publicKey.data.length).toBe(64)
+    expect(keyPair.publicKey.data?.length).toBe(64)
   })
 
   test("fromRandom() should generate valid secret key", () => {
@@ -596,7 +596,7 @@ describe("NEP-413 Message Signing - Secp256k1", () => {
       message: "Test",
       recipient: "app.near",
       nonce,
-      callbackUrl: "https://example.com/callback",
+      // callbackUrl: "https://example.com/callback",
     })
 
     expect(signedMessage.signature).toBeTruthy()
@@ -803,12 +803,12 @@ describe("Key Format Validation", () => {
 
   test("Ed25519 public key should be 32 bytes", () => {
     const keyPair = Ed25519KeyPair.fromRandom()
-    expect(keyPair.publicKey.data.length).toBe(32)
+    expect(keyPair.publicKey.data?.length).toBe(32)
   })
 
   test("Secp256k1 public key should be 64 bytes (without 0x04 header)", () => {
     const keyPair = Secp256k1KeyPair.fromRandom()
-    expect(keyPair.publicKey.data.length).toBe(64)
+    expect(keyPair.publicKey.data?.length).toBe(64)
   })
 })
 
@@ -841,7 +841,9 @@ describe("Cross-Key-Type Tests", () => {
     expect(ed25519Key.publicKey.toString()).not.toBe(
       secp256k1Key.publicKey.toString(),
     )
-    expect(ed25519Key.publicKey.keyType).not.toBe(secp256k1Key.publicKey.keyType)
+    expect(ed25519Key.publicKey.keyType).not.toBe(
+      secp256k1Key.publicKey.keyType,
+    )
   })
 
   test("parseKey() should correctly identify key type from string", () => {

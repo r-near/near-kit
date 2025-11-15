@@ -1,11 +1,8 @@
 import { describe, expect, test } from "bun:test"
 import { base58 } from "@scure/base"
-import {
-  deployFromPublished,
-  publishContract,
-} from "../../src/core/actions.js"
-import { ActionSchema } from "../../src/core/schema.js"
+import { deployFromPublished, publishContract } from "../../src/core/actions.js"
 import { RpcClient } from "../../src/core/rpc/rpc.js"
+import { ActionSchema } from "../../src/core/schema.js"
 import { TransactionBuilder } from "../../src/core/transaction.js"
 import { InMemoryKeyStore } from "../../src/keys/index.js"
 
@@ -112,14 +109,7 @@ describe("Global Contracts API - Edge Cases", () => {
 
     test("handles contract code with special bytes", () => {
       const specialBytes = new Uint8Array([
-        0x00,
-        0xff,
-        0x7f,
-        0x80,
-        0x01,
-        0xfe,
-        0xaa,
-        0x55,
+        0x00, 0xff, 0x7f, 0x80, 0x01, 0xfe, 0xaa, 0x55,
       ])
       const action = publishContract(specialBytes)
 
@@ -180,8 +170,9 @@ describe("Global Contracts API - Edge Cases", () => {
 
         expect(
           (
-            action.useGlobalContract
-              .contractIdentifier as { CodeHash: number[] }
+            action.useGlobalContract.contractIdentifier as {
+              CodeHash: number[]
+            }
           ).CodeHash,
         ).toEqual(Array.from(hashBytes))
       }
@@ -366,20 +357,22 @@ describe("Global Contracts - Serialization", () => {
     expect(
       Array.isArray(
         (
-          codeHashAction.useGlobalContract
-            .contractIdentifier as { CodeHash: number[] }
+          codeHashAction.useGlobalContract.contractIdentifier as {
+            CodeHash: number[]
+          }
         ).CodeHash,
       ),
     ).toBe(true)
 
     // AccountId identifier should have AccountId key with string
-    expect(
-      accountIdAction.useGlobalContract.contractIdentifier,
-    ).toHaveProperty("AccountId")
+    expect(accountIdAction.useGlobalContract.contractIdentifier).toHaveProperty(
+      "AccountId",
+    )
     expect(
       typeof (
-        accountIdAction.useGlobalContract
-          .contractIdentifier as { AccountId: string }
+        accountIdAction.useGlobalContract.contractIdentifier as {
+          AccountId: string
+        }
       ).AccountId,
     ).toBe("string")
   })
@@ -393,8 +386,8 @@ describe("Global Contracts - Serialization", () => {
 
     expect(deserialized).toHaveProperty("deployGlobalContract")
     // Code is returned as Uint8Array after deserialization
-    expect(deserialized.deployGlobalContract.code).toEqual(code)
-    expect(deserialized.deployGlobalContract.deployMode).toEqual({
+    expect((deserialized as any).deployGlobalContract.code).toEqual(code)
+    expect((deserialized as any).deployGlobalContract.deployMode).toEqual({
       CodeHash: {},
     })
   })
