@@ -298,8 +298,19 @@ export function parseRpcError(
     // === General Errors (HANDLER_ERROR) ===
 
     if (causeName === "UNKNOWN_BLOCK") {
-      const blockRef =
-        (causeInfo["block_reference"] as string) || parsedError.message
+      // block_reference can be a string or an object like { block_id: 999999999 }
+      let blockRef: string
+      const blockReference = causeInfo["block_reference"]
+      if (typeof blockReference === "string") {
+        blockRef = blockReference
+      } else if (blockReference && typeof blockReference === "object") {
+        const blockId =
+          (blockReference as Record<string, unknown>).block_id ||
+          (blockReference as Record<string, unknown>).BlockId
+        blockRef = blockId ? String(blockId) : parsedError.data || parsedError.message
+      } else {
+        blockRef = parsedError.data || parsedError.message
+      }
       throw new UnknownBlockError(blockRef)
     }
 
@@ -357,10 +368,24 @@ export function parseRpcError(
     // === Block / Chunk Errors ===
 
     if (causeName === "UNKNOWN_CHUNK") {
-      const chunkRef =
-        (causeInfo["chunk_hash"] as string) ||
-        (causeInfo["chunk_reference"] as string) ||
-        parsedError.message
+      // chunk_reference might be an object structure, or there may be a chunk_hash field
+      let chunkRef: string
+      const chunkHash = causeInfo["chunk_hash"]
+      const chunkReference = causeInfo["chunk_reference"]
+
+      if (typeof chunkHash === "string") {
+        chunkRef = chunkHash
+      } else if (typeof chunkReference === "string") {
+        chunkRef = chunkReference
+      } else if (chunkReference && typeof chunkReference === "object") {
+        // Extract chunk_id or similar field, fallback to data/message
+        const chunkId = (chunkReference as Record<string, unknown>)["chunk_id"]
+        chunkRef = chunkId
+          ? String(chunkId)
+          : parsedError.data || parsedError.message
+      } else {
+        chunkRef = parsedError.data || parsedError.message
+      }
       throw new UnknownChunkError(chunkRef)
     }
 
@@ -372,8 +397,19 @@ export function parseRpcError(
     // === Network Errors ===
 
     if (causeName === "UNKNOWN_EPOCH") {
-      const blockRef =
-        (causeInfo["block_reference"] as string) || parsedError.message
+      // block_reference can be a string or an object like { block_id: 999999999 }
+      let blockRef: string
+      const blockReference = causeInfo["block_reference"]
+      if (typeof blockReference === "string") {
+        blockRef = blockReference
+      } else if (blockReference && typeof blockReference === "object") {
+        const blockId =
+          (blockReference as Record<string, unknown>).block_id ||
+          (blockReference as Record<string, unknown>).BlockId
+        blockRef = blockId ? String(blockId) : parsedError.data || parsedError.message
+      } else {
+        blockRef = parsedError.data || parsedError.message
+      }
       throw new UnknownEpochError(blockRef)
     }
 
