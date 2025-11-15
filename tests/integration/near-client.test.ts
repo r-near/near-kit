@@ -18,7 +18,6 @@ describe("Near Client - Integration Tests", () => {
     sandbox = await Sandbox.start()
     near = new Near({
       network: sandbox,
-      privateKey: sandbox.rootAccount.secretKey as PrivateKey,
     })
     console.log(`✓ Sandbox started: ${sandbox.rootAccount.id}`)
   }, 120000)

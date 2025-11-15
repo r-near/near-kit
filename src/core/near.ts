@@ -36,6 +36,7 @@ export class Near {
   private wallet?: WalletConnection
   private defaultSignerId?: string
   private defaultWaitUntil: TxExecutionStatus
+  private pendingKeyStoreInit?: Promise<void>
 
   constructor(config: NearConfig = {}) {
     // Validate configuration
@@ -62,9 +63,10 @@ export class Near {
     // Store wallet if provided
     this.wallet = validatedConfig.wallet
 
-    // Set up signer and add key to keyStore if privateKey provided
+    // Set up signer
     const signer = validatedConfig.signer
     const privateKey = validatedConfig.privateKey
+
     if (signer) {
       this.signer = signer
     } else if (privateKey) {
@@ -77,12 +79,48 @@ export class Near {
 
       // If network is a Sandbox-like object with rootAccount, add key to keyStore
       // Use original config.network (before validation) to preserve extra properties
-      const network = config["network"] as unknown
+      const network = config.network as unknown
       if (network && typeof network === "object" && "rootAccount" in network) {
         const rootAccount = (network as { rootAccount: { id: string } })
           .rootAccount
         void this.keyStore.add(rootAccount.id, keyPair)
       }
+    }
+
+    // Auto-add sandbox root key to keyStore if available and no explicit signer/privateKey
+    // This enables simple usage like: new Near({ network: sandbox })
+    // while still allowing multi-account scenarios via keyStore
+    if (!signer && !privateKey) {
+      const network = config.network as unknown
+      if (network && typeof network === "object" && "rootAccount" in network) {
+        const rootAccount = network as {
+          rootAccount: { id?: string; secretKey?: string }
+        }
+        // Guard: only auto-add if both id and secretKey are non-empty strings
+        if (
+          rootAccount.rootAccount?.id &&
+          rootAccount.rootAccount?.secretKey &&
+          typeof rootAccount.rootAccount.secretKey === "string"
+        ) {
+          const keyPair = parseKey(rootAccount.rootAccount.secretKey)
+          // Store the promise to ensure async keystores complete initialization
+          this.pendingKeyStoreInit = this.keyStore.add(
+            rootAccount.rootAccount.id,
+            keyPair,
+          )
+        }
+      }
+    }
+  }
+
+  /**
+   * Ensure any pending keystore initialization is complete
+   * @internal
+   */
+  private async ensureKeyStoreReady(): Promise<void> {
+    if (this.pendingKeyStoreInit) {
+      await this.pendingKeyStoreInit
+      this.pendingKeyStoreInit = undefined
     }
   }
 
@@ -300,6 +338,9 @@ export class Near {
     }
 
     // Use keystore approach
+    // Ensure any pending keystore initialization is complete
+    await this.ensureKeyStoreReady()
+
     const keyPair = await this.keyStore.get(signerId)
     if (!keyPair) {
       throw new NearError(
@@ -462,6 +503,9 @@ export class Near {
       this.signer,
       this.defaultWaitUntil,
       this.wallet,
+      this.pendingKeyStoreInit
+        ? () => this.ensureKeyStoreReady()
+        : undefined,
     )
   }
 
