@@ -2,6 +2,7 @@
  * Type-safe contract interface
  */
 
+import type { BlockReference } from "../core/config-schemas.js"
 import type { Near } from "../core/near.js"
 import type { CallOptions } from "../core/types.js"
 
@@ -9,11 +10,14 @@ import type { CallOptions } from "../core/types.js"
  * Contract method interface
  *
  * Methods can be defined as:
- * - View methods: (args?: ArgsType | Uint8Array) => Promise<ReturnType>
+ * - View methods: (args?: ArgsType | Uint8Array, options?: BlockReference) => Promise<ReturnType>
  * - Call methods: (args?: ArgsType | Uint8Array, options?: CallOptions) => Promise<ReturnType>
  */
 export interface ContractMethods {
-  view: Record<string, (args?: unknown) => Promise<unknown>>
+  view: Record<
+    string,
+    (args?: unknown, options?: BlockReference) => Promise<unknown>
+  >
   call: Record<
     string,
     (args?: unknown, options?: CallOptions) => Promise<unknown>
@@ -32,8 +36,11 @@ export function createContract<T extends ContractMethods>(
       {},
       {
         get: (_target, methodName: string) => {
-          return async (args?: object | Uint8Array) => {
-            return await near.view(contractId, methodName, args || {})
+          return async (
+            args?: object | Uint8Array,
+            options?: BlockReference,
+          ) => {
+            return await near.view(contractId, methodName, args || {}, options)
           }
         },
       },

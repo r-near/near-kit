@@ -12,6 +12,7 @@ import type { Amount } from "../utils/validation.js"
 import { normalizeAmount, normalizeGas } from "../utils/validation.js"
 import * as actions from "./actions.js"
 import {
+  type BlockReference,
   type NearConfig,
   NearConfigSchema,
   resolveNetworkConfig,
@@ -204,8 +205,14 @@ export class Near {
     contractId: string,
     methodName: string,
     args: object | Uint8Array = {},
+    options?: BlockReference,
   ): Promise<T> {
-    const result = await this.rpc.viewFunction(contractId, methodName, args)
+    const result = await this.rpc.viewFunction(
+      contractId,
+      methodName,
+      args,
+      options,
+    )
 
     // Decode result
     const resultBuffer = new Uint8Array(result.result)
@@ -386,9 +393,12 @@ export class Near {
   /**
    * Get account balance in NEAR
    */
-  async getBalance(accountId: string): Promise<string> {
+  async getBalance(
+    accountId: string,
+    options?: BlockReference,
+  ): Promise<string> {
     // RPC client now throws AccountDoesNotExistError directly
-    const account = await this.rpc.getAccount(accountId)
+    const account = await this.rpc.getAccount(accountId, options)
 
     // Convert yoctoNEAR to NEAR
     const balanceYocto = BigInt(account.amount)
@@ -400,9 +410,12 @@ export class Near {
   /**
    * Check if an account exists
    */
-  async accountExists(accountId: string): Promise<boolean> {
+  async accountExists(
+    accountId: string,
+    options?: BlockReference,
+  ): Promise<boolean> {
     try {
-      await this.rpc.getAccount(accountId)
+      await this.rpc.getAccount(accountId, options)
       return true
     } catch {
       return false
