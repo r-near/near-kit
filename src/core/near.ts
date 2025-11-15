@@ -39,31 +39,48 @@ export class Near {
   private pendingKeyStoreInit?: Promise<void>
 
   constructor(config: NearConfig = {}) {
-    // Validate configuration
     const validatedConfig = NearConfigSchema.parse(config)
 
-    // Determine network configuration
-    const networkConfig = resolveNetworkConfig(validatedConfig.network)
+    this._initializeRpc(validatedConfig)
+    this._resolveKeyStore(validatedConfig)
+    this._resolveSigner(validatedConfig, config)
 
-    // Initialize RPC client
+    this.defaultWaitUntil =
+      validatedConfig.defaultWaitUntil || "EXECUTED_OPTIMISTIC"
+    this.wallet = validatedConfig.wallet
+  }
+
+  /**
+   * Initialize RPC client from configuration
+   * @internal
+   */
+  private _initializeRpc(validatedConfig: ReturnType<typeof NearConfigSchema.parse>): void {
+    const networkConfig = resolveNetworkConfig(validatedConfig.network)
     const rpcUrl = validatedConfig.rpcUrl || networkConfig.rpcUrl
     this.rpc = new RpcClient(
       rpcUrl,
       validatedConfig.headers,
       validatedConfig.retryConfig,
     )
+  }
 
-    // Initialize key store
+  /**
+   * Resolve and initialize keystore from configuration
+   * @internal
+   */
+  private _resolveKeyStore(validatedConfig: ReturnType<typeof NearConfigSchema.parse>): void {
     this.keyStore = this.resolveKeyStore(validatedConfig.keyStore)
+  }
 
-    // Initialize default wait until
-    this.defaultWaitUntil =
-      validatedConfig.defaultWaitUntil || "EXECUTED_OPTIMISTIC"
-
-    // Store wallet if provided
-    this.wallet = validatedConfig.wallet
-
-    // Set up signer
+  /**
+   * Resolve and initialize signer from configuration
+   * Handles privateKey, custom signer, and sandbox root key auto-detection
+   * @internal
+   */
+  private _resolveSigner(
+    validatedConfig: ReturnType<typeof NearConfigSchema.parse>,
+    originalConfig: NearConfig,
+  ): void {
     const signer = validatedConfig.signer
     const privateKey = validatedConfig.privateKey
 
@@ -79,7 +96,7 @@ export class Near {
 
       // If network is a Sandbox-like object with rootAccount, add key to keyStore
       // Use original config.network (before validation) to preserve extra properties
-      const network = config.network as unknown
+      const network = originalConfig.network as unknown
       if (network && typeof network === "object" && "rootAccount" in network) {
         const rootAccount = (network as { rootAccount: { id: string } })
           .rootAccount
@@ -91,7 +108,7 @@ export class Near {
     // This enables simple usage like: new Near({ network: sandbox })
     // while still allowing multi-account scenarios via keyStore
     if (!signer && !privateKey) {
-      const network = config.network as unknown
+      const network = originalConfig.network as unknown
       if (network && typeof network === "object" && "rootAccount" in network) {
         const rootAccount = network as {
           rootAccount: { id?: string; secretKey?: string }
