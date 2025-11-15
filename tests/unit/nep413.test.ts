@@ -252,7 +252,7 @@ describe("NEP-413 Message Signing", () => {
 
     // Convert the base64 signature to base58 format with ed25519: prefix
     const signatureBytes = base64.decode(signedMessage.signature)
-    const base58Signature = "ed25519:" + base58.encode(signatureBytes)
+    const base58Signature = `ed25519:${base58.encode(signatureBytes)}`
 
     // Create signed message with base58 signature
     const signedMessageBase58: typeof signedMessage = {
@@ -282,7 +282,7 @@ describe("NEP-413 Message Signing", () => {
 
     // Convert to base58 with ed25519: prefix (triggers fallback because : fails base64)
     const signatureBytes = base64.decode(signedMessage.signature)
-    const base58Signature = "ed25519:" + base58.encode(signatureBytes)
+    const base58Signature = `ed25519:${base58.encode(signatureBytes)}`
 
     // Create signed message with base58 + ed25519: prefix
     const base58SignedMessage: typeof signedMessage = {
@@ -365,7 +365,9 @@ describe("NEP-413 Message Signing", () => {
     // Tamper with the signature bytes
     const signatureBytes = base64.decode(signedMessage.signature)
     // Flip the first byte
-    signatureBytes[0] = signatureBytes[0] ^ 0xff
+    if (signatureBytes[0] !== undefined) {
+      signatureBytes[0] = signatureBytes[0] ^ 0xff
+    }
     const tamperedSignature = base64.encode(signatureBytes)
 
     // Create signed message with tampered signature

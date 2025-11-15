@@ -386,8 +386,15 @@ describe("Global Contracts - Serialization", () => {
 
     expect(deserialized).toHaveProperty("deployGlobalContract")
     // Code is returned as Uint8Array after deserialization
-    expect((deserialized as any).deployGlobalContract.code).toEqual(code)
-    expect((deserialized as any).deployGlobalContract.deployMode).toEqual({
+    type DeserializedAction = {
+      deployGlobalContract: {
+        code: Uint8Array
+        deployMode: { CodeHash: object }
+      }
+    }
+    const typedDeserialized = deserialized as DeserializedAction
+    expect(typedDeserialized.deployGlobalContract.code).toEqual(code)
+    expect(typedDeserialized.deployGlobalContract.deployMode).toEqual({
       CodeHash: {},
     })
   })

@@ -243,7 +243,7 @@ describe("Seed Phrase Parsing", () => {
 
     // All should produce the same public key
     for (let i = 1; i < keys.length; i++) {
-      expect(keys[i].publicKey.toString()).toBe(keys[0].publicKey.toString())
+      expect(keys[i]?.publicKey.toString()).toBe(keys[0]?.publicKey.toString())
     }
   })
 })

@@ -551,7 +551,11 @@ describe("FileKeyStore - list() method", () => {
   })
 
   test("should return empty array for non-existent directory", async () => {
-    const keyStore = new FileKeyStore(tempDir, "nonexistent" as any)
+    // Using invalid network to test error handling
+    const keyStore = new FileKeyStore(
+      tempDir,
+      "nonexistent" as unknown as "mainnet",
+    )
 
     const accounts = await keyStore.list()
 
