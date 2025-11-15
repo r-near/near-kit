@@ -7,8 +7,9 @@
 
 import { describe, expect, test } from "bun:test"
 import { Near } from "../../src/core/near.js"
+import type { Signer } from "../../src/core/types.js"
+import { KeyType } from "../../src/core/types.js"
 import { InMemoryKeyStore } from "../../src/keys/index.js"
-import type { KeyPair, Signer } from "../../src/core/types.js"
 import { generateKey } from "../../src/utils/key.js"
 
 describe("Near Constructor - RPC Initialization", () => {
@@ -84,9 +85,12 @@ describe("Near Constructor - KeyStore Resolution", () => {
 
 describe("Near Constructor - Signer Resolution", () => {
   test("_resolveSigner: accepts custom signer function", async () => {
-    const customSigner: Signer = async (message: Uint8Array) => {
+    const customSigner: Signer = async (_message: Uint8Array) => {
       // Mock signer that returns a fixed signature
-      return new Uint8Array(64).fill(1)
+      return {
+        keyType: KeyType.ED25519,
+        data: new Uint8Array(64).fill(1),
+      }
     }
 
     const near = new Near({
@@ -101,7 +105,7 @@ describe("Near Constructor - Signer Resolution", () => {
     const testKey = generateKey()
     const near = new Near({
       network: "mainnet",
-      privateKey: testKey.secretKey,
+      privateKey: testKey.secretKey as `ed25519:${string}`,
     })
 
     expect(near["signer"]).toBeDefined()
@@ -121,7 +125,7 @@ describe("Near Constructor - Signer Resolution", () => {
 
     const near = new Near({
       network: mockSandbox,
-      privateKey: rootKey.secretKey,
+      privateKey: rootKey.secretKey as `ed25519:${string}`,
     })
 
     // Should have added the key to keyStore for sandbox
@@ -167,8 +171,11 @@ describe("Near Constructor - Signer Resolution", () => {
       },
     }
 
-    const customSigner: Signer = async (message: Uint8Array) => {
-      return new Uint8Array(64).fill(1)
+    const customSigner: Signer = async (_message: Uint8Array) => {
+      return {
+        keyType: KeyType.ED25519,
+        data: new Uint8Array(64).fill(1),
+      }
     }
 
     const near = new Near({
@@ -214,7 +221,9 @@ describe("Near Constructor - Default Configuration", () => {
   test("stores wallet connection", () => {
     const mockWallet = {
       getAccounts: async () => [{ accountId: "alice.near" }],
-      signAndSendTransaction: async () => {},
+      signAndSendTransaction: async () => ({
+        final_execution_status: "NONE" as const,
+      }),
     }
 
     const near = new Near({

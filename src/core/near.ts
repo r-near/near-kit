@@ -31,8 +31,8 @@ import type {
 } from "./types.js"
 
 export class Near {
-  private rpc: RpcClient
-  private keyStore: KeyStore
+  private rpc!: RpcClient
+  private keyStore!: KeyStore
   private signer?: Signer
   private wallet?: WalletConnection
   private defaultSignerId?: string
@@ -55,7 +55,9 @@ export class Near {
    * Initialize RPC client from configuration
    * @internal
    */
-  private _initializeRpc(validatedConfig: ReturnType<typeof NearConfigSchema.parse>): void {
+  private _initializeRpc(
+    validatedConfig: ReturnType<typeof NearConfigSchema.parse>,
+  ): void {
     const networkConfig = resolveNetworkConfig(validatedConfig.network)
     const rpcUrl = validatedConfig.rpcUrl || networkConfig.rpcUrl
     this.rpc = new RpcClient(
@@ -69,7 +71,9 @@ export class Near {
    * Resolve and initialize keystore from configuration
    * @internal
    */
-  private _resolveKeyStore(validatedConfig: ReturnType<typeof NearConfigSchema.parse>): void {
+  private _resolveKeyStore(
+    validatedConfig: ReturnType<typeof NearConfigSchema.parse>,
+  ): void {
     this.keyStore = this.resolveKeyStore(validatedConfig.keyStore)
   }
 
