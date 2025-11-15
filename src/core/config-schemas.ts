@@ -36,6 +36,20 @@ export type NetworkPreset = z.infer<typeof NetworkPresetSchema>
 export type CustomNetworkConfig = z.infer<typeof CustomNetworkConfigSchema>
 export type NetworkConfig = z.infer<typeof NetworkConfigSchema>
 
+// ==================== Transaction Execution Status Schema ====================
+
+/**
+ * Schema for transaction execution status
+ */
+export const TxExecutionStatusSchema = z.enum([
+  "NONE",
+  "INCLUDED",
+  "EXECUTED_OPTIMISTIC",
+  "INCLUDED_FINAL",
+  "EXECUTED",
+  "FINAL",
+])
+
 // ==================== Call Options Schema ====================
 
 /**
@@ -45,6 +59,7 @@ export const CallOptionsSchema = z.object({
   gas: z.string().optional(),
   attachedDeposit: z.union([z.string(), z.bigint()]).optional(),
   signerId: z.string().optional(),
+  waitUntil: TxExecutionStatusSchema.optional(),
 })
 
 export type CallOptions = z.infer<typeof CallOptionsSchema>
@@ -122,18 +137,6 @@ export const KeyStoreConfigSchema = z.union([
 export const SignerSchema = z.any() // Function schema validation - simplified
 
 /**
- * Schema for transaction execution status
- */
-export const TxExecutionStatusSchema = z.enum([
-  "NONE",
-  "INCLUDED",
-  "EXECUTED_OPTIMISTIC",
-  "INCLUDED_FINAL",
-  "EXECUTED",
-  "FINAL",
-])
-
-/**
  * Schema for RPC retry configuration
  */
 export const RpcRetryConfigSchema = z
@@ -160,6 +163,7 @@ export const NearConfigSchema = z.object({
   signer: SignerSchema.optional(),
   privateKey: z.union([PrivateKeySchema, z.instanceof(Uint8Array)]).optional(),
   wallet: z.any().optional(), // WalletConnection interface
+  defaultSignerId: z.string().optional(),
   defaultWaitUntil: TxExecutionStatusSchema.optional(),
   retryConfig: RpcRetryConfigSchema.optional(),
 })
