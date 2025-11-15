@@ -41,8 +41,25 @@ jobs:
       - name: Install dependencies
         run: bun install
 
-      - name: Run unit tests
-        run: bun test tests/unit
+      - name: Run unit tests with coverage
+        run: bun test tests/unit --coverage
+
+      - name: Upload coverage reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 30
+
+      - name: Generate coverage summary
+        if: always()
+        run: |
+          echo "## Test Coverage Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          bun test tests/unit --coverage 2>&1 | grep -A 100 "All files" | head -30 >> $GITHUB_STEP_SUMMARY || echo "Coverage data not available" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
 
   integration-tests:
     runs-on: arc-runner-set
