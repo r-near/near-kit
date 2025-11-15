@@ -8,7 +8,10 @@ import {
   NearError,
   NetworkError,
 } from "../../errors/index.js"
-import type { RpcRetryConfigInput } from "../config-schemas.js"
+import type {
+  BlockReference,
+  RpcRetryConfigInput,
+} from "../config-schemas.js"
 import type {
   AccessKeyView,
   AccountView,
@@ -196,6 +199,7 @@ export class RpcClient {
     contractId: string,
     methodName: string,
     args: unknown = {},
+    options?: BlockReference,
   ): Promise<ViewFunctionCallResult> {
     const argsBytes =
       args instanceof Uint8Array
@@ -205,7 +209,9 @@ export class RpcClient {
 
     const result = await this.call("query", {
       request_type: "call_function",
-      finality: "final",
+      ...(options?.blockId
+        ? { block_id: options.blockId }
+        : { finality: options?.finality || "final" }),
       account_id: contractId,
       method_name: methodName,
       args_base64: argsBase64,
@@ -217,10 +223,15 @@ export class RpcClient {
     return ViewFunctionCallResultSchema.parse(result)
   }
 
-  async getAccount(accountId: string): Promise<AccountView> {
+  async getAccount(
+    accountId: string,
+    options?: BlockReference,
+  ): Promise<AccountView> {
     const result = await this.call("query", {
       request_type: "view_account",
-      finality: "optimistic", // Use optimistic for latest state (important for sandbox/localnet)
+      ...(options?.blockId
+        ? { block_id: options.blockId }
+        : { finality: options?.finality || "optimistic" }),
       account_id: accountId,
     })
 
@@ -230,10 +241,13 @@ export class RpcClient {
   async getAccessKey(
     accountId: string,
     publicKey: string,
+    options?: BlockReference,
   ): Promise<AccessKeyView> {
     const result = await this.call("query", {
       request_type: "view_access_key",
-      finality: "optimistic", // Use optimistic for latest state (important for sandbox/localnet)
+      ...(options?.blockId
+        ? { block_id: options.blockId }
+        : { finality: options?.finality || "optimistic" }),
       account_id: accountId,
       public_key: publicKey,
     })

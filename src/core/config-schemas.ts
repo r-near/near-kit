@@ -49,6 +49,62 @@ export const CallOptionsSchema = z.object({
 
 export type CallOptions = z.infer<typeof CallOptionsSchema>
 
+// ==================== Block Reference Schema ====================
+
+/**
+ * Block reference for RPC queries
+ *
+ * Specify either `finality` OR `blockId` (not both).
+ * If both are provided, `blockId` takes precedence.
+ *
+ * @example
+ * ```typescript
+ * // Query at final block (default)
+ * await near.view('contract.near', 'get_value')
+ *
+ * // Query at optimistic for latest state
+ * await near.view('contract.near', 'get_value', {}, {
+ *   finality: 'optimistic'
+ * })
+ *
+ * // Query at specific block height
+ * await near.view('contract.near', 'get_value', {}, {
+ *   blockId: 27912554
+ * })
+ *
+ * // Query at specific block hash
+ * await near.view('contract.near', 'get_value', {}, {
+ *   blockId: '3Xz2wM9rigMXzA2c5vgCP8wTgFBaePucgUmVYPkMqhRL'
+ * })
+ * ```
+ */
+export const BlockReferenceSchema = z.object({
+  /**
+   * Finality level for the query
+   *
+   * - `optimistic`: Block that might be skipped (~1s after submission). Use for latest state.
+   * - `near-final`: Irreversible unless a validator is slashed (~2s after submission)
+   * - `final`: Fully finalized and irreversible (~3s after submission). DEFAULT for view calls.
+   *
+   * @default "final" for view calls, "optimistic" for account/key queries
+   * @see https://docs.near.org/api/rpc/setup#using-finality-param
+   */
+  finality: z.enum(["optimistic", "near-final", "final"]).optional(),
+
+  /**
+   * Block ID to query at - can be block number or block hash
+   *
+   * Use block number (e.g., `27912554`) or block hash
+   * (e.g., `'3Xz2wM9rigMXzA2c5vgCP8wTgFBaePucgUmVYPkMqhRL'`) to query
+   * historical state.
+   *
+   * Mutually exclusive with `finality`. If both are provided, `blockId` takes precedence.
+   */
+  blockId: z.union([z.number(), z.string()]).optional(),
+})
+
+export type BlockReference = z.infer<typeof BlockReferenceSchema>
+
 // ==================== Near Config Schema ====================
 
 /**
