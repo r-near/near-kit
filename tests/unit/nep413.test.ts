@@ -4,8 +4,10 @@
 
 import { describe, expect, test } from "bun:test"
 import type { SignMessageParams } from "../../src/core/types.js"
+import { base58, base64 } from "@scure/base"
 import {
   Ed25519KeyPair,
+  Secp256k1KeyPair,
   generateNep413Nonce,
   NEP413_TAG,
   serializeNep413Message,
@@ -213,5 +215,168 @@ describe("NEP-413 Message Signing", () => {
     const signedMessage = keyPair.signNep413Message(accountId, params)
     const isValid = verifyNep413Signature(signedMessage, params)
     expect(isValid).toBe(true)
+  })
+
+  test("should reject non-Ed25519 keys (secp256k1) for NEP-413 verification", () => {
+    const keyPair = Secp256k1KeyPair.fromRandom()
+    const accountId = "test.near"
+    const nonce = generateNep413Nonce()
+
+    const params: SignMessageParams = {
+      message: "Login to MyApp",
+      recipient: "myapp.near",
+      nonce,
+    }
+
+    // Sign with secp256k1 key
+    const signedMessage = keyPair.signNep413Message(accountId, params)
+
+    // Verification should fail because secp256k1 (keyType=1) is not supported
+    const isValid = verifyNep413Signature(signedMessage, params)
+    expect(isValid).toBe(false)
+  })
+
+  test("should verify base58-encoded signature with ed25519 prefix", () => {
+    const keyPair = Ed25519KeyPair.fromRandom()
+    const accountId = "test.near"
+    const nonce = generateNep413Nonce()
+
+    const params: SignMessageParams = {
+      message: "Login to MyApp",
+      recipient: "myapp.near",
+      nonce,
+    }
+
+    // Create a normal signature (base64)
+    const signedMessage = keyPair.signNep413Message(accountId, params)
+
+    // Convert the base64 signature to base58 format with ed25519: prefix
+    const signatureBytes = base64.decode(signedMessage.signature)
+    const base58Signature = "ed25519:" + base58.encode(signatureBytes)
+
+    // Create signed message with base58 signature
+    const signedMessageBase58: typeof signedMessage = {
+      accountId,
+      publicKey: signedMessage.publicKey,
+      signature: base58Signature,
+    }
+
+    // Verification should succeed with base58 signature
+    const isValid = verifyNep413Signature(signedMessageBase58, params)
+    expect(isValid).toBe(true)
+  })
+
+  test("should use base58 fallback when base64 decode fails", () => {
+    const keyPair = Ed25519KeyPair.fromRandom()
+    const accountId = "test.near"
+    const nonce = generateNep413Nonce()
+
+    const params: SignMessageParams = {
+      message: "Login to MyApp",
+      recipient: "myapp.near",
+      nonce,
+    }
+
+    // Create a normal signature (base64)
+    const signedMessage = keyPair.signNep413Message(accountId, params)
+
+    // Convert to base58 with ed25519: prefix (triggers fallback because : fails base64)
+    const signatureBytes = base64.decode(signedMessage.signature)
+    const base58Signature = "ed25519:" + base58.encode(signatureBytes)
+
+    // Create signed message with base58 + ed25519: prefix
+    const base58SignedMessage: typeof signedMessage = {
+      accountId,
+      publicKey: signedMessage.publicKey,
+      signature: base58Signature,
+    }
+
+    // Verification should succeed - fallback decodes as base58
+    const isValid = verifyNep413Signature(base58SignedMessage, params)
+    expect(isValid).toBe(true)
+  })
+
+  test("should return false when both base64 and base58 decoding fail", () => {
+    const keyPair = Ed25519KeyPair.fromRandom()
+    const accountId = "test.near"
+    const nonce = generateNep413Nonce()
+
+    const params: SignMessageParams = {
+      message: "Login to MyApp",
+      recipient: "myapp.near",
+      nonce,
+    }
+
+    // Create a valid signed message
+    const signedMessage = keyPair.signNep413Message(accountId, params)
+
+    // Create an invalid signature that cannot be decoded as base64 or base58
+    const invalidSignedMessage: typeof signedMessage = {
+      accountId,
+      publicKey: signedMessage.publicKey,
+      signature: "!!!invalid!!!signature!!!that!!!cannot!!!be!!!decoded!!!",
+    }
+
+    // Verification should return false
+    const isValid = verifyNep413Signature(invalidSignedMessage, params)
+    expect(isValid).toBe(false)
+  })
+
+  test("should return false when public key parsing fails", () => {
+    const keyPair = Ed25519KeyPair.fromRandom()
+    const accountId = "test.near"
+    const nonce = generateNep413Nonce()
+
+    const params: SignMessageParams = {
+      message: "Login to MyApp",
+      recipient: "myapp.near",
+      nonce,
+    }
+
+    // Create a valid signed message
+    const signedMessage = keyPair.signNep413Message(accountId, params)
+
+    // Create an invalid signed message with bad public key format
+    const invalidSignedMessage: typeof signedMessage = {
+      accountId,
+      publicKey: "invalid:publickey:format",
+      signature: signedMessage.signature,
+    }
+
+    // Verification should return false
+    const isValid = verifyNep413Signature(invalidSignedMessage, params)
+    expect(isValid).toBe(false)
+  })
+
+  test("should return false when signature verification fails", () => {
+    const keyPair = Ed25519KeyPair.fromRandom()
+    const accountId = "test.near"
+    const nonce = generateNep413Nonce()
+
+    const params: SignMessageParams = {
+      message: "Login to MyApp",
+      recipient: "myapp.near",
+      nonce,
+    }
+
+    // Create a valid signed message
+    const signedMessage = keyPair.signNep413Message(accountId, params)
+
+    // Tamper with the signature bytes
+    const signatureBytes = base64.decode(signedMessage.signature)
+    // Flip the first byte
+    signatureBytes[0] = signatureBytes[0] ^ 0xff
+    const tamperedSignature = base64.encode(signatureBytes)
+
+    // Create signed message with tampered signature
+    const tamperedSignedMessage: typeof signedMessage = {
+      accountId,
+      publicKey: signedMessage.publicKey,
+      signature: tamperedSignature,
+    }
+
+    // Verification should fail due to tampered signature
+    const isValid = verifyNep413Signature(tamperedSignedMessage, params)
+    expect(isValid).toBe(false)
   })
 })

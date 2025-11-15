@@ -3,7 +3,7 @@
  */
 
 import { describe, expect, test } from "bun:test"
-import { formatGas, Gas, parseGas } from "../../src/utils/gas.js"
+import { formatGas, Gas, parseGas, toGas, toTGas } from "../../src/utils/gas.js"
 
 describe("Gas", () => {
   describe("Gas.Tgas()", () => {
@@ -128,6 +128,14 @@ describe("parseGas", () => {
       expect(() => parseGas("")).toThrow("Invalid gas format")
     })
 
+    test("throws on invalid numeric format in Tgas", () => {
+      expect(() => parseGas(".. Tgas")).toThrow("Invalid Tgas value")
+    })
+
+    test("throws on multiple dots that result in NaN", () => {
+      expect(() => parseGas("... Tgas")).toThrow("Invalid Tgas value")
+    })
+
     test("provides helpful error message", () => {
       try {
         parseGas("invalid")
@@ -196,5 +204,93 @@ describe("formatGas", () => {
       const parsed = parseGas(formatted)
       expect(parsed).toBe(raw)
     })
+  })
+})
+
+describe("toGas", () => {
+  test("converts 0 TGas to raw gas", () => {
+    const result = toGas(0)
+    expect(result).toBe("0")
+  })
+
+  test("converts 1 TGas to raw gas", () => {
+    const result = toGas(1)
+    expect(result).toBe("1000000000000")
+  })
+
+  test("converts 30 TGas to raw gas", () => {
+    const result = toGas(30)
+    expect(result).toBe("30000000000000")
+  })
+
+  test("converts 300 TGas to raw gas", () => {
+    const result = toGas(300)
+    expect(result).toBe("300000000000000")
+  })
+
+  test("converts decimal TGas to raw gas", () => {
+    const result = toGas(30.5)
+    expect(result).toBe("30500000000000")
+  })
+
+  test("converts 0.001 TGas to raw gas", () => {
+    const result = toGas(0.001)
+    expect(result).toBe("1000000000")
+  })
+
+  test("rounds down decimal TGas values", () => {
+    const result = toGas(30.999)
+    expect(result).toBe("30999000000000")
+  })
+})
+
+describe("toTGas", () => {
+  test("converts 0 raw gas to TGas", () => {
+    const result = toTGas("0")
+    expect(result).toBe(0)
+  })
+
+  test("converts 1 Tgas raw gas to TGas from string", () => {
+    const result = toTGas("1000000000000")
+    expect(result).toBe(1)
+  })
+
+  test("converts 30 Tgas raw gas to TGas from string", () => {
+    const result = toTGas("30000000000000")
+    expect(result).toBe(30)
+  })
+
+  test("converts 300 Tgas raw gas to TGas from string", () => {
+    const result = toTGas("300000000000000")
+    expect(result).toBe(300)
+  })
+
+  test("converts raw gas to TGas from bigint", () => {
+    const result = toTGas(30000000000000n)
+    expect(result).toBe(30)
+  })
+
+  test("converts decimal raw gas to TGas from string", () => {
+    const result = toTGas("30500000000000")
+    expect(result).toBe(30.5)
+  })
+
+  test("converts decimal raw gas to TGas from bigint", () => {
+    const result = toTGas(30500000000000n)
+    expect(result).toBe(30.5)
+  })
+
+  test("toGas and toTGas round-trip with string input", () => {
+    const original = 30
+    const converted = toGas(original)
+    const backToTGas = toTGas(converted)
+    expect(backToTGas).toBe(original)
+  })
+
+  test("toGas and toTGas round-trip with bigint", () => {
+    const raw = 30000000000000n
+    const tgas = toTGas(raw)
+    const backToRaw = toGas(tgas)
+    expect(BigInt(backToRaw)).toBe(raw)
   })
 })
