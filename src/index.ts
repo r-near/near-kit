@@ -29,7 +29,6 @@ export type {
   Signature,
   SignedMessage,
   SignMessageParams,
-  SimulationResult,
   TxExecutionStatus,
   WalletAccount,
   WalletConnection,

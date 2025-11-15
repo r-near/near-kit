@@ -117,6 +117,11 @@ export class RpcClient {
     const totalAttempts = 1 + this.retryConfig.maxRetries
     for (let attempt = 0; attempt < totalAttempts; attempt++) {
       try {
+        // Debug logging for RPC requests
+        if (process.env.NEAR_RPC_DEBUG === "true") {
+          console.log("[RPC Request]", JSON.stringify(request, null, 2))
+        }
+
         const response = await fetch(this.url, {
           method: "POST",
           headers: {
@@ -136,6 +141,11 @@ export class RpcClient {
         }
 
         const data: RpcResponse<T> = await response.json()
+
+        // Debug logging for RPC responses
+        if (process.env.NEAR_RPC_DEBUG === "true") {
+          console.log("[RPC Response]", JSON.stringify(data, null, 2))
+        }
 
         if (data.error) {
           // Pass status code to parseRpcError for better retryable detection

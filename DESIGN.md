@@ -1,16 +1,5 @@
 A few more things to consider:
 
-## Gas estimation
-```typescript
-// Estimate before sending
-const estimate = await near.estimateGas(
-  near.transaction('alice.near')
-    .transfer('bob.near', '10')
-    .functionCall('market.near', 'list', { price: '100' })
-);
-// Returns: { total: '45 Tgas', breakdown: [...] }
-```
-
 ## Error handling
 ```typescript
 // Typed errors
@@ -154,7 +143,6 @@ class TransactionBuilder {
   // Execution
   build(): Promise<UnsignedTransaction>;  // Returns unsigned
   send(): Promise<FinalExecutionOutcome>;  // Signs and sends
-  simulate(): Promise<SimulationResult>;  // Dry run
   signWith(key: string | Signer): this;  // Override signer
 }
 
@@ -345,12 +333,6 @@ interface FinalExecutionOutcome {
   transaction: Transaction;
   transaction_outcome: ExecutionOutcomeWithId;
   receipts_outcome: ExecutionOutcomeWithId[];
-}
-
-interface SimulationResult {
-  outcome: FinalExecutionOutcome;
-  gasUsed: string;
-  error?: string;
 }
 ```
 

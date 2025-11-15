@@ -27,7 +27,7 @@
  * - The `signerId` (set via `Near.transaction()`) is the account that signs and pays for gas
  * - All actions execute in the order they are added
  * - Transaction is only sent when `.send()` is called
- * - Use `.build()` to get unsigned transaction, or `.simulate()` to test without sending
+ * - Use `.build()` to get unsigned transaction
  */
 
 import { base58 } from "@scure/base"
@@ -60,7 +60,6 @@ import type {
   SendOptions,
   SignedTransaction,
   Signer,
-  SimulationResult,
   Transaction,
   TxExecutionStatus,
   WalletConnection,
@@ -726,10 +725,4 @@ export class TransactionBuilder {
     )
   }
 
-  /**
-   * Simulate the transaction without sending it
-   */
-  async simulate(): Promise<SimulationResult> {
-    throw new Error("simulate() not yet implemented")
-  }
 }

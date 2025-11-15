@@ -262,12 +262,11 @@ The library is built around a main `Near` class with three interaction patterns:
 - Handles network configuration (mainnet/testnet/localnet/custom)
 - Manages key storage (file-based, in-memory, encrypted)
 - Wallet integration (browser)
-- Auto-gas estimation (enabled by default)
 
 **Transaction Builder** (`near.transaction()`)
 - Fluent API for chaining actions: transfer, createAccount, deployContract, functionCall, etc.
-- Returns builder with `.send()`, `.build()`, `.simulate()` methods
-- Handles gas estimation and signing
+- Returns builder with `.send()` and `.build()` methods
+- Handles transaction signing
 
 **Contract Interface** (`near.contract<T>()`)
 - Splits contract methods into `view` (read-only) and `call` (write)

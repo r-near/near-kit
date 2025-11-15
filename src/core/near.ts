@@ -47,6 +47,9 @@ export class Near {
     this._resolveKeyStore(validatedConfig)
     this._resolveSigner(validatedConfig, config)
 
+    if (validatedConfig.defaultSignerId) {
+      this.defaultSignerId = validatedConfig.defaultSignerId
+    }
     this.defaultWaitUntil =
       validatedConfig.defaultWaitUntil || "EXECUTED_OPTIMISTIC"
     this.wallet = validatedConfig.wallet
@@ -283,9 +286,11 @@ export class Near {
       functionCallOptions.attachedDeposit = options.attachedDeposit
     }
 
+    const sendOptions = options.waitUntil ? { waitUntil: options.waitUntil } : {}
+
     const result = await this.transaction(signerId)
       .functionCall(contractId, methodName, args, functionCallOptions)
-      .send()
+      .send(sendOptions)
 
     return result as T
   }

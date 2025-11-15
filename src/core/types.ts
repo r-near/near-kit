@@ -226,12 +226,6 @@ export type {
 // Import for use in this file
 import type { FinalExecutionOutcome } from "./rpc/rpc-schemas.js"
 
-export interface SimulationResult {
-  outcome: FinalExecutionOutcome
-  gasUsed: string
-  error?: string
-}
-
 // ==================== RPC Types ====================
 
 /**
@@ -350,14 +344,4 @@ export interface WalletConnection {
    * Sign a message using the wallet (optional)
    */
   signMessage?(params: SignMessageParams): Promise<SignedMessage>
-}
-
-// ==================== Gas Estimation ====================
-
-export interface GasEstimate {
-  total: string
-  breakdown: Array<{
-    action: string
-    gas: string
-  }>
 }
