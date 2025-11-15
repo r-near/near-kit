@@ -273,25 +273,6 @@ export class NodeNotSyncedError extends NearError {
 }
 
 /**
- * Thrown when access key is not found
- */
-export class UnknownAccessKeyError extends NearError {
-  accountId: string
-  publicKey: string
-
-  constructor(accountId: string, publicKey: string) {
-    super(
-      `Access key not found: ${publicKey} for account ${accountId}`,
-      "UNKNOWN_ACCESS_KEY",
-    )
-    this.name = "UnknownAccessKeyError"
-    this.accountId = accountId
-    this.publicKey = publicKey
-    Object.setPrototypeOf(this, UnknownAccessKeyError.prototype)
-  }
-}
-
-/**
  * Thrown when an account has no contract deployed
  */
 export class ContractNotDeployedError extends NearError {

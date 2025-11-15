@@ -4,6 +4,7 @@
  */
 
 import {
+  AccessKeyDoesNotExistError,
   AccountDoesNotExistError,
   ContractExecutionError,
   ContractNotDeployedError,
@@ -20,7 +21,6 @@ import {
   ParseError,
   ShardUnavailableError,
   TimeoutError,
-  UnknownAccessKeyError,
   UnknownBlockError,
   UnknownChunkError,
   UnknownEpochError,
@@ -225,6 +225,47 @@ export function isRetryableStatus(statusCode: number): boolean {
 }
 
 /**
+ * Context for parsing query errors
+ */
+interface QueryErrorContext {
+  accountId?: string
+  publicKey?: string
+  contractId?: string
+  methodName?: string
+}
+
+/**
+ * Parse query result errors (from result.error field)
+ * Query methods (view_access_key, call_function) return errors in result.error
+ * instead of the top-level error field
+ */
+export function parseQueryError(
+  result: unknown,
+  context: QueryErrorContext = {},
+): void {
+  if (!result || typeof result !== "object" || !("error" in result)) {
+    return
+  }
+
+  const errorMsg = (result as { error: string }).error
+
+  // Access key not found
+  if (errorMsg.includes("does not exist")) {
+    const accountId = context.accountId || "unknown"
+    const publicKey = context.publicKey || "unknown"
+    throw new AccessKeyDoesNotExistError(accountId, publicKey)
+  }
+
+  // Function call errors (method not found, execution failures, etc.)
+  if (context.contractId) {
+    throw new FunctionCallError(context.contractId, context.methodName, errorMsg)
+  }
+
+  // Generic query error
+  throw new NetworkError(`Query error: ${errorMsg}`)
+}
+
+/**
  * Parse RPC error and throw appropriate typed error
  * Follows NEAR RPC error documentation
  */
@@ -269,14 +310,6 @@ export function parseRpcError(
 
     if (causeName === "NO_SYNCED_BLOCKS" || causeName === "NOT_SYNCED_YET") {
       throw new NodeNotSyncedError(parsedError.message)
-    }
-
-    // === Access Key Errors ===
-
-    if (causeName === "UNKNOWN_ACCESS_KEY") {
-      const accountId = (causeInfo["account_id"] as string) || "unknown"
-      const publicKey = (causeInfo["public_key"] as string) || "unknown"
-      throw new UnknownAccessKeyError(accountId, publicKey)
     }
 
     // === Contract Errors ===
