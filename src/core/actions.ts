@@ -24,6 +24,7 @@ import type {
   Ed25519PublicKey,
   PublicKey,
   Secp256k1PublicKey,
+  Signature,
 } from "./types.js"
 
 // ==================== Action Data Classes ====================
@@ -133,12 +134,9 @@ export class DelegateAction {
 
 export class SignedDelegate {
   delegateAction: DelegateAction
-  signature: import("./types.js").Signature
+  signature: Signature
 
-  constructor(
-    delegateAction: DelegateAction,
-    signature: import("./types.js").Signature,
-  ) {
+  constructor(delegateAction: DelegateAction, signature: Signature) {
     this.delegateAction = delegateAction
     this.signature = signature
   }
@@ -359,7 +357,7 @@ export function deployFromPublished(
  */
 export function signedDelegate(
   delegateAction: DelegateAction,
-  signature: import("./types.js").Signature,
+  signature: Signature,
 ): SignedDelegateAction {
   return {
     signedDelegate: {

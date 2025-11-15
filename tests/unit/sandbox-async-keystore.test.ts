@@ -9,6 +9,7 @@ import { describe, expect, test } from "bun:test"
 import { Near } from "../../src/core/near.js"
 import type { KeyPair, KeyStore } from "../../src/core/types.js"
 import { generateKey } from "../../src/utils/key.js"
+import type { PrivateKey } from "../../src/utils/validation.js"
 
 /**
  * Mock async KeyStore that simulates file I/O delay
@@ -129,7 +130,7 @@ describe("Sandbox async keyStore initialization", () => {
     // So no async keyStore initialization should happen
     const near = new Near({
       network: mockSandbox,
-      privateKey: rootKey.secretKey,
+      privateKey: rootKey.secretKey as PrivateKey,
       keyStore: slowKeyStore,
     })
 

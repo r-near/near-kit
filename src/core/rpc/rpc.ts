@@ -80,12 +80,21 @@ export class RpcClient {
   constructor(
     url: string,
     headers?: Record<string, string>,
-    retryConfig?: Partial<RpcRetryConfig>,
+    retryConfig?:
+      | {
+          maxRetries?: number | undefined
+          initialDelayMs?: number | undefined
+        }
+      | undefined,
   ) {
     this.url = url
     this.headers = headers || {}
     this.requestId = 0
-    this.retryConfig = { ...DEFAULT_RETRY_CONFIG, ...retryConfig }
+    this.retryConfig = {
+      maxRetries: retryConfig?.maxRetries ?? DEFAULT_RETRY_CONFIG.maxRetries,
+      initialDelayMs:
+        retryConfig?.initialDelayMs ?? DEFAULT_RETRY_CONFIG.initialDelayMs,
+    }
   }
 
   /**

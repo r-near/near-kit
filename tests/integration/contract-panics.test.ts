@@ -67,6 +67,9 @@ describe("Contract Failure Modes", () => {
 
         throw new Error("Expected transaction to fail")
       } catch (error: unknown) {
+        if (!(error instanceof FunctionCallError)) {
+          throw error
+        }
         console.log("\n=== Missing Param Error ===")
         console.log("Error name:", error.name)
         console.log("Error message:", error.message)
@@ -92,6 +95,9 @@ describe("Contract Failure Modes", () => {
 
         throw new Error("Expected transaction to fail")
       } catch (error: unknown) {
+        if (!(error instanceof FunctionCallError)) {
+          throw error
+        }
         console.log("\n=== Non-Existent Method Error ===")
         console.log("Error name:", error.name)
         console.log("Error message:", error.message)
@@ -116,6 +122,9 @@ describe("Contract Failure Modes", () => {
 
         throw new Error("Expected transaction to fail")
       } catch (error: unknown) {
+        if (!(error instanceof FunctionCallError)) {
+          throw error
+        }
         expect(error).toBeInstanceOf(FunctionCallError)
         expect(error.logs).toBeDefined()
         expect(Array.isArray(error.logs)).toBe(true)
@@ -136,6 +145,9 @@ describe("Contract Failure Modes", () => {
 
         throw new Error("Expected transaction to fail")
       } catch (error: unknown) {
+        if (!(error instanceof FunctionCallError)) {
+          throw error
+        }
         expect(error).toBeInstanceOf(FunctionCallError)
         expect(error.panic).toBeDefined()
         console.log("✓ EXECUTED_OPTIMISTIC throws FunctionCallError")
@@ -151,6 +163,9 @@ describe("Contract Failure Modes", () => {
 
         throw new Error("Expected transaction to fail")
       } catch (error: unknown) {
+        if (!(error instanceof FunctionCallError)) {
+          throw error
+        }
         expect(error).toBeInstanceOf(FunctionCallError)
         expect(error.panic).toBeDefined()
         console.log("✓ FINAL throws FunctionCallError")
@@ -200,6 +215,9 @@ describe("Contract Failure Modes", () => {
 
         throw new Error("Expected transaction to fail")
       } catch (error: unknown) {
+        if (!(error instanceof InvalidTransactionError)) {
+          throw error
+        }
         console.log("\n=== Multi-Action Non-Function-Call Failure ===")
         console.log("Error name:", error.name)
         console.log("Error message:", error.message)
@@ -226,6 +244,9 @@ describe("Contract Failure Modes", () => {
 
         throw new Error("Expected transaction to fail")
       } catch (error: unknown) {
+        if (!(error instanceof FunctionCallError)) {
+          throw error
+        }
         console.log("\n=== Multi-Action Function Call Failure ===")
         console.log("Error name:", error.name)
         console.log("Error message:", error.message)
@@ -251,6 +272,9 @@ describe("Contract Failure Modes", () => {
 
         throw new Error("Expected transaction to fail")
       } catch (error: unknown) {
+        if (!(error instanceof FunctionCallError)) {
+          throw error
+        }
         expect(error).toBeInstanceOf(FunctionCallError)
 
         // Panic message should be specific, not generic
@@ -284,6 +308,9 @@ describe("Contract Failure Modes", () => {
 
           throw new Error("Expected transaction to fail")
         } catch (error: unknown) {
+          if (!(error instanceof FunctionCallError)) {
+            throw error
+          }
           expect(error).toBeInstanceOf(FunctionCallError)
           expect(error.methodName).toBe(method)
           console.log(`✓ Method name correctly identified: ${method}`)

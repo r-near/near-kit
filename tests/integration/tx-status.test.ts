@@ -5,8 +5,10 @@
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test"
 import { Near } from "../../src/core/near.js"
+import { InvalidTransactionError } from "../../src/errors/index.js"
 import { Sandbox } from "../../src/sandbox/sandbox.js"
 import { generateKey } from "../../src/utils/key.js"
+import type { PrivateKey } from "../../src/utils/validation.js"
 
 describe("txStatus - EXPERIMENTAL_tx_status RPC Method", () => {
   let sandbox: Sandbox
@@ -16,7 +18,7 @@ describe("txStatus - EXPERIMENTAL_tx_status RPC Method", () => {
     sandbox = await Sandbox.start()
     near = new Near({
       network: sandbox,
-      privateKey: sandbox.rootAccount.secretKey,
+      privateKey: sandbox.rootAccount.secretKey as PrivateKey,
     })
     console.log(`✓ Sandbox started at ${sandbox.rpcUrl}`)
   }, 120000)
@@ -59,6 +61,9 @@ describe("txStatus - EXPERIMENTAL_tx_status RPC Method", () => {
 
     // Verify receipt structure
     const receipt = status.receipts[0]
+    if (!receipt) {
+      throw new Error("No receipt found")
+    }
     expect(receipt.predecessor_id).toBeDefined()
     expect(receipt.receiver_id).toBeDefined()
     expect(receipt.receipt_id).toBeDefined()
@@ -136,6 +141,9 @@ describe("txStatus - EXPERIMENTAL_tx_status RPC Method", () => {
 
       throw new Error("Expected transaction to fail")
     } catch (error: unknown) {
+      if (!(error instanceof InvalidTransactionError)) {
+        throw error
+      }
       // The transaction should fail during send()
       expect(error.name).toBe("InvalidTransactionError")
       expect(error.message).toContain("AccountAlreadyExists")

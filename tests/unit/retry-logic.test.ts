@@ -423,8 +423,10 @@ describe("Transaction InvalidNonceError Retry", () => {
         // Return increasing nonce on each call (simulating fresh nonce)
         return {
           nonce: getAccessKeyCallCount * 10,
-          permission: { fullAccess: {} },
-        } as AccessKeyView
+          permission: "FullAccess",
+          block_height: 12345,
+          block_hash: "GVgoqd4XN1r7VEde3bpw2qH1FYvjJR3z8dXJ5C5FQuUL",
+        }
       },
       async getStatus(): Promise<StatusResponse> {
         return {
@@ -485,8 +487,10 @@ describe("Transaction InvalidNonceError Retry", () => {
       async getAccessKey(): Promise<AccessKeyView> {
         return {
           nonce: 10,
-          permission: { fullAccess: {} },
-        } as AccessKeyView
+          permission: "FullAccess",
+          block_height: 12345,
+          block_hash: "GVgoqd4XN1r7VEde3bpw2qH1FYvjJR3z8dXJ5C5FQuUL",
+        }
       },
       async getStatus(): Promise<StatusResponse> {
         return {
@@ -533,8 +537,10 @@ describe("Transaction InvalidNonceError Retry", () => {
       async getAccessKey(): Promise<AccessKeyView> {
         return {
           nonce: 10,
-          permission: { fullAccess: {} },
-        } as AccessKeyView
+          permission: "FullAccess",
+          block_height: 12345,
+          block_hash: "GVgoqd4XN1r7VEde3bpw2qH1FYvjJR3z8dXJ5C5FQuUL",
+        }
       },
       async getStatus(): Promise<StatusResponse> {
         return {

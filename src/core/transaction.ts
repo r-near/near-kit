@@ -128,7 +128,9 @@ export class TransactionBuilder {
     this.actions = []
     this.rpc = rpc
     this.keyStore = keyStore
-    this.ensureKeyStoreReady = ensureKeyStoreReady
+    if (ensureKeyStoreReady !== undefined) {
+      this.ensureKeyStoreReady = ensureKeyStoreReady
+    }
     if (signer !== undefined) {
       this.signer = signer
     }
@@ -428,7 +430,7 @@ export class TransactionBuilder {
       if (this.ensureKeyStoreReady) {
         await this.ensureKeyStoreReady()
       }
-      keyPair = await this.keyStore.get(this.signerId)
+      keyPair = (await this.keyStore.get(this.signerId)) ?? undefined
     }
 
     if (!keyPair) {
@@ -703,7 +705,13 @@ export class TransactionBuilder {
     }
 
     // This should never be reached, but TypeScript needs it
-    throw lastError || new NearError("Unknown error during transaction send")
+    throw (
+      lastError ||
+      new NearError(
+        "Unknown error during transaction send",
+        "UNKNOWN_TRANSACTION_ERROR",
+      )
+    )
   }
 
   /**

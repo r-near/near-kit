@@ -91,6 +91,9 @@ describe("Error Handling - Access Key Errors", () => {
 
     // Now get one of the access keys
     const publicKey = listResult.keys[0]?.public_key
+    if (!publicKey) {
+      throw new Error("No public key found")
+    }
     const accessKey = await rpc.getAccessKey(accountId, publicKey)
     expect(accessKey).toBeDefined()
     expect(accessKey.nonce).toBeDefined()
