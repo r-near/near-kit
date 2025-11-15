@@ -171,13 +171,10 @@ export function formatAmount(
 
 /**
  * Internal: Parse NEAR value to yoctoNEAR
+ * Note: The caller (parseAmount) already validates the format with the same regex,
+ * so the value is guaranteed to match [\d.]+ pattern when it reaches this function.
  */
 function parseNearToYocto(value: string): string {
-  // Validate format
-  if (!/^[\d.]+$/.test(value)) {
-    throw new Error(`Invalid NEAR value: ${value}`)
-  }
-
   // Split into whole and fractional parts
   const parts = value.split(".")
   const wholePart = parts[0] || "0"

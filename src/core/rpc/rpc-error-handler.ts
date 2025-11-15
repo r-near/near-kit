@@ -325,6 +325,7 @@ export function parseRpcError(
 
     if (causeName === "NO_CONTRACT_CODE") {
       const accountId =
+        (causeInfo["contract_account_id"] as string) ||
         (causeInfo["account_id"] as string) ||
         (causeInfo["contract_id"] as string) ||
         "unknown"
@@ -357,7 +358,9 @@ export function parseRpcError(
 
     if (causeName === "UNKNOWN_CHUNK") {
       const chunkRef =
-        (causeInfo["chunk_reference"] as string) || parsedError.message
+        (causeInfo["chunk_hash"] as string) ||
+        (causeInfo["chunk_reference"] as string) ||
+        parsedError.message
       throw new UnknownChunkError(chunkRef)
     }
 

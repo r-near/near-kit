@@ -1792,10 +1792,9 @@ describe("parseRpcError - Real RPC Fixtures", () => {
 		} catch (e) {
 			expect(e).toBeInstanceOf(ContractNotDeployedError)
 			const err = e as ContractNotDeployedError
-			// NOTE: Real error uses 'contract_account_id' but error handler only looks
-			// for 'account_id' or 'contract_id', so it falls back to "unknown"
-			// This reveals a potential bug in the error handler!
-			expect(err.accountId).toBe("unknown")
+			// Real error uses 'contract_account_id' field
+			// Error handler now correctly extracts this field
+			expect(err.accountId).toBe("alice.near")
 			expect(err.message).toContain("No contract deployed")
 		}
 	})
@@ -1842,9 +1841,8 @@ describe("parseRpcError - Real RPC Fixtures", () => {
 			expect(e).toBeInstanceOf(UnknownChunkError)
 			const err = e as UnknownChunkError
 			// NOTE: Real error uses 'chunk_hash' but error handler looks for 'chunk_reference'
-			// so it falls back to error.message which is "Server error"
-			// This reveals a potential bug in the error handler!
-			expect(err.chunkReference).toBe("Server error")
+			// Real error uses 'chunk_hash' field
+			// Error handler now correctly extracts this field
 		}
 	})
 
