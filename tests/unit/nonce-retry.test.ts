@@ -6,6 +6,7 @@
 
 import { describe, expect, test } from "bun:test"
 import { InvalidNonceError } from "../../src/errors/index.js"
+import { NonceManager } from "../../src/core/nonce-manager.js"
 
 describe("InvalidNonceError", () => {
   test("should be retryable", () => {
@@ -310,5 +311,195 @@ describe("Exponential Backoff", () => {
     }
 
     expect(attempts).toBe(totalAttempts)
+  })
+})
+
+describe("NonceManager", () => {
+  test("should fetch nonce from blockchain on first call", async () => {
+    const manager = new NonceManager()
+    let fetchCalled = false
+
+    const fetchFromBlockchain = async (): Promise<bigint> => {
+      fetchCalled = true
+      return 100n
+    }
+
+    const nonce = await manager.getNextNonce(
+      "alice.near",
+      "ed25519:test",
+      fetchFromBlockchain,
+    )
+
+    expect(fetchCalled).toBe(true)
+    expect(nonce).toBe(101n)
+  })
+
+  test("should increment nonce locally on subsequent calls", async () => {
+    const manager = new NonceManager()
+    let fetchCount = 0
+
+    const fetchFromBlockchain = async (): Promise<bigint> => {
+      fetchCount++
+      return 100n
+    }
+
+    const nonce1 = await manager.getNextNonce(
+      "alice.near",
+      "ed25519:test",
+      fetchFromBlockchain,
+    )
+    const nonce2 = await manager.getNextNonce(
+      "alice.near",
+      "ed25519:test",
+      fetchFromBlockchain,
+    )
+    const nonce3 = await manager.getNextNonce(
+      "alice.near",
+      "ed25519:test",
+      fetchFromBlockchain,
+    )
+
+    expect(fetchCount).toBe(1) // Should only fetch once
+    expect(nonce1).toBe(101n)
+    expect(nonce2).toBe(102n)
+    expect(nonce3).toBe(103n)
+  })
+
+  test("should handle different accounts independently", async () => {
+    const manager = new NonceManager()
+
+    const fetchAlice = async (): Promise<bigint> => 100n
+    const fetchBob = async (): Promise<bigint> => 200n
+
+    const aliceNonce = await manager.getNextNonce(
+      "alice.near",
+      "ed25519:test",
+      fetchAlice,
+    )
+    const bobNonce = await manager.getNextNonce(
+      "bob.near",
+      "ed25519:test",
+      fetchBob,
+    )
+
+    expect(aliceNonce).toBe(101n)
+    expect(bobNonce).toBe(201n)
+  })
+
+  test("should handle error when fetchFromBlockchain throws", async () => {
+    const manager = new NonceManager()
+
+    const fetchFromBlockchain = async (): Promise<bigint> => {
+      throw new Error("Network error")
+    }
+
+    await expect(
+      manager.getNextNonce("alice.near", "ed25519:test", fetchFromBlockchain),
+    ).rejects.toThrow("Network error")
+
+    // Verify fetching map is cleaned up after error
+    // Try again to ensure it attempts to fetch again (not stuck in fetching state)
+    let secondAttemptCalled = false
+    const secondFetch = async (): Promise<bigint> => {
+      secondAttemptCalled = true
+      return 100n
+    }
+
+    const nonce = await manager.getNextNonce(
+      "alice.near",
+      "ed25519:test",
+      secondFetch,
+    )
+
+    expect(secondAttemptCalled).toBe(true)
+    expect(nonce).toBe(101n)
+  })
+
+  test("should deduplicate concurrent fetches", async () => {
+    const manager = new NonceManager()
+    let fetchCount = 0
+
+    const fetchFromBlockchain = async (): Promise<bigint> => {
+      fetchCount++
+      // Simulate slow network call
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      return 100n
+    }
+
+    // Make multiple concurrent calls
+    const promises = [
+      manager.getNextNonce("alice.near", "ed25519:test", fetchFromBlockchain),
+      manager.getNextNonce("alice.near", "ed25519:test", fetchFromBlockchain),
+      manager.getNextNonce("alice.near", "ed25519:test", fetchFromBlockchain),
+    ]
+
+    const nonces = await Promise.all(promises)
+
+    // Should only fetch once despite 3 concurrent calls
+    expect(fetchCount).toBe(1)
+    // All nonces should be unique and sequential
+    expect(nonces).toEqual([101n, 102n, 103n])
+  })
+
+  test("should invalidate cached nonce", async () => {
+    const manager = new NonceManager()
+    let fetchCount = 0
+
+    const fetchFromBlockchain = async (): Promise<bigint> => {
+      fetchCount++
+      return 100n + BigInt(fetchCount) * 10n
+    }
+
+    // First call - fetches and caches
+    const nonce1 = await manager.getNextNonce(
+      "alice.near",
+      "ed25519:test",
+      fetchFromBlockchain,
+    )
+
+    expect(nonce1).toBe(111n) // 100 + 10 + 1
+
+    // Invalidate the cache
+    manager.invalidate("alice.near", "ed25519:test")
+
+    // Next call should fetch again
+    const nonce2 = await manager.getNextNonce(
+      "alice.near",
+      "ed25519:test",
+      fetchFromBlockchain,
+    )
+
+    expect(fetchCount).toBe(2)
+    expect(nonce2).toBe(121n) // 100 + 20 + 1
+  })
+
+  test("should clear all cached nonces", async () => {
+    const manager = new NonceManager()
+
+    await manager.getNextNonce(
+      "alice.near",
+      "ed25519:test1",
+      async () => 100n,
+    )
+    await manager.getNextNonce("bob.near", "ed25519:test2", async () => 200n)
+
+    // Clear all caches
+    manager.clear()
+
+    // Subsequent calls should fetch again
+    let aliceFetchCount = 0
+    let bobFetchCount = 0
+
+    await manager.getNextNonce("alice.near", "ed25519:test1", async () => {
+      aliceFetchCount++
+      return 100n
+    })
+    await manager.getNextNonce("bob.near", "ed25519:test2", async () => {
+      bobFetchCount++
+      return 200n
+    })
+
+    expect(aliceFetchCount).toBe(1)
+    expect(bobFetchCount).toBe(1)
   })
 })

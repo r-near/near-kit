@@ -312,3 +312,73 @@ describe("Config Validation Edge Cases", () => {
     expect(Object.keys(config.keyStore)).toHaveLength(3)
   })
 })
+
+describe("NEAR_NETWORK Environment Variable", () => {
+  test("should use mainnet from NEAR_NETWORK env", () => {
+    const originalEnv = process.env.NEAR_NETWORK
+    process.env.NEAR_NETWORK = "mainnet"
+
+    const config = resolveNetworkConfig()
+
+    expect(config.networkId).toBe("mainnet")
+    expect(config.rpcUrl).toBe("https://free.rpc.fastnear.com")
+
+    // Restore original env
+    if (originalEnv === undefined) {
+      delete process.env.NEAR_NETWORK
+    } else {
+      process.env.NEAR_NETWORK = originalEnv
+    }
+  })
+
+  test("should use testnet from NEAR_NETWORK env", () => {
+    const originalEnv = process.env.NEAR_NETWORK
+    process.env.NEAR_NETWORK = "testnet"
+
+    const config = resolveNetworkConfig()
+
+    expect(config.networkId).toBe("testnet")
+    expect(config.rpcUrl).toBe("https://rpc.testnet.fastnear.com")
+
+    // Restore original env
+    if (originalEnv === undefined) {
+      delete process.env.NEAR_NETWORK
+    } else {
+      process.env.NEAR_NETWORK = originalEnv
+    }
+  })
+
+  test("should use localnet from NEAR_NETWORK env", () => {
+    const originalEnv = process.env.NEAR_NETWORK
+    process.env.NEAR_NETWORK = "localnet"
+
+    const config = resolveNetworkConfig()
+
+    expect(config.networkId).toBe("localnet")
+    expect(config.rpcUrl).toBe("http://localhost:3030")
+
+    // Restore original env
+    if (originalEnv === undefined) {
+      delete process.env.NEAR_NETWORK
+    } else {
+      process.env.NEAR_NETWORK = originalEnv
+    }
+  })
+
+  test("should fallback to mainnet for invalid NEAR_NETWORK env", () => {
+    const originalEnv = process.env.NEAR_NETWORK
+    process.env.NEAR_NETWORK = "invalid"
+
+    const config = resolveNetworkConfig()
+
+    expect(config.networkId).toBe("mainnet")
+    expect(config.rpcUrl).toBe("https://free.rpc.fastnear.com")
+
+    // Restore original env
+    if (originalEnv === undefined) {
+      delete process.env.NEAR_NETWORK
+    } else {
+      process.env.NEAR_NETWORK = originalEnv
+    }
+  })
+})

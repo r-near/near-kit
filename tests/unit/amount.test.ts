@@ -182,6 +182,21 @@ describe("parseAmount", () => {
         expect(err.message).toContain('"100 NEAR"')
       }
     })
+
+    test("throws on NEAR format with letters", () => {
+      expect(() => parseAmount("abc NEAR")).toThrow("Invalid amount format")
+    })
+
+    test("throws on NEAR format with special characters", () => {
+      expect(() => parseAmount("10!23 NEAR")).toThrow("Invalid amount format")
+      expect(() => parseAmount("10@#$ NEAR")).toThrow("Invalid amount format")
+      expect(() => parseAmount("10$20 NEAR")).toThrow("Invalid amount format")
+    })
+
+    test("throws on NEAR format with mixed invalid characters", () => {
+      expect(() => parseAmount("10abc NEAR")).toThrow("Invalid amount format")
+      expect(() => parseAmount("hello123 NEAR")).toThrow("Invalid amount format")
+    })
   })
 })
 
