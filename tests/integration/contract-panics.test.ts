@@ -19,7 +19,6 @@ import {
 } from "../../src/errors/index.js"
 import { Sandbox } from "../../src/sandbox/sandbox.js"
 import { generateKey } from "../../src/utils/key.js"
-import type { PrivateKey } from "../../src/utils/validation.js"
 
 describe("Contract Failure Modes", () => {
   let sandbox: Sandbox

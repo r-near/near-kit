@@ -8,7 +8,6 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test"
 import { Near } from "../../src/core/near.js"
 import { Sandbox } from "../../src/sandbox/sandbox.js"
 import { generateKey } from "../../src/utils/key.js"
-import type { PrivateKey } from "../../src/utils/validation.js"
 
 describe("Near Client - Integration Tests", () => {
   let sandbox: Sandbox

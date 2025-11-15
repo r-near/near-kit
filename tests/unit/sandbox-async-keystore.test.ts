@@ -72,7 +72,9 @@ describe("Sandbox async keyStore initialization", () => {
 
     const keyAfterInit = await slowKeyStore.get(mockSandbox.rootAccount.id)
     expect(keyAfterInit).not.toBeNull()
-    expect(keyAfterInit?.publicKey.toString()).toBe(rootKey.publicKey.toString())
+    expect(keyAfterInit?.publicKey.toString()).toBe(
+      rootKey.publicKey.toString(),
+    )
   })
 
   test("TransactionBuilder awaits keyStore init before accessing keys", async () => {
@@ -99,7 +101,7 @@ describe("Sandbox async keyStore initialization", () => {
 
     // Verify that the callback actually waits for initialization
     const startTime = Date.now()
-    await builder["ensureKeyStoreReady"]!()
+    await builder["ensureKeyStoreReady"]?.()
     const elapsed = Date.now() - startTime
 
     // Should have waited at least 100ms (the slowKeyStore delay)

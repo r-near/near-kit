@@ -503,9 +503,7 @@ export class Near {
       this.signer,
       this.defaultWaitUntil,
       this.wallet,
-      this.pendingKeyStoreInit
-        ? () => this.ensureKeyStoreReady()
-        : undefined,
+      this.pendingKeyStoreInit ? () => this.ensureKeyStoreReady() : undefined,
     )
   }
 
