@@ -305,9 +305,11 @@ export function parseRpcError(
         blockRef = blockReference
       } else if (blockReference && typeof blockReference === "object") {
         const blockId =
-          (blockReference as Record<string, unknown>).block_id ||
-          (blockReference as Record<string, unknown>).BlockId
-        blockRef = blockId ? String(blockId) : parsedError.data || parsedError.message
+          (blockReference as Record<string, unknown>)["block_id"] ||
+          (blockReference as Record<string, unknown>)["BlockId"]
+        blockRef = blockId
+          ? String(blockId)
+          : parsedError.data || parsedError.message
       } else {
         blockRef = parsedError.data || parsedError.message
       }
@@ -404,9 +406,11 @@ export function parseRpcError(
         blockRef = blockReference
       } else if (blockReference && typeof blockReference === "object") {
         const blockId =
-          (blockReference as Record<string, unknown>).block_id ||
-          (blockReference as Record<string, unknown>).BlockId
-        blockRef = blockId ? String(blockId) : parsedError.data || parsedError.message
+          (blockReference as Record<string, unknown>)["block_id"] ||
+          (blockReference as Record<string, unknown>)["BlockId"]
+        blockRef = blockId
+          ? String(blockId)
+          : parsedError.data || parsedError.message
       } else {
         blockRef = parsedError.data || parsedError.message
       }

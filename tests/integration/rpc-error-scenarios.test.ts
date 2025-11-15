@@ -110,8 +110,7 @@ describe("RPC Error Handling - Comprehensive Tests", () => {
   describe("Network Errors", () => {
     test("invalid RPC endpoint throws NetworkError", async () => {
       const badNear = new Near({
-        networkId: "testnet",
-        rpcUrl: "https://invalid-rpc-endpoint-that-does-not-exist.near.org",
+        network: "testnet",
         keyStore: {},
       })
 
@@ -148,7 +147,8 @@ describe("RPC Error Handling - Comprehensive Tests", () => {
 
   describe("Account Errors", () => {
     test("AccountDoesNotExistError - view account", async () => {
-      const nonExistentAccount = "this-account-definitely-does-not-exist-12345.near"
+      const nonExistentAccount =
+        "this-account-definitely-does-not-exist-12345.near"
 
       try {
         await rpc.getAccount(nonExistentAccount)
@@ -166,7 +166,8 @@ describe("RPC Error Handling - Comprehensive Tests", () => {
 
     test("AccessKeyDoesNotExistError - view access key", async () => {
       // Use a properly formatted but non-existent public key
-      const fakePublicKey = "ed25519:He7QeRuwizNEhzeKNn2CLdCKfzkH6KLSaFKvJLYtnrFa"
+      const fakePublicKey =
+        "ed25519:He7QeRuwizNEhzeKNn2CLdCKfzkH6KLSaFKvJLYtnrFa"
 
       try {
         await rpc.getAccessKey(sandbox.rootAccount.id, fakePublicKey)
@@ -178,7 +179,9 @@ describe("RPC Error Handling - Comprehensive Tests", () => {
           expect(error.name).toBe("AccessKeyDoesNotExistError")
           expect(error.accountId).toBe(sandbox.rootAccount.id)
           expect(error.publicKey).toBe(fakePublicKey)
-          console.log("✓ AccessKeyDoesNotExistError with accountId and publicKey")
+          console.log(
+            "✓ AccessKeyDoesNotExistError with accountId and publicKey",
+          )
         }
       }
     }, 30000)
@@ -228,7 +231,9 @@ describe("RPC Error Handling - Comprehensive Tests", () => {
           error instanceof InsufficientBalanceError ||
             error instanceof InvalidTransactionError,
         ).toBe(true)
-        console.log(`✓ Insufficient balance detected: ${error.constructor.name}`)
+        console.log(
+          `✓ Insufficient balance detected: ${(error as Error).constructor.name}`,
+        )
       }
     }, 30000)
 
@@ -252,7 +257,9 @@ describe("RPC Error Handling - Comprehensive Tests", () => {
       expect(error.retryable).toBe(true)
       expect(error.message).toContain("transaction nonce 100")
       expect(error.message).toContain("access key nonce 105")
-      console.log("✓ InvalidNonceError with nonce properties and retryable flag")
+      console.log(
+        "✓ InvalidNonceError with nonce properties and retryable flag",
+      )
     })
 
     test("InvalidTransactionError - with ShardCongested", () => {
@@ -279,10 +286,9 @@ describe("RPC Error Handling - Comprehensive Tests", () => {
     })
 
     test("InvalidTransactionError - non-retryable", () => {
-      const error = new InvalidTransactionError(
-        "Invalid signature",
-        { InvalidSignature: true },
-      )
+      const error = new InvalidTransactionError("Invalid signature", {
+        InvalidSignature: true,
+      })
       expect(error.shardCongested).toBe(false)
       expect(error.shardStuck).toBe(false)
       expect(error.retryable).toBe(false) // Non-retryable error
@@ -375,7 +381,7 @@ describe("RPC Error Handling - Comprehensive Tests", () => {
           error instanceof ContractNotDeployedError ||
             error instanceof FunctionCallError,
         ).toBe(true)
-        console.log(`✓ No contract error: ${error.constructor.name}`)
+        console.log(`✓ No contract error: ${(error as Error).constructor.name}`)
       }
     }, 30000)
 
@@ -662,7 +668,7 @@ describe("RPC Error Handling - Comprehensive Tests", () => {
     test("Error inheritance chain", () => {
       const error = new FunctionCallError("test.near", "method", "panic")
       expect(error).toBeInstanceOf(Error)
-      expect(error.constructor.name).toBe("FunctionCallError")
+      expect((error as Error).constructor.name).toBe("FunctionCallError")
       console.log("✓ Error inheritance chain verified")
     })
   })

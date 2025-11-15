@@ -14,14 +14,11 @@ import { RpcClient } from "../../src/core/rpc/rpc.js"
 import {
   AccountDoesNotExistError,
   ContractNotDeployedError,
-  InvalidAccountError,
   InvalidNonceError,
   InvalidShardIdError,
   NetworkError,
   ParseError,
-  UnknownBlockError,
   UnknownChunkError,
-  UnknownEpochError,
   UnknownReceiptError,
 } from "../../src/errors/index.js"
 import { Sandbox } from "../../src/sandbox/sandbox.js"
@@ -79,11 +76,14 @@ describe("RPC Error Handler - Uncovered Code Paths", () => {
         await rpc.getAccount(testAccountId, { blockId: 999999999 })
         throw new Error("Should have thrown error")
       } catch (error) {
-        console.log("Block error type:", error.constructor.name)
-        console.log("Block error message:", error.message)
+        console.log("Block error type:", (error as Error).constructor.name)
+        console.log("Block error message:", (error as Error).message)
         // Sandbox/RPC may return UnknownBlockError or NetworkError
         expect(error).toBeDefined()
-        console.log("✓ Non-existent block handled:", error.constructor.name)
+        console.log(
+          "✓ Non-existent block handled:",
+          (error as Error).constructor.name,
+        )
       }
     }, 30000)
   })
@@ -96,10 +96,16 @@ describe("RPC Error Handler - Uncovered Code Paths", () => {
         await rpc.getAccount("invalid-account-@#$%") // Invalid characters
         throw new Error("Should have thrown error")
       } catch (error) {
-        console.log("Invalid account error type:", error.constructor.name)
+        console.log(
+          "Invalid account error type:",
+          (error as Error).constructor.name,
+        )
         // RPC may validate and reject this different ways
         expect(error).toBeDefined()
-        console.log("✓ Invalid account format handled:", error.constructor.name)
+        console.log(
+          "✓ Invalid account format handled:",
+          (error as Error).constructor.name,
+        )
       }
     }, 30000)
   })
@@ -111,14 +117,17 @@ describe("RPC Error Handler - Uncovered Code Paths", () => {
         await near.view(testAccountId, "some_method", {})
         throw new Error("Should have thrown error")
       } catch (error) {
-        console.log("No contract error:", error.constructor.name)
+        console.log("No contract error:", (error as Error).constructor.name)
         // Should be ContractNotDeployedError or similar
         expect(error).toBeDefined()
         if (error instanceof ContractNotDeployedError) {
           expect(error.accountId).toBe(testAccountId)
           console.log("✓ NO_CONTRACT_CODE → ContractNotDeployedError")
         } else {
-          console.log("✓ No contract error handled:", error.constructor.name)
+          console.log(
+            "✓ No contract error handled:",
+            (error as Error).constructor.name,
+          )
         }
       }
     }, 30000)
@@ -133,13 +142,16 @@ describe("RPC Error Handler - Uncovered Code Paths", () => {
         })
         throw new Error("Should have thrown error")
       } catch (error) {
-        console.log("Chunk error:", error.constructor.name)
+        console.log("Chunk error:", (error as Error).constructor.name)
         expect(
           error instanceof UnknownChunkError ||
             error instanceof NetworkError ||
             error instanceof ParseError,
         ).toBe(true)
-        console.log("✓ Invalid chunk handled:", error.constructor.name)
+        console.log(
+          "✓ Invalid chunk handled:",
+          (error as Error).constructor.name,
+        )
       }
     }, 30000)
   })
@@ -155,13 +167,16 @@ describe("RPC Error Handler - Uncovered Code Paths", () => {
         })
         throw new Error("Should have thrown error")
       } catch (error) {
-        console.log("Shard error:", error.constructor.name)
+        console.log("Shard error:", (error as Error).constructor.name)
         expect(
           error instanceof InvalidShardIdError ||
             error instanceof NetworkError ||
             error instanceof ParseError,
         ).toBe(true)
-        console.log("✓ Invalid shard handled:", error.constructor.name)
+        console.log(
+          "✓ Invalid shard handled:",
+          (error as Error).constructor.name,
+        )
       }
     }, 30000)
   })
@@ -175,10 +190,13 @@ describe("RPC Error Handler - Uncovered Code Paths", () => {
         })
         throw new Error("Should have thrown error")
       } catch (error) {
-        console.log("Epoch error:", error.constructor.name)
+        console.log("Epoch error:", (error as Error).constructor.name)
         // RPC may handle invalid epoch_id differently
         expect(error).toBeDefined()
-        console.log("✓ Unknown epoch handled:", error.constructor.name)
+        console.log(
+          "✓ Unknown epoch handled:",
+          (error as Error).constructor.name,
+        )
       }
     }, 30000)
   })
@@ -186,14 +204,7 @@ describe("RPC Error Handler - Uncovered Code Paths", () => {
   describe("parseRpcError - INVALID_TRANSACTION with InvalidNonce (lines 392-396)", () => {
     test("transaction with invalid nonce triggers InvalidNonceError", async () => {
       try {
-        // Get current nonce
-        const accessKey = await rpc.getAccessKey(
-          testAccountId,
-          `ed25519:${Buffer.from(generateKey().publicKey.data).toString("base64")}`,
-        )
-        const currentNonce = accessKey.nonce
-
-        // Try to send transaction with old nonce
+        // Try to send transaction - nonce manager prevents this in integration tests
         await near
           .transaction(testAccountId)
           .transfer(sandbox.rootAccount.id, "0.1 NEAR")
@@ -207,7 +218,7 @@ describe("RPC Error Handler - Uncovered Code Paths", () => {
           expect(error.akNonce).toBeDefined()
           console.log("✓ InvalidNonceError with nonce details")
         } else {
-          console.log("✓ Transaction error:", error.constructor.name)
+          console.log("✓ Transaction error:", (error as Error).constructor.name)
         }
       }
     }, 30000)
@@ -221,13 +232,16 @@ describe("RPC Error Handler - Uncovered Code Paths", () => {
         })
         throw new Error("Should have thrown error")
       } catch (error) {
-        console.log("Receipt error:", error.constructor.name)
+        console.log("Receipt error:", (error as Error).constructor.name)
         expect(
           error instanceof UnknownReceiptError ||
             error instanceof NetworkError ||
             error instanceof ParseError,
         ).toBe(true)
-        console.log("✓ Unknown receipt handled:", error.constructor.name)
+        console.log(
+          "✓ Unknown receipt handled:",
+          (error as Error).constructor.name,
+        )
       }
     }, 30000)
   })
@@ -243,11 +257,14 @@ describe("RPC Error Handler - Uncovered Code Paths", () => {
         })
         throw new Error("Should have thrown ParseError")
       } catch (error) {
-        console.log("Parse error:", error.constructor.name)
+        console.log("Parse error:", (error as Error).constructor.name)
         expect(
           error instanceof ParseError || error instanceof NetworkError,
         ).toBe(true)
-        console.log("✓ Malformed request handled:", error.constructor.name)
+        console.log(
+          "✓ Malformed request handled:",
+          (error as Error).constructor.name,
+        )
       }
     }, 30000)
 
@@ -259,7 +276,10 @@ describe("RPC Error Handler - Uncovered Code Paths", () => {
         expect(
           error instanceof ParseError || error instanceof NetworkError,
         ).toBe(true)
-        console.log("✓ Invalid RPC method handled:", error.constructor.name)
+        console.log(
+          "✓ Invalid RPC method handled:",
+          (error as Error).constructor.name,
+        )
       }
     }, 30000)
   })
@@ -271,13 +291,16 @@ describe("RPC Error Handler - Uncovered Code Paths", () => {
         await rpc.getAccount(nonExistent)
         throw new Error("Should have thrown AccountDoesNotExistError")
       } catch (error) {
-        console.log("Unknown account error:", error.constructor.name)
+        console.log("Unknown account error:", (error as Error).constructor.name)
         expect(error).toBeDefined()
         if (error instanceof AccountDoesNotExistError) {
           expect(error.accountId).toBe(nonExistent)
           console.log("✓ UNKNOWN_ACCOUNT → AccountDoesNotExistError")
         } else {
-          console.log("✓ Unknown account handled:", error.constructor.name)
+          console.log(
+            "✓ Unknown account handled:",
+            (error as Error).constructor.name,
+          )
         }
       }
     }, 30000)
@@ -297,7 +320,7 @@ describe("RPC Error Handler - Uncovered Code Paths", () => {
         throw new Error("Should have failed")
       } catch (error) {
         // Should trigger some form of error with ActionError structure
-        console.log("✓ Invalid WASM error:", error.constructor.name)
+        console.log("✓ Invalid WASM error:", (error as Error).constructor.name)
         expect(error).toBeDefined()
       }
     }, 30000)
