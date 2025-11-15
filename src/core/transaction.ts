@@ -109,6 +109,7 @@ export class TransactionBuilder {
   private keyPair?: KeyPair // KeyPair from signWith() for building transaction
   private wallet?: WalletConnection
   private defaultWaitUntil: TxExecutionStatus
+  private ensureKeyStoreReady?: () => Promise<void>
 
   constructor(
     signerId: string,
@@ -117,11 +118,13 @@ export class TransactionBuilder {
     signer?: Signer,
     defaultWaitUntil: TxExecutionStatus = "EXECUTED_OPTIMISTIC",
     wallet?: WalletConnection,
+    ensureKeyStoreReady?: () => Promise<void>,
   ) {
     this.signerId = signerId
     this.actions = []
     this.rpc = rpc
     this.keyStore = keyStore
+    this.ensureKeyStoreReady = ensureKeyStoreReady
     if (signer !== undefined) {
       this.signer = signer
     }
@@ -506,6 +509,10 @@ export class TransactionBuilder {
         const signature = this.signer
           ? await this.signer(messageHashArray)
           : await (async () => {
+              // Ensure any pending keystore initialization is complete
+              if (this.ensureKeyStoreReady) {
+                await this.ensureKeyStoreReady()
+              }
               const keyPair = await this.keyStore.get(this.signerId)
               if (!keyPair) {
                 throw new InvalidKeyError(

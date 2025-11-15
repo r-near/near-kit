@@ -36,6 +36,7 @@ export class Near {
   private wallet?: WalletConnection
   private defaultSignerId?: string
   private defaultWaitUntil: TxExecutionStatus
+  private pendingKeyStoreInit?: Promise<void>
 
   constructor(config: NearConfig = {}) {
     // Validate configuration
@@ -102,9 +103,24 @@ export class Near {
           typeof rootAccount.rootAccount.secretKey === "string"
         ) {
           const keyPair = parseKey(rootAccount.rootAccount.secretKey)
-          void this.keyStore.add(rootAccount.rootAccount.id, keyPair)
+          // Store the promise to ensure async keystores complete initialization
+          this.pendingKeyStoreInit = this.keyStore.add(
+            rootAccount.rootAccount.id,
+            keyPair,
+          )
         }
       }
+    }
+  }
+
+  /**
+   * Ensure any pending keystore initialization is complete
+   * @internal
+   */
+  private async ensureKeyStoreReady(): Promise<void> {
+    if (this.pendingKeyStoreInit) {
+      await this.pendingKeyStoreInit
+      this.pendingKeyStoreInit = undefined
     }
   }
 
@@ -320,6 +336,9 @@ export class Near {
     }
 
     // Use keystore approach
+    // Ensure any pending keystore initialization is complete
+    await this.ensureKeyStoreReady()
+
     const keyPair = await this.keyStore.get(signerId)
     if (!keyPair) {
       throw new NearError(
@@ -482,6 +501,9 @@ export class Near {
       this.signer,
       this.defaultWaitUntil,
       this.wallet,
+      this.pendingKeyStoreInit
+        ? () => this.ensureKeyStoreReady()
+        : undefined,
     )
   }
 
