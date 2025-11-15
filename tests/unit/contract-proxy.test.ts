@@ -1067,8 +1067,8 @@ describe("addContractMethod()", () => {
 
   test("should support TypeScript generic type parameter", () => {
     // Interface defined for type documentation purposes
-    // biome-ignore lint/correctness/noUnusedVariables: Type documentation example
     // @ts-expect-error - Type defined for documentation, not runtime use
+    // biome-ignore lint/correctness/noUnusedVariables: Example type definition for documentation
     interface MyContract extends ContractMethods {
       view: {
         getBalance: (args: { account_id: string }) => Promise<string>
