@@ -341,7 +341,7 @@ describe("Transaction Signing - Complex Scenarios", () => {
     expect(status.final_execution_status).toBeDefined()
     // Status should eventually be executed
     expect(["EXECUTED_OPTIMISTIC", "EXECUTED", "FINAL"]).toContain(
-      status.final_execution_status
+      status.final_execution_status,
     )
   })
 
