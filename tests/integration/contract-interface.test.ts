@@ -10,13 +10,13 @@
  */
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test"
+import { readFileSync } from "node:fs"
+import { resolve } from "node:path"
+import type { Contract } from "../../src/contracts/contract.js"
 import { Near } from "../../src/core/near.js"
-import type { ContractMethods } from "../../src/contracts/contract.js"
 import { FunctionCallError } from "../../src/errors/index.js"
 import { Sandbox } from "../../src/sandbox/sandbox.js"
 import { generateKey } from "../../src/utils/key.js"
-import { readFileSync } from "node:fs"
-import { resolve } from "node:path"
 
 // Define Guestbook contract interface
 interface GuestbookMessage {
@@ -25,7 +25,8 @@ interface GuestbookMessage {
   text: string
 }
 
-interface GuestbookContract extends ContractMethods {
+// Use Contract<> utility to automatically add options parameter
+type GuestbookContract = Contract<{
   view: {
     total_messages: () => Promise<number>
     get_messages: (args?: {
@@ -34,9 +35,10 @@ interface GuestbookContract extends ContractMethods {
     }) => Promise<GuestbookMessage[]>
   }
   call: {
-    add_message: (args: { text: string }, options?: { attachedDeposit?: string; signerId?: string; waitUntil?: string }) => Promise<void>
+    // Just define args - options parameter is automatically added!
+    add_message: (args: { text: string }) => Promise<void>
   }
-}
+}>
 
 describe("Contract Interface - near.contract<T>()", () => {
   let sandbox: Sandbox
@@ -55,7 +57,10 @@ describe("Contract Interface - near.contract<T>()", () => {
     )
 
     const contractKey = generateKey()
-    await new Near({ network: sandbox, keyStore: { [sandbox.rootAccount.id]: sandbox.rootAccount.secretKey } })
+    await new Near({
+      network: sandbox,
+      keyStore: { [sandbox.rootAccount.id]: sandbox.rootAccount.secretKey },
+    })
       .transaction(sandbox.rootAccount.id)
       .createAccount(contractId)
       .transfer(contractId, "10 NEAR")
@@ -66,7 +71,10 @@ describe("Contract Interface - near.contract<T>()", () => {
     // Create user account
     const userKey = generateKey()
     userId = `user-${Date.now()}.${sandbox.rootAccount.id}`
-    await new Near({ network: sandbox, keyStore: { [sandbox.rootAccount.id]: sandbox.rootAccount.secretKey } })
+    await new Near({
+      network: sandbox,
+      keyStore: { [sandbox.rootAccount.id]: sandbox.rootAccount.secretKey },
+    })
       .transaction(sandbox.rootAccount.id)
       .createAccount(userId)
       .transfer(userId, "10 NEAR")
@@ -128,7 +136,9 @@ describe("Contract Interface - near.contract<T>()", () => {
       expect(Array.isArray(messages)).toBe(true)
       expect(messages.length).toBeLessThanOrEqual(5)
 
-      console.log(`✓ get_messages(limit: 5) returned ${messages.length} messages`)
+      console.log(
+        `✓ get_messages(limit: 5) returned ${messages.length} messages`,
+      )
     })
 
     test("should call get_messages() with from_index and limit", async () => {
@@ -152,7 +162,7 @@ describe("Contract Interface - near.contract<T>()", () => {
 
       await contract.call.add_message(
         { text: "Hello from contract interface!" },
-        { signerId: userId } // Using default EXECUTED_OPTIMISTIC
+        { signerId: userId }, // Using default EXECUTED_OPTIMISTIC
       )
 
       const finalCount = await contract.view.total_messages()
@@ -165,11 +175,12 @@ describe("Contract Interface - near.contract<T>()", () => {
     test("should call add_message() with attached deposit", async () => {
       await contract.call.add_message(
         { text: "Premium message!" },
-        { attachedDeposit: "1 NEAR", signerId: userId }
+        { attachedDeposit: "1 NEAR", signerId: userId },
       )
 
       const messages = await contract.view.get_messages()
-      const lastMessage = messages[messages.length - 1]
+      // biome-ignore lint/style/noNonNullAssertion: Test code expects message to exist
+      const lastMessage = messages[messages.length - 1]!
 
       expect(lastMessage.text).toBe("Premium message!")
       expect(lastMessage.premium).toBe(true)
@@ -180,9 +191,18 @@ describe("Contract Interface - near.contract<T>()", () => {
     test("should call add_message() multiple times", async () => {
       const initialCount = await contract.view.total_messages()
 
-      await contract.call.add_message({ text: "Message 1" }, { signerId: userId })
-      await contract.call.add_message({ text: "Message 2" }, { signerId: userId })
-      await contract.call.add_message({ text: "Message 3" }, { signerId: userId })
+      await contract.call.add_message(
+        { text: "Message 1" },
+        { signerId: userId },
+      )
+      await contract.call.add_message(
+        { text: "Message 2" },
+        { signerId: userId },
+      )
+      await contract.call.add_message(
+        { text: "Message 3" },
+        { signerId: userId },
+      )
 
       const finalCount = await contract.view.total_messages()
 
@@ -214,9 +234,13 @@ describe("Contract Interface - near.contract<T>()", () => {
     test("should throw error when calling non-existent method", async () => {
       try {
         // Use any to bypass TypeScript checking for this test
+        // biome-ignore lint/suspicious/noExplicitAny: Testing error handling for non-existent methods
         const anyContract = contract as any
 
-        await anyContract.call.nonexistent_method({ test: "data" }, { signerId: userId })
+        await anyContract.call.nonexistent_method(
+          { test: "data" },
+          { signerId: userId },
+        )
 
         throw new Error("Expected transaction to fail")
       } catch (error: unknown) {
@@ -241,7 +265,8 @@ describe("Contract Interface - near.contract<T>()", () => {
       expect(Array.isArray(messages)).toBe(true)
 
       if (messages.length > 0) {
-        const message = messages[0]
+        // biome-ignore lint/style/noNonNullAssertion: Checked array length above
+        const message = messages[0]!
         expect(typeof message.text).toBe("string")
         expect(typeof message.sender).toBe("string")
         expect(typeof message.premium).toBe("boolean")
@@ -285,7 +310,8 @@ describe("Contract Interface - near.contract<T>()", () => {
       await contract.call.add_message({ text: testText }, { signerId: userId })
 
       const messages = await contract.view.get_messages()
-      const lastMessage = messages[messages.length - 1]
+      // biome-ignore lint/style/noNonNullAssertion: Test code expects message to exist
+      const lastMessage = messages[messages.length - 1]!
 
       expect(lastMessage.text).toBe(testText)
       expect(lastMessage.sender).toBe(userId)
@@ -297,11 +323,12 @@ describe("Contract Interface - near.contract<T>()", () => {
     test("should verify premium message", async () => {
       await contract.call.add_message(
         { text: "Premium test" },
-        { attachedDeposit: "0.5 NEAR", signerId: userId }
+        { attachedDeposit: "0.5 NEAR", signerId: userId },
       )
 
       const messages = await contract.view.get_messages()
-      const lastMessage = messages[messages.length - 1]
+      // biome-ignore lint/style/noNonNullAssertion: Test code expects message to exist
+      const lastMessage = messages[messages.length - 1]!
 
       expect(lastMessage.text).toBe("Premium test")
       expect(lastMessage.premium).toBe(true)
@@ -327,14 +354,19 @@ describe("Contract Interface - near.contract<T>()", () => {
     test("should work with both view and call methods in sequence", async () => {
       const before = await contract.view.total_messages()
 
-      await contract.call.add_message({ text: "Sequence test unique12345" }, { signerId: userId })
+      await contract.call.add_message(
+        { text: "Sequence test unique12345" },
+        { signerId: userId },
+      )
 
       const after = await contract.view.total_messages()
 
       expect(after).toBe(before + 1)
 
       const messages = await contract.view.get_messages()
-      const hasMessage = messages.some(m => m.text === "Sequence test unique12345")
+      const hasMessage = messages.some(
+        (m) => m.text === "Sequence test unique12345",
+      )
 
       expect(hasMessage).toBe(true)
 
@@ -345,9 +377,18 @@ describe("Contract Interface - near.contract<T>()", () => {
       const before = await contract.view.total_messages()
 
       // Multiple operations in sequence
-      await contract.call.add_message({ text: "Chain unique1" }, { signerId: userId })
-      await contract.call.add_message({ text: "Chain unique2" }, { signerId: userId })
-      await contract.call.add_message({ text: "Chain unique3" }, { signerId: userId })
+      await contract.call.add_message(
+        { text: "Chain unique1" },
+        { signerId: userId },
+      )
+      await contract.call.add_message(
+        { text: "Chain unique2" },
+        { signerId: userId },
+      )
+      await contract.call.add_message(
+        { text: "Chain unique3" },
+        { signerId: userId },
+      )
 
       const after = await contract.view.total_messages()
       expect(after).toBe(before + 3)
@@ -355,12 +396,12 @@ describe("Contract Interface - near.contract<T>()", () => {
       // Get recent messages starting from where we added them
       const messages = await contract.view.get_messages({
         from_index: before.toString(),
-        limit: "3"
+        limit: "3",
       })
 
-      const hasChain1 = messages.some(m => m.text === "Chain unique1")
-      const hasChain2 = messages.some(m => m.text === "Chain unique2")
-      const hasChain3 = messages.some(m => m.text === "Chain unique3")
+      const hasChain1 = messages.some((m) => m.text === "Chain unique1")
+      const hasChain2 = messages.some((m) => m.text === "Chain unique2")
+      const hasChain3 = messages.some((m) => m.text === "Chain unique3")
 
       expect(hasChain1).toBe(true)
       expect(hasChain2).toBe(true)
@@ -403,7 +444,10 @@ describe("Contract Interface - near.contract<T>()", () => {
 
       // Special characters
       const specialText = "Special unique789: 🎉 émojis & symbols"
-      await contract.call.add_message({ text: specialText }, { signerId: userId })
+      await contract.call.add_message(
+        { text: specialText },
+        { signerId: userId },
+      )
 
       const after = await contract.view.total_messages()
       expect(after).toBe(before + 3)
@@ -411,12 +455,12 @@ describe("Contract Interface - near.contract<T>()", () => {
       // Get recent messages starting from where we added them
       const messages = await contract.view.get_messages({
         from_index: before.toString(),
-        limit: "3"
+        limit: "3",
       })
 
-      const hasEmpty = messages.some(m => m.text === "")
-      const hasLong = messages.some(m => m.text === longText)
-      const hasSpecial = messages.some(m => m.text === specialText)
+      const hasEmpty = messages.some((m) => m.text === "")
+      const hasLong = messages.some((m) => m.text === longText)
+      const hasSpecial = messages.some((m) => m.text === specialText)
 
       expect(hasEmpty).toBe(true)
       expect(hasLong).toBe(true)

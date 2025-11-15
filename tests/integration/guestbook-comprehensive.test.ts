@@ -10,12 +10,12 @@
  */
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test"
+import { readFileSync } from "node:fs"
+import { resolve } from "node:path"
 import { Near } from "../../src/core/near.js"
 import { FunctionCallError } from "../../src/errors/index.js"
 import { Sandbox } from "../../src/sandbox/sandbox.js"
 import { generateKey } from "../../src/utils/key.js"
-import { readFileSync } from "node:fs"
-import { resolve } from "node:path"
 
 describe("Guestbook Contract - Comprehensive Tests", () => {
   let sandbox: Sandbox
@@ -185,11 +185,11 @@ describe("Guestbook Contract - Comprehensive Tests", () => {
       expect(messages[0]).toHaveProperty("premium")
 
       // Verify message content (order matters - should be chronological)
-      expect(messages[0].text).toBe("Hello from user1!")
-      expect(messages[0].sender).toBe(user1Id)
+      expect(messages[0]!.text).toBe("Hello from user1!")
+      expect(messages[0]!.sender).toBe(user1Id)
 
-      expect(messages[1].text).toBe("Greetings from user2!")
-      expect(messages[1].sender).toBe(user2Id)
+      expect(messages[1]!.text).toBe("Greetings from user2!")
+      expect(messages[1]!.sender).toBe(user2Id)
 
       console.log("✓ All messages retrieved with correct structure")
     })
@@ -201,14 +201,12 @@ describe("Guestbook Contract - Comprehensive Tests", () => {
         text: string
       }
 
-      const messages = await near.view<Message[]>(
-        contractId,
-        "get_messages",
-        { from_index: "2" },
-      )
+      const messages = await near.view<Message[]>(contractId, "get_messages", {
+        from_index: "2",
+      })
 
       expect(messages.length).toBe(2) // Should get messages from index 2 onwards
-      expect(messages[0].text).toBe("Second message from user1")
+      expect(messages[0]!.text).toBe("Second message from user1")
 
       console.log("✓ Pagination with from_index works")
     })
@@ -220,15 +218,13 @@ describe("Guestbook Contract - Comprehensive Tests", () => {
         text: string
       }
 
-      const messages = await near.view<Message[]>(
-        contractId,
-        "get_messages",
-        { limit: "2" },
-      )
+      const messages = await near.view<Message[]>(contractId, "get_messages", {
+        limit: "2",
+      })
 
       expect(messages.length).toBe(2)
-      expect(messages[0].text).toBe("Hello from user1!")
-      expect(messages[1].text).toBe("Greetings from user2!")
+      expect(messages[0]!.text).toBe("Hello from user1!")
+      expect(messages[1]!.text).toBe("Greetings from user2!")
 
       console.log("✓ Pagination with limit works")
     })
@@ -240,15 +236,14 @@ describe("Guestbook Contract - Comprehensive Tests", () => {
         text: string
       }
 
-      const messages = await near.view<Message[]>(
-        contractId,
-        "get_messages",
-        { from_index: "1", limit: "2" },
-      )
+      const messages = await near.view<Message[]>(contractId, "get_messages", {
+        from_index: "1",
+        limit: "2",
+      })
 
       expect(messages.length).toBe(2)
-      expect(messages[0].text).toBe("Greetings from user2!")
-      expect(messages[1].text).toBe("Second message from user1")
+      expect(messages[0]!.text).toBe("Greetings from user2!")
+      expect(messages[1]!.text).toBe("Second message from user1")
 
       console.log("✓ Pagination with from_index and limit works")
     })
@@ -336,7 +331,8 @@ describe("Guestbook Contract - Comprehensive Tests", () => {
         {},
       )
 
-      const lastMessage = messages[messages.length - 1]
+      // biome-ignore lint/style/noNonNullAssertion: Test code expects message to exist
+      const lastMessage = messages[messages.length - 1]!
       expect(lastMessage.text).toBe(specialText)
       console.log("✓ Special characters handled correctly")
     }, 30000)
@@ -386,7 +382,8 @@ describe("Guestbook Contract - Comprehensive Tests", () => {
         "get_messages",
         {},
       )
-      const lastMessage = messages[messages.length - 1]
+      // biome-ignore lint/style/noNonNullAssertion: Test code expects message to exist
+      const lastMessage = messages[messages.length - 1]!
       expect(lastMessage.text).toBe("Testing persistence")
       expect(lastMessage.sender).toBe(user2Id)
 
@@ -396,12 +393,6 @@ describe("Guestbook Contract - Comprehensive Tests", () => {
 
   describe("Premium Messages (with attached deposit)", () => {
     test("should mark message as premium when NEAR is attached", async () => {
-      const beforeCount = await near.view<number>(
-        contractId,
-        "total_messages",
-        {},
-      )
-
       await near
         .transaction(user1Id)
         .functionCall(
@@ -424,7 +415,8 @@ describe("Guestbook Contract - Comprehensive Tests", () => {
         {},
       )
 
-      const lastMessage = messages[messages.length - 1]
+      // biome-ignore lint/style/noNonNullAssertion: Test code expects message to exist
+      const lastMessage = messages[messages.length - 1]!
       expect(lastMessage.text).toBe("Premium message!")
       expect(lastMessage.premium).toBe(true)
 
@@ -451,7 +443,8 @@ describe("Guestbook Contract - Comprehensive Tests", () => {
         {},
       )
 
-      const lastMessage = messages[messages.length - 1]
+      // biome-ignore lint/style/noNonNullAssertion: Test code expects message to exist
+      const lastMessage = messages[messages.length - 1]!
       expect(lastMessage.text).toBe("Regular message")
       expect(lastMessage.premium).toBe(false)
 

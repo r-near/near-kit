@@ -4,7 +4,7 @@
  * Tests RPC retry behavior when InvalidNonceError is encountered
  */
 
-import { describe, expect, mock, test } from "bun:test"
+import { describe, expect, test } from "bun:test"
 import { InvalidNonceError } from "../../src/errors/index.js"
 
 describe("InvalidNonceError", () => {
@@ -258,7 +258,11 @@ describe("Retry Behavior Validation", () => {
           break
         } catch (error) {
           const isLastAttempt = attempt === 2
-          const isRetryable = "retryable" in error && error.retryable === true
+          const isRetryable =
+            typeof error === "object" &&
+            error !== null &&
+            "retryable" in error &&
+            (error as { retryable: boolean }).retryable === true
 
           if (!isRetryable || isLastAttempt) {
             throw error

@@ -8,11 +8,11 @@
  */
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test"
+import { readFileSync } from "node:fs"
+import { resolve } from "node:path"
 import { Near } from "../../src/core/near.js"
 import { Sandbox } from "../../src/sandbox/sandbox.js"
 import { generateKey } from "../../src/utils/key.js"
-import { readFileSync } from "node:fs"
-import { resolve } from "node:path"
 
 describe("Concurrent Transactions", () => {
   let sandbox: Sandbox
@@ -30,7 +30,10 @@ describe("Concurrent Transactions", () => {
     )
 
     const contractKey = generateKey()
-    await new Near({ network: sandbox, keyStore: { [sandbox.rootAccount.id]: sandbox.rootAccount.secretKey } })
+    await new Near({
+      network: sandbox,
+      keyStore: { [sandbox.rootAccount.id]: sandbox.rootAccount.secretKey },
+    })
       .transaction(sandbox.rootAccount.id)
       .createAccount(contractId)
       .transfer(contractId, "10 NEAR")
@@ -41,7 +44,10 @@ describe("Concurrent Transactions", () => {
     // Create user account for testing
     const userKey = generateKey()
     userId = `user-${Date.now()}.${sandbox.rootAccount.id}`
-    await new Near({ network: sandbox, keyStore: { [sandbox.rootAccount.id]: sandbox.rootAccount.secretKey } })
+    await new Near({
+      network: sandbox,
+      keyStore: { [sandbox.rootAccount.id]: sandbox.rootAccount.secretKey },
+    })
       .transaction(sandbox.rootAccount.id)
       .createAccount(userId)
       .transfer(userId, "10 NEAR")
@@ -78,7 +84,7 @@ describe("Concurrent Transactions", () => {
           .functionCall(contractId, "add_message", {
             text: `Concurrent message ${i}`,
           })
-          .send({ waitUntil: "FINAL" })
+          .send({ waitUntil: "FINAL" }),
       )
 
       // All transactions should succeed despite potential nonce collisions
@@ -117,7 +123,7 @@ describe("Concurrent Transactions", () => {
           .functionCall(contractId, "add_message", {
             text: `Batch message ${i}`,
           })
-          .send({ waitUntil: "FINAL" })
+          .send({ waitUntil: "FINAL" }),
       )
 
       const results = await Promise.allSettled(promises)
@@ -125,7 +131,9 @@ describe("Concurrent Transactions", () => {
       const succeeded = results.filter((r) => r.status === "fulfilled").length
       const failed = results.filter((r) => r.status === "rejected").length
 
-      console.log(`✓ Batch results - Succeeded: ${succeeded}, Failed: ${failed}`)
+      console.log(
+        `✓ Batch results - Succeeded: ${succeeded}, Failed: ${failed}`,
+      )
 
       // Verify at least some succeeded
       expect(succeeded).toBeGreaterThan(0)
@@ -138,9 +146,7 @@ describe("Concurrent Transactions", () => {
 
       expect(finalCount).toBeGreaterThanOrEqual(initialCount + succeeded)
 
-      console.log(
-        `✓ Message count increased: ${initialCount} → ${finalCount}`,
-      )
+      console.log(`✓ Message count increased: ${initialCount} → ${finalCount}`)
     }, 90000)
   })
 
@@ -184,7 +190,7 @@ describe("Concurrent Transactions", () => {
           .functionCall(contractId, "add_message", {
             text: `Timing test ${i}`,
           })
-          .send({ waitUntil: "FINAL" })
+          .send({ waitUntil: "FINAL" }),
       )
 
       await Promise.allSettled(promises)
@@ -215,7 +221,7 @@ describe("Concurrent Transactions", () => {
             .functionCall(contractId, "add_message", {
               text: `Rapid message ${i}`,
             })
-            .send({ waitUntil: "FINAL" })
+            .send({ waitUntil: "FINAL" }),
         )
       }
 
@@ -271,10 +277,10 @@ describe("Concurrent Transactions", () => {
       const results = await Promise.allSettled(promises)
 
       // View call should definitely succeed
-      expect(results[2].status).toBe("fulfilled")
+      expect(results[2]!.status).toBe("fulfilled")
 
       const writeSuccesses = [0, 1, 3].filter(
-        (i) => results[i].status === "fulfilled",
+        (i) => results[i]!.status === "fulfilled",
       ).length
 
       console.log(`✓ Mixed types: ${writeSuccesses}/3 writes succeeded`)
@@ -381,7 +387,7 @@ describe("Concurrent Transactions", () => {
             .functionCall(contractId, "add_message", {
               text: `Batch ${batch}, message ${i}`,
             })
-            .send({ waitUntil: "FINAL" })
+            .send({ waitUntil: "FINAL" }),
         )
 
         const results = await Promise.allSettled(promises)
@@ -432,9 +438,9 @@ describe("Concurrent Transactions", () => {
       const results = await Promise.allSettled(promises)
 
       // Should have 2 successes and 1 failure
-      expect(results[0].status).toBe("fulfilled")
-      expect(results[1].status).toBe("rejected")
-      expect(results[2].status).toBe("fulfilled")
+      expect(results[0]!.status).toBe("fulfilled")
+      expect(results[1]!.status).toBe("rejected")
+      expect(results[2]!.status).toBe("fulfilled")
 
       console.log("✓ Mix of successes and failures handled correctly")
     }, 60000)

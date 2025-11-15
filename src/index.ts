@@ -2,6 +2,8 @@
  * near-kit - A simple, intuitive TypeScript library for interacting with NEAR Protocol
  */
 
+// Contract types
+export type { Contract, ContractMethods } from "./contracts/contract.js"
 // Delegate actions
 export {
   DelegateAction,

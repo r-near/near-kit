@@ -286,7 +286,9 @@ export class Near {
       functionCallOptions.attachedDeposit = options.attachedDeposit
     }
 
-    const sendOptions = options.waitUntil ? { waitUntil: options.waitUntil } : {}
+    const sendOptions = options.waitUntil
+      ? { waitUntil: options.waitUntil }
+      : {}
 
     const result = await this.transaction(signerId)
       .functionCall(contractId, methodName, args, functionCallOptions)

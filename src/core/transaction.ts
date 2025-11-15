@@ -724,5 +724,4 @@ export class TransactionBuilder {
       )
     )
   }
-
 }
