@@ -115,7 +115,10 @@ export class RpcClient {
     for (let attempt = 0; attempt < totalAttempts; attempt++) {
       try {
         // Debug logging for RPC requests
-        if (process.env["NEAR_RPC_DEBUG"] === "true") {
+        if (
+          typeof process !== "undefined" &&
+          process.env["NEAR_RPC_DEBUG"] === "true"
+        ) {
           console.log("[RPC Request]", JSON.stringify(request, null, 2))
         }
 
@@ -140,7 +143,10 @@ export class RpcClient {
         const data: RpcResponse<T> = await response.json()
 
         // Debug logging for RPC responses
-        if (process.env["NEAR_RPC_DEBUG"] === "true") {
+        if (
+          typeof process !== "undefined" &&
+          process.env["NEAR_RPC_DEBUG"] === "true"
+        ) {
           console.log("[RPC Response]", JSON.stringify(data, null, 2))
         }
 
