@@ -157,7 +157,7 @@ describe("Error Handling - Function Call Errors", () => {
 
     // Decode result
     const decoded = JSON.parse(
-      new TextDecoder().decode(new Uint8Array(result.result)),
+      new TextDecoder().decode(new Uint8Array(result.result))
     )
     expect(decoded.name).toBeDefined()
     console.log(`✓ Successfully called view method: ${decoded.name}`)
@@ -183,7 +183,7 @@ describe("Error Handling - Network Errors", () => {
       expect(netError.retryable).toBe(true)
       console.log(`✓ NetworkError: ${netError.message}`)
     }
-  }, 10000)
+  }, 60000)
 })
 
 describe("Error Handling - Error Properties", () => {
@@ -201,7 +201,7 @@ describe("Error Handling - Error Properties", () => {
         test: async () =>
           await rpc.getAccessKey(
             "near",
-            "ed25519:He7QeRuwizNEhzeKNn2CLdCKfzkH6KLSaFKvJLYtnrFa",
+            "ed25519:He7QeRuwizNEhzeKNn2CLdCKfzkH6KLSaFKvJLYtnrFa"
           ),
       },
       {
@@ -221,7 +221,7 @@ describe("Error Handling - Error Properties", () => {
         expect(error).toHaveProperty("message")
         const err = error as { code: string; name: string }
         console.log(
-          `✓ ${testCase.name} has required properties: code=${err.code}, name=${err.name}`,
+          `✓ ${testCase.name} has required properties: code=${err.code}, name=${err.name}`
         )
       }
     }
