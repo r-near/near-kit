@@ -10,6 +10,7 @@ import {
   NearError,
   NetworkError,
 } from "../../errors/index.js"
+import type { RpcRetryConfigInput } from "../config-schemas.js"
 import type {
   AccessKeyView,
   AccountView,
@@ -80,12 +81,7 @@ export class RpcClient {
   constructor(
     url: string,
     headers?: Record<string, string>,
-    retryConfig?:
-      | {
-          maxRetries?: number | undefined
-          initialDelayMs?: number | undefined
-        }
-      | undefined,
+    retryConfig?: RpcRetryConfigInput,
   ) {
     this.url = url
     this.headers = headers || {}

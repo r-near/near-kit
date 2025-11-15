@@ -9,40 +9,41 @@
  * 2. Run: bun test tests/integration/transaction-signing.test.ts
  */
 
-import { describe, expect, test, beforeAll } from "bun:test"
-import { Near } from "../../src/index.js"
+import { beforeAll, describe, expect, test } from "bun:test"
+import { InMemoryKeyStore, Near } from "../../src/index.js"
 import { Amount } from "../../src/utils/amount.js"
+import { parseKey } from "../../src/utils/key.js"
+import type { PrivateKey } from "../../src/utils/validation.js"
 
-// These tests are skipped by default since they require network access
-// Set INTEGRATION_TESTS=true to run them
-const describeIntegration = process.env.INTEGRATION_TESTS === "true" ? describe : describe.skip
-
-describeIntegration("Transaction Signing - Integration Tests", () => {
+describe("Transaction Signing - Integration Tests", () => {
   let near: Near
   let testAccountId: string
-  let testPrivateKey: string
+  let testPrivateKey: PrivateKey
 
-  beforeAll(() => {
+  beforeAll(async () => {
     // Configuration for sandbox or testnet
-    const rpcUrl = process.env.NEAR_RPC_URL || "http://localhost:3030"
-    const networkId = process.env.NEAR_NETWORK_ID || "sandbox"
+    const rpcUrl = process.env["NEAR_RPC_URL"] || "http://localhost:3030"
+    const network = process.env["NEAR_NETWORK_ID"] || "sandbox"
 
     // Test account credentials (should be set in env or use sandbox defaults)
-    testAccountId = process.env.NEAR_TEST_ACCOUNT || "test.near"
+    testAccountId = process.env["NEAR_TEST_ACCOUNT"] || "test.near"
     testPrivateKey =
-      process.env.NEAR_TEST_PRIVATE_KEY ||
-      "ed25519:3D4YudUahN1nawWogh8pAKSj92sUNMdbZGjn7kERKzYoTy8oryFtvLGoBnu1J6N4qVWY9jXwfLiNWnaTzKkHNfqG"
+      (process.env["NEAR_TEST_PRIVATE_KEY"] as PrivateKey) ||
+      ("ed25519:3D4YudUahN1nawWogh8pAKSj92sUNMdbZGjn7kERKzYoTy8oryFtvLGoBnu1J6N4qVWY9jXwfLiNWnaTzKkHNfqG" as PrivateKey)
+
+    // Create keyStore and add test key
+    const keyStore = new InMemoryKeyStore()
+    const keyPair = parseKey(testPrivateKey)
+    await keyStore.add(testAccountId, keyPair)
 
     near = new Near({
-      networkId: networkId as any,
+      network: network as "mainnet" | "testnet" | "localnet",
       rpcUrl,
-      keyStore: "memory",
+      keyStore,
     })
   })
 
   test("should sign a transaction and get hash before sending", async () => {
-    await near.addKey(testAccountId, testPrivateKey)
-
     const tx = await near
       .transaction(testAccountId)
       .transfer(testAccountId, Amount.NEAR(0))
@@ -51,12 +52,10 @@ describeIntegration("Transaction Signing - Integration Tests", () => {
     const hash = tx.getHash()
     expect(hash).toBeTruthy()
     expect(typeof hash).toBe("string")
-    expect(hash!.length).toBeGreaterThan(40) // Base58 hash should be long
+    expect(hash?.length).toBeGreaterThan(40) // Base58 hash should be long
   })
 
   test("should send pre-signed transaction", async () => {
-    await near.addKey(testAccountId, testPrivateKey)
-
     // Sign first
     const tx = await near
       .transaction(testAccountId)
@@ -64,6 +63,10 @@ describeIntegration("Transaction Signing - Integration Tests", () => {
       .sign()
 
     const hashBeforeSend = tx.getHash()
+    expect(hashBeforeSend).toBeTruthy()
+    if (!hashBeforeSend) {
+      throw new Error("Hash should be defined after signing")
+    }
 
     // Send later
     const result = await tx.send()
@@ -74,8 +77,6 @@ describeIntegration("Transaction Signing - Integration Tests", () => {
   })
 
   test("should serialize and deserialize transaction", async () => {
-    await near.addKey(testAccountId, testPrivateKey)
-
     const tx = await near
       .transaction(testAccountId)
       .transfer(testAccountId, Amount.NEAR(0))
@@ -89,8 +90,6 @@ describeIntegration("Transaction Signing - Integration Tests", () => {
   })
 
   test("should return transaction hash with NONE finality", async () => {
-    await near.addKey(testAccountId, testPrivateKey)
-
     const result = await near
       .transaction(testAccountId)
       .transfer(testAccountId, Amount.NEAR(0))
@@ -98,30 +97,26 @@ describeIntegration("Transaction Signing - Integration Tests", () => {
 
     // Transaction hash should be injected
     expect(result.transaction).toBeDefined()
-    expect(result.transaction!.hash).toBeTruthy()
-    expect(result.transaction!.signer_id).toBe(testAccountId)
-    expect(result.transaction!.receiver_id).toBe(testAccountId)
-    expect(typeof result.transaction!.nonce).toBe("number")
+    expect(result.transaction?.hash).toBeTruthy()
+    expect(result.transaction?.signer_id).toBe(testAccountId)
+    expect(result.transaction?.receiver_id).toBe(testAccountId)
+    expect(typeof result.transaction?.nonce).toBe("number")
 
     expect(result.final_execution_status).toBe("NONE")
   })
 
   test("should return transaction hash with INCLUDED finality", async () => {
-    await near.addKey(testAccountId, testPrivateKey)
-
     const result = await near
       .transaction(testAccountId)
       .transfer(testAccountId, Amount.NEAR(0))
       .send({ waitUntil: "INCLUDED" })
 
     expect(result.transaction).toBeDefined()
-    expect(result.transaction!.hash).toBeTruthy()
+    expect(result.transaction?.hash).toBeTruthy()
     expect(result.final_execution_status).toBe("INCLUDED")
   })
 
   test("should return full transaction with EXECUTED_OPTIMISTIC", async () => {
-    await near.addKey(testAccountId, testPrivateKey)
-
     const result = await near
       .transaction(testAccountId)
       .transfer(testAccountId, Amount.NEAR(0))
@@ -136,8 +131,6 @@ describeIntegration("Transaction Signing - Integration Tests", () => {
   })
 
   test("should handle multiple actions in one transaction", async () => {
-    await near.addKey(testAccountId, testPrivateKey)
-
     const tx = await near
       .transaction(testAccountId)
       .transfer(testAccountId, Amount.NEAR(0))
@@ -146,15 +139,18 @@ describeIntegration("Transaction Signing - Integration Tests", () => {
 
     const hash = tx.getHash()
     expect(hash).toBeTruthy()
+    if (!hash) {
+      throw new Error("Hash should be defined after signing")
+    }
 
     const result = await tx.send()
     expect(result.transaction.hash).toBe(hash)
   })
 
   test("should invalidate cache when adding actions after signing", async () => {
-    await near.addKey(testAccountId, testPrivateKey)
-
-    const tx = near.transaction(testAccountId).transfer(testAccountId, Amount.NEAR(0))
+    const tx = near
+      .transaction(testAccountId)
+      .transfer(testAccountId, Amount.NEAR(0))
 
     await tx.sign()
     const firstHash = tx.getHash()
@@ -173,8 +169,6 @@ describeIntegration("Transaction Signing - Integration Tests", () => {
   })
 
   test("should work with signWith() override", async () => {
-    await near.addKey(testAccountId, testPrivateKey)
-
     const result = await near
       .transaction(testAccountId)
       .signWith(testPrivateKey)
@@ -186,8 +180,6 @@ describeIntegration("Transaction Signing - Integration Tests", () => {
   })
 
   test("should handle nonce retry on send", async () => {
-    await near.addKey(testAccountId, testPrivateKey)
-
     // This test verifies that nonce retries work
     // In normal operation, nonce errors are rare, but the retry logic should handle them
 
@@ -200,9 +192,9 @@ describeIntegration("Transaction Signing - Integration Tests", () => {
   })
 
   test("same hash when signing multiple times without changes", async () => {
-    await near.addKey(testAccountId, testPrivateKey)
-
-    const tx = near.transaction(testAccountId).transfer(testAccountId, Amount.NEAR(0))
+    const tx = near
+      .transaction(testAccountId)
+      .transfer(testAccountId, Amount.NEAR(0))
 
     await tx.sign()
     const hash1 = tx.getHash()
@@ -215,37 +207,43 @@ describeIntegration("Transaction Signing - Integration Tests", () => {
   })
 })
 
-describeIntegration("Transaction Signing - Complex Scenarios", () => {
+describe("Transaction Signing - Complex Scenarios", () => {
   let near: Near
   let testAccountId: string
-  let testPrivateKey: string
+  let testPrivateKey: PrivateKey
 
-  beforeAll(() => {
-    const rpcUrl = process.env.NEAR_RPC_URL || "http://localhost:3030"
-    const networkId = process.env.NEAR_NETWORK_ID || "sandbox"
+  beforeAll(async () => {
+    const rpcUrl = process.env["NEAR_RPC_URL"] || "http://localhost:3030"
+    const network = process.env["NEAR_NETWORK_ID"] || "sandbox"
 
-    testAccountId = process.env.NEAR_TEST_ACCOUNT || "test.near"
+    testAccountId = process.env["NEAR_TEST_ACCOUNT"] || "test.near"
     testPrivateKey =
-      process.env.NEAR_TEST_PRIVATE_KEY ||
-      "ed25519:3D4YudUahN1nawWogh8pAKSj92sUNMdbZGjn7kERKzYoTy8oryFtvLGoBnu1J6N4qVWY9jXwfLiNWnaTzKkHNfqG"
+      (process.env["NEAR_TEST_PRIVATE_KEY"] as PrivateKey) ||
+      ("ed25519:3D4YudUahN1nawWogh8pAKSj92sUNMdbZGjn7kERKzYoTy8oryFtvLGoBnu1J6N4qVWY9jXwfLiNWnaTzKkHNfqG" as PrivateKey)
+
+    // Create keyStore and add test key
+    const keyStore = new InMemoryKeyStore()
+    const keyPair = parseKey(testPrivateKey)
+    await keyStore.add(testAccountId, keyPair)
 
     near = new Near({
-      networkId: networkId as any,
+      network: network as "mainnet" | "testnet" | "localnet",
       rpcUrl,
-      keyStore: "memory",
+      keyStore,
     })
   })
 
   test("should track transaction with NONE then poll with hash", async () => {
-    await near.addKey(testAccountId, testPrivateKey)
-
     // Send with NONE to get quick response
     const result = await near
       .transaction(testAccountId)
       .transfer(testAccountId, Amount.NEAR(0))
       .send({ waitUntil: "NONE" })
 
-    const txHash = result.transaction!.hash
+    const txHash = result.transaction?.hash
+    if (!txHash) {
+      throw new Error("No transaction hash returned")
+    }
 
     // Wait a bit for transaction to process
     await new Promise((resolve) => setTimeout(resolve, 1000))
@@ -261,8 +259,6 @@ describeIntegration("Transaction Signing - Complex Scenarios", () => {
   })
 
   test("should handle batch operations with individual signing", async () => {
-    await near.addKey(testAccountId, testPrivateKey)
-
     // Create and sign multiple transactions
     const tx1 = await near
       .transaction(testAccountId)
@@ -277,6 +273,11 @@ describeIntegration("Transaction Signing - Complex Scenarios", () => {
     const hash1 = tx1.getHash()
     const hash2 = tx2.getHash()
 
+    expect(hash1).toBeTruthy()
+    expect(hash2).toBeTruthy()
+    if (!hash1 || !hash2) {
+      throw new Error("Hashes should be defined after signing")
+    }
     expect(hash1).not.toBe(hash2) // Different transactions should have different hashes
 
     // Send both
@@ -288,12 +289,10 @@ describeIntegration("Transaction Signing - Complex Scenarios", () => {
   })
 
   test("should work with custom signer function", async () => {
-    await near.addKey(testAccountId, testPrivateKey)
-
     // Create custom signer that delegates to key pair
-    const keyPair = await near.keys.get(testAccountId)
+    const keyPair = parseKey(testPrivateKey)
     const customSigner = async (message: Uint8Array) => {
-      return keyPair!.sign(message)
+      return keyPair.sign(message)
     }
 
     const result = await near

@@ -2,7 +2,7 @@
  * Tests for transaction signing functionality
  */
 
-import { describe, expect, test, beforeEach } from "bun:test"
+import { describe, expect, test } from "bun:test"
 import { RpcClient } from "../../src/core/rpc/rpc.js"
 import { TransactionBuilder } from "../../src/core/transaction.js"
 import { InMemoryKeyStore } from "../../src/keys/index.js"
@@ -24,13 +24,13 @@ function createBuilderWithMocks(): {
   const keyStore = new InMemoryKeyStore()
 
   // Mock RPC methods to avoid network calls
-  ;(rpc as any).getAccessKey = async () => ({
+  ;(rpc as unknown as Record<string, unknown>)["getAccessKey"] = async () => ({
     nonce: 100,
     permission: "FullAccess",
     block_height: 1000,
     block_hash: "11111111111111111111111111111111",
   })
-  ;(rpc as any).getStatus = async () => ({
+  ;(rpc as unknown as Record<string, unknown>)["getStatus"] = async () => ({
     sync_info: {
       latest_block_hash: "GwVStJW8yLesiDA1Fhd7tkMx48ViJQBoTMBBLXa2YUhP",
     },
@@ -50,7 +50,9 @@ describe("TransactionBuilder - .sign() method", () => {
     await keyStore.add("alice.near", keyPair)
 
     // Build and sign
-    const signedBuilder = await builder.transfer("bob.near", Amount.NEAR(1)).sign()
+    const signedBuilder = await builder
+      .transfer("bob.near", Amount.NEAR(1))
+      .sign()
 
     // Should return the same builder instance
     expect(signedBuilder).toBe(builder)
@@ -59,7 +61,7 @@ describe("TransactionBuilder - .sign() method", () => {
     const hash = signedBuilder.getHash()
     expect(hash).toBeTruthy()
     expect(typeof hash).toBe("string")
-    expect(hash!.length).toBeGreaterThan(0)
+    expect(hash?.length).toBeGreaterThan(0)
   })
 
   test("should return cached result on second .sign() call", async () => {
@@ -162,7 +164,7 @@ describe("TransactionBuilder - .sign() method", () => {
 
     // Sign
     await builder.transfer("bob.near", Amount.NEAR(1)).sign()
-    const firstHash = builder.getHash()
+    expect(builder.getHash()).toBeTruthy()
 
     // Change signer - should invalidate cache
     builder.signWith(TEST_PRIVATE_KEY)
@@ -196,7 +198,7 @@ describe("TransactionBuilder - .sign() method", () => {
     const hash = builder.getHash()
     expect(hash).toBeTruthy()
     expect(typeof hash).toBe("string")
-    expect(hash!.length).toBeGreaterThan(40) // Base58 hashes are typically 44 chars
+    expect(hash?.length).toBeGreaterThan(40) // Base58 hashes are typically 44 chars
   })
 
   test("should throw error when signing without receiver", async () => {
@@ -286,7 +288,7 @@ describe("TransactionBuilder - sign and send workflow", () => {
 
     // Mock sendTransaction
     let capturedHash: string | undefined
-    ;(rpc as any).sendTransaction = async (
+    ;(rpc as unknown as Record<string, unknown>)["sendTransaction"] = async (
       _bytes: Uint8Array,
       _waitUntil: string,
     ) => {
@@ -319,7 +321,11 @@ describe("TransactionBuilder - sign and send workflow", () => {
 
     // Sign first
     await builder.transfer("bob.near", Amount.NEAR(1)).sign()
-    capturedHash = builder.getHash()!
+    const hash = builder.getHash()
+    if (!hash) {
+      throw new Error("Hash should be defined after signing")
+    }
+    capturedHash = hash
 
     // Send later
     const result = await builder.send()
@@ -335,37 +341,38 @@ describe("TransactionBuilder - sign and send workflow", () => {
 
     let signCallCount = 0
     const originalSign = builder.sign.bind(builder)
-    builder.sign = async function () {
+    builder.sign = async () => {
       signCallCount++
       return originalSign()
     }
 
     // Mock sendTransaction
-    ;(rpc as any).sendTransaction = async () => ({
-      final_execution_status: "EXECUTED_OPTIMISTIC",
-      status: { SuccessValue: "" },
-      transaction: {
-        hash: "hash123",
-        signer_id: "alice.near",
-        receiver_id: "bob.near",
-        nonce: 101,
-        public_key: TEST_PUBLIC_KEY,
-        actions: [],
-        signature: "sig...",
-      },
-      transaction_outcome: {
-        id: "tx123",
-        outcome: {
-          logs: [],
-          receipt_ids: [],
-          gas_burnt: 1000000,
-          tokens_burnt: "0",
-          executor_id: "alice.near",
-          status: { SuccessValue: "" },
+    ;(rpc as unknown as Record<string, unknown>)["sendTransaction"] =
+      async () => ({
+        final_execution_status: "EXECUTED_OPTIMISTIC",
+        status: { SuccessValue: "" },
+        transaction: {
+          hash: "hash123",
+          signer_id: "alice.near",
+          receiver_id: "bob.near",
+          nonce: 101,
+          public_key: TEST_PUBLIC_KEY,
+          actions: [],
+          signature: "sig...",
         },
-      },
-      receipts_outcome: [],
-    })
+        transaction_outcome: {
+          id: "tx123",
+          outcome: {
+            logs: [],
+            receipt_ids: [],
+            gas_burnt: 1000000,
+            tokens_burnt: "0",
+            executor_id: "alice.near",
+            status: { SuccessValue: "" },
+          },
+        },
+        receipts_outcome: [],
+      })
 
     // Sign then send
     await builder.transfer("bob.near", Amount.NEAR(1)).sign()
@@ -385,9 +392,10 @@ describe("TransactionBuilder - hash in NONE finality responses", () => {
     await keyStore.add("alice.near", keyPair)
 
     // Mock sendTransaction to return NONE response
-    ;(rpc as any).sendTransaction = async () => ({
-      final_execution_status: "NONE",
-    })
+    ;(rpc as unknown as Record<string, unknown>)["sendTransaction"] =
+      async () => ({
+        final_execution_status: "NONE",
+      })
 
     const result = await builder
       .transfer("bob.near", Amount.NEAR(1))
@@ -395,10 +403,10 @@ describe("TransactionBuilder - hash in NONE finality responses", () => {
 
     // Should have injected transaction fields
     expect(result.transaction).toBeDefined()
-    expect(result.transaction!.hash).toBeTruthy()
-    expect(result.transaction!.signer_id).toBe("alice.near")
-    expect(result.transaction!.receiver_id).toBe("bob.near")
-    expect(result.transaction!.nonce).toBe(101) // nonce + 1
+    expect(result.transaction?.hash).toBeTruthy()
+    expect(result.transaction?.signer_id).toBe("alice.near")
+    expect(result.transaction?.receiver_id).toBe("bob.near")
+    expect(result.transaction?.nonce).toBe(101) // nonce + 1
   })
 
   test("should inject transaction hash for INCLUDED finality", async () => {
@@ -407,18 +415,19 @@ describe("TransactionBuilder - hash in NONE finality responses", () => {
     const keyPair = parseKey(TEST_PRIVATE_KEY)
     await keyStore.add("alice.near", keyPair)
 
-    ;(rpc as any).sendTransaction = async () => ({
-      final_execution_status: "INCLUDED",
-    })
+    ;(rpc as unknown as Record<string, unknown>)["sendTransaction"] =
+      async () => ({
+        final_execution_status: "INCLUDED",
+      })
 
     const result = await builder
       .transfer("bob.near", Amount.NEAR(1))
       .send({ waitUntil: "INCLUDED" })
 
     expect(result.transaction).toBeDefined()
-    expect(result.transaction!.hash).toBeTruthy()
-    expect(result.transaction!.signer_id).toBe("alice.near")
-    expect(result.transaction!.receiver_id).toBe("bob.near")
+    expect(result.transaction?.hash).toBeTruthy()
+    expect(result.transaction?.signer_id).toBe("alice.near")
+    expect(result.transaction?.receiver_id).toBe("bob.near")
   })
 
   test("should inject transaction hash for INCLUDED_FINAL finality", async () => {
@@ -427,16 +436,17 @@ describe("TransactionBuilder - hash in NONE finality responses", () => {
     const keyPair = parseKey(TEST_PRIVATE_KEY)
     await keyStore.add("alice.near", keyPair)
 
-    ;(rpc as any).sendTransaction = async () => ({
-      final_execution_status: "INCLUDED_FINAL",
-    })
+    ;(rpc as unknown as Record<string, unknown>)["sendTransaction"] =
+      async () => ({
+        final_execution_status: "INCLUDED_FINAL",
+      })
 
     const result = await builder
       .transfer("bob.near", Amount.NEAR(1))
       .send({ waitUntil: "INCLUDED_FINAL" })
 
     expect(result.transaction).toBeDefined()
-    expect(result.transaction!.hash).toBeTruthy()
+    expect(result.transaction?.hash).toBeTruthy()
   })
 
   test("should not override transaction for EXECUTED_OPTIMISTIC", async () => {
@@ -446,31 +456,32 @@ describe("TransactionBuilder - hash in NONE finality responses", () => {
     await keyStore.add("alice.near", keyPair)
 
     const expectedHash = "rpc_provided_hash_123"
-    ;(rpc as any).sendTransaction = async () => ({
-      final_execution_status: "EXECUTED_OPTIMISTIC",
-      status: { SuccessValue: "" },
-      transaction: {
-        hash: expectedHash,
-        signer_id: "alice.near",
-        receiver_id: "bob.near",
-        nonce: 101,
-        public_key: TEST_PUBLIC_KEY,
-        actions: [],
-        signature: "sig...",
-      },
-      transaction_outcome: {
-        id: "tx123",
-        outcome: {
-          logs: [],
-          receipt_ids: [],
-          gas_burnt: 1000000,
-          tokens_burnt: "0",
-          executor_id: "alice.near",
-          status: { SuccessValue: "" },
+    ;(rpc as unknown as Record<string, unknown>)["sendTransaction"] =
+      async () => ({
+        final_execution_status: "EXECUTED_OPTIMISTIC",
+        status: { SuccessValue: "" },
+        transaction: {
+          hash: expectedHash,
+          signer_id: "alice.near",
+          receiver_id: "bob.near",
+          nonce: 101,
+          public_key: TEST_PUBLIC_KEY,
+          actions: [],
+          signature: "sig...",
         },
-      },
-      receipts_outcome: [],
-    })
+        transaction_outcome: {
+          id: "tx123",
+          outcome: {
+            logs: [],
+            receipt_ids: [],
+            gas_burnt: 1000000,
+            tokens_burnt: "0",
+            executor_id: "alice.near",
+            status: { SuccessValue: "" },
+          },
+        },
+        receipts_outcome: [],
+      })
 
     const result = await builder
       .transfer("bob.near", Amount.NEAR(1))

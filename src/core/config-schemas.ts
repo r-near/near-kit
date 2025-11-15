@@ -88,6 +88,12 @@ export const RpcRetryConfigSchema = z
   .partial()
 
 /**
+ * Inferred type for RPC retry configuration input
+ * Allows partial configuration with optional fields that can be undefined
+ */
+export type RpcRetryConfigInput = z.infer<typeof RpcRetryConfigSchema>
+
+/**
  * Schema for NEAR client configuration
  */
 export const NearConfigSchema = z.object({

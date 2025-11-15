@@ -404,13 +404,13 @@ export class Near {
    * @example
    * ```typescript
    * // Get transaction status with default wait level
-   * const status = await near.txStatus(
+   * const status = await near.getTransactionStatus(
    *   '7AfonAhbK4ZbdBU9VPcQdrTZVZBXE25HmZAMEABs9To1',
    *   'alice.near'
    * )
    *
    * // Wait for full finality
-   * const finalStatus = await near.txStatus(
+   * const finalStatus = await near.getTransactionStatus(
    *   '7AfonAhbK4ZbdBU9VPcQdrTZVZBXE25HmZAMEABs9To1',
    *   'alice.near',
    *   'FINAL'
@@ -422,7 +422,7 @@ export class Near {
    *
    * @see {@link https://docs.near.org/api/rpc/transactions#transaction-status-with-receipts NEAR RPC Documentation}
    */
-  async txStatus<
+  async getTransactionStatus<
     W extends
       | "NONE"
       | "INCLUDED"
