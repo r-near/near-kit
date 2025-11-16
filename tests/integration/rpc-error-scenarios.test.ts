@@ -110,7 +110,7 @@ describe("RPC Error Handling - Comprehensive Tests", () => {
   describe("Network Errors", () => {
     test("invalid RPC endpoint throws NetworkError", async () => {
       const badNear = new Near({
-        rpcUrl: "https://invalid-rpc-endpoint-that-does-not-exist.near.org",
+        network: "testnet",
         keyStore: {},
       })
 
