@@ -68,7 +68,7 @@ jobs:
         run: ulimit -n 65535
 
       - name: Run integration tests
-        run: bun test tests/integration
+        run: bun test tests/integration --coverage
 
   wallet-tests:
     runs-on: arc-runner-set
@@ -85,4 +85,4 @@ jobs:
         run: bun install
 
       - name: Run wallet tests
-        run: bun test tests/wallets
+        run: bun test tests/wallets --coverage
