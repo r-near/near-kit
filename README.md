@@ -296,25 +296,29 @@ await fetch('/api/auth', {
 
 ### Delegate Actions (NEP-366)
 
-Enable meta-transactions and sponsored transactions:
+Enable meta-transactions and sponsored transactions where a relayer pays the gas:
 
 ```typescript
-import { DelegateAction, SignedDelegate } from 'near-kit';
-
-// User creates a delegate action (no gas needed)
-const delegate = new DelegateAction({
-  senderId: 'user.near',
-  receiverId: 'contract.near',
-  actions: [/* actions */],
-  nonce: 1n,
-  maxBlockHeight: 12345n,
-  publicKey: userPublicKey
+// User creates and signs a delegate action (no gas cost to user)
+const userNear = new Near({
+  network: 'testnet',
+  privateKey: 'ed25519:...'  // User's key
 });
 
-// Relayer signs and sends the transaction (pays gas)
-const signedDelegate = new SignedDelegate({ delegate, signature });
-await relayer.transaction('relayer.near')
-  .signedDelegate(signedDelegate)
+const signedDelegateAction = await userNear
+  .transaction('user.near')
+  .transfer('recipient.near', '1 NEAR')
+  .delegate({ blockHeightOffset: 100 });
+
+// Relayer submits the transaction (pays the gas)
+const relayerNear = new Near({
+  network: 'testnet',
+  privateKey: 'ed25519:...'  // Relayer's key
+});
+
+await relayerNear
+  .transaction('relayer.near')
+  .signedDelegateAction(signedDelegateAction)
   .send();
 ```
 
