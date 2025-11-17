@@ -271,6 +271,16 @@ export const ActionSchema = z.union([
     }),
   }),
   z.object({
+    DeployGlobalContractByAccountId: z.object({
+      code: z.string(), // base64 encoded contract code
+    }),
+  }),
+  z.object({
+    DeployGlobalContractByCodeHash: z.object({
+      code: z.string(), // base64 encoded contract code
+    }),
+  }),
+  z.object({
     Stake: z.object({
       stake: z.string(),
       public_key: z.string(),
@@ -293,6 +303,16 @@ export const ActionSchema = z.union([
   z.object({
     DeleteAccount: z.object({
       beneficiary_id: z.string(),
+    }),
+  }),
+  z.object({
+    UseGlobalContractByAccountId: z.object({
+      account_id: z.string(),
+    }),
+  }),
+  z.object({
+    UseGlobalContractByCodeHash: z.object({
+      code_hash: z.string(),
     }),
   }),
   z.object({

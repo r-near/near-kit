@@ -390,7 +390,7 @@ describe("Transaction Actions - Integration Tests", () => {
   })
 
   describe("publishContract and deployFromPublished actions", () => {
-    test.skip("should publish a contract to global registry", async () => {
+    test("should publish a contract to global registry", async () => {
       // Note: Global contracts require NEP-0516 support which may not be in all sandbox versions
       const publisherKey = generateKey()
       const publisherId = `publisher-${Date.now()}.${sandbox.rootAccount.id}`
@@ -427,8 +427,7 @@ describe("Transaction Actions - Integration Tests", () => {
       console.log(`✓ Contract published by: ${publisherId}`)
     }, 30000)
 
-    test.skip("should deploy contract from published code by account ID", async () => {
-      // Note: Global contracts require NEP-0516 support which may not be in all sandbox versions
+    test("should deploy contract from published code by account ID", async () => {
       const publisherKey = generateKey()
       const publisherId = `pub2-${Date.now()}.${sandbox.rootAccount.id}`
       const deployerKey = generateKey()
@@ -485,7 +484,7 @@ describe("Transaction Actions - Integration Tests", () => {
       await nearWithDeployerKey
         .transaction(deployerId)
         .deployFromPublished({ accountId: publisherId })
-        .send()
+        .send({ waitUntil: "FINAL" })
 
       console.log(`✓ Contract deployed from published code`)
 
