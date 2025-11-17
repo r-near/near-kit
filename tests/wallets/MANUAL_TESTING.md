@@ -36,7 +36,7 @@ This guide explains how to test the wallet integration in a real browser environ
     })
 
     const modal = setupModal(selector, {
-      contractId: "guest-book.testnet"
+      contractId: "guestbook.near-examples.testnet"
     })
 
     // Connect button
@@ -78,7 +78,7 @@ This guide explains how to test the wallet integration in a real browser environ
     document.getElementById("callContract").onclick = async () => {
       try {
         document.getElementById("status").textContent = "Calling contract..."
-        await near.call("guest-book.testnet", "add_message", {
+        await near.call("guestbook.near-examples.testnet", "add_message", {
           text: "Hello from near-ts!"
         }, { gas: "30 Tgas" })
         document.getElementById("status").textContent = "✅ Message added!"
@@ -221,7 +221,7 @@ await near.send("receiver.testnet", "1 NEAR")
 
 ```javascript
 await near.call(
-  "guest-book.testnet",
+  "guestbook.near-examples.testnet",
   "add_message",
   { text: "Hello from near-ts!" },
   { gas: "30 Tgas" }
@@ -252,7 +252,7 @@ await near.transaction(accountId)
 // Write once, works with wallet OR private key
 async function addGuestbookMessage(near, signerId, message) {
   return await near.call(
-    "guest-book.testnet",
+    "guestbook.near-examples.testnet",
     "add_message",
     { text: message },
     { signerId, gas: "30 Tgas" }

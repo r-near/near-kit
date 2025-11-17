@@ -43,7 +43,7 @@ async function addGuestbookMessage(
   console.log(`Adding message from ${signerId}: "${message}"`)
 
   const result = await near.call(
-    "guest-book.testnet",
+    "guestbook.near-examples.testnet",
     "add_message",
     { text: message },
     { signerId, gas: "30 Tgas" },

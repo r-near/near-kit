@@ -27,7 +27,8 @@ The Sandbox is perfect for integration tests. Here’s how to use it with `bun:t
 Create a test file like `tests/integration.test.ts`:
 
 ```typescript
-import { Near, Sandbox } from "near-kit"
+import { Near } from "near-kit"
+import { Sandbox } from "near-kit/sandbox"
 import { beforeAll, afterAll, test, expect } from "bun:test"
 
 // These tests can take a moment to initialize the sandbox

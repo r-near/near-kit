@@ -58,18 +58,17 @@ Now, when you use the `contract` object, your IDE will provide autocompletion, a
 
 ```typescript
 // ✅ Correct and autocompleted!
-const nft = await contract.view.nft_token({ token_id: '123' });
-console.log('Owner:', nft.owner_id);
+const nft = await contract.view.nft_token({ token_id: "2318:2" })
+console.log("Owner:", nft.owner_id)
 
-// ❌ TypeScript Error: Property 'nft_tranfer' does not exist.
-await contract.call.nft_tranfer({ ... });
-
-// ❌ TypeScript Error: Property 'reciever_id' does not exist.
-// Did you mean 'receiver_id'?
-await contract.call.nft_transfer({
-  reciever_id: 'bob.near',
-  token_id: '123'
-});
+// ❌ Examples of invalid code that TypeScript will reject:
+//
+// await contract.call.nft_tranfer({ ... })
+//
+// await contract.call.nft_transfer({
+//   reciever_id: "bob.near",
+//   token_id: "2318:2",
+// })
 ```
 
 This simple pattern catches bugs before you even run your code, dramatically speeding up development and increasing the reliability of your application.

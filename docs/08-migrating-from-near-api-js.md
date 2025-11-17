@@ -14,10 +14,11 @@ If you're coming from `near-api-js`, you'll find that `near-kit` accomplishes th
 **near-api-js:**
 
 ```typescript
-const { connect, keyStores } = require("near-api-js");
+const { connect, keyStores, KeyPair } = require("near-api-js");
 
 const keyStore = new keyStores.InMemoryKeyStore();
-keyStore.setKey("testnet", "alice.testnet", ...);
+const keyPair = KeyPair.fromString("ed25519:...");
+await keyStore.setKey("testnet", "alice.testnet", keyPair);
 
 const config = {
   networkId: "testnet",
@@ -46,7 +47,7 @@ const near = new Near({
 
 ```typescript
 const response = await account.viewFunction({
-  contractId: "guest-book.testnet",
+  contractId: "guestbook.near-examples.testnet",
   methodName: "get_messages",
   args: {},
 })
@@ -54,12 +55,18 @@ const response = await account.viewFunction({
 
 **near-kit:**
 
-````typescript
-const response = await near.view('guest-book.testnet', 'get_messages', {});```
+```typescript
+const response = await near.view(
+  "guestbook.near-examples.testnet",
+  "get_messages",
+  {}
+)
+```
 
 ### Sending NEAR
 
 **near-api-js:**
+
 ```typescript
 const { utils } = require("near-api-js");
 
@@ -67,14 +74,16 @@ await account.sendMoney(
   "bob.testnet",
   utils.format.parseNearAmount("10.5") // Manual unit conversion
 );
-````
+```
 
-**near-kit:**```typescript
-await near.transaction('alice.testnet')
-.transfer('bob.testnet', '10.5 NEAR') // Human-readable units
-.send();
+**near-kit:**
 
-````
+```typescript
+await near
+  .transaction("alice.testnet")
+  .transfer("bob.testnet", "10.5 NEAR") // Human-readable units
+  .send()
+```
 
 ### Calling a Contract Method
 

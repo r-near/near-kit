@@ -16,7 +16,7 @@ async function addGuestbookMessage(
   return await near
     .transaction(signerId)
     .functionCall(
-      "guest-book.testnet",
+      "guestbook.near-examples.testnet",
       "add_message",
       { text: message },
       { gas: "30 Tgas" }
@@ -68,7 +68,9 @@ const modal = setupModal(selector, {
 selector.store.observable.subscribe(async (state) => {
   if (state.accounts.length > 0) {
     const wallet = await selector.wallet()
-    const accountId = state.accounts.accountId
+    const accountId = state.accounts[0]?.accountId
+
+    if (!accountId) return
 
     // 4. Create a Near instance using the wallet adapter
     const near = new Near({

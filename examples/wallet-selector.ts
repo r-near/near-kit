@@ -42,7 +42,7 @@ async function main() {
 
   // 2. Setup modal UI (optional but recommended)
   const modal = setupModal(selector, {
-    contractId: "guest-book.testnet",
+    contractId: "guestbook.near-examples.testnet",
   })
 
   // 3. Show modal to let user select and connect their wallet
@@ -68,7 +68,7 @@ async function main() {
 
         // Call a contract method
         const result = await near.call(
-          "guest-book.testnet",
+          "guestbook.near-examples.testnet",
           "add_message",
           { text: "Hello from near-ts!" },
           { gas: "30 Tgas" },

@@ -19,21 +19,25 @@ import type {
 } from "../core/types.js"
 
 // Wallet interface types based on @near-wallet-selector/core v10.x
-// These are duck-typed to match the actual wallet interface structure
+// These are duck-typed to match the actual wallet interface structure.
+// Note: Some wallet-selector implementations type signAndSendTransaction
+// as returning `void | FinalExecutionOutcome`. We normalize this to always
+// return a FinalExecutionOutcome from our adapter (we throw if the wallet
+// returns void) so that the rest of near-kit can rely on a concrete result.
 type WalletSelectorWallet = {
   getAccounts(): Promise<Array<{ accountId: string; publicKey?: string }>>
   signAndSendTransaction(params: {
     signerId?: string
     receiverId?: string // Optional in wallet-selector (defaults to contractId)
     actions: unknown[] // We pass our Action[] which is structurally compatible
-  }): Promise<FinalExecutionOutcome> // Returns @near-js type, structurally compatible with ours
+  }): Promise<unknown> // Runtime result is structurally compatible with our FinalExecutionOutcome
   signMessage?(params: {
     message: string
     recipient: string
     nonce: Buffer // wallet-selector uses Buffer (Node.js), we convert from Uint8Array
     callbackUrl?: string
     state?: string
-  }): Promise<SignedMessage | undefined> // May return undefined for browser wallets
+  }): Promise<unknown> // Many wallets type this as void | SignedMessage
 }
 
 // Wallet interface types based on @hot-labs/near-connect v0.6.x
@@ -102,17 +106,22 @@ export function fromWalletSelector(
       }))
     },
 
-    async signAndSendTransaction(params) {
+    async signAndSendTransaction(params): Promise<FinalExecutionOutcome> {
       // Our Action[] type is structurally compatible with @near-js Action[]
       // Duck typing works at runtime - see type-compatibility.test.ts
-      return await wallet.signAndSendTransaction({
+      const result = await wallet.signAndSendTransaction({
         ...(params.signerId !== undefined && { signerId: params.signerId }),
         receiverId: params.receiverId,
         actions: params.actions,
       })
+
+      if (!result) {
+        throw new Error("Wallet did not return transaction outcome")
+      }
+      return result as FinalExecutionOutcome
     },
 
-    async signMessage(params) {
+    async signMessage(params): Promise<SignedMessage> {
       if (!wallet.signMessage) {
         throw new Error("Wallet does not support message signing")
       }
@@ -130,7 +139,7 @@ export function fromWalletSelector(
       if (!result) {
         throw new Error("Wallet did not return signed message")
       }
-      return result
+      return result as SignedMessage
     },
   }
 }

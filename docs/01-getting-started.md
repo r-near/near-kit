@@ -27,12 +27,18 @@ Let's write a script that connects to the testnet, reads data from a contract, a
 Create a file named `index.ts`:
 
 ```typescript
-import { Near } from "near-kit"
+import { InMemoryKeyStore, Near, parseKey } from "near-kit"
 
 // --- 1. Set up your credentials ---
 // NOTE: Do not hardcode private keys in production! Use environment variables.
 const YOUR_ACCOUNT_ID = "your-account.testnet"
 const YOUR_PRIVATE_KEY = "ed25519:...." // Your testnet private key
+
+// Optional: if you want `near.transaction(YOUR_ACCOUNT_ID)` to work without
+// passing a signerId every time, preload the key into a keyStore:
+const keyStore = new InMemoryKeyStore()
+const keyPair = parseKey(YOUR_PRIVATE_KEY)
+await keyStore.add(YOUR_ACCOUNT_ID, keyPair)
 
 async function main() {
   if (YOUR_ACCOUNT_ID === "your-account.testnet") {
@@ -46,21 +52,20 @@ async function main() {
   // Connect to the testnet and provide your private key for signing.
   const near = new Near({
     network: "testnet",
-    privateKey: YOUR_PRIVATE_KEY,
+    keyStore,
+    defaultSignerId: YOUR_ACCOUNT_ID,
   })
 
   console.log(`Initialized client for account [${YOUR_ACCOUNT_ID}]`)
 
   // --- 3. View a contract (read-only, no cost) ---
-  // Let's check the total messages on the guest book contract.
-  const totalMessages = await near.view(
-    "guest-book.testnet",
-    "total_messages",
+  // Let's check the messages on the guest book contract.
+  const messages = await near.view(
+    "guestbook.near-examples.testnet",
+    "get_messages",
     {}
   )
-  console.log(
-    `There are a total of ${totalMessages} messages on the guest book.`
-  )
+  console.log("Latest messages on the guest book:", messages)
 
   // --- 4. Send a transaction (write) ---
   // Now, let's add our own message to the guest book.
@@ -69,7 +74,7 @@ async function main() {
   const result = await near
     .transaction(YOUR_ACCOUNT_ID)
     .functionCall(
-      "guest-book.testnet",
+      "guestbook.near-examples.testnet",
       "add_message",
       { text: "Hello from near-kit!" },
       { gas: "30 Tgas" } // Attach 30 Tgas to the call

@@ -30,7 +30,7 @@ describe("Near class with wallets", () => {
       mockWallet.clearCallLog()
 
       await near.call(
-        "guest-book.testnet",
+        "guestbook.near-examples.testnet",
         "add_message",
         { text: "Hello!" },
         { gas: "30 Tgas" },
@@ -41,7 +41,7 @@ describe("Near class with wallets", () => {
 
       expect(txCall).toBeDefined()
       if (txCall?.method === "signAndSendTransaction") {
-        expect(txCall.params.receiverId).toBe("guest-book.testnet")
+        expect(txCall.params.receiverId).toBe("guestbook.near-examples.testnet")
         expect(txCall.params.actions).toHaveLength(1)
 
         // Verify it's a function call action
@@ -244,7 +244,7 @@ describe("Near class with wallets", () => {
       // Business logic function that works with any Near instance
       async function addMessage(near: Near, signerId: string, text: string) {
         return await near.call(
-          "guest-book.testnet",
+          "guestbook.near-examples.testnet",
           "add_message",
           { text },
           { signerId },

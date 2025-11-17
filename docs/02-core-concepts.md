@@ -32,9 +32,11 @@ On any blockchain, there are two fundamental types of operations: reading data a
 Use `near.view()` whenever you want to query a contract's state.
 
 ```typescript
-const balance = await near.view("token.testnet", "ft_balance_of", {
-  account_id: "alice.testnet",
-})
+const messages = await near.view(
+  "guestbook.near-examples.testnet",
+  "get_messages",
+  {}
+)
 ```
 
 ### `near.transaction()` - Writing Data
@@ -49,7 +51,11 @@ Use `near.transaction()` for any operation that writes data.
 ```typescript
 const result = await near
   .transaction("alice.testnet")
-  .functionCall("guest-book.testnet", "add_message", { text: "Hello!" })
+  .functionCall(
+    "guestbook.near-examples.testnet",
+    "add_message",
+    { text: "Hello!" }
+  )
   .send()
 ```
 

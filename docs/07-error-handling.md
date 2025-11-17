@@ -14,7 +14,11 @@ import {
   NetworkError,
 } from "near-kit"
 
-const near = new Near({ network: "testnet", privateKey: "..." })
+// Replace with your real testnet private key
+const near = new Near({
+  network: "testnet",
+  privateKey: "ed25519:...", // Your testnet private key
+})
 
 try {
   const result = await near
@@ -38,9 +42,11 @@ try {
     if (error.retryable) {
       console.log("This error is retryable. Please try again later.")
     }
-  } else {
+  } else if (error instanceof Error) {
     // Handle other potential errors.
     console.error("An unknown error occurred:", error.message)
+  } else {
+    console.error("An unknown non-Error was thrown:", error)
   }
 }
 ```
