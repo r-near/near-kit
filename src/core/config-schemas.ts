@@ -1,7 +1,11 @@
 /**
- * Zod schemas for NEAR client configuration
+ * Zod schemas for NEAR client configuration.
+ *
+ * @remarks
+ * These schemas validate network, call options, and {@link NearConfig} input.
+ * Most applications should use the higher-level {@link Near} API and treat
+ * these schemas as an implementation detail.
  */
-
 import { z } from "zod"
 import { type PrivateKey, PrivateKeySchema } from "../utils/validation.js"
 import { NETWORK_PRESETS } from "./constants.js"

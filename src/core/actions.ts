@@ -1,6 +1,9 @@
 /**
- * Transaction action factories
- * Provides clean, type-safe interfaces for creating NEAR transaction actions
+ * Transaction action factories.
+ *
+ * Provides low-level, type-safe helpers for creating NEAR transaction actions.
+ * Most applications should use {@link TransactionBuilder} rather than calling
+ * these functions directly; they are exported for advanced and custom tooling.
  */
 
 import { base58 } from "@scure/base"
@@ -29,6 +32,12 @@ import type {
 
 // ==================== Delegate Actions ====================
 
+/**
+ * Delegate action for NEP-366 meta-transactions.
+ *
+ * Represents a set of classic actions signed by one account to be executed
+ * by another (typically a relayer).
+ */
 export class DelegateAction {
   senderId: string
   receiverId: string
@@ -54,6 +63,9 @@ export class DelegateAction {
   }
 }
 
+/**
+ * Delegate action plus signature.
+ */
 export class SignedDelegate {
   delegateAction: DelegateAction
   signature: Signature
@@ -67,7 +79,9 @@ export class SignedDelegate {
 // ==================== Action Factory Functions ====================
 
 /**
- * Create a transfer action
+ * Create a transfer action.
+ *
+ * @param deposit - Amount in yoctoNEAR as bigint.
  */
 export function transfer(deposit: bigint): TransferAction {
   return {
@@ -76,7 +90,12 @@ export function transfer(deposit: bigint): TransferAction {
 }
 
 /**
- * Create a function call action
+ * Create a function call action.
+ *
+ * @param methodName - Contract method name.
+ * @param args - Serialized arguments as bytes.
+ * @param gas - Gas attached (raw units).
+ * @param deposit - Attached deposit in yoctoNEAR.
  */
 export function functionCall(
   methodName: string,
@@ -90,7 +109,7 @@ export function functionCall(
 }
 
 /**
- * Create an account creation action
+ * Create an account creation action.
  */
 export function createAccount(): CreateAccountAction {
   return {
@@ -99,7 +118,7 @@ export function createAccount(): CreateAccountAction {
 }
 
 /**
- * Create a delete account action
+ * Create a delete account action.
  */
 export function deleteAccount(beneficiaryId: string): DeleteAccountAction {
   return {
@@ -108,7 +127,9 @@ export function deleteAccount(beneficiaryId: string): DeleteAccountAction {
 }
 
 /**
- * Create a deploy contract action
+ * Create a deploy contract action.
+ *
+ * @param code - WASM bytes of the contract to deploy.
  */
 export function deployContract(code: Uint8Array): DeployContractAction {
   return {
@@ -117,7 +138,10 @@ export function deployContract(code: Uint8Array): DeployContractAction {
 }
 
 /**
- * Create a stake action
+ * Create a stake action.
+ *
+ * @param amount - Amount to stake in yoctoNEAR.
+ * @param publicKey - Validator public key.
  */
 export function stake(
   amount: bigint,
@@ -138,7 +162,10 @@ export function stake(amount: bigint, publicKey: PublicKey): StakeAction {
 }
 
 /**
- * Create an add key action
+ * Create an add key action.
+ *
+ * @param publicKey - Public key to add.
+ * @param permission - Access key permission in Borsh format.
  */
 export function addKey(
   publicKey: Ed25519PublicKey,
@@ -175,7 +202,9 @@ export function addKey(
 }
 
 /**
- * Create a delete key action
+ * Create a delete key action.
+ *
+ * @param publicKey - Public key to remove.
  */
 export function deleteKey(publicKey: Ed25519PublicKey): {
   deleteKey: { publicKey: { ed25519Key: { data: number[] } } }

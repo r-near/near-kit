@@ -1,8 +1,10 @@
 /**
- * Manages nonces for concurrent transactions
+ * Manages nonces for concurrent transactions.
  *
  * Prevents nonce collisions when sending multiple transactions in parallel
  * by caching nonces in memory and incrementing them locally.
+ *
+ * @internal Used by {@link TransactionBuilder}; not typically needed directly.
  */
 export class NonceManager {
   private nonces = new Map<string, bigint>()

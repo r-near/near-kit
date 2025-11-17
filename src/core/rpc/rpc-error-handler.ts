@@ -142,7 +142,9 @@ function extractMethodName(
 }
 
 /**
- * Extract error message from an ActionError failure object
+ * Extract error message from an ActionError failure object.
+ *
+ * @internal
  */
 export function extractErrorMessage(failure: Record<string, unknown>): string {
   // Handle ActionError structure
@@ -185,7 +187,9 @@ export function extractErrorMessage(failure: Record<string, unknown>): string {
 }
 
 /**
- * Check outcome for FunctionCallError and throw if found
+ * Check outcome for FunctionCallError and throw if found.
+ *
+ * @internal
  */
 export function checkOutcomeForFunctionCallError(
   outcome: ExecutionOutcomeWithId,
@@ -209,7 +213,9 @@ export function checkOutcomeForFunctionCallError(
 }
 
 /**
- * Determine if an HTTP status code indicates a retryable error
+ * Determine if an HTTP status code indicates a retryable error.
+ *
+ * @internal
  */
 export function isRetryableStatus(statusCode: number): boolean {
   // 408 Request Timeout - retryable
@@ -225,7 +231,7 @@ export function isRetryableStatus(statusCode: number): boolean {
 }
 
 /**
- * Context for parsing query errors
+ * Context for parsing query errors.
  */
 interface QueryErrorContext {
   accountId?: string
@@ -235,9 +241,12 @@ interface QueryErrorContext {
 }
 
 /**
- * Parse query result errors (from result.error field)
- * Query methods (view_access_key, call_function) return errors in result.error
- * instead of the top-level error field
+ * Parse query result errors (from `result.error` field).
+ *
+ * Query methods (e.g. `view_access_key`, `call_function`) return errors in
+ * `result.error` instead of the top-level error field.
+ *
+ * @internal
  */
 export function parseQueryError(
   result: unknown,
@@ -275,8 +284,10 @@ export function parseQueryError(
 }
 
 /**
- * Parse RPC error and throw appropriate typed error
- * Follows NEAR RPC error documentation
+ * Parse RPC error and throw appropriate typed error.
+ * Follows NEAR RPC error documentation.
+ *
+ * @internal
  */
 export function parseRpcError(
   error: RpcErrorResponse | undefined,

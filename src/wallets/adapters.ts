@@ -163,13 +163,18 @@ export function fromHotConnect(
     },
 
     async signAndSendTransaction(params) {
-      const wallet = await connector.wallet()
-      // Our Action[] type is structurally compatible with @near-js Action[]
-      // Duck typing works at runtime - see type-compatibility.test.ts
+      const wallet = await (connector as any).wallet()
+
+      // Debug: log the actions to see their format
+      console.log('near-kit actions:', params.actions)
+
+      // For now, pass actions through unchanged to see what happens
+      const hotConnectorActions = params.actions
+
       return await wallet.signAndSendTransaction({
         ...(params.signerId !== undefined && { signerId: params.signerId }),
         receiverId: params.receiverId,
-        actions: params.actions,
+        actions: hotConnectorActions,
       })
     },
 
