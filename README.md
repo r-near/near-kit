@@ -1,4 +1,7 @@
 # near-kit
+[![npm version](https://img.shields.io/npm/v/near-kit.svg)](https://www.npmjs.com/package/near-kit)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue.svg)](https://www.typescriptlang.org/)
 
 A simple, intuitive TypeScript library for interacting with NEAR Protocol. Designed to feel like a modern fetch library - easy for beginners, powerful for advanced users.
 
@@ -8,8 +11,7 @@ A simple, intuitive TypeScript library for interacting with NEAR Protocol. Desig
 - **Type safety everywhere** - Full TypeScript support with IDE autocomplete
 - **Progressive complexity** - Basic API for simple needs, advanced features when required
 - **Powerful transaction builder** - Fluent, human-readable API for transactions
-- **Built-in local testing** - Sandbox runs a real NEAR node locally, no mocks needed
-- **Wallet-ready** - Full support for HOT Connector and NEAR Wallet Selector, drop-in integration
+- **Wallet-ready** - Full support for [HOT Connector](https://github.com/azbang/hot-connector) and [NEAR Wallet Selector](https://github.com/near/wallet-selector), drop-in integration
 
 ## Installation
 
