@@ -6,10 +6,9 @@ A simple, intuitive TypeScript library for interacting with NEAR Protocol. Desig
 
 - **Simple things should be simple** - One-line commands for common operations
 - **Type safety everywhere** - Full TypeScript support with IDE autocomplete
-- **Built-in local testing** - Sandbox runs a real NEAR node locally, no mocks needed
-- **Powerful transaction builder** - Fluent API for complex multi-action transactions
-- **Human-readable** - Intuitive API design, use "10 NEAR" not "10000000000000000000000000"
 - **Progressive complexity** - Basic API for simple needs, advanced features when required
+- **Powerful transaction builder** - Fluent, human-readable API for transactions
+- **Built-in local testing** - Sandbox runs a real NEAR node locally, no mocks needed
 - **Wallet-ready** - Full support for HOT Connector and NEAR Wallet Selector, drop-in integration
 
 ## Installation
@@ -179,21 +178,6 @@ const near = new Near({
 });
 ```
 
-## Utilities
-
-```typescript
-import { generateKey, parseAmount, formatAmount } from 'near-kit';
-
-// Generate a new key pair
-const keyPair = generateKey();
-console.log(keyPair.publicKey.toString());  // "ed25519:..."
-console.log(keyPair.secretKey);  // "ed25519:..."
-
-// Unit conversion (usually automatic in the API)
-const yocto = parseAmount('10 NEAR');  // "10000000000000000000000000"
-const near = formatAmount(yocto);  // "10.00 NEAR"
-```
-
 ## Error Handling
 
 ```typescript
@@ -218,11 +202,90 @@ try {
 
 ## Advanced Features
 
-- **Multi-action transactions** - Deploy a contract and initialize it in a single transaction
-- **NEP-413 message signing** - Authenticate users without gas fees using `near.signMessage()`
-- **Delegate actions (NEP-366)** - Enable meta-transactions and sponsored transactions
-- **Automatic nonce management** - No more nonce conflicts or manual tracking
-- **Smart retry logic** - Automatic retries for network errors and timeout handling
+### Batch Actions (Multi-Action Transactions)
+
+Deploy and initialize a contract in a single transaction:
+
+```typescript
+const contractWasm = await fs.readFile('./contract.wasm');
+
+await near.transaction('alice.near')
+  .createAccount('contract.alice.near')
+  .transfer('contract.alice.near', '10 NEAR')
+  .deployContract('contract.alice.near', contractWasm)
+  .functionCall('contract.alice.near', 'init', { owner: 'alice.near' })
+  .send();
+```
+
+### NEP-413 Message Signing
+
+Authenticate users without gas fees:
+
+```typescript
+const signedMessage = await near.signMessage({
+  message: 'Login to MyApp',
+  recipient: 'myapp.near',
+  nonce: crypto.getRandomValues(new Uint8Array(32))
+});
+
+// Send to backend for verification
+await fetch('/api/auth', {
+  method: 'POST',
+  body: JSON.stringify(signedMessage)
+});
+```
+
+### Delegate Actions (NEP-366)
+
+Enable meta-transactions and sponsored transactions:
+
+```typescript
+import { DelegateAction, SignedDelegate } from 'near-kit';
+
+// User creates a delegate action (no gas needed)
+const delegate = new DelegateAction({
+  senderId: 'user.near',
+  receiverId: 'contract.near',
+  actions: [/* actions */],
+  nonce: 1n,
+  maxBlockHeight: 12345n,
+  publicKey: userPublicKey
+});
+
+// Relayer signs and sends the transaction (pays gas)
+const signedDelegate = new SignedDelegate({ delegate, signature });
+await relayer.transaction('relayer.near')
+  .signedDelegate(signedDelegate)
+  .send();
+```
+
+### Automatic Nonce Management
+
+No more nonce conflicts - the library handles nonce tracking and retries automatically:
+
+```typescript
+// Safe to run multiple transactions concurrently
+await Promise.all([
+  near.send('bob.near', '1'),
+  near.send('charlie.near', '1'),
+  near.send('dave.near', '1')
+]);
+// Nonces are automatically managed and conflicts are retried
+```
+
+### Smart Retry Logic
+
+Automatic retries for network errors with exponential backoff:
+
+```typescript
+try {
+  await near.call('contract.near', 'method', {});
+} catch (error) {
+  if (error instanceof TimeoutError && error.retryable) {
+    // Already retried automatically
+  }
+}
+```
 
 ## Development
 
