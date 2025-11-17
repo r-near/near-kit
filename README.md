@@ -27,7 +27,8 @@ import { Near } from 'near-kit';
 // Initialize with a private key for signing transactions
 const near = new Near({
   network: 'testnet',
-  privateKey: 'ed25519:...'  // Your account's private key
+  privateKey: 'ed25519:...',  // Your account's private key
+  defaultSignerId: 'alice.testnet'  // Default account for signing
 });
 
 // View a contract method (read-only, no gas)
@@ -37,7 +38,6 @@ const balance = await near.view('example.testnet', 'get_balance', {
 
 // Call a contract method (requires signature, costs gas)
 await near.call('example.testnet', 'increment', {}, {
-  signerId: 'alice.testnet',
   attachedDeposit: '0.1'  // Attach 0.1 NEAR
 });
 
