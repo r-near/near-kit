@@ -6,9 +6,11 @@ A simple, intuitive TypeScript library for interacting with NEAR Protocol. Desig
 
 - **Simple things should be simple** - One-line commands for common operations
 - **Type safety everywhere** - Full TypeScript support with IDE autocomplete
-- **Human-readable** - No yoctoNEAR confusion, use "10 NEAR" not "10000000000000000000000000"
+- **Built-in local testing** - Sandbox runs a real NEAR node locally, no mocks needed
+- **Powerful transaction builder** - Fluent API for complex multi-action transactions
+- **Human-readable** - Intuitive API design, use "10 NEAR" not "10000000000000000000000000"
 - **Progressive complexity** - Basic API for simple needs, advanced features when required
-- **Fetch-like** - Familiar patterns for JavaScript developers
+- **Wallet-ready** - Full support for HOT Connector and NEAR Wallet Selector, drop-in integration
 
 ## Installation
 
@@ -23,13 +25,25 @@ bun install near-kit
 ```typescript
 import { Near } from 'near-kit';
 
-// Initialize client (defaults to mainnet)
-const near = new Near({ network: 'testnet' });
+// Initialize with a private key for signing transactions
+const near = new Near({
+  network: 'testnet',
+  privateKey: 'ed25519:...'  // Your account's private key
+});
 
 // View a contract method (read-only, no gas)
 const balance = await near.view('example.testnet', 'get_balance', {
   account_id: 'alice.testnet'
 });
+
+// Call a contract method (requires signature, costs gas)
+await near.call('example.testnet', 'increment', {}, {
+  signerId: 'alice.testnet',
+  attachedDeposit: '0.1'  // Attach 0.1 NEAR
+});
+
+// Send NEAR tokens
+await near.send('bob.testnet', '5');  // Send 5 NEAR to Bob
 
 // Check account balance
 const accountBalance = await near.getBalance('alice.testnet');
@@ -77,16 +91,19 @@ const status = await near.getStatus();
 ### Type-Safe Contracts
 
 ```typescript
-// Define contract interface
-interface MyContract {
+import type { Contract } from 'near-kit';
+
+// Define contract interface using Contract<> helper
+type MyContract = Contract<{
   view: {
-    get_balance(args: { account_id: string }): Promise<string>;
-    get_info(): Promise<{ name: string; version: string }>;
-  };
+    get_balance: (args: { account_id: string }) => Promise<string>
+    get_info: () => Promise<{ name: string; version: string }>
+  }
   call: {
-    transfer(args: { to: string; amount: string }): Promise<void>;
-  };
-}
+    // Just define args - options parameter automatically added!
+    transfer: (args: { to: string; amount: string }) => Promise<void>
+  }
+}>
 
 // Create type-safe contract
 const contract = near.contract<MyContract>('example.near');
@@ -94,6 +111,12 @@ const contract = near.contract<MyContract>('example.near');
 // Fully typed method calls
 const balance = await contract.view.get_balance({ account_id: 'alice.near' });
 const info = await contract.view.get_info();
+
+// Call methods automatically get options parameter
+await contract.call.transfer(
+  { to: 'bob.near', amount: '10' },
+  { attachedDeposit: '1 NEAR' }
+);
 ```
 
 ### Transaction Builder
@@ -138,8 +161,6 @@ beforeAll(async () => { sandbox = await Sandbox.start(); });
 afterAll(async () => { await sandbox.stop(); });
 ```
 
-> **Note:** Requires file descriptor limit ≥65,535 (`ulimit -n`). See [setup instructions](./src/sandbox/README.md).
-
 ## Key Management
 
 ```typescript
@@ -161,28 +182,16 @@ const near = new Near({
 ## Utilities
 
 ```typescript
-import {
-  parseNearAmount,
-  formatNearAmount,
-  parseGas,
-  formatGas,
-  generateKey,
-  isValidAccountId,
-} from 'near-kit';
+import { generateKey, parseAmount, formatAmount } from 'near-kit';
 
-// Unit conversion
-const yocto = parseNearAmount('10 NEAR'); // "10000000000000000000000000"
-const near = formatNearAmount(yocto); // "10.00 NEAR"
-
-// Gas utilities
-const gas = parseGas('30 Tgas'); // "30000000000000"
-const tgas = formatGas(gas); // "30.00 Tgas"
-
-// Key generation
+// Generate a new key pair
 const keyPair = generateKey();
+console.log(keyPair.publicKey.toString());  // "ed25519:..."
+console.log(keyPair.secretKey);  // "ed25519:..."
 
-// Validation
-const valid = isValidAccountId('alice.near'); // true
+// Unit conversion (usually automatic in the API)
+const yocto = parseAmount('10 NEAR');  // "10000000000000000000000000"
+const near = formatAmount(yocto);  // "10.00 NEAR"
 ```
 
 ## Error Handling
@@ -206,6 +215,14 @@ try {
   }
 }
 ```
+
+## Advanced Features
+
+- **Multi-action transactions** - Deploy a contract and initialize it in a single transaction
+- **NEP-413 message signing** - Authenticate users without gas fees using `near.signMessage()`
+- **Delegate actions (NEP-366)** - Enable meta-transactions and sponsored transactions
+- **Automatic nonce management** - No more nonce conflicts or manual tracking
+- **Smart retry logic** - Automatic retries for network errors and timeout handling
 
 ## Development
 
