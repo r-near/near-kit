@@ -178,6 +178,65 @@ const near = new Near({
 });
 ```
 
+## Wallet Integration
+
+near-kit works seamlessly with popular NEAR wallets - just pass the wallet adapter and all methods will use the wallet for signing.
+
+### NEAR Wallet Selector
+
+```typescript
+import { Near, fromWalletSelector } from 'near-kit';
+import { setupWalletSelector } from '@near-wallet-selector/core';
+import { setupMyNearWallet } from '@near-wallet-selector/my-near-wallet';
+import { setupHereWallet } from '@near-wallet-selector/here-wallet';
+
+// Setup wallet selector
+const selector = await setupWalletSelector({
+  network: 'testnet',
+  modules: [
+    setupMyNearWallet(),
+    setupHereWallet(),
+  ],
+});
+
+// Get wallet instance (after user connects)
+const wallet = await selector.wallet();
+
+// Use with near-kit
+const near = new Near({
+  network: 'testnet',
+  wallet: fromWalletSelector(wallet),
+});
+
+// All operations now use the wallet for signing
+await near.call('contract.near', 'method', { arg: 'value' });
+await near.send('bob.near', '10');
+```
+
+### HOT Connector
+
+```typescript
+import { Near, fromHotConnect } from 'near-kit';
+import { NearConnector } from '@hot-labs/near-connect';
+
+// Create connector
+const connector = new NearConnector({ network: 'testnet' });
+
+// Wait for user to connect
+connector.on('wallet:signIn', async () => {
+  const near = new Near({
+    network: 'testnet',
+    wallet: fromHotConnect(connector),
+  });
+
+  // Use near-kit with the connected wallet
+  await near.call('contract.near', 'method', { arg: 'value' });
+});
+
+// Trigger wallet connection
+await connector.signIn();
+```
+
 ## Error Handling
 
 ```typescript
