@@ -5,6 +5,8 @@
 
 A simple, intuitive TypeScript library for interacting with NEAR Protocol. Designed to feel like a modern fetch library - easy for beginners, powerful for advanced users.
 
+**[📚 Full Documentation](https://kit.near.tools)**
+
 ## Features
 
 - **Simple things should be simple** - One-line commands for common operations
