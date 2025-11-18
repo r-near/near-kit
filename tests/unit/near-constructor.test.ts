@@ -101,15 +101,22 @@ describe("Near Constructor - Signer Resolution", () => {
     expect(near["signer"]).toBe(customSigner)
   })
 
-  test("_resolveSigner: creates signer from privateKey string", () => {
+  test("_resolveSigner: adds privateKey to keyStore when defaultSignerId provided", async () => {
     const testKey = generateKey()
+    const accountId = "test.near"
     const near = new Near({
       network: "mainnet",
       privateKey: testKey.secretKey as `ed25519:${string}`,
+      defaultSignerId: accountId,
     })
 
-    expect(near["signer"]).toBeDefined()
-    expect(typeof near["signer"]).toBe("function")
+    // privateKey should NOT create a signer (that's for custom signers only)
+    expect(near["signer"]).toBeUndefined()
+
+    // Instead, it should add the key to keyStore
+    const keyPair = await near["keyStore"].get(accountId)
+    expect(keyPair).not.toBeNull()
+    expect(keyPair?.publicKey.toString()).toBe(testKey.publicKey.toString())
   })
 
   test("_resolveSigner: adds privateKey to keyStore for sandbox network", async () => {

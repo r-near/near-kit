@@ -109,22 +109,35 @@ export class Near {
     const privateKey = validatedConfig.privateKey
 
     if (signer) {
+      // Custom signer function (e.g., hardware wallet)
       this.signer = signer
     } else if (privateKey) {
+      // When privateKey is provided, add it to keyStore instead of creating a signer wrapper
+      // This ensures consistent behavior - all key-based operations go through keyStore
       const keyPair =
         typeof privateKey === "string"
           ? parseKey(privateKey)
           : parseKey(privateKey.toString())
 
-      this.signer = async (message: Uint8Array) => keyPair.sign(message)
+      // Determine which account ID to use for storing the key
+      let accountId: string | undefined
 
-      // If network is a Sandbox-like object with rootAccount, add key to keyStore
-      // Use original config.network (before validation) to preserve extra properties
+      // If network is a Sandbox-like object with rootAccount, use that
       const network = originalConfig.network as unknown
       if (network && typeof network === "object" && "rootAccount" in network) {
         const rootAccount = (network as { rootAccount: { id: string } })
           .rootAccount
-        void this.keyStore.add(rootAccount.id, keyPair)
+        accountId = rootAccount.id
+      }
+
+      // If defaultSignerId is provided, use that (takes precedence)
+      if (validatedConfig.defaultSignerId) {
+        accountId = validatedConfig.defaultSignerId
+      }
+
+      // Add the key to keyStore if we have an account ID
+      if (accountId) {
+        void this.keyStore.add(accountId, keyPair)
       }
     }
 
