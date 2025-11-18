@@ -136,8 +136,9 @@ export class Near {
       }
 
       // Add the key to keyStore if we have an account ID
+      // Store the promise to ensure async keystores complete initialization
       if (accountId) {
-        void this.keyStore.add(accountId, keyPair)
+        this.pendingKeyStoreInit = this.keyStore.add(accountId, keyPair)
       }
     }
 

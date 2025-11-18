@@ -113,7 +113,7 @@ describe("Sandbox async keyStore initialization", () => {
     expect(key).not.toBeNull()
   })
 
-  test("explicit privateKey doesn't trigger async init", async () => {
+  test("explicit privateKey triggers async init to prevent race conditions", async () => {
     const rootKey = generateKey()
     const mockSandbox = {
       rpcUrl: "http://127.0.0.1:12345",
@@ -126,16 +126,23 @@ describe("Sandbox async keyStore initialization", () => {
 
     const slowKeyStore = new SlowAsyncKeyStore(100)
 
-    // When privateKey is explicitly provided, it sets this.signer directly
-    // So no async keyStore initialization should happen
+    // When privateKey is explicitly provided, it adds to keyStore
+    // This triggers pendingKeyStoreInit to prevent race conditions
     const near = new Near({
       network: mockSandbox,
       privateKey: rootKey.secretKey as PrivateKey,
       keyStore: slowKeyStore,
     })
 
-    // Check that pendingKeyStoreInit is NOT set
-    expect(near["pendingKeyStoreInit"]).toBeUndefined()
+    // Check that pendingKeyStoreInit IS set (to prevent race conditions)
+    expect(near["pendingKeyStoreInit"]).toBeDefined()
+
+    // Wait for it to complete
+    await near["pendingKeyStoreInit"]
+
+    // Verify the key was added
+    const keyPair = await near["keyStore"].get("test.near")
+    expect(keyPair).not.toBeNull()
   })
 
   test("keyStore without sandbox auto-extraction", async () => {

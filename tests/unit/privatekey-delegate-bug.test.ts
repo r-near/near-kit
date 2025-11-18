@@ -28,6 +28,11 @@ describe("privateKey + defaultSignerId initialization bug", () => {
       defaultSignerId: accountId,
     })
 
+    // Wait for async keyStore initialization to complete
+    if (near["pendingKeyStoreInit"]) {
+      await near["pendingKeyStoreInit"]
+    }
+
     // The key SHOULD be in the keyStore (this is what we want!)
     const keyPair = await near["keyStore"].get(accountId)
     expect(keyPair).not.toBeNull()
