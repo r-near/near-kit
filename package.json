@@ -11,6 +11,10 @@
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
     },
+    "./keys": {
+      "import": "./dist/keys/index.js",
+      "types": "./dist/keys/index.d.ts"
+    },
     "./sandbox": {
       "import": "./dist/sandbox/index.js",
       "types": "./dist/sandbox/index.d.ts"
