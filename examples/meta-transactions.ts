@@ -6,9 +6,9 @@
  */
 
 import {
+  decodeSignedDelegateAction,
   Near,
   type PrivateKey,
-  type SignedDelegateAction,
 } from "../src/index.js"
 
 // User credentials (signs the action but doesn't pay gas)
@@ -25,7 +25,7 @@ const RELAYER_PRIVATE_KEY = (process.env["RELAYER_PRIVATE_KEY"] ||
 // User Side: Create and sign delegate action (off-chain, no gas cost)
 // ============================================================================
 
-async function userCreatesDelegate(): Promise<SignedDelegateAction> {
+async function userCreatesDelegate(): Promise<string> {
   const userNear = new Near({
     network: "testnet",
     privateKey: USER_PRIVATE_KEY,
@@ -33,7 +33,7 @@ async function userCreatesDelegate(): Promise<SignedDelegateAction> {
   })
 
   // Build the transaction and sign it off-chain with .delegate()
-  const signedDelegate = await userNear
+  const { payload, signedDelegateAction } = await userNear
     .transaction(USER_ACCOUNT)
     .functionCall(
       "guestbook.near-examples.testnet",
@@ -41,22 +41,27 @@ async function userCreatesDelegate(): Promise<SignedDelegateAction> {
       { text: "Gasless transaction!" },
       { gas: "30 Tgas" },
     )
-    .delegate() // Returns SignedDelegateAction instead of sending
+    .delegate()
 
   console.log("User signed delegate action (no gas paid)")
-  return signedDelegate
+  console.log("Payload to send to relayer:", payload)
+  console.log("Structured action for UI/logging:", signedDelegateAction)
+
+  return payload
 }
 
 // ============================================================================
 // Relayer Side: Submit delegate action to blockchain (pays gas)
 // ============================================================================
 
-async function relayerSubmitsDelegate(signedDelegate: SignedDelegateAction) {
+async function relayerSubmitsDelegate(payload: string) {
   const relayerNear = new Near({
     network: "testnet",
     privateKey: RELAYER_PRIVATE_KEY,
     defaultSignerId: RELAYER_ACCOUNT,
   })
+
+  const signedDelegate = decodeSignedDelegateAction(payload)
 
   // Relayer wraps the user's signed action and submits it
   const result = await relayerNear
@@ -78,17 +83,18 @@ async function main() {
   console.log("Meta-Transaction Example\n")
 
   // 1. User signs action off-chain
-  const signedDelegate = await userCreatesDelegate()
+  const payload = await userCreatesDelegate()
 
   // 2. User sends signedDelegate to relayer (e.g., via API)
   // In production:
   //   await fetch('/api/relay', {
   //     method: 'POST',
-  //     body: JSON.stringify(signedDelegate)
+  //     headers: { 'Content-Type': 'application/json' },
+  //     body: JSON.stringify({ payload })
   //   })
 
   // 3. Relayer submits to blockchain
-  await relayerSubmitsDelegate(signedDelegate)
+  await relayerSubmitsDelegate(payload)
 
   console.log("\nResult: User action executed without paying gas")
 }

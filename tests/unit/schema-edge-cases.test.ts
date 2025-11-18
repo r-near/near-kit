@@ -14,18 +14,17 @@ import {
   deployFromPublished,
   functionCall,
   publishContract,
-  SignedDelegate,
   signedDelegate,
   stake,
   transfer,
 } from "../../src/core/actions.js"
 import {
   ActionSchema,
+  encodeSignedDelegateAction,
   PublicKeySchema,
   publicKeyToZorsh,
   SignatureSchema,
   serializeDelegateAction,
-  serializeSignedDelegate,
   serializeTransaction,
   signatureToZorsh,
   TransactionSchema,
@@ -207,7 +206,7 @@ describe("Delegate Action Serialization - Edge Cases", () => {
 // ==================== Signed Delegate Serialization ====================
 
 describe("Signed Delegate Serialization - Edge Cases", () => {
-  test("serializeSignedDelegate does not include NEP-461 prefix", () => {
+  test("encodeSignedDelegateAction does not include NEP-461 prefix", () => {
     const pk = createEd25519PublicKey(15)
     const sig = createEd25519Signature(16)
 
@@ -220,8 +219,8 @@ describe("Signed Delegate Serialization - Edge Cases", () => {
       pk,
     )
 
-    const signed = new SignedDelegate(delegateAction, sig)
-    const encoded = serializeSignedDelegate(signed)
+    const signed = signedDelegate(delegateAction, sig)
+    const encoded = encodeSignedDelegateAction(signed, "bytes")
 
     // Should not start with NEP-461 prefix
     expect(encoded).toBeInstanceOf(Uint8Array)
@@ -233,7 +232,7 @@ describe("Signed Delegate Serialization - Edge Cases", () => {
     expect(hasPrefix).toBe(false)
   })
 
-  test("serializeSignedDelegate with Secp256k1 signature", () => {
+  test("encodeSignedDelegateAction with Secp256k1 signature", () => {
     const pk = createEd25519PublicKey(17)
     const sig = createSecp256k1Signature(18) // Secp256k1 signature (65 bytes)
 
@@ -246,14 +245,14 @@ describe("Signed Delegate Serialization - Edge Cases", () => {
       pk,
     )
 
-    const signed = new SignedDelegate(delegateAction, sig)
-    const encoded = serializeSignedDelegate(signed)
+    const signed = signedDelegate(delegateAction, sig)
+    const encoded = encodeSignedDelegateAction(signed, "bytes")
 
     expect(encoded).toBeInstanceOf(Uint8Array)
     expect(encoded.length).toBeGreaterThan(0)
   })
 
-  test("serializeSignedDelegate with empty actions and Secp256k1 keys", () => {
+  test("encodeSignedDelegateAction with empty actions and Secp256k1 keys", () => {
     const pk = createSecp256k1PublicKey(21)
     const sig = createSecp256k1Signature(22)
 
@@ -266,8 +265,8 @@ describe("Signed Delegate Serialization - Edge Cases", () => {
       pk,
     )
 
-    const signed = new SignedDelegate(delegateAction, sig)
-    const encoded = serializeSignedDelegate(signed)
+    const signed = signedDelegate(delegateAction, sig)
+    const encoded = encodeSignedDelegateAction(signed, "bytes")
 
     expect(encoded).toBeInstanceOf(Uint8Array)
     expect(encoded.length).toBeGreaterThan(0)

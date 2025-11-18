@@ -7,8 +7,9 @@
  * serializeTransaction and serializeSignedTransaction functions.
  */
 
+import { base64 } from "@scure/base"
 import { b } from "@zorsh/zorsh"
-import type { DelegateAction, SignedDelegate } from "./actions.js"
+import type { DelegateAction } from "./actions.js"
 import type {
   Ed25519PublicKey,
   Ed25519Signature,
@@ -485,7 +486,7 @@ export function serializeSignedTransaction(
  * Per NEP-461, this prepends a u32 prefix (2^30 + 366) before the delegate action,
  * ensuring signed delegate actions are never identical to signed transactions.
  *
- * Use this when you need to sign a DelegateAction to create a SignedDelegate.
+ * Use this when you need to sign a DelegateAction to create a SignedDelegateAction payload.
  *
  * @param delegateAction - The delegate action to serialize
  * @returns Uint8Array - The prefixed and serialized delegate action
@@ -512,28 +513,46 @@ export function serializeDelegateAction(
   return result
 }
 
-/**
- * Serialize a signed delegate action for inclusion in a transaction
- *
- * This serializes a SignedDelegate (DelegateAction + signature) for use as
- * an action within a meta transaction.
- *
- * Note: This does NOT include the NEP-461 prefix (only needed when signing).
- *
- * @param signedDelegate - The signed delegate action to serialize
- * @returns Uint8Array - The serialized signed delegate action
- *
- * @example
- * ```typescript
- * const encoded = serializeSignedDelegate(signedDelegate)
- * // Use encoded bytes in transaction action
- * ```
- */
-export function serializeSignedDelegate(
-  signedDelegate: SignedDelegate,
+export type DelegateActionPayloadFormat = "base64" | "bytes"
+
+type DelegatePayloadReturn<F extends DelegateActionPayloadFormat> =
+  F extends "bytes" ? Uint8Array : string
+
+function signedDelegateActionToBytes(
+  signedDelegate: SignedDelegateAction,
 ): Uint8Array {
-  return SignedDelegateSchema.serialize({
-    delegateAction: delegateActionToZorsh(signedDelegate.delegateAction),
-    signature: signatureToZorsh(signedDelegate.signature),
-  })
+  return SignedDelegateSchema.serialize(signedDelegate.signedDelegate)
+}
+
+/**
+ * Encode a SignedDelegateAction for transport.
+ *
+ * - Default output is a base64 string that can be sent via JSON/HTTP.
+ * - Pass `"bytes"` to receive a raw Uint8Array (useful for binary transports).
+ */
+export function encodeSignedDelegateAction(
+  signedDelegate: SignedDelegateAction,
+): string
+export function encodeSignedDelegateAction<
+  F extends DelegateActionPayloadFormat,
+>(signedDelegate: SignedDelegateAction, format: F): DelegatePayloadReturn<F>
+export function encodeSignedDelegateAction(
+  signedDelegate: SignedDelegateAction,
+  format: DelegateActionPayloadFormat = "base64",
+): string | Uint8Array {
+  const serialized = signedDelegateActionToBytes(signedDelegate)
+  return format === "base64" ? base64.encode(serialized) : serialized
+}
+
+/**
+ * Decode an encoded payload (base64 string or bytes) back into the
+ * SignedDelegateAction that `.delegate()` returns.
+ */
+export function decodeSignedDelegateAction(
+  payload: string | Uint8Array,
+): SignedDelegateAction {
+  const bytes = typeof payload === "string" ? base64.decode(payload) : payload
+  return {
+    signedDelegate: SignedDelegateSchema.deserialize(bytes),
+  }
 }

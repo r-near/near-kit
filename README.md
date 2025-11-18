@@ -46,7 +46,7 @@ await near.call(
   "example.testnet",
   "increment",
   {},
-  {attachedDeposit: "0.1 NEAR"}
+  { attachedDeposit: "0.1 NEAR" }
 )
 
 // Send NEAR tokens
@@ -248,11 +248,7 @@ const near = new Near({
 // Rotating keys for high-throughput concurrent transactions
 const near = new Near({
   keyStore: new RotatingKeyStore({
-    "alice.near": [
-      "ed25519:key1...",
-      "ed25519:key2...",
-      "ed25519:key3...",
-    ],
+    "alice.near": ["ed25519:key1...", "ed25519:key2...", "ed25519:key3..."],
   }),
 })
 ```
@@ -405,13 +401,15 @@ await fetch("/api/auth", {
 Enable meta-transactions and sponsored transactions where a relayer pays the gas:
 
 ```typescript
+import { decodeSignedDelegateAction, Near } from "near-kit"
+
 // User creates and signs a delegate action (no gas cost to user)
 const userNear = new Near({
   network: "testnet",
   privateKey: "ed25519:...", // User's key
 })
 
-const signedDelegateAction = await userNear
+const { signedDelegateAction, payload } = await userNear
   .transaction("user.near")
   .transfer("recipient.near", "1 NEAR")
   .delegate({ blockHeightOffset: 100 })
@@ -424,7 +422,7 @@ const relayerNear = new Near({
 
 await relayerNear
   .transaction("relayer.near")
-  .signedDelegateAction(signedDelegateAction)
+  .signedDelegateAction(decodeSignedDelegateAction(payload))
   .send()
 ```
 

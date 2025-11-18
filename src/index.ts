@@ -5,18 +5,18 @@
 // Contract types
 export type { Contract, ContractMethods } from "./contracts/contract.js"
 // Delegate actions
-export {
-  DelegateAction,
-  SignedDelegate,
-} from "./core/actions.js"
+export { DelegateAction } from "./core/actions.js"
 // Main class
 export { Near } from "./core/near.js"
 export {
   DELEGATE_ACTION_PREFIX,
+  type DelegateActionPayloadFormat,
+  decodeSignedDelegateAction,
+  encodeSignedDelegateAction,
   type SignedDelegateAction,
   serializeDelegateAction,
-  serializeSignedDelegate,
 } from "./core/schema.js"
+export type { DelegateActionResult } from "./core/transaction.js"
 export { TransactionBuilder } from "./core/transaction.js"
 // Types
 export type {

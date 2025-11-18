@@ -52,6 +52,8 @@ import type { RpcClient } from "./rpc/rpc.js"
 import {
   type AccessKeyPermissionBorsh,
   type ClassicAction,
+  type DelegateActionPayloadFormat,
+  encodeSignedDelegateAction,
   type SignedDelegateAction,
   serializeDelegateAction,
   serializeSignedTransaction,
@@ -105,6 +107,17 @@ type DelegateSigningOptions = {
    * cannot be resolved from the configured key store.
    */
   publicKey?: string | PublicKey
+}
+
+type DelegateOptions<F extends DelegateActionPayloadFormat = "base64"> =
+  DelegateSigningOptions & { payloadFormat?: F }
+
+export type DelegateActionResult<
+  F extends DelegateActionPayloadFormat = "base64",
+> = {
+  signedDelegateAction: SignedDelegateAction
+  payload: F extends "bytes" ? Uint8Array : string
+  format: F
 }
 
 /**
@@ -473,11 +486,12 @@ export class TransactionBuilder {
   /**
    * Build and sign a delegate action from the queued actions.
    *
-   * @returns Signed delegate action ready to be added to a relayer transaction
+   * @returns Structured delegate action plus an encoded payload (`base64` by default)
    */
-  async delegate(
-    options: DelegateSigningOptions = {},
-  ): Promise<SignedDelegateAction> {
+  async delegate<F extends DelegateActionPayloadFormat = "base64">(
+    options?: DelegateOptions<F>,
+  ): Promise<DelegateActionResult<F>> {
+    const opts = options ?? ({} as DelegateOptions<F>)
     if (this.actions.length === 0) {
       throw new NearError(
         "Delegate action requires at least one action to perform",
@@ -492,7 +506,7 @@ export class TransactionBuilder {
       )
     }
 
-    const receiverId = options.receiverId ?? this.receiverId
+    const receiverId = opts.receiverId ?? this.receiverId
     if (!receiverId) {
       throw new NearError(
         "Delegate action requires a receiver. Set receiverId via the first action or provide it explicitly.",
@@ -502,12 +516,12 @@ export class TransactionBuilder {
 
     const keyPair = await this.resolveKeyPair()
     let delegatePublicKey: PublicKey
-    if (options.publicKey === undefined) {
+    if (opts.publicKey === undefined) {
       delegatePublicKey = keyPair.publicKey
-    } else if (typeof options.publicKey === "string") {
-      delegatePublicKey = parsePublicKey(options.publicKey)
+    } else if (typeof opts.publicKey === "string") {
+      delegatePublicKey = parsePublicKey(opts.publicKey)
     } else {
-      delegatePublicKey = options.publicKey
+      delegatePublicKey = opts.publicKey
     }
 
     if (!publicKeysEqual(delegatePublicKey, keyPair.publicKey)) {
@@ -517,8 +531,8 @@ export class TransactionBuilder {
     }
 
     let nonce: bigint
-    if (options.nonce !== undefined) {
-      nonce = options.nonce
+    if (opts.nonce !== undefined) {
+      nonce = opts.nonce
     } else {
       const accessKey = await this.rpc.getAccessKey(
         this.signerId,
@@ -528,11 +542,11 @@ export class TransactionBuilder {
     }
 
     let maxBlockHeight: bigint
-    if (options.maxBlockHeight !== undefined) {
-      maxBlockHeight = options.maxBlockHeight
+    if (opts.maxBlockHeight !== undefined) {
+      maxBlockHeight = opts.maxBlockHeight
     } else {
       const status = await this.rpc.getStatus()
-      const offset = BigInt(options.blockHeightOffset ?? 200)
+      const offset = BigInt(opts.blockHeightOffset ?? 200)
       maxBlockHeight = BigInt(status.sync_info.latest_block_height) + offset
     }
 
@@ -551,8 +565,18 @@ export class TransactionBuilder {
 
     const hash = sha256(serializeDelegateAction(delegateAction))
     const signature = keyPair.sign(hash)
+    const signedDelegateAction = actions.signedDelegate(
+      delegateAction,
+      signature,
+    )
+    const format = (opts.payloadFormat ?? "base64") as F
+    const payload = encodeSignedDelegateAction(signedDelegateAction, format)
 
-    return actions.signedDelegate(delegateAction, signature)
+    return {
+      signedDelegateAction,
+      payload,
+      format,
+    }
   }
 
   /**

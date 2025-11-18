@@ -11,7 +11,6 @@ import {
   deleteKey,
   deployContract,
   functionCall,
-  SignedDelegate,
   signedDelegate,
   stake,
   transfer,
@@ -20,11 +19,12 @@ import {
   type Action,
   ActionSchema,
   DELEGATE_ACTION_PREFIX,
+  decodeSignedDelegateAction,
+  encodeSignedDelegateAction,
   PublicKeySchema,
   publicKeyToZorsh,
   SignatureSchema,
   serializeDelegateAction,
-  serializeSignedDelegate,
   serializeTransaction,
   signatureToZorsh,
 } from "../../src/core/schema.js"
@@ -363,72 +363,6 @@ describe("Delegate Action prefix (NEP-461)", () => {
 })
 
 describe("Signed Delegate Action", () => {
-  test("creates SignedDelegate with DelegateAction and signature", () => {
-    const pk: Ed25519PublicKey = {
-      keyType: KeyType.ED25519,
-      data: new Uint8Array(32).fill(12),
-      toString: () => "ed25519:test",
-    }
-
-    const sig: Ed25519Signature = {
-      keyType: KeyType.ED25519,
-      data: new Uint8Array(64).fill(13),
-    }
-
-    const delegateAction = new DelegateAction(
-      "sender.near",
-      "receiver.near",
-      [transfer(BigInt(5000000))],
-      BigInt(789),
-      BigInt(3000),
-      pk,
-    )
-
-    const signed = new SignedDelegate(delegateAction, sig)
-
-    expect(signed.delegateAction).toBe(delegateAction)
-    expect(signed.signature).toBe(sig)
-  })
-
-  test("serializeSignedDelegate produces valid bytes", () => {
-    const pk: Ed25519PublicKey = {
-      keyType: KeyType.ED25519,
-      data: new Uint8Array(32).fill(14),
-      toString: () => "ed25519:test",
-    }
-
-    const sig: Ed25519Signature = {
-      keyType: KeyType.ED25519,
-      data: new Uint8Array(64).fill(15),
-    }
-
-    const delegateAction = new DelegateAction(
-      "sender.near",
-      "receiver.near",
-      [transfer(BigInt(2000000))],
-      BigInt(999),
-      BigInt(4000),
-      pk,
-    )
-
-    const signed = new SignedDelegate(delegateAction, sig)
-    const encoded = serializeSignedDelegate(signed)
-
-    // Should produce bytes
-    expect(encoded).toBeInstanceOf(Uint8Array)
-    expect(encoded.length).toBeGreaterThan(0)
-
-    // Note: This encoding does NOT include the NEP-461 prefix
-    // The prefix is only used when signing the DelegateAction
-    // Verify it doesn't start with the prefix
-    const hasPrefix =
-      encoded[0] === 0x6e &&
-      encoded[1] === 0x01 &&
-      encoded[2] === 0x00 &&
-      encoded[3] === 0x40
-    expect(hasPrefix).toBe(false)
-  })
-
   test("signedDelegate helper creates valid action", () => {
     const pk: Ed25519PublicKey = {
       keyType: KeyType.ED25519,
@@ -459,6 +393,65 @@ describe("Signed Delegate Action", () => {
       "receiver.near",
     )
     expect(action.signedDelegate.delegateAction.nonce).toBe(BigInt(111))
+  })
+
+  test("serialize/deserialize SignedDelegateAction round-trips", () => {
+    const pk: Ed25519PublicKey = {
+      keyType: KeyType.ED25519,
+      data: new Uint8Array(32).fill(21),
+      toString: () => "ed25519:test",
+    }
+
+    const sig: Ed25519Signature = {
+      keyType: KeyType.ED25519,
+      data: new Uint8Array(64).fill(22),
+    }
+
+    const delegateAction = new DelegateAction(
+      "sender.near",
+      "receiver.near",
+      [transfer(BigInt(4200000))],
+      BigInt(321),
+      BigInt(7000),
+      pk,
+    )
+
+    const action = signedDelegate(delegateAction, sig)
+    const encoded = encodeSignedDelegateAction(action, "bytes")
+    const decoded = decodeSignedDelegateAction(encoded)
+
+    expect(encoded).toBeInstanceOf(Uint8Array)
+    expect(decoded).toEqual(action)
+  })
+
+  test("encode/decode SignedDelegateAction to base64", () => {
+    const pk: Ed25519PublicKey = {
+      keyType: KeyType.ED25519,
+      data: new Uint8Array(32).fill(23),
+      toString: () => "ed25519:test",
+    }
+
+    const sig: Ed25519Signature = {
+      keyType: KeyType.ED25519,
+      data: new Uint8Array(64).fill(24),
+    }
+
+    const delegateAction = new DelegateAction(
+      "user.near",
+      "contract.near",
+      [transfer(BigInt(1234567))],
+      BigInt(900),
+      BigInt(8000),
+      pk,
+    )
+
+    const action = signedDelegate(delegateAction, sig)
+    const payload = encodeSignedDelegateAction(action)
+    const decoded = decodeSignedDelegateAction(payload)
+
+    expect(typeof payload).toBe("string")
+    expect(payload.length).toBeGreaterThan(0)
+    expect(decoded).toEqual(action)
   })
 })
 

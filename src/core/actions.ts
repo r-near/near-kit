@@ -63,19 +63,6 @@ export class DelegateAction {
   }
 }
 
-/**
- * Delegate action plus signature.
- */
-export class SignedDelegate {
-  delegateAction: DelegateAction
-  signature: Signature
-
-  constructor(delegateAction: DelegateAction, signature: Signature) {
-    this.delegateAction = delegateAction
-    this.signature = signature
-  }
-}
-
 // ==================== Action Factory Functions ====================
 
 /**

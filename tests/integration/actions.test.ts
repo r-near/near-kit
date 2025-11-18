@@ -13,6 +13,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test"
 import { readFileSync } from "node:fs"
 import { Near } from "../../src/core/near.js"
+import { decodeSignedDelegateAction } from "../../src/core/schema.js"
 import { Sandbox } from "../../src/sandbox/sandbox.js"
 import { generateKey } from "../../src/utils/key.js"
 
@@ -551,7 +552,7 @@ describe("Transaction Actions - Integration Tests", () => {
         },
       })
 
-      const signedDelegateAction = await nearWithSenderKey
+      const delegateResult = await nearWithSenderKey
         .transaction(senderId)
         .transfer(recipientId, "1 NEAR")
         .delegate({ blockHeightOffset: 100 })
@@ -569,9 +570,11 @@ describe("Transaction Actions - Integration Tests", () => {
       const recipientBalanceBefore = await near.getBalance(recipientId)
 
       // The relayer submits the delegate action on behalf of the sender
+      const decodedDelegate = decodeSignedDelegateAction(delegateResult.payload)
+
       await nearWithRelayerKey
         .transaction(relayerId)
-        .signedDelegateAction(signedDelegateAction)
+        .signedDelegateAction(decodedDelegate)
         .send({ waitUntil: "EXECUTED" })
 
       console.log(`✓ Relayer submitted delegate action`)
