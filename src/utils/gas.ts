@@ -34,7 +34,7 @@ export type GasInput =
  * Gas.Tgas(30)        // "30 Tgas"
  * Gas.Tgas(300)       // "300 Tgas"
  */
- export const Gas = {
+export const Gas = {
   /**
    * Create gas amount in TGas (teragas).
    * @param value - Amount in TGas.

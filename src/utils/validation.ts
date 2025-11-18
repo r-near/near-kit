@@ -15,7 +15,7 @@ import {
   SECP256K1_KEY_PREFIX,
 } from "../core/constants.js"
 import { type AmountInput, parseAmount } from "./amount.js"
-import { parseGas, type GasInput } from "./gas.js"
+import { type GasInput, parseGas } from "./gas.js"
 
 // ==================== Base58 Validation ====================
 

@@ -7,6 +7,7 @@ import { formatGas, Gas, parseGas, toGas, toTGas } from "../../src/utils/gas.js"
 
 // Helper for testing runtime behavior with strings
 // that are intentionally outside the GasInput type.
+// biome-ignore lint/suspicious/noExplicitAny: intentionally testing runtime behavior with invalid type
 const parseGasUnsafe = (value: string) => parseGas(value as any)
 
 describe("Gas", () => {
