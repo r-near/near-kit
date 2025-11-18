@@ -42,11 +42,11 @@ const balance = await near.view('example.testnet', 'get_balance', {
 
 // Call a contract method (requires signature, costs gas)
 await near.call('example.testnet', 'increment', {}, {
-  attachedDeposit: '0.1'  // Attach 0.1 NEAR
+  attachedDeposit: '0.1 NEAR'  // Attach 0.1 NEAR
 });
 
 // Send NEAR tokens
-await near.send('bob.testnet', '5');  // Send 5 NEAR to Bob
+await near.send('bob.testnet', '5 NEAR');  // Send 5 NEAR to Bob
 
 // Check account balance
 const accountBalance = await near.getBalance('alice.testnet');
@@ -128,9 +128,9 @@ await contract.call.transfer(
 // Alice builds a transaction with multiple actions
 // 'alice.near' is the signer - the account that signs and pays for this transaction
 const receipt = await near.transaction('alice.near')  // Alice signs
-  .transfer('bob.near', '10')                         // Alice sends Bob 10 NEAR
+  .transfer('bob.near', '10 NEAR')                    // Alice sends Bob 10 NEAR
   .functionCall('market.near', 'buy', { id: '123' }, {
-    attachedDeposit: '5'                              // Alice attaches 5 NEAR to the call
+    attachedDeposit: '5 NEAR'                         // Alice attaches 5 NEAR to the call
   })
   .send();
 ```
@@ -214,7 +214,7 @@ const near = new Near({
 
 // All operations now use the wallet for signing
 await near.call('contract.near', 'method', { arg: 'value' });
-await near.send('bob.near', '10');
+await near.send('bob.near', '10 NEAR');
 ```
 
 ### HOT Connector
@@ -333,9 +333,9 @@ No more nonce conflicts - the library handles nonce tracking and retries automat
 ```typescript
 // Safe to run multiple transactions concurrently
 await Promise.all([
-  near.send('bob.near', '1'),
-  near.send('charlie.near', '1'),
-  near.send('dave.near', '1')
+  near.send('bob.near', '1 NEAR'),
+  near.send('charlie.near', '1 NEAR'),
+  near.send('dave.near', '1 NEAR')
 ]);
 // Nonces are automatically managed and conflicts are retried
 ```
