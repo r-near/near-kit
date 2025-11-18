@@ -1,6 +1,6 @@
 {
   "name": "near-kit",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "A simple, intuitive TypeScript library for interacting with NEAR Protocol",
   "type": "module",
   "main": "./dist/index.js",
