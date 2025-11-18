@@ -7,7 +7,12 @@
  * these schemas as an implementation detail.
  */
 import { z } from "zod"
-import { type PrivateKey, PrivateKeySchema } from "../utils/validation.js"
+import {
+  type Amount,
+  type Gas,
+  type PrivateKey,
+  PrivateKeySchema,
+} from "../utils/validation.js"
 import { NETWORK_PRESETS } from "./constants.js"
 
 // ==================== Network Config Schema ====================
@@ -60,8 +65,8 @@ export const TxExecutionStatusSchema = z.enum([
  * Schema for function call options
  */
 export const CallOptionsSchema = z.object({
-  gas: z.string().optional(),
-  attachedDeposit: z.union([z.string(), z.bigint()]).optional(),
+  gas: z.custom<Gas>().optional(),
+  attachedDeposit: z.custom<Amount>().optional(),
   signerId: z.string().optional(),
   waitUntil: TxExecutionStatusSchema.optional(),
 })
