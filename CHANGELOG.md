@@ -1,5 +1,11 @@
 # near-kit
 
+## 0.2.1
+
+### Patch Changes
+
+- 039cf73: Fix amount and gas schemas to use fully typesafe template literal types across `Near.call`, `CallOptions`, and helpers, ensuring `attachedDeposit` and gas options always use the `Amount` and `Gas` aliases.
+
 ## 0.2.0
 
 ### Minor Changes
