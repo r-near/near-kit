@@ -61,6 +61,7 @@ export type {
 // Key stores
 export {
   InMemoryKeyStore,
+  RotatingKeyStore,
   // Node.js-only keystores not exported by default (browser environments don't support them)
   // For Node.js/Bun:
   //   import { FileKeyStore } from "near-kit/keys/file"

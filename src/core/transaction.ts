@@ -223,6 +223,11 @@ export class TransactionBuilder {
       throw new InvalidKeyError(`No key found for account: ${this.signerId}`)
     }
 
+    // Cache the resolved key pair to ensure keyStore.get() is only called once
+    // per TransactionBuilder instance. This is critical for RotatingKeyStore
+    // which returns a different key on each get() call.
+    this.keyPair = keyPair
+
     return keyPair
   }
 

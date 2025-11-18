@@ -46,9 +46,7 @@ await near.call(
   "example.testnet",
   "increment",
   {},
-  {
-    attachedDeposit: "0.1 NEAR",
-  }
+  {attachedDeposit: "0.1 NEAR"}
 )
 
 // Send NEAR tokens
@@ -191,9 +189,7 @@ const receipt = await near
     "market.near",
     "buy",
     { id: "123" },
-    {
-      attachedDeposit: "5 NEAR", // Alice attaches 5 NEAR to the call
-    }
+    { attachedDeposit: "5 NEAR" } // Alice attaches 5 NEAR to the call
   )
   .send()
 ```
@@ -235,7 +231,7 @@ afterAll(async () => {
 ## Key Management
 
 ```typescript
-import { InMemoryKeyStore, FileKeyStore } from "near-kit"
+import { InMemoryKeyStore, FileKeyStore, RotatingKeyStore } from "near-kit"
 
 // In-memory (runtime only)
 const near = new Near({
@@ -247,6 +243,17 @@ const near = new Near({
 // File-based (persistent)
 const near = new Near({
   keyStore: new FileKeyStore("~/.near-credentials"),
+})
+
+// Rotating keys for high-throughput concurrent transactions
+const near = new Near({
+  keyStore: new RotatingKeyStore({
+    "alice.near": [
+      "ed25519:key1...",
+      "ed25519:key2...",
+      "ed25519:key3...",
+    ],
+  }),
 })
 ```
 
