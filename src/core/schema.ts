@@ -486,7 +486,9 @@ export function serializeSignedTransaction(
  * Per NEP-461, this prepends a u32 prefix (2^30 + 366) before the delegate action,
  * ensuring signed delegate actions are never identical to signed transactions.
  *
- * Use this when you need to sign a DelegateAction to create a SignedDelegateAction payload.
+ * Use this to serialize a DelegateAction before signing. The resulting bytes are hashed
+ * and signed to create the signature, which is then combined with the DelegateAction
+ * using the `signedDelegate()` helper to create a SignedDelegateAction.
  *
  * @param delegateAction - The delegate action to serialize
  * @returns Uint8Array - The prefixed and serialized delegate action
