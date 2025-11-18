@@ -5,6 +5,12 @@
 import { describe, expect, test } from "bun:test"
 import { Amount, formatAmount, parseAmount } from "../../src/utils/amount.js"
 
+// Helper to allow testing runtime behavior with strings
+// that are intentionally outside the AmountInput type.
+
+// biome-ignore lint/suspicious/noExplicitAny: intentionally testing runtime behavior with invalid type
+const parseAmountUnsafe = (value: string) => parseAmount(value as any)
+
 describe("Amount", () => {
   describe("Amount.NEAR()", () => {
     test("creates NEAR amount from number", () => {
@@ -79,13 +85,15 @@ describe("parseAmount", () => {
     })
 
     test("handles case insensitive NEAR", () => {
-      expect(parseAmount("10 near")).toBe("10000000000000000000000000")
-      expect(parseAmount("10 Near")).toBe("10000000000000000000000000")
+      expect(parseAmountUnsafe("10 near")).toBe("10000000000000000000000000")
+      expect(parseAmountUnsafe("10 Near")).toBe("10000000000000000000000000")
       expect(parseAmount("10 NEAR")).toBe("10000000000000000000000000")
     })
 
     test("handles extra whitespace", () => {
-      expect(parseAmount("  10  NEAR  ")).toBe("10000000000000000000000000")
+      expect(parseAmountUnsafe("  10  NEAR  ")).toBe(
+        "10000000000000000000000000",
+      )
     })
 
     test("truncates precision beyond 24 decimals", () => {
@@ -112,7 +120,7 @@ describe("parseAmount", () => {
     })
 
     test("handles extra whitespace", () => {
-      expect(parseAmount("  1000  yocto  ")).toBe("1000")
+      expect(parseAmountUnsafe("  1000  yocto  ")).toBe("1000")
     })
   })
 
@@ -140,12 +148,12 @@ describe("parseAmount", () => {
 
   describe("error cases", () => {
     test("throws on bare number string", () => {
-      expect(() => parseAmount("10")).toThrow("Ambiguous amount")
-      expect(() => parseAmount("10")).toThrow("Did you mean")
+      expect(() => parseAmountUnsafe("10")).toThrow("Ambiguous amount")
+      expect(() => parseAmountUnsafe("10")).toThrow("Did you mean")
     })
 
     test("throws on bare decimal string", () => {
-      expect(() => parseAmount("10.5")).toThrow("Ambiguous amount")
+      expect(() => parseAmountUnsafe("10.5")).toThrow("Ambiguous amount")
     })
 
     test("throws on bare number (would be caught by TypeScript)", () => {
@@ -155,7 +163,9 @@ describe("parseAmount", () => {
     })
 
     test("throws on invalid format", () => {
-      expect(() => parseAmount("invalid")).toThrow("Invalid amount format")
+      expect(() => parseAmountUnsafe("invalid")).toThrow(
+        "Invalid amount format",
+      )
     })
 
     test("throws on negative NEAR", () => {
@@ -163,16 +173,16 @@ describe("parseAmount", () => {
     })
 
     test("throws on amount with wrong unit", () => {
-      expect(() => parseAmount("10 USD")).toThrow("Invalid amount format")
+      expect(() => parseAmountUnsafe("10 USD")).toThrow("Invalid amount format")
     })
 
     test("throws on empty string", () => {
-      expect(() => parseAmount("")).toThrow("Invalid amount format")
+      expect(() => parseAmountUnsafe("")).toThrow("Invalid amount format")
     })
 
     test("provides helpful error message for bare numbers", () => {
       try {
-        parseAmount("100")
+        parseAmountUnsafe("100")
         expect(false).toBe(true) // Should not reach here
       } catch (error: unknown) {
         expect(error).toBeInstanceOf(Error)
@@ -184,18 +194,28 @@ describe("parseAmount", () => {
     })
 
     test("throws on NEAR format with letters", () => {
-      expect(() => parseAmount("abc NEAR")).toThrow("Invalid amount format")
+      expect(() => parseAmountUnsafe("abc NEAR")).toThrow(
+        "Invalid amount format",
+      )
     })
 
     test("throws on NEAR format with special characters", () => {
-      expect(() => parseAmount("10!23 NEAR")).toThrow("Invalid amount format")
-      expect(() => parseAmount("10@#$ NEAR")).toThrow("Invalid amount format")
-      expect(() => parseAmount("10$20 NEAR")).toThrow("Invalid amount format")
+      expect(() => parseAmountUnsafe("10!23 NEAR")).toThrow(
+        "Invalid amount format",
+      )
+      expect(() => parseAmountUnsafe("10@#$ NEAR")).toThrow(
+        "Invalid amount format",
+      )
+      expect(() => parseAmountUnsafe("10$20 NEAR")).toThrow(
+        "Invalid amount format",
+      )
     })
 
     test("throws on NEAR format with mixed invalid characters", () => {
-      expect(() => parseAmount("10abc NEAR")).toThrow("Invalid amount format")
-      expect(() => parseAmount("hello123 NEAR")).toThrow(
+      expect(() => parseAmountUnsafe("10abc NEAR")).toThrow(
+        "Invalid amount format",
+      )
+      expect(() => parseAmountUnsafe("hello123 NEAR")).toThrow(
         "Invalid amount format",
       )
     })

@@ -8,7 +8,7 @@ import { NearError } from "../errors/index.js"
 import { InMemoryKeyStore } from "../keys/index.js"
 import { parseKey } from "../utils/key.js"
 import { generateNep413Nonce } from "../utils/nep413.js"
-import type { Amount } from "../utils/validation.js"
+import type { Amount, Gas } from "../utils/validation.js"
 import { normalizeAmount, normalizeGas } from "../utils/validation.js"
 import * as actions from "./actions.js"
 import {
@@ -332,8 +332,8 @@ export class Near {
 
     // Use private key/signer approach
     const functionCallOptions: {
-      gas?: string
-      attachedDeposit?: string | bigint
+      gas?: Gas
+      attachedDeposit?: Amount
     } = {}
     if (options.gas !== undefined) {
       functionCallOptions.gas = options.gas

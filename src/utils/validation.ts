@@ -14,8 +14,8 @@ import {
   MIN_ACCOUNT_ID_LENGTH,
   SECP256K1_KEY_PREFIX,
 } from "../core/constants.js"
-import { parseAmount } from "./amount.js"
-import { parseGas } from "./gas.js"
+import { type AmountInput, parseAmount } from "./amount.js"
+import { type GasInput, parseGas } from "./gas.js"
 
 // ==================== Base58 Validation ====================
 
@@ -145,10 +145,18 @@ export type PrivateKeyString = z.infer<typeof PrivateKeySchema>
 export const AmountSchema = z
   .union([z.string(), z.bigint()])
   .transform((amount): string => {
-    return parseAmount(amount)
+    return parseAmount(amount as AmountInput)
   })
 
-export type Amount = z.input<typeof AmountSchema>
+/**
+ * Compile-time-safe amount type for NEAR values.
+ *
+ * This is a template-literal type that only permits:
+ * - `"10 NEAR"`, `"1.5 NEAR"` style strings
+ * - `"1000 yocto"` style strings
+ * - Raw bigint values treated as yoctoNEAR
+ */
+export type Amount = AmountInput
 
 // ==================== Gas Schema ====================
 
@@ -162,10 +170,10 @@ export type Amount = z.input<typeof AmountSchema>
  * Normalizes to raw gas string.
  */
 export const GasSchema = z.string().transform((gas): string => {
-  return parseGas(gas)
+  return parseGas(gas as GasInput)
 })
 
-export type Gas = z.input<typeof GasSchema>
+export type Gas = GasInput
 
 // ==================== Helper Functions ====================
 

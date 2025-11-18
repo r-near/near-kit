@@ -148,9 +148,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 }
 
 export {
-  viewExample,
   callExample,
   sendExample,
-  typeSafeExample,
   transactionBuilderExample,
+  typeSafeExample,
+  viewExample,
 }

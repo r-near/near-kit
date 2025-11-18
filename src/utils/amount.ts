@@ -14,25 +14,32 @@
 import { YOCTO_PER_NEAR } from "../core/constants.js"
 
 /**
+ * String amount in NEAR units.
+ *
+ * Examples:
+ * - "10 NEAR"
+ * - "1.5 NEAR"
+ */
+export type NearAmountString = `${number} NEAR`
+
+/**
+ * String amount in yoctoNEAR units.
+ *
+ * Examples:
+ * - "1000000 yocto"
+ * - "1 yocto"
+ */
+export type YoctoAmountString = `${bigint} yocto`
+
+/**
  * Amount input type - must be a string with unit specification or bigint.
  *
  * Accepts:
- * - Literal strings: "10 NEAR", "10.5 NEAR", "1000 yocto"
+ * - Literal strings: "10 NEAR", "1.5 NEAR", "1000 yocto"
  * - Constructor output: Amount.NEAR(10), Amount.yocto(1000n)
  * - Raw bigint: 1000000n (interpreted as yoctoNEAR)
- *
- * For variables, use 'as const' to preserve literal type:
- * @example
- * const amount = "10 NEAR" as const
- * const yocto = 1000000n  // Direct bigint is treated as yoctoNEAR
  */
-export type AmountInput =
-  | `${number} NEAR`
-  | `${number}.${number} NEAR`
-  | `${number} yocto`
-  | ReturnType<typeof Amount.NEAR>
-  | ReturnType<typeof Amount.yocto>
-  | bigint
+export type AmountInput = NearAmountString | YoctoAmountString | bigint
 
 /**
  * Amount namespace - explicit constructors for NEAR values.
@@ -50,7 +57,7 @@ export const Amount = {
    * @param value - Amount in NEAR.
    * @returns Formatted string `"X NEAR"`.
    */
-  NEAR(value: number | string): string {
+  NEAR(value: number | `${number}`): NearAmountString {
     return `${value} NEAR`
   },
 
@@ -59,17 +66,17 @@ export const Amount = {
    * @param value - Amount in yoctoNEAR.
    * @returns Formatted string `"X yocto"`.
    */
-  yocto(value: bigint | string): string {
+  yocto(value: bigint | `${bigint}`): YoctoAmountString {
     return `${value} yocto`
   },
 
   /**
    * Common amount constants.
    */
-  ZERO: "0 yocto",
-  ONE_NEAR: "1 NEAR",
-  ONE_YOCTO: "1 yocto",
-} as const
+  ZERO: "0 yocto" as YoctoAmountString,
+  ONE_NEAR: "1 NEAR" as NearAmountString,
+  ONE_YOCTO: "1 yocto" as YoctoAmountString,
+}
 
 /**
  * Parse amount to yoctoNEAR.

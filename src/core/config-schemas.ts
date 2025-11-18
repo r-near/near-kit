@@ -7,7 +7,12 @@
  * these schemas as an implementation detail.
  */
 import { z } from "zod"
-import { type PrivateKey, PrivateKeySchema } from "../utils/validation.js"
+import {
+  type Amount,
+  type Gas,
+  type PrivateKey,
+  PrivateKeySchema,
+} from "../utils/validation.js"
 import { NETWORK_PRESETS } from "./constants.js"
 
 // ==================== Network Config Schema ====================
@@ -60,13 +65,23 @@ export const TxExecutionStatusSchema = z.enum([
  * Schema for function call options
  */
 export const CallOptionsSchema = z.object({
+  // Runtime validation: keep loose string/bigint types so config
+  // parsing fails fast on obviously invalid shapes.
   gas: z.string().optional(),
   attachedDeposit: z.union([z.string(), z.bigint()]).optional(),
   signerId: z.string().optional(),
   waitUntil: TxExecutionStatusSchema.optional(),
 })
 
-export type CallOptions = z.infer<typeof CallOptionsSchema>
+// Developer-facing type for call options.
+// Uses the stricter Gas/Amount aliases while the schema above
+// handles runtime validation of the underlying values.
+export type CallOptions = {
+  gas?: Gas
+  attachedDeposit?: Amount
+  signerId?: string
+  waitUntil?: z.infer<typeof TxExecutionStatusSchema>
+}
 
 // ==================== Block Reference Schema ====================
 
