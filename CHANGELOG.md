@@ -1,5 +1,11 @@
 # near-kit
 
+## 0.3.0
+
+### Minor Changes
+
+- 6bbf3d6: Add a `near-kit/keys` barrel export for Node-only keystore imports (`FileKeyStore`, `InMemoryKeyStore`, `RotatingKeyStore`), keeping the root `near-kit` entry browser-safe.
+
 ## 0.2.1
 
 ### Patch Changes
