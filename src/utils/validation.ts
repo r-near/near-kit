@@ -15,7 +15,7 @@ import {
   SECP256K1_KEY_PREFIX,
 } from "../core/constants.js"
 import { type AmountInput, parseAmount } from "./amount.js"
-import { parseGas } from "./gas.js"
+import { parseGas, type GasInput } from "./gas.js"
 
 // ==================== Base58 Validation ====================
 
@@ -170,10 +170,10 @@ export type Amount = AmountInput
  * Normalizes to raw gas string.
  */
 export const GasSchema = z.string().transform((gas): string => {
-  return parseGas(gas)
+  return parseGas(gas as GasInput)
 })
 
-export type Gas = z.input<typeof GasSchema>
+export type Gas = GasInput
 
 // ==================== Helper Functions ====================
 

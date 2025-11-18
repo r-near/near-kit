@@ -147,8 +147,8 @@ describe("TransactionBuilder - Gas Parsing", () => {
 
   test("should parse Tgas with different case", () => {
     const builders = [
-      createBuilder().functionCall("c.near", "m", {}, { gas: "30 TGas" }),
-      createBuilder().functionCall("c.near", "m", {}, { gas: "30 tgas" }),
+      createBuilder().functionCall("c.near", "m", {}, { gas: "30 TGas" as any }),
+      createBuilder().functionCall("c.near", "m", {}, { gas: "30 tgas" as any }),
       createBuilder().functionCall("c.near", "m", {}, { gas: "30 Tgas" }),
     ]
 

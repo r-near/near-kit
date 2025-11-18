@@ -5,6 +5,10 @@
 import { describe, expect, test } from "bun:test"
 import { formatGas, Gas, parseGas, toGas, toTGas } from "../../src/utils/gas.js"
 
+// Helper for testing runtime behavior with strings
+// that are intentionally outside the GasInput type.
+const parseGasUnsafe = (value: string) => parseGas(value as any)
+
 describe("Gas", () => {
   describe("Gas.Tgas()", () => {
     test("creates gas amount from number", () => {
@@ -49,13 +53,13 @@ describe("parseGas", () => {
     })
 
     test("handles case insensitive Tgas", () => {
-      expect(parseGas("30 tgas")).toBe("30000000000000")
-      expect(parseGas("30 TGas")).toBe("30000000000000")
-      expect(parseGas("30 TGAS")).toBe("30000000000000")
+      expect(parseGasUnsafe("30 tgas")).toBe("30000000000000")
+      expect(parseGasUnsafe("30 TGas")).toBe("30000000000000")
+      expect(parseGasUnsafe("30 TGAS")).toBe("30000000000000")
     })
 
     test("handles extra whitespace", () => {
-      expect(parseGas("  30  Tgas  ")).toBe("30000000000000")
+      expect(parseGasUnsafe("  30  Tgas  ")).toBe("30000000000000")
     })
 
     test("floors decimal Tgas values", () => {
@@ -109,36 +113,36 @@ describe("parseGas", () => {
 
   describe("error cases", () => {
     test("throws on invalid format", () => {
-      expect(() => parseGas("invalid")).toThrow("Invalid gas format")
+      expect(() => parseGasUnsafe("invalid")).toThrow("Invalid gas format")
     })
 
     test("throws on negative Tgas", () => {
-      expect(() => parseGas("-30 Tgas")).toThrow("Invalid gas format")
+      expect(() => parseGasUnsafe("-30 Tgas")).toThrow("Invalid gas format")
     })
 
     test("throws on NaN Tgas", () => {
-      expect(() => parseGas("abc Tgas")).toThrow("Invalid gas format")
+      expect(() => parseGasUnsafe("abc Tgas")).toThrow("Invalid gas format")
     })
 
     test("throws on gas with wrong unit", () => {
-      expect(() => parseGas("30 Ggas")).toThrow("Invalid gas format")
+      expect(() => parseGasUnsafe("30 Ggas")).toThrow("Invalid gas format")
     })
 
     test("throws on empty string", () => {
-      expect(() => parseGas("")).toThrow("Invalid gas format")
+      expect(() => parseGasUnsafe("")).toThrow("Invalid gas format")
     })
 
     test("throws on invalid numeric format in Tgas", () => {
-      expect(() => parseGas(".. Tgas")).toThrow("Invalid Tgas value")
+      expect(() => parseGasUnsafe(".. Tgas")).toThrow("Invalid Tgas value")
     })
 
     test("throws on multiple dots that result in NaN", () => {
-      expect(() => parseGas("... Tgas")).toThrow("Invalid Tgas value")
+      expect(() => parseGasUnsafe("... Tgas")).toThrow("Invalid Tgas value")
     })
 
     test("provides helpful error message", () => {
       try {
-        parseGas("invalid")
+        parseGasUnsafe("invalid")
         expect(false).toBe(true) // Should not reach here
       } catch (error: unknown) {
         expect(error).toBeInstanceOf(Error)
@@ -201,7 +205,7 @@ describe("formatGas", () => {
     test("format and parse round-trip", () => {
       const raw = "30000000000000"
       const formatted = formatGas(raw)
-      const parsed = parseGas(formatted)
+      const parsed = parseGasUnsafe(formatted)
       expect(parsed).toBe(raw)
     })
   })

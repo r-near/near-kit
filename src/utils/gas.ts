@@ -26,7 +26,6 @@ export type GasInput =
   | `${number} Tgas`
   | `${number}.${number} Tgas`
   | `${number}`
-  | ReturnType<typeof Gas.Tgas>
 
 /**
  * Gas namespace - explicit constructors.
@@ -35,20 +34,20 @@ export type GasInput =
  * Gas.Tgas(30)        // "30 Tgas"
  * Gas.Tgas(300)       // "300 Tgas"
  */
-export const Gas = {
+ export const Gas = {
   /**
    * Create gas amount in TGas (teragas).
    * @param value - Amount in TGas.
    */
-  Tgas(value: number | string): string {
+  Tgas(value: number | `${number}`): `${number} Tgas` {
     return `${value} Tgas`
   },
 
   /**
    * Common gas amounts.
    */
-  DEFAULT: "30 Tgas",
-  MAX: "300 Tgas",
+  DEFAULT: "30 Tgas" as `${number} Tgas`,
+  MAX: "300 Tgas" as `${number} Tgas`,
 } as const
 
 /**
