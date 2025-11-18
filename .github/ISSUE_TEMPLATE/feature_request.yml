@@ -1,0 +1,54 @@
+name: Feature Request
+description: Suggest a new feature or improvement
+labels: ["feature"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for your suggestion! We'd love to hear your ideas.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What problem are you trying to solve? What's the use case?
+      placeholder: |
+        I'm trying to...
+        Currently I have to...
+        It would be easier if...
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: Proposed solution
+      description: How would you like this to work? What would the API look like?
+      placeholder: |
+        const result = near.newMethod(...);
+
+        // or
+
+        near.transaction()
+          .newAction(...)
+          .send();
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives
+      description: What alternatives have you considered? Any workarounds?
+      placeholder: |
+        I could work around this by...
+        Other libraries solve this by...
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: Any other relevant information, examples, or references.
+      placeholder: |
+        Related to #123
+        Similar to how near-api-js does...
