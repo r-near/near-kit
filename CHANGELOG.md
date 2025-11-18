@@ -1,5 +1,11 @@
 # near-kit
 
+## 0.4.0
+
+### Minor Changes
+
+- bd82ee9: Simplify the meta-transaction delegate flow by returning `{ signedDelegateAction, payload, format }` from `.delegate()`, introducing first-class payload encode/decode helpers, and updating docs/examples to match the new transport pattern.
+
 ## 0.3.0
 
 ### Minor Changes
