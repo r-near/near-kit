@@ -1,5 +1,11 @@
 # near-kit
 
+## 0.4.3
+
+### Patch Changes
+
+- 247c8a4: Remove unused walletUrl, helperUrl, and nodeUrl fields from network configuration
+
 ## 0.4.2
 
 ### Patch Changes
