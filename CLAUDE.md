@@ -228,6 +228,19 @@ describe("Feature", () => {
 - Node.js-only exports (FileKeyStore, NativeKeyStore) require explicit import paths
 - Browser-safe by default (excludes Node.js dependencies)
 
+## Documentation Repository
+
+The documentation for near-kit is maintained in a separate repository at `~/near-kit-docs`.
+
+**IMPORTANT:** When making changes to the library (especially API changes, new features, or configuration changes), check if corresponding documentation updates are needed in `~/near-kit-docs/src`.
+
+Common scenarios requiring doc updates:
+- New public APIs or methods
+- Changes to configuration options
+- New features or capabilities
+- Breaking changes
+- Updated examples or usage patterns
+
 ## Git Workflow & Pull Requests
 
 When asked to "make a PR" or "create a pull request", follow this workflow:
