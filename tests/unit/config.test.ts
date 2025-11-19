@@ -23,7 +23,6 @@ describe("Network Configuration", () => {
 
     expect(config.networkId).toBe("mainnet")
     expect(config.rpcUrl).toBe("https://free.rpc.fastnear.com")
-    expect(config.walletUrl).toBe("https://wallet.near.org")
   })
 
   test("should accept testnet preset", () => {
@@ -31,7 +30,6 @@ describe("Network Configuration", () => {
 
     expect(config.networkId).toBe("testnet")
     expect(config.rpcUrl).toBe("https://rpc.testnet.fastnear.com")
-    expect(config.walletUrl).toBe("https://wallet.testnet.near.org")
   })
 
   test("should accept localnet preset", () => {
@@ -39,7 +37,6 @@ describe("Network Configuration", () => {
 
     expect(config.networkId).toBe("localnet")
     expect(config.rpcUrl).toBe("http://localhost:3030")
-    expect(config.walletUrl).toBe("http://localhost:1234")
   })
 
   test("should accept custom network config", () => {
@@ -56,14 +53,11 @@ describe("Network Configuration", () => {
     const config = resolveNetworkConfig({
       rpcUrl: "https://custom-rpc.example.com",
       networkId: "custom-network",
-      walletUrl: "https://custom-wallet.example.com",
-      helperUrl: "https://custom-helper.example.com",
+      nodeUrl: "https://custom-node.example.com",
     })
 
     expect(config.networkId).toBe("custom-network")
     expect(config.rpcUrl).toBe("https://custom-rpc.example.com")
-    expect(config.walletUrl).toBe("https://custom-wallet.example.com")
-    expect(config.helperUrl).toBe("https://custom-helper.example.com")
   })
 
   test("should reject invalid network preset", () => {

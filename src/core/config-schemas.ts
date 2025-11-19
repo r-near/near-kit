@@ -29,8 +29,6 @@ export const CustomNetworkConfigSchema = z.object({
   rpcUrl: z.string().url("RPC URL must be a valid URL"),
   networkId: z.string().min(1, "Network ID is required"),
   nodeUrl: z.string().url("Node URL must be a valid URL").optional(),
-  walletUrl: z.string().url("Wallet URL must be a valid URL").optional(),
-  helperUrl: z.string().url("Helper URL must be a valid URL").optional(),
 })
 
 /**
@@ -201,8 +199,6 @@ export type NearConfig = Omit<NearConfigBase, "privateKey"> & {
 export function resolveNetworkConfig(network?: NetworkConfig): {
   rpcUrl: string
   networkId: string
-  walletUrl?: string | undefined
-  helperUrl?: string | undefined
 } {
   // Default to mainnet
   if (!network) {

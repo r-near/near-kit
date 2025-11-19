@@ -8,20 +8,14 @@ export const NETWORK_PRESETS = {
   mainnet: {
     rpcUrl: "https://free.rpc.fastnear.com",
     networkId: "mainnet",
-    walletUrl: "https://wallet.near.org",
-    helperUrl: "https://helper.mainnet.near.org",
   },
   testnet: {
     rpcUrl: "https://rpc.testnet.fastnear.com",
     networkId: "testnet",
-    walletUrl: "https://wallet.testnet.near.org",
-    helperUrl: "https://helper.testnet.near.org",
   },
   localnet: {
     rpcUrl: "http://localhost:3030",
     networkId: "localnet",
-    walletUrl: "http://localhost:1234",
-    helperUrl: "http://localhost:3000",
   },
 } as const
 
