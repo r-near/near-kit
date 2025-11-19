@@ -422,7 +422,7 @@ describe("Transaction Actions - Integration Tests", () => {
       // Publish contract (mutable, identified by publisher account)
       await nearWithPublisherKey
         .transaction(publisherId)
-        .publishContract(contractCode, publisherId)
+        .publishContract(contractCode, { identifiedBy: "account" })
         .send()
 
       console.log(`✓ Contract published by: ${publisherId}`)
@@ -469,7 +469,7 @@ describe("Transaction Actions - Integration Tests", () => {
 
       await nearWithPublisherKey
         .transaction(publisherId)
-        .publishContract(contractCode, publisherId)
+        .publishContract(contractCode, { identifiedBy: "account" })
         .send()
 
       console.log(`✓ Contract published`)

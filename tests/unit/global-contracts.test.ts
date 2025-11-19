@@ -7,23 +7,22 @@ import { TransactionBuilder } from "../../src/core/transaction.js"
 import { InMemoryKeyStore } from "../../src/keys/index.js"
 
 describe("Global Contracts API", () => {
-  test("publishContract creates immutable contract action", () => {
+  test("publishContract creates updatable contract action by default", () => {
     const code = new Uint8Array([0x00, 0x61, 0x73, 0x6d]) // WASM header
     const action = publishContract(code)
 
     expect(action).toHaveProperty("deployGlobalContract")
     expect(action.deployGlobalContract.code).toEqual(code)
-    expect(action.deployGlobalContract.deployMode).toEqual({ CodeHash: {} })
+    expect(action.deployGlobalContract.deployMode).toEqual({ AccountId: {} })
   })
 
-  test("publishContract creates mutable contract action", () => {
+  test("publishContract creates immutable contract action with hash mode", () => {
     const code = new Uint8Array([0x00, 0x61, 0x73, 0x6d])
-    const accountId = "my-publisher.near"
-    const action = publishContract(code, accountId)
+    const action = publishContract(code, { identifiedBy: "hash" })
 
     expect(action).toHaveProperty("deployGlobalContract")
     expect(action.deployGlobalContract.code).toEqual(code)
-    expect(action.deployGlobalContract.deployMode).toEqual({ AccountId: {} })
+    expect(action.deployGlobalContract.deployMode).toEqual({ CodeHash: {} })
   })
 
   test("deployFromPublished with accountId", () => {
@@ -87,7 +86,7 @@ describe("Global Contracts API - Edge Cases", () => {
   describe("publishContract edge cases", () => {
     test("handles empty contract code", () => {
       const emptyCode = new Uint8Array(0)
-      const action = publishContract(emptyCode)
+      const action = publishContract(emptyCode, { identifiedBy: "hash" })
 
       expect(action).toHaveProperty("deployGlobalContract")
       expect(action.deployGlobalContract.code).toEqual(emptyCode)
@@ -100,7 +99,7 @@ describe("Global Contracts API - Edge Cases", () => {
       for (let i = 0; i < largeCode.length; i++) {
         largeCode[i] = i % 256
       }
-      const action = publishContract(largeCode)
+      const action = publishContract(largeCode, { identifiedBy: "hash" })
 
       expect(action).toHaveProperty("deployGlobalContract")
       expect(action.deployGlobalContract.code.length).toBe(1024 * 1024)
@@ -111,27 +110,19 @@ describe("Global Contracts API - Edge Cases", () => {
       const specialBytes = new Uint8Array([
         0x00, 0xff, 0x7f, 0x80, 0x01, 0xfe, 0xaa, 0x55,
       ])
-      const action = publishContract(specialBytes)
+      const action = publishContract(specialBytes, { identifiedBy: "hash" })
 
       expect(action).toHaveProperty("deployGlobalContract")
       expect(action.deployGlobalContract.code).toEqual(specialBytes)
     })
 
-    test("handles mutable contract with special account names", () => {
+    test("handles mutable contract with account mode", () => {
       const code = new Uint8Array([0x00, 0x61, 0x73, 0x6d])
-      const specialAccounts = [
-        "a.near",
-        "test-account.testnet",
-        "my_contract.near",
-        "contract123.near",
-      ]
 
-      for (const accountId of specialAccounts) {
-        const action = publishContract(code, accountId)
-        expect(action.deployGlobalContract.deployMode).toEqual({
-          AccountId: {},
-        })
-      }
+      const action = publishContract(code, { identifiedBy: "account" })
+      expect(action.deployGlobalContract.deployMode).toEqual({
+        AccountId: {},
+      })
     })
   })
 
@@ -218,7 +209,7 @@ describe("Global Contracts - Transaction Builder Integration", () => {
     return new TransactionBuilder("alice.near", rpc, keyStore)
   }
 
-  test("publishContract integrates with transaction builder", () => {
+  test("publishContract integrates with transaction builder (default account mode)", () => {
     const code = new Uint8Array([0x00, 0x61, 0x73, 0x6d])
     const builder = createBuilder().publishContract(code)
 
@@ -229,15 +220,21 @@ describe("Global Contracts - Transaction Builder Integration", () => {
     expect(builder.actions[0].deployGlobalContract).toBeDefined()
     // @ts-expect-error - accessing private field for testing
     expect(builder.actions[0].deployGlobalContract.code).toEqual(code)
-  })
-
-  test("publishContract with accountId integrates with transaction builder", () => {
-    const code = new Uint8Array([0x00, 0x61, 0x73, 0x6d])
-    const builder = createBuilder().publishContract(code, "publisher.near")
-
     // @ts-expect-error - accessing private field for testing
     expect(builder.actions[0].deployGlobalContract.deployMode).toEqual({
       AccountId: {},
+    })
+  })
+
+  test("publishContract with hash mode integrates with transaction builder", () => {
+    const code = new Uint8Array([0x00, 0x61, 0x73, 0x6d])
+    const builder = createBuilder().publishContract(code, {
+      identifiedBy: "hash",
+    })
+
+    // @ts-expect-error - accessing private field for testing
+    expect(builder.actions[0].deployGlobalContract.deployMode).toEqual({
+      CodeHash: {},
     })
   })
 
@@ -285,7 +282,7 @@ describe("Global Contracts - Transaction Builder Integration", () => {
 })
 
 describe("Global Contracts - Serialization", () => {
-  test("publishContract action serializes correctly", () => {
+  test("publishContract action serializes correctly (default account mode)", () => {
     const code = new Uint8Array([0x00, 0x61, 0x73, 0x6d])
     const action = publishContract(code)
 
@@ -295,9 +292,9 @@ describe("Global Contracts - Serialization", () => {
     expect(serialized.length).toBeGreaterThan(0)
   })
 
-  test("publishContract with accountId serializes correctly", () => {
+  test("publishContract with hash mode serializes correctly", () => {
     const code = new Uint8Array([0x00, 0x61, 0x73, 0x6d])
-    const action = publishContract(code, "publisher.near")
+    const action = publishContract(code, { identifiedBy: "hash" })
 
     const serialized = ActionSchema.serialize(action)
     expect(serialized).toBeInstanceOf(Uint8Array)
@@ -322,8 +319,10 @@ describe("Global Contracts - Serialization", () => {
   })
 
   test("deployMode enum values are correct", () => {
-    const codeHashMode = publishContract(new Uint8Array([0x00]))
-    const accountIdMode = publishContract(new Uint8Array([0x00]), "test.near")
+    const codeHashMode = publishContract(new Uint8Array([0x00]), {
+      identifiedBy: "hash",
+    })
+    const accountIdMode = publishContract(new Uint8Array([0x00]))
 
     // CodeHash mode should have CodeHash key
     expect(codeHashMode.deployGlobalContract.deployMode).toHaveProperty(
@@ -333,7 +332,7 @@ describe("Global Contracts - Serialization", () => {
       CodeHash: {},
     })
 
-    // AccountId mode should have AccountId key
+    // AccountId mode should have AccountId key (default)
     expect(accountIdMode.deployGlobalContract.deployMode).toHaveProperty(
       "AccountId",
     )
@@ -389,13 +388,13 @@ describe("Global Contracts - Serialization", () => {
     type DeserializedAction = {
       deployGlobalContract: {
         code: Uint8Array
-        deployMode: { CodeHash: object }
+        deployMode: { AccountId: object }
       }
     }
     const typedDeserialized = deserialized as DeserializedAction
     expect(typedDeserialized.deployGlobalContract.code).toEqual(code)
     expect(typedDeserialized.deployGlobalContract.deployMode).toEqual({
-      CodeHash: {},
+      AccountId: {},
     })
   })
 })

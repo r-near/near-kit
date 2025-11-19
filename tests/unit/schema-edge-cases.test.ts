@@ -352,7 +352,7 @@ describe("Signature Types - Edge Cases", () => {
 // ==================== Global Contract Actions ====================
 
 describe("Global Contract Actions - Serialization", () => {
-  test("publishContract with CodeHash mode (immutable)", () => {
+  test("publishContract with AccountId mode (default, updatable)", () => {
     const code = new Uint8Array([
       0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00,
     ])
@@ -360,22 +360,22 @@ describe("Global Contract Actions - Serialization", () => {
 
     expect("deployGlobalContract" in action).toBe(true)
     expect(action.deployGlobalContract.code).toEqual(code)
-    expect(action.deployGlobalContract.deployMode).toEqual({ CodeHash: {} })
+    expect(action.deployGlobalContract.deployMode).toEqual({ AccountId: {} })
 
     // Should serialize successfully
     const serialized = ActionSchema.serialize(action)
     expect(serialized).toBeInstanceOf(Uint8Array)
   })
 
-  test("publishContract with AccountId mode (mutable)", () => {
+  test("publishContract with CodeHash mode (immutable)", () => {
     const code = new Uint8Array([
       0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00,
     ])
-    const action = publishContract(code, "publisher.near")
+    const action = publishContract(code, { identifiedBy: "hash" })
 
     expect("deployGlobalContract" in action).toBe(true)
     expect(action.deployGlobalContract.code).toEqual(code)
-    expect(action.deployGlobalContract.deployMode).toEqual({ AccountId: {} })
+    expect(action.deployGlobalContract.deployMode).toEqual({ CodeHash: {} })
 
     // Should serialize successfully
     const serialized = ActionSchema.serialize(action)
@@ -457,7 +457,7 @@ describe("Complex Action Combinations", () => {
           BigInt(0),
         ),
         addKey(pk, { fullAccess: {} }),
-        publishContract(code, "publisher.near"),
+        publishContract(code, { identifiedBy: "account" }),
         deployFromPublished({ accountId: "publisher.near" }),
       ],
     }

@@ -354,27 +354,43 @@ export class TransactionBuilder {
   }
 
   /**
-   * Publish a global contract that can be reused by multiple accounts
+   * Publish a global contract that can be reused by multiple accounts.
    *
-   * @param code - The compiled contract code bytes
-   * @param publisherId - Optional account ID. If provided, creates a mutable contract (can be updated).
-   *                      If omitted, creates an immutable contract (identified by code hash).
+   * Global contracts are deployed once and referenced by multiple accounts,
+   * saving storage costs. Two modes are available:
+   *
+   * - **"account" (default)** - Contract is identified by the signer's account ID. The signer
+   *   can update the contract later, and all accounts using it will automatically
+   *   use the updated version. Use this when you need to push updates to users.
+   *
+   * - **"hash"** - Contract is identified by its code hash. This creates
+   *   an immutable contract that cannot be updated. Other accounts reference it by
+   *   the hash. Use this when you want guaranteed immutability.
+   *
+   * @param code - The compiled contract code bytes (WASM)
+   * @param options - Optional configuration
+   * @param options.identifiedBy - How the contract is identified and referenced:
+   *   - `"account"` (default): Updatable by signer, identified by signer's account ID
+   *   - `"hash"`: Immutable, identified by code hash
    *
    * @example
    * ```typescript
-   * // Publish immutable contract (identified by code hash)
+   * // Publish updatable contract (identified by your account) - default
    * await near.transaction(accountId)
    *   .publishContract(contractCode)
    *   .send()
    *
-   * // Publish mutable contract (identified by account, can be updated)
+   * // Publish immutable contract (identified by its hash)
    * await near.transaction(accountId)
-   *   .publishContract(contractCode, "my-publisher.near")
+   *   .publishContract(contractCode, { identifiedBy: "hash" })
    *   .send()
    * ```
    */
-  publishContract(code: Uint8Array, publisherId?: string): this {
-    this.actions.push(actions.publishContract(code, publisherId))
+  publishContract(
+    code: Uint8Array,
+    options?: { identifiedBy?: "hash" | "account" },
+  ): this {
+    this.actions.push(actions.publishContract(code, options))
 
     if (!this.receiverId) {
       this.receiverId = this.signerId

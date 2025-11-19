@@ -35,7 +35,7 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "test": "bun test",
-    "lint": "biome check .",
+    "lint": "biome check . --write",
     "typecheck": "tsc --noEmit --project tsconfig.typecheck.json",
     "prepublishOnly": "bun run build",
     "release": "bun run build && changeset publish",
@@ -63,7 +63,7 @@
     }
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.3.6",
+    "@biomejs/biome": "2.3.5",
     "@changesets/cli": "^2.29.7",
     "@hot-labs/near-connect": "^0.6.9",
     "@near-js/transactions": "^2.5.1",

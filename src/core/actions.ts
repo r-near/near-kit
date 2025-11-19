@@ -209,27 +209,42 @@ export function deleteKey(publicKey: PublicKey): DeleteKeyAction {
 }
 
 /**
- * Publish a global contract that can be reused by multiple accounts
+ * Publish a global contract that can be reused by multiple accounts.
  *
- * @param code - The compiled contract code bytes
- * @param accountId - Optional account ID. If provided, creates a mutable contract (can be updated).
- *                    If omitted, creates an immutable contract (identified by code hash).
+ * Global contracts are deployed once and referenced by multiple accounts,
+ * saving storage costs. Two modes are available:
+ *
+ * - **"account" (default)** - Contract is identified by the signer's account ID. The signer
+ *   can update the contract later, and all accounts using it will automatically
+ *   use the updated version. Use this when you need to push updates to users.
+ *
+ * - **"hash"** - Contract is identified by its code hash. This creates
+ *   an immutable contract that cannot be updated. Other accounts reference it by
+ *   the hash. Use this when you want guaranteed immutability.
+ *
+ * @param code - The compiled contract code bytes (WASM)
+ * @param options - Optional configuration
+ * @param options.identifiedBy - How the contract is identified and referenced:
+ *   - `"account"` (default): Updatable by signer, identified by signer's account ID
+ *   - `"hash"`: Immutable, identified by code hash
  * @returns DeployGlobalContractAction
  *
  * @example
  * ```typescript
- * // Publish immutable contract (identified by code hash)
+ * // Publish updatable contract (identified by your account) - default
  * publishContract(contractCode)
+ * publishContract(contractCode, { identifiedBy: "account" })
  *
- * // Publish mutable contract (identified by account, can be updated)
- * publishContract(contractCode, "my-publisher.near")
+ * // Publish immutable contract (identified by its hash)
+ * publishContract(contractCode, { identifiedBy: "hash" })
  * ```
  */
 export function publishContract(
   code: Uint8Array,
-  accountId?: string,
+  options?: { identifiedBy?: "hash" | "account" },
 ): DeployGlobalContractAction {
-  const deployMode = accountId ? { AccountId: {} } : { CodeHash: {} }
+  const deployMode =
+    options?.identifiedBy === "hash" ? { CodeHash: {} } : { AccountId: {} }
 
   return {
     deployGlobalContract: {
