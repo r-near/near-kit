@@ -1,5 +1,6 @@
 # near-kit
 
+[![codecov](https://codecov.io/gh/r-near/near-kit/graph/badge.svg?token=F52NQ1DYG1)](https://codecov.io/gh/r-near/near-kit)
 [![npm version](https://img.shields.io/npm/v/near-kit.svg)](https://www.npmjs.com/package/near-kit)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue.svg)](https://www.typescriptlang.org/)

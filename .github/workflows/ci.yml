@@ -43,12 +43,12 @@ jobs:
 
       - name: Run unit tests with coverage
         run: |
-          echo "## Test Coverage Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          bun test tests/unit --coverage 2>&1 | tee /tmp/coverage.txt
-          grep -A 100 "All files" /tmp/coverage.txt | head -30 >> $GITHUB_STEP_SUMMARY || echo "Coverage data not available" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
+          bun test tests/unit --coverage --coverage-reporter=lcov
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          file: ./coverage/lcov.info
 
   integration-tests:
     runs-on: arc-runner-set
@@ -68,7 +68,12 @@ jobs:
         run: ulimit -n 65535
 
       - name: Run integration tests
-        run: bun test tests/integration --coverage
+        run: bun test tests/integration --coverage --coverage-reporter=lcov
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          file: ./coverage/lcov.info
 
   wallet-tests:
     runs-on: arc-runner-set
@@ -85,4 +90,9 @@ jobs:
         run: bun install
 
       - name: Run wallet tests
-        run: bun test tests/wallets --coverage
+        run: bun test tests/wallets --coverage --coverage-reporter=lcov
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          file: ./coverage/lcov.info
