@@ -263,18 +263,21 @@ git push -u origin <branch-name>
 gh pr create --title "<type>(<scope>): <subject>" --body "$(cat <<'EOF'
 ## Summary
 
-- Bullet points describing the changes
-- What was added/fixed/changed
-- Why these changes were made
+- Brief bullet points of what changed
+- Keep it simple and direct
+
+## Test plan
+
+- [ ] Tests pass
 EOF
 )"
 ```
 
-**IMPORTANT:** Always include:
+**IMPORTANT:**
 
-- Clear summary with bullet points
-- Test plan section
-- Reference any related issues
+- Keep PR descriptions simple and direct - avoid verbosity
+- Use concise bullet points
+- Don't explain obvious things or repeat information from the title
 
 ## Semantic Commits
 
