@@ -18,7 +18,7 @@ import type {
 import { InMemoryKeyStore } from "../../src/keys/index.js"
 import {
   Ed25519KeyPair,
-  generateNep413Nonce,
+  generateNonce,
   verifyNep413Signature,
 } from "../../src/utils/index.js"
 
@@ -33,7 +33,7 @@ describe("Near.signMessage() - Keystore-based signing", () => {
       keyStore,
     })
 
-    const nonce = generateNep413Nonce()
+    const nonce = generateNonce()
     const params: SignMessageParams = {
       message: "Login to MyApp",
       recipient: "myapp.near",
@@ -88,7 +88,7 @@ describe("Near.signMessage() - Keystore-based signing", () => {
       defaultSignerId: "alice.near",
     })
 
-    const nonce = generateNep413Nonce()
+    const nonce = generateNonce()
     const params: SignMessageParams = {
       message: "Login to MyApp",
       recipient: "myapp.near",
@@ -112,7 +112,7 @@ describe("Near.signMessage() - Keystore-based signing", () => {
     const params: SignMessageParams = {
       message: "Login to MyApp",
       recipient: "myapp.near",
-      nonce: generateNep413Nonce(),
+      nonce: generateNonce(),
     }
 
     await expect(
@@ -142,7 +142,7 @@ describe("Near.signMessage() - Keystore-based signing", () => {
     const params: SignMessageParams = {
       message: "Login to MyApp",
       recipient: "myapp.near",
-      nonce: generateNep413Nonce(),
+      nonce: generateNonce(),
     }
 
     await expect(
@@ -154,7 +154,7 @@ describe("Near.signMessage() - Keystore-based signing", () => {
 describe("Near.signMessage() - Wallet-based signing", () => {
   test("should use wallet.signMessage when available", async () => {
     const keyPair = Ed25519KeyPair.fromRandom()
-    const nonce = generateNep413Nonce()
+    const nonce = generateNonce()
 
     const mockWallet: WalletConnection = {
       async getAccounts() {
@@ -213,7 +213,7 @@ describe("Near.signMessage() - Wallet-based signing", () => {
       keyStore,
     })
 
-    const nonce = generateNep413Nonce()
+    const nonce = generateNonce()
     const params: SignMessageParams = {
       message: "Login to MyApp",
       recipient: "myapp.near",
@@ -253,7 +253,7 @@ describe("Near.signMessage() - Wallet-based signing", () => {
       keyStore,
     })
 
-    const nonce = generateNep413Nonce()
+    const nonce = generateNonce()
     const params: SignMessageParams = {
       message: "Login to MyApp",
       recipient: "myapp.near",
@@ -283,7 +283,7 @@ describe("Near.signMessage() - Edge cases", () => {
       keyStore,
     })
 
-    const nonce = generateNep413Nonce()
+    const nonce = generateNonce()
     const params: SignMessageParams = {
       message: "",
       recipient: "myapp.near",
@@ -307,7 +307,7 @@ describe("Near.signMessage() - Edge cases", () => {
       keyStore,
     })
 
-    const nonce = generateNep413Nonce()
+    const nonce = generateNonce()
     const params: SignMessageParams = {
       message: "こんにちは世界 🌍 Привет мир",
       recipient: "myapp.near",
@@ -331,7 +331,7 @@ describe("Near.signMessage() - Edge cases", () => {
       keyStore,
     })
 
-    const nonce = generateNep413Nonce()
+    const nonce = generateNonce()
     const params: SignMessageParams = {
       message: "A".repeat(10000),
       recipient: "myapp.near",

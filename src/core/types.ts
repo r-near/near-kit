@@ -323,21 +323,37 @@ export interface WalletAccount {
 }
 
 /**
- * Parameters for signing a message
+ * Parameters for signing a message (NEP-413)
+ *
+ * @see https://github.com/near/NEPs/blob/master/neps/nep-0413.md
  */
 export interface SignMessageParams {
+  /** The message that wants to be transmitted */
   message: string
+  /** The recipient to whom the message is destined (e.g. "alice.near" or "myapp.com") */
   recipient: string
+  /** A nonce that uniquely identifies this instance of the message (32 bytes) */
   nonce: Uint8Array
+  /** Optional, applicable to browser wallets. The URL to call after the signing process */
+  callbackUrl?: string
+  /** Optional, applicable to browser wallets. A state for CSRF protection */
+  state?: string
 }
 
 /**
- * Signed message result
+ * Signed message result (NEP-413)
+ *
+ * @see https://github.com/near/NEPs/blob/master/neps/nep-0413.md
  */
 export interface SignedMessage {
+  /** The account name to which the publicKey corresponds */
   accountId: string
+  /** The public key used to sign, in format "<key-type>:<base58-key-bytes>" */
   publicKey: string
+  /** The base64 representation of the signature */
   signature: string
+  /** Optional state returned from browser wallets (for CSRF protection) */
+  state?: string
 }
 
 /**

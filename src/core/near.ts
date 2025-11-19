@@ -7,7 +7,7 @@ import { createContract } from "../contracts/contract.js"
 import { NearError } from "../errors/index.js"
 import { InMemoryKeyStore } from "../keys/index.js"
 import { parseKey } from "../utils/key.js"
-import { generateNep413Nonce } from "../utils/nep413.js"
+import { generateNonce } from "../utils/nep413.js"
 import type { Amount, Gas } from "../utils/validation.js"
 import { normalizeAmount, normalizeGas } from "../utils/validation.js"
 import * as actions from "./actions.js"
@@ -448,7 +448,7 @@ export class Near {
     // Add nonce if not provided
     const fullParams: SignMessageParams = {
       ...params,
-      nonce: "nonce" in params ? params.nonce : generateNep413Nonce(),
+      nonce: "nonce" in params ? params.nonce : generateNonce(),
     }
 
     // Try wallet first if available

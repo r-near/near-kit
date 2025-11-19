@@ -7,7 +7,7 @@ import { base58, base64 } from "@scure/base"
 import type { SignMessageParams } from "../../src/core/types.js"
 import {
   Ed25519KeyPair,
-  generateNep413Nonce,
+  generateNonce,
   NEP413_TAG,
   Secp256k1KeyPair,
   serializeNep413Message,
@@ -16,7 +16,7 @@ import {
 
 describe("NEP-413 Message Signing", () => {
   test("should generate a 32-byte nonce", () => {
-    const nonce = generateNep413Nonce()
+    const nonce = generateNonce()
     expect(nonce).toBeInstanceOf(Uint8Array)
     expect(nonce.length).toBe(32)
   })
@@ -51,7 +51,7 @@ describe("NEP-413 Message Signing", () => {
   test("should sign and verify message correctly", () => {
     const keyPair = Ed25519KeyPair.fromRandom()
     const accountId = "test.near"
-    const nonce = generateNep413Nonce()
+    const nonce = generateNonce()
 
     const params: SignMessageParams = {
       message: "Login to MyApp",
@@ -75,7 +75,7 @@ describe("NEP-413 Message Signing", () => {
   test("should fail verification with wrong message", () => {
     const keyPair = Ed25519KeyPair.fromRandom()
     const accountId = "test.near"
-    const nonce = generateNep413Nonce()
+    const nonce = generateNonce()
 
     const params: SignMessageParams = {
       message: "Login to MyApp",
@@ -99,7 +99,7 @@ describe("NEP-413 Message Signing", () => {
   test("should fail verification with wrong nonce", () => {
     const keyPair = Ed25519KeyPair.fromRandom()
     const accountId = "test.near"
-    const nonce = generateNep413Nonce()
+    const nonce = generateNonce()
 
     const params: SignMessageParams = {
       message: "Login to MyApp",
@@ -110,7 +110,7 @@ describe("NEP-413 Message Signing", () => {
     const signedMessage = keyPair.signNep413Message(accountId, params)
 
     // Try to verify with different nonce
-    const differentNonce = generateNep413Nonce()
+    const differentNonce = generateNonce()
     const differentParams: SignMessageParams = {
       message: "Login to MyApp",
       recipient: "myapp.near",
@@ -124,7 +124,7 @@ describe("NEP-413 Message Signing", () => {
   test("should fail verification with wrong recipient", () => {
     const keyPair = Ed25519KeyPair.fromRandom()
     const accountId = "test.near"
-    const nonce = generateNep413Nonce()
+    const nonce = generateNonce()
 
     const params: SignMessageParams = {
       message: "Login to MyApp",
@@ -172,7 +172,7 @@ describe("NEP-413 Message Signing", () => {
   test("should handle empty message", () => {
     const keyPair = Ed25519KeyPair.fromRandom()
     const accountId = "test.near"
-    const nonce = generateNep413Nonce()
+    const nonce = generateNonce()
 
     const params: SignMessageParams = {
       message: "",
@@ -188,7 +188,7 @@ describe("NEP-413 Message Signing", () => {
   test("should handle long message", () => {
     const keyPair = Ed25519KeyPair.fromRandom()
     const accountId = "test.near"
-    const nonce = generateNep413Nonce()
+    const nonce = generateNonce()
 
     const params: SignMessageParams = {
       message: "A".repeat(10000), // Very long message
@@ -204,7 +204,7 @@ describe("NEP-413 Message Signing", () => {
   test("should handle unicode characters in message", () => {
     const keyPair = Ed25519KeyPair.fromRandom()
     const accountId = "test.near"
-    const nonce = generateNep413Nonce()
+    const nonce = generateNonce()
 
     const params: SignMessageParams = {
       message: "こんにちは世界 🌍 Привет мир",
@@ -220,7 +220,7 @@ describe("NEP-413 Message Signing", () => {
   test("should reject non-Ed25519 keys (secp256k1) for NEP-413 verification", () => {
     const keyPair = Secp256k1KeyPair.fromRandom()
     const accountId = "test.near"
-    const nonce = generateNep413Nonce()
+    const nonce = generateNonce()
 
     const params: SignMessageParams = {
       message: "Login to MyApp",
@@ -239,7 +239,7 @@ describe("NEP-413 Message Signing", () => {
   test("should verify base58-encoded signature with ed25519 prefix", () => {
     const keyPair = Ed25519KeyPair.fromRandom()
     const accountId = "test.near"
-    const nonce = generateNep413Nonce()
+    const nonce = generateNonce()
 
     const params: SignMessageParams = {
       message: "Login to MyApp",
@@ -269,7 +269,7 @@ describe("NEP-413 Message Signing", () => {
   test("should use base58 fallback when base64 decode fails", () => {
     const keyPair = Ed25519KeyPair.fromRandom()
     const accountId = "test.near"
-    const nonce = generateNep413Nonce()
+    const nonce = generateNonce()
 
     const params: SignMessageParams = {
       message: "Login to MyApp",
@@ -299,7 +299,7 @@ describe("NEP-413 Message Signing", () => {
   test("should return false when both base64 and base58 decoding fail", () => {
     const keyPair = Ed25519KeyPair.fromRandom()
     const accountId = "test.near"
-    const nonce = generateNep413Nonce()
+    const nonce = generateNonce()
 
     const params: SignMessageParams = {
       message: "Login to MyApp",
@@ -325,7 +325,7 @@ describe("NEP-413 Message Signing", () => {
   test("should return false when public key parsing fails", () => {
     const keyPair = Ed25519KeyPair.fromRandom()
     const accountId = "test.near"
-    const nonce = generateNep413Nonce()
+    const nonce = generateNonce()
 
     const params: SignMessageParams = {
       message: "Login to MyApp",
@@ -351,7 +351,7 @@ describe("NEP-413 Message Signing", () => {
   test("should return false when signature verification fails", () => {
     const keyPair = Ed25519KeyPair.fromRandom()
     const accountId = "test.near"
-    const nonce = generateNep413Nonce()
+    const nonce = generateNonce()
 
     const params: SignMessageParams = {
       message: "Login to MyApp",
