@@ -6,7 +6,7 @@
  */
 
 import {
-  generateNep413Nonce,
+  generateNonce,
   Near,
   type PrivateKey,
   type SignedMessage,
@@ -29,7 +29,7 @@ async function clientSignMessage() {
   })
 
   // Generate a random nonce for replay protection
-  const nonce = generateNep413Nonce()
+  const nonce = generateNonce()
 
   // Sign the message (no gas cost)
   const signedMessage = await near.signMessage({

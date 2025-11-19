@@ -15,9 +15,10 @@ export {
 export { formatGas, Gas, type GasInput, parseGas } from "./gas.js"
 export * from "./key.js"
 export {
-  generateNep413Nonce,
+  generateNonce,
   NEP413_TAG,
   serializeNep413Message,
+  type VerifyNep413Options,
   verifyNep413Signature,
 } from "./nep413.js"
 export {

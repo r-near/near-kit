@@ -77,7 +77,7 @@ export {
   formatGas,
   Gas,
   generateKey,
-  generateNep413Nonce,
+  generateNonce,
   generateSeedPhrase,
   isPrivateKey,
   isValidAccountId,
@@ -87,6 +87,7 @@ export {
   parseGas,
   parseKey,
   parseSeedPhrase,
+  type VerifyNep413Options,
   validatePrivateKey,
   verifyNep413Signature,
 } from "./utils/index.js"

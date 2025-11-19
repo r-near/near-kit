@@ -9,6 +9,7 @@
 
 import { ed25519 } from "@noble/curves/ed25519.js"
 import { sha256 } from "@noble/hashes/sha2.js"
+import { randomBytes } from "@noble/hashes/utils.js"
 import { base58, base64 } from "@scure/base"
 import { b } from "@zorsh/zorsh"
 import type { SignedMessage, SignMessageParams } from "../core/types.js"
@@ -52,13 +53,12 @@ export const Nep413PayloadSchema = b.struct({
  *
  * @example
  * ```typescript
- * const nonce = crypto.getRandomValues(new Uint8Array(32))
+ * const nonce = generateNonce()
  * const hash = serializeNep413Message({
  *   message: "Login to MyApp",
  *   recipient: "myapp.near",
  *   nonce,
  * })
- * const signature = keyPair.sign(hash)
  * ```
  */
 export function serializeNep413Message(params: SignMessageParams): Uint8Array {
@@ -74,7 +74,7 @@ export function serializeNep413Message(params: SignMessageParams): Uint8Array {
     message: params.message,
     nonce: Array.from(params.nonce),
     recipient: params.recipient,
-    callbackUrl: null, // Optional, not typically used in direct signing
+    callbackUrl: params.callbackUrl ?? null,
   })
 
   // Concatenate tag + payload
@@ -87,34 +87,62 @@ export function serializeNep413Message(params: SignMessageParams): Uint8Array {
 }
 
 /**
+ * Options for NEP-413 signature verification
+ */
+export interface VerifyNep413Options {
+  /**
+   * Maximum age in milliseconds for the signature to be considered valid.
+   * @default 300000 (5 minutes)
+   */
+  maxAge?: number
+}
+
+/**
  * Verify a NEP-413 signed message
  *
- * Verification steps:
- * 1. Reconstruct the payload from parameters
- * 2. Serialize and hash (tag + payload)
- * 3. Verify the signature against the hash using the public key
+ * Automatically checks timestamp expiration (default: 5 minutes).
+ * You must still track used nonces to prevent replay attacks.
  *
  * @param signedMessage - The signed message to verify
  * @param params - Original message parameters (must match what was signed)
- * @returns true if signature is valid, false otherwise
+ * @param options - Verification options
+ * @returns true if signature is valid and not expired
  *
  * @example
  * ```typescript
  * const isValid = verifyNep413Signature(signedMessage, {
  *   message: "Login to MyApp",
- *   recipient: "myapp.near",
- *   nonce,
+ *   recipient: "myapp.com",
+ *   nonce: Buffer.from(req.body.nonce),
  * })
- * if (isValid) {
- *   console.log("Signature verified!")
- * }
  * ```
  */
 export function verifyNep413Signature(
   signedMessage: SignedMessage,
   params: SignMessageParams,
+  options: VerifyNep413Options = {},
 ): boolean {
   try {
+    const { maxAge = 5 * 60 * 1000 } = options // Default: 5 minutes
+
+    // Check timestamp expiration if maxAge is finite
+    if (maxAge !== Infinity && params.nonce.length === 32) {
+      // Extract timestamp from first 8 bytes (big-endian uint64)
+      const view = new DataView(
+        params.nonce.buffer,
+        params.nonce.byteOffset,
+        params.nonce.byteLength,
+      )
+      const timestamp = Number(view.getBigUint64(0, false)) // false = big-endian
+
+      // Check if expired
+      const age = Date.now() - timestamp
+      if (age > maxAge || age < 0) {
+        // age < 0 means timestamp is in the future (clock skew or tampering)
+        return false
+      }
+    }
+
     // Parse the public key
     const publicKey = parsePublicKey(signedMessage.publicKey)
 
@@ -149,20 +177,33 @@ export function verifyNep413Signature(
 }
 
 /**
- * Generate a random nonce for NEP-413 message signing
+ * Generate a nonce for NEP-413 message signing
  *
- * @returns 32-byte random nonce
+ * Embeds a timestamp for automatic expiration checking.
+ *
+ * @returns 32-byte nonce (8 bytes timestamp + 24 bytes random)
  *
  * @example
  * ```typescript
- * const nonce = generateNep413Nonce()
+ * const nonce = generateNonce()
  * const signedMessage = await near.signMessage({
  *   message: "Login to MyApp",
- *   recipient: "myapp.near",
+ *   recipient: "myapp.com",
  *   nonce,
  * })
  * ```
  */
-export function generateNep413Nonce(): Uint8Array {
-  return crypto.getRandomValues(new Uint8Array(32))
+export function generateNonce(): Uint8Array {
+  const nonce = new Uint8Array(32)
+
+  // First 8 bytes: timestamp (ms since epoch) as big-endian uint64
+  const timestamp = Date.now()
+  const view = new DataView(nonce.buffer)
+  view.setBigUint64(0, BigInt(timestamp), false) // false = big-endian
+
+  // Remaining 24 bytes: random data
+  const randomPart = randomBytes(24)
+  nonce.set(randomPart, 8)
+
+  return nonce
 }
