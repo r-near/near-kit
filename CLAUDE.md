@@ -251,13 +251,22 @@ git commit -m "<type>(<scope>): <subject>
 <body>"
 ```
 
-### 3. Push the branch
+### 3. Verify lint and type checks pass
+
+```bash
+bun run lint       # Fix any linting issues
+bun run typecheck  # Ensure no type errors
+```
+
+**IMPORTANT:** Always run these before pushing. Do not push code with lint or type errors.
+
+### 4. Push the branch
 
 ```bash
 git push -u origin <branch-name>
 ```
 
-### 4. Create PR using GitHub CLI
+### 5. Create PR using GitHub CLI
 
 ```bash
 gh pr create --title "<type>(<scope>): <subject>" --body "$(cat <<'EOF'
