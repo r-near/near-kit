@@ -28,7 +28,6 @@ export const NetworkPresetSchema = z.enum(["mainnet", "testnet", "localnet"])
 export const CustomNetworkConfigSchema = z.object({
   rpcUrl: z.string().url("RPC URL must be a valid URL"),
   networkId: z.string().min(1, "Network ID is required"),
-  nodeUrl: z.string().url("Node URL must be a valid URL").optional(),
 })
 
 /**

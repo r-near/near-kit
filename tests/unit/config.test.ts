@@ -53,7 +53,6 @@ describe("Network Configuration", () => {
     const config = resolveNetworkConfig({
       rpcUrl: "https://custom-rpc.example.com",
       networkId: "custom-network",
-      nodeUrl: "https://custom-node.example.com",
     })
 
     expect(config.networkId).toBe("custom-network")

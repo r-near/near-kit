@@ -2,4 +2,4 @@
 "near-kit": patch
 ---
 
-Remove unused walletUrl and helperUrl fields from network configuration
+Remove unused walletUrl, helperUrl, and nodeUrl fields from network configuration
