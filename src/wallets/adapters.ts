@@ -12,12 +12,14 @@
  * for verification.
  */
 
+import { base58 } from "@scure/base"
 import type {
   Action,
   FinalExecutionOutcome,
   SignedMessage,
   WalletConnection,
 } from "../core/types.js"
+import { parsePublicKey } from "../utils/key.js"
 import type {
   HotConnectAction,
   HotConnectAddKeyPermission,
@@ -178,6 +180,47 @@ export function fromWalletSelector(
  * })
  * ```
  */
+
+function stringifyPublicKey(publicKey: unknown): string {
+  const normalize = (value: string) => parsePublicKey(value).toString()
+
+  if (typeof publicKey === "string") {
+    try {
+      return normalize(publicKey)
+    } catch {
+      return publicKey
+    }
+  }
+  if (publicKey && typeof publicKey === "object") {
+    const pk = publicKey as {
+      ed25519Key?: { data: number[] }
+      secp256k1Key?: { data: number[] }
+      toString?: () => string
+    }
+    if (pk.toString) {
+      const str = pk.toString()
+      if (str && str !== "[object Object]") {
+        try {
+          return normalize(str)
+        } catch {
+          // Fall through to other representations
+        }
+      }
+    }
+    if (pk.ed25519Key?.data) {
+      return normalize(
+        `ed25519:${base58.encode(new Uint8Array(pk.ed25519Key.data))}`,
+      )
+    }
+    if (pk.secp256k1Key?.data) {
+      return normalize(
+        `secp256k1:${base58.encode(new Uint8Array(pk.secp256k1Key.data))}`,
+      )
+    }
+  }
+  return String(publicKey)
+}
+
 export function fromHotConnect(
   connector: HotConnectConnector,
 ): WalletConnection {
@@ -258,9 +301,7 @@ export function fromHotConnect(
             type: "Stake",
             params: {
               stake: s.stake.toString(),
-              // HOT Connect expects a base58 string; we forward whatever representation
-              // we have and rely on upstream tooling when stake is used with wallets.
-              publicKey: String(s.publicKey),
+              publicKey: stringifyPublicKey(s.publicKey),
             },
           }
         }
@@ -273,7 +314,7 @@ export function fromHotConnect(
           return {
             type: "AddKey",
             params: {
-              publicKey: String(ak.publicKey),
+              publicKey: stringifyPublicKey(ak.publicKey),
               accessKey: {
                 nonce: Number(ak.accessKey.nonce),
                 permission: ak.accessKey
@@ -288,7 +329,7 @@ export function fromHotConnect(
           return {
             type: "DeleteKey",
             params: {
-              publicKey: String(dk.publicKey),
+              publicKey: stringifyPublicKey(dk.publicKey),
             },
           }
         }

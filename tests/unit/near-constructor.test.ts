@@ -214,6 +214,14 @@ describe("Near Constructor - Signer Resolution", () => {
 })
 
 describe("Near Constructor - Default Configuration", () => {
+  test("uses in-memory keystore when path string provided", () => {
+    const near = new Near({
+      network: "testnet",
+      keyStore: "~/.near-credentials",
+    })
+    expect(near["keyStore"]).toBeInstanceOf(InMemoryKeyStore)
+  })
+
   test("sets defaultWaitUntil correctly", () => {
     const near1 = new Near({ network: "mainnet" })
     expect(near1["defaultWaitUntil"]).toBe("EXECUTED_OPTIMISTIC")

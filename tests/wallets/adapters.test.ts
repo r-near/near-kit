@@ -4,7 +4,10 @@
 
 import { describe, expect, it } from "vitest"
 import * as actions from "../../src/core/actions.js"
+import type { Action } from "../../src/core/types.js"
+import { generateKey } from "../../src/utils/key.js"
 import { fromHotConnect, fromWalletSelector } from "../../src/wallets/index.js"
+import type { HotConnectConnector } from "../../src/wallets/types.js"
 import {
   MockHotConnect,
   MockWalletSelector,
@@ -91,6 +94,40 @@ describe("Wallet Adapters", () => {
         }),
       ).rejects.toThrow("does not support message signing")
     })
+
+    it("throws if wallet-selector returns no tx outcome", async () => {
+      const mockWallet = new MockWalletSelector([
+        { accountId: "alice.near", publicKey: "ed25519:abc123" },
+      ])
+      // biome-ignore lint/suspicious/noExplicitAny: overriding for test branch
+      ;(mockWallet as any).signAndSendTransaction = async () => undefined
+
+      const adapter = fromWalletSelector(mockWallet)
+      await expect(
+        adapter.signAndSendTransaction({
+          signerId: "alice.near",
+          receiverId: "bob.near",
+          actions: [],
+        }),
+      ).rejects.toThrow("did not return transaction outcome")
+    })
+
+    it("throws if wallet-selector signMessage returns nothing", async () => {
+      const mockWallet = new MockWalletSelector([
+        { accountId: "alice.near", publicKey: "ed25519:abc123" },
+      ])
+      // biome-ignore lint/suspicious/noExplicitAny: overriding for test branch
+      ;(mockWallet as any).signMessage = async () => undefined
+
+      const adapter = fromWalletSelector(mockWallet)
+      await expect(
+        adapter.signMessage?.({
+          message: "Hello",
+          recipient: "bob.near",
+          nonce: new Uint8Array([1, 2, 3]),
+        }),
+      ).rejects.toThrow("did not return signed message")
+    })
   })
 
   describe("fromHotConnect", () => {
@@ -161,6 +198,148 @@ describe("Wallet Adapters", () => {
 
       const log = mockConnector.getCallLog()
       expect(log.some((l) => l.method === "signMessage")).toBe(true)
+    })
+
+    it("throws for invalid HOT Connect type", () => {
+      expect(() =>
+        fromHotConnect({ wallet: null } as unknown as HotConnectConnector),
+      ).toThrow("Invalid HOT Connect instance")
+    })
+
+    it("converts all action variants for HOT Connect", async () => {
+      const mockConnector = new MockHotConnect([
+        { accountId: "alice.near", publicKey: "ed25519:abc123" },
+      ])
+      const adapter = fromHotConnect(mockConnector)
+
+      const key = generateKey()
+      const argsJson = JSON.stringify({ ping: "pong" })
+      const functionCallAction: Action = {
+        functionCall: {
+          methodName: "hello",
+          args: new TextEncoder().encode(argsJson),
+          gas: 1n,
+          deposit: 2n,
+        },
+      }
+
+      const stakeAction = actions.stake(3n, key.publicKey)
+      const transferAction = actions.transfer(4n)
+      const addKeyAction = actions.addKey(key.publicKey, {
+        fullAccess: {},
+      })
+      const deleteKeyAction = actions.deleteKey(key.publicKey)
+      const deleteAccountAction = actions.deleteAccount("beneficiary.near")
+      const createAccountAction = actions.createAccount()
+      const deployContractAction = actions.deployContract(
+        new Uint8Array([1, 2, 3]),
+      )
+
+      await adapter.signAndSendTransaction({
+        signerId: "alice.near",
+        receiverId: "bob.near",
+        actions: [
+          functionCallAction,
+          transferAction,
+          stakeAction,
+          addKeyAction,
+          deleteKeyAction,
+          deleteAccountAction,
+          createAccountAction,
+          deployContractAction,
+        ],
+      })
+
+      const txCall = mockConnector
+        .getCallLog()
+        .find((l) => l.method === "signAndSendTransaction") as
+        | { params: Record<string, any> }
+        | undefined
+
+      expect(txCall?.params["actions"]).toEqual([
+        {
+          type: "FunctionCall",
+          params: {
+            methodName: "hello",
+            args: { ping: "pong" },
+            gas: "1",
+            deposit: "2",
+          },
+        },
+        { type: "Transfer", params: { deposit: "4" } },
+        {
+          type: "Stake",
+          params: {
+            stake: "3",
+            publicKey: key.publicKey.toString(),
+          },
+        },
+        {
+          type: "AddKey",
+          params: {
+            publicKey: key.publicKey.toString(),
+            accessKey: {
+              nonce: 0,
+              permission: { fullAccess: {} },
+            },
+          },
+        },
+        {
+          type: "DeleteKey",
+          params: { publicKey: key.publicKey.toString() },
+        },
+        {
+          type: "DeleteAccount",
+          params: { beneficiaryId: "beneficiary.near" },
+        },
+        { type: "CreateAccount" },
+        { type: "DeployContract", params: { code: new Uint8Array([1, 2, 3]) } },
+      ])
+    })
+
+    it("throws on unsupported HOT Connect action", async () => {
+      const mockConnector = new MockHotConnect([
+        { accountId: "alice.near", publicKey: "ed25519:abc123" },
+      ])
+      const adapter = fromHotConnect(mockConnector)
+
+      await expect(
+        adapter.signAndSendTransaction({
+          signerId: "alice.near",
+          receiverId: "bob.near",
+          actions: [{ unsupported: true } as unknown as Action],
+        }),
+      ).rejects.toThrow("Unsupported action type")
+    })
+
+    it("stringifies secp256k1 public keys", async () => {
+      const mockConnector = new MockHotConnect([
+        { accountId: "alice.near", publicKey: "ed25519:abc123" },
+      ])
+      const adapter = fromHotConnect(mockConnector)
+
+      await adapter.signAndSendTransaction({
+        signerId: "alice.near",
+        receiverId: "bob.near",
+        actions: [
+          {
+            stake: {
+              stake: 1n,
+              publicKey: { secp256k1Key: { data: [1, 2, 3] } },
+            },
+          } as Action,
+        ],
+      })
+
+      const txCall = mockConnector
+        .getCallLog()
+        .find((l) => l.method === "signAndSendTransaction") as
+        | { params: Record<string, any> }
+        | undefined
+
+      expect(txCall?.params["actions"][0]?.params.publicKey).toMatch(
+        /^secp256k1:/,
+      )
     })
   })
 
