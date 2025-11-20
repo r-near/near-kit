@@ -5,7 +5,7 @@
  * before build() or send() try to access the keyStore.
  */
 
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test } from "vitest"
 import { Near } from "../../src/core/near.js"
 import type { KeyPair, KeyStore } from "../../src/core/types.js"
 import { generateKey } from "../../src/utils/key.js"

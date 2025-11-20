@@ -4,7 +4,7 @@
  * Tests RPC retry behavior when InvalidNonceError is encountered
  */
 
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test } from "vitest"
 import { NonceManager } from "../../src/core/nonce-manager.js"
 import { InvalidNonceError } from "../../src/errors/index.js"
 

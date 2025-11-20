@@ -2,8 +2,8 @@
  * Tests for NEP-413 message signing functionality
  */
 
-import { describe, expect, test } from "bun:test"
 import { base58, base64 } from "@scure/base"
+import { describe, expect, test } from "vitest"
 import type { SignMessageParams } from "../../src/core/types.js"
 import {
   Ed25519KeyPair,

@@ -8,7 +8,7 @@
  * Focus: Lines 301-448 (parseRpcError branches)
  */
 
-import { afterAll, beforeAll, describe, expect, test } from "bun:test"
+import { afterAll, beforeAll, describe, expect, test } from "vitest"
 import { Near } from "../../src/core/near.js"
 import { RpcClient } from "../../src/core/rpc/rpc.js"
 import {

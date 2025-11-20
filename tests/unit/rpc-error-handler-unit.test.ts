@@ -6,7 +6,7 @@
  * captured from NEAR mainnet to ensure our error parsing works with actual responses.
  */
 
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test } from "vitest"
 import {
   checkOutcomeForFunctionCallError,
   extractErrorMessage,

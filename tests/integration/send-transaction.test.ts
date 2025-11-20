@@ -3,7 +3,7 @@
  * Tests actual RPC responses and validates schema correctness
  */
 
-import { afterAll, beforeAll, describe, expect, test } from "bun:test"
+import { afterAll, beforeAll, describe, expect, test } from "vitest"
 import { Near } from "../../src/core/near.js"
 import { Sandbox } from "../../src/sandbox/sandbox.js"
 import { generateKey } from "../../src/utils/key.js"

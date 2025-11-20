@@ -8,7 +8,7 @@
  * 4. Optional parameters are handled correctly
  */
 
-import { describe, expect, it } from "bun:test"
+import { describe, expect, it } from "vitest"
 import * as actions from "../../src/core/actions.js"
 import { fromHotConnect, fromWalletSelector } from "../../src/wallets/index.js"
 import { MockHotConnect, MockWalletSelector } from "./mock-wallets.js"

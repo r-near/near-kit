@@ -2,7 +2,7 @@
  * Tests for Near client configuration
  */
 
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test } from "vitest"
 import {
   NearConfigSchema,
   type NetworkConfig,

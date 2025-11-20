@@ -2,7 +2,7 @@
  * Tests for credential file schemas
  */
 
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test } from "vitest"
 import {
   LegacyCredentialSchema,
   NearCliCredentialSchema,

@@ -7,7 +7,7 @@
  * because it can't find the key to sign with.
  */
 
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test } from "vitest"
 import { Near } from "../../src/core/near.js"
 import { generateKey } from "../../src/utils/key.js"
 

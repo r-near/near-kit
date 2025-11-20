@@ -1,5 +1,5 @@
-import { describe, expect, test } from "bun:test"
 import { base58 } from "@scure/base"
+import { describe, expect, test } from "vitest"
 import { deployFromPublished, publishContract } from "../../src/core/actions.js"
 import { RpcClient } from "../../src/core/rpc/rpc.js"
 import { ActionSchema } from "../../src/core/schema.js"

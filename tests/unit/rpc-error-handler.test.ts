@@ -3,7 +3,7 @@
  * Tests the parseQueryError function to ensure proper error type detection
  */
 
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test } from "vitest"
 import { parseQueryError } from "../../src/core/rpc/rpc-error-handler.js"
 import {
   AccessKeyDoesNotExistError,

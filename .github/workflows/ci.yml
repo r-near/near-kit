@@ -43,7 +43,7 @@ jobs:
 
       - name: Run unit tests with coverage
         run: |
-          bun test tests/unit --coverage --coverage-reporter=lcov
+          bun run test:unit --coverage --coverage-reporter=lcov
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
@@ -69,7 +69,7 @@ jobs:
         run: ulimit -n 65535
 
       - name: Run integration tests
-        run: bun test tests/integration --coverage --coverage-reporter=lcov
+        run: bun run test:integration --coverage --coverage-reporter=lcov
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
@@ -92,7 +92,7 @@ jobs:
         run: bun install
 
       - name: Run wallet tests
-        run: bun test tests/wallets --coverage --coverage-reporter=lcov
+        run: bun run test:wallets --coverage --coverage-reporter=lcov
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:

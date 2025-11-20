@@ -2,7 +2,7 @@
  * Tests for transaction signing functionality
  */
 
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test } from "vitest"
 import { RpcClient } from "../../src/core/rpc/rpc.js"
 import { TransactionBuilder } from "../../src/core/transaction.js"
 import { InMemoryKeyStore } from "../../src/keys/index.js"

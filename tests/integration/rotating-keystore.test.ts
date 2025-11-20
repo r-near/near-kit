@@ -8,9 +8,9 @@
  * - Performance comparison with single-key approach
  */
 
-import { afterAll, beforeAll, describe, expect, test } from "bun:test"
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
+import { afterAll, beforeAll, describe, expect, test } from "vitest"
 import { Near } from "../../src/core/near.js"
 import { InMemoryKeyStore } from "../../src/keys/in-memory-keystore.js"
 import { RotatingKeyStore } from "../../src/keys/rotating-keystore.js"

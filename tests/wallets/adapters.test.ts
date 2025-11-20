@@ -2,7 +2,7 @@
  * Tests for wallet adapter functions
  */
 
-import { describe, expect, it } from "bun:test"
+import { describe, expect, it } from "vitest"
 import * as actions from "../../src/core/actions.js"
 import { fromHotConnect, fromWalletSelector } from "../../src/wallets/index.js"
 import {

@@ -9,9 +9,9 @@
  * - Edge cases and error handling
  */
 
-import { afterAll, beforeAll, describe, expect, test } from "bun:test"
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
+import { afterAll, beforeAll, describe, expect, test } from "vitest"
 import { Near } from "../../src/core/near.js"
 import { FunctionCallError } from "../../src/errors/index.js"
 import { Sandbox } from "../../src/sandbox/sandbox.js"

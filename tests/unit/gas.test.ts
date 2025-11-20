@@ -2,7 +2,7 @@
  * Tests for gas utilities
  */
 
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test } from "vitest"
 import { formatGas, Gas, parseGas, toGas, toTGas } from "../../src/utils/gas.js"
 
 // Helper for testing runtime behavior with strings

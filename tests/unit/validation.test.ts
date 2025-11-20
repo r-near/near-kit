@@ -2,7 +2,7 @@
  * Tests for validation schemas
  */
 
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test } from "vitest"
 import { Amount } from "../../src/utils/amount.js"
 import { Gas } from "../../src/utils/gas.js"
 import { generateKey } from "../../src/utils/key.js"

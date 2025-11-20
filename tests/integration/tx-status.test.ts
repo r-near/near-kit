@@ -3,7 +3,7 @@
  * Tests actual RPC responses and validates schema correctness with receipts
  */
 
-import { afterAll, beforeAll, describe, expect, test } from "bun:test"
+import { afterAll, beforeAll, describe, expect, test } from "vitest"
 import { Near } from "../../src/core/near.js"
 import { InvalidTransactionError } from "../../src/errors/index.js"
 import { Sandbox } from "../../src/sandbox/sandbox.js"

@@ -7,8 +7,8 @@
  * correctly at runtime.
  */
 
-import { describe, expect, it } from "bun:test"
 import type { Account as WSAccount } from "@near-wallet-selector/core"
+import { describe, expect, it } from "vitest"
 import * as actions from "../../src/core/actions.js"
 import type {
   FinalExecutionOutcome,

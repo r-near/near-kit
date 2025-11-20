@@ -4,7 +4,7 @@
  * Tests all RPC-dependent features that couldn't be unit tested
  */
 
-import { afterAll, beforeAll, describe, expect, test } from "bun:test"
+import { afterAll, beforeAll, describe, expect, test } from "vitest"
 import { Near } from "../../src/core/near.js"
 import { Sandbox } from "../../src/sandbox/sandbox.js"
 import { generateKey } from "../../src/utils/key.js"
@@ -47,7 +47,7 @@ describe("Near Client - Integration Tests", () => {
     test("should throw for non-existent account", async () => {
       await expect(async () => {
         await near.getBalance("nonexistent.test.near")
-      }).toThrow()
+      }).rejects.toThrow()
     })
   })
 
@@ -114,7 +114,7 @@ describe("Near Client - Integration Tests", () => {
 
       await expect(async () => {
         await nearWithoutKey.view("nonexistent.near", "some_method", {})
-      }).toThrow()
+      }).rejects.toThrow()
     })
   })
 })
@@ -184,7 +184,7 @@ describe("TransactionBuilder - Integration Tests", () => {
 
       await expect(async () => {
         await builder.build()
-      }).toThrow(/No receiver ID/)
+      }).rejects.toThrow(/No receiver ID/)
     })
 
     test("should throw when key not found", async () => {
@@ -194,7 +194,7 @@ describe("TransactionBuilder - Integration Tests", () => {
 
       await expect(async () => {
         await builder.build()
-      }).toThrow(/No key found/)
+      }).rejects.toThrow(/No key found/)
     })
   })
 
@@ -327,7 +327,7 @@ describe("TransactionBuilder - Integration Tests", () => {
       // So this test documents the limitation
       await expect(async () => {
         await near.send(recipientId, "1 NEAR")
-      }).toThrow(/No signer ID/)
+      }).rejects.toThrow(/No signer ID/)
     }, 30000)
   })
 
@@ -342,7 +342,7 @@ describe("TransactionBuilder - Integration Tests", () => {
           .createAccount(recipientId)
           .transfer(recipientId, "999999999999 NEAR")
           .send()
-      }).toThrow()
+      }).rejects.toThrow()
     }, 30000)
   })
 })

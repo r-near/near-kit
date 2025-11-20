@@ -2,7 +2,7 @@
  * Comprehensive tests for InMemoryKeyStore class
  */
 
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test } from "vitest"
 import { InMemoryKeyStore } from "../../src/keys/in-memory-keystore.js"
 import {
   Ed25519KeyPair,

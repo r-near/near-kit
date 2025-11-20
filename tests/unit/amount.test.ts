@@ -2,7 +2,7 @@
  * Tests for amount utilities
  */
 
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test } from "vitest"
 import { Amount, formatAmount, parseAmount } from "../../src/utils/amount.js"
 
 // Helper to allow testing runtime behavior with strings

@@ -10,8 +10,8 @@
  * - delegate actions (meta-transactions)
  */
 
-import { afterAll, beforeAll, describe, expect, test } from "bun:test"
 import { readFileSync } from "node:fs"
+import { afterAll, beforeAll, describe, expect, test } from "vitest"
 import { Near } from "../../src/core/near.js"
 import { decodeSignedDelegateAction } from "../../src/core/schema.js"
 import { Sandbox } from "../../src/sandbox/sandbox.js"
@@ -116,7 +116,7 @@ describe("Transaction Actions - Integration Tests", () => {
           .transaction(fakeAccountId)
           .deleteAccount(sandbox.rootAccount.id)
           .send()
-      }).toThrow()
+      }).rejects.toThrow()
     }, 30000)
   })
 
@@ -309,7 +309,7 @@ describe("Transaction Actions - Integration Tests", () => {
           .transaction(accountId)
           .transfer(sandbox.rootAccount.id, "1 NEAR")
           .send()
-      }).toThrow()
+      }).rejects.toThrow()
 
       console.log(`✓ Deleted key cannot sign transactions`)
     }, 30000)
@@ -333,7 +333,7 @@ describe("Transaction Actions - Integration Tests", () => {
       console.log(`✓ Account created: ${accountId}`)
 
       // Load contract code
-      const contractPath = `${import.meta.dir}/../contracts/guestbook.wasm`
+      const contractPath = `${import.meta.dirname}/../contracts/guestbook.wasm`
       const contractCode = readFileSync(contractPath)
 
       // Deploy contract
@@ -368,7 +368,7 @@ describe("Transaction Actions - Integration Tests", () => {
       const accountId = `deploy-${Date.now()}.${sandbox.rootAccount.id}`
 
       // Load contract
-      const contractPath = `${import.meta.dir}/../contracts/guestbook.wasm`
+      const contractPath = `${import.meta.dirname}/../contracts/guestbook.wasm`
       const contractCode = readFileSync(contractPath)
 
       // Create account and deploy contract in one transaction
@@ -409,7 +409,7 @@ describe("Transaction Actions - Integration Tests", () => {
       console.log(`✓ Publisher account created: ${publisherId}`)
 
       // Load contract
-      const contractPath = `${import.meta.dir}/../contracts/guestbook.wasm`
+      const contractPath = `${import.meta.dirname}/../contracts/guestbook.wasm`
       const contractCode = readFileSync(contractPath)
 
       const nearWithPublisherKey = new Near({
@@ -457,7 +457,7 @@ describe("Transaction Actions - Integration Tests", () => {
       console.log(`✓ Created publisher and deployer accounts`)
 
       // Load and publish contract
-      const contractPath = `${import.meta.dir}/../contracts/guestbook.wasm`
+      const contractPath = `${import.meta.dirname}/../contracts/guestbook.wasm`
       const contractCode = readFileSync(contractPath)
 
       const nearWithPublisherKey = new Near({

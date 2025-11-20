@@ -9,9 +9,9 @@
  * - Error handling
  */
 
-import { afterAll, beforeAll, describe, expect, test } from "bun:test"
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
+import { afterAll, beforeAll, describe, expect, test } from "vitest"
 import type { Contract } from "../../src/contracts/contract.js"
 import { Near } from "../../src/core/near.js"
 import { FunctionCallError } from "../../src/errors/index.js"

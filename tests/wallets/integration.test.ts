@@ -2,7 +2,7 @@
  * Integration tests for Near class with wallet support
  */
 
-import { beforeEach, describe, expect, it } from "bun:test"
+import { beforeEach, describe, expect, it } from "vitest"
 import { Near } from "../../src/core/near.js"
 import {
   fromHotConnect,

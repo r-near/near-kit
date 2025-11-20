@@ -9,7 +9,7 @@
  * 2. Run: bun test tests/integration/transaction-signing.test.ts
  */
 
-import { afterAll, beforeAll, describe, expect, test } from "bun:test"
+import { afterAll, beforeAll, describe, expect, test } from "vitest"
 import { InMemoryKeyStore, Near } from "../../src/index.js"
 import { Sandbox } from "../../src/sandbox/index.js"
 import { Amount } from "../../src/utils/amount.js"

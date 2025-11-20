@@ -5,7 +5,7 @@
  * They test read-only operations that don't require signing or gas.
  */
 
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test } from "vitest"
 import { RpcClient } from "../../src/core/rpc/rpc.js"
 import type {
   AccountView,

@@ -3,7 +3,7 @@
  * Note: build() and send() are not tested here as they require RPC access
  */
 
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test } from "vitest"
 import { RpcClient } from "../../src/core/rpc/rpc.js"
 import { TransactionBuilder } from "../../src/core/transaction.js"
 import { InMemoryKeyStore } from "../../src/keys/index.js"

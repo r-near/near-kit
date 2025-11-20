@@ -5,7 +5,7 @@
  * indirectly through the Near constructor and public API.
  */
 
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test } from "vitest"
 import { Near } from "../../src/core/near.js"
 import type { Signer } from "../../src/core/types.js"
 import { KeyType } from "../../src/core/types.js"

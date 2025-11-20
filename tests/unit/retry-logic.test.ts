@@ -2,7 +2,7 @@
  * Unit tests for RPC retry logic and nonce retry handling
  */
 
-import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test"
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 import { RpcClient } from "../../src/core/rpc/rpc.js"
 import { TransactionBuilder } from "../../src/core/transaction.js"
 import type { AccessKeyView, StatusResponse } from "../../src/core/types.js"
@@ -23,7 +23,7 @@ describe("RPC Retry Logic", () => {
 
   test("should retry on retryable NetworkError with exponential backoff", async () => {
     let attemptCount = 0
-    const mockFetch = mock(async () => {
+    const mockFetch = vi.fn(async () => {
       attemptCount++
       if (attemptCount < 3) {
         // Fail with 503 Service Unavailable (retryable)
@@ -59,7 +59,7 @@ describe("RPC Retry Logic", () => {
 
   test("should throw after max retries on persistent retryable error", async () => {
     let attemptCount = 0
-    const mockFetch = mock(async () => {
+    const mockFetch = vi.fn(async () => {
       attemptCount++
       // Always fail with 503 Service Unavailable (retryable)
       return new Response(JSON.stringify({ error: "Service Unavailable" }), {
@@ -78,7 +78,7 @@ describe("RPC Retry Logic", () => {
 
     await expect(async () => {
       await rpc.call("test_method", {})
-    }).toThrow(NetworkError)
+    }).rejects.toThrow(NetworkError)
 
     // Should try initial + 3 retries = 4 total attempts
     expect(attemptCount).toBe(4)
@@ -86,7 +86,7 @@ describe("RPC Retry Logic", () => {
 
   test("should not retry on non-retryable error (400 Bad Request)", async () => {
     let attemptCount = 0
-    const mockFetch = mock(async () => {
+    const mockFetch = vi.fn(async () => {
       attemptCount++
       // Fail with 400 Bad Request (not retryable)
       return new Response(JSON.stringify({ error: "Bad Request" }), {
@@ -105,7 +105,7 @@ describe("RPC Retry Logic", () => {
 
     await expect(async () => {
       await rpc.call("test_method", {})
-    }).toThrow(NetworkError)
+    }).rejects.toThrow(NetworkError)
 
     // Should only try once (no retries for non-retryable errors)
     expect(attemptCount).toBe(1)
@@ -113,7 +113,7 @@ describe("RPC Retry Logic", () => {
 
   test("should retry on 408 Request Timeout", async () => {
     let attemptCount = 0
-    const mockFetch = mock(async () => {
+    const mockFetch = vi.fn(async () => {
       attemptCount++
       if (attemptCount < 2) {
         // Fail with 408 Request Timeout (retryable)
@@ -148,7 +148,7 @@ describe("RPC Retry Logic", () => {
 
   test("should retry on 429 Too Many Requests", async () => {
     let attemptCount = 0
-    const mockFetch = mock(async () => {
+    const mockFetch = vi.fn(async () => {
       attemptCount++
       if (attemptCount < 2) {
         // Fail with 429 Too Many Requests (retryable)
@@ -183,7 +183,7 @@ describe("RPC Retry Logic", () => {
 
   test("should retry on network fetch failure", async () => {
     let attemptCount = 0
-    const mockFetch = mock(async () => {
+    const mockFetch = vi.fn(async () => {
       attemptCount++
       if (attemptCount < 2) {
         // Simulate network failure
@@ -215,7 +215,7 @@ describe("RPC Retry Logic", () => {
 
   test("should respect custom retry configuration", async () => {
     let attemptCount = 0
-    const mockFetch = mock(async () => {
+    const mockFetch = vi.fn(async () => {
       attemptCount++
       // Always fail
       return new Response(JSON.stringify({ error: "Service Unavailable" }), {
@@ -235,7 +235,7 @@ describe("RPC Retry Logic", () => {
 
     await expect(async () => {
       await rpc.call("test_method", {})
-    }).toThrow(NetworkError)
+    }).rejects.toThrow(NetworkError)
 
     // Should try initial + 2 retries = 3 total attempts
     expect(attemptCount).toBe(3)
@@ -243,7 +243,7 @@ describe("RPC Retry Logic", () => {
 
   test("should not retry on successful request (happy path)", async () => {
     let attemptCount = 0
-    const mockFetch = mock(async () => {
+    const mockFetch = vi.fn(async () => {
       attemptCount++
       // Succeed immediately
       return new Response(
@@ -272,7 +272,7 @@ describe("RPC Retry Logic", () => {
 
   test("should retry on 500 Internal Server Error", async () => {
     let attemptCount = 0
-    const mockFetch = mock(async () => {
+    const mockFetch = vi.fn(async () => {
       attemptCount++
       if (attemptCount < 2) {
         return new Response(
@@ -308,7 +308,7 @@ describe("RPC Retry Logic", () => {
 
   test("should retry on 502 Bad Gateway", async () => {
     let attemptCount = 0
-    const mockFetch = mock(async () => {
+    const mockFetch = vi.fn(async () => {
       attemptCount++
       if (attemptCount < 2) {
         return new Response(JSON.stringify({ error: "Bad Gateway" }), {
@@ -344,7 +344,7 @@ describe("RPC Retry Logic", () => {
     let lastTimestamp = Date.now()
     let attemptCount = 0
 
-    const mockFetch = mock(async () => {
+    const mockFetch = vi.fn(async () => {
       const now = Date.now()
       if (attemptCount > 0) {
         delays.push(now - lastTimestamp)
@@ -518,7 +518,7 @@ describe("Transaction InvalidNonceError Retry", () => {
     // Execute transaction that will exhaust retries
     await expect(async () => {
       await builder.transfer("receiver.near", "1 NEAR").send()
-    }).toThrow(InvalidNonceError)
+    }).rejects.toThrow(InvalidNonceError)
 
     // Verify it tried MAX_NONCE_RETRIES (3) times
     expect(sendAttemptCount).toBe(3)
@@ -568,7 +568,7 @@ describe("Transaction InvalidNonceError Retry", () => {
     // Execute transaction
     await expect(async () => {
       await builder.transfer("receiver.near", "1 NEAR").send()
-    }).toThrow(NetworkError)
+    }).rejects.toThrow(NetworkError)
 
     // Verify it only tried once (no retries for non-nonce errors)
     expect(sendAttemptCount).toBe(1)

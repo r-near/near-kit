@@ -2,7 +2,7 @@
  * Comprehensive tests for all error classes
  */
 
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test } from "vitest"
 import {
   AccessKeyDoesNotExistError,
   AccountDoesNotExistError,

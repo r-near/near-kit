@@ -4,7 +4,7 @@
  * Tests various error scenarios to ensure proper typed errors are thrown
  */
 
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test } from "vitest"
 import { RpcClient } from "../../src/core/rpc/rpc.js"
 import {
   AccessKeyDoesNotExistError,
@@ -23,7 +23,7 @@ describe("Error Handling - Account Errors", () => {
 
     await expect(async () => {
       await rpc.getAccount(nonExistentAccount)
-    }).toThrow(AccountDoesNotExistError)
+    }).rejects.toThrow(AccountDoesNotExistError)
 
     try {
       await rpc.getAccount(nonExistentAccount)
@@ -57,7 +57,7 @@ describe("Error Handling - Access Key Errors", () => {
 
     await expect(async () => {
       await rpc.getAccessKey(accountId, fakePublicKey)
-    }).toThrow(AccessKeyDoesNotExistError)
+    }).rejects.toThrow(AccessKeyDoesNotExistError)
 
     try {
       await rpc.getAccessKey(accountId, fakePublicKey)
@@ -111,7 +111,7 @@ describe("Error Handling - Function Call Errors", () => {
 
     await expect(async () => {
       await rpc.viewFunction(contractId, methodName, {})
-    }).toThrow(FunctionCallError)
+    }).rejects.toThrow(FunctionCallError)
 
     try {
       await rpc.viewFunction(contractId, methodName, {})
@@ -137,7 +137,7 @@ describe("Error Handling - Function Call Errors", () => {
 
     await expect(async () => {
       await rpc.viewFunction(accountId, methodName, {})
-    }).toThrow(FunctionCallError)
+    }).rejects.toThrow(FunctionCallError)
 
     try {
       await rpc.viewFunction(accountId, methodName, {})
@@ -173,7 +173,7 @@ describe("Error Handling - Network Errors", () => {
   test("should throw NetworkError for unreachable RPC endpoint", async () => {
     await expect(async () => {
       await invalidRpc.getStatus()
-    }).toThrow(NetworkError)
+    }).rejects.toThrow(NetworkError)
 
     try {
       await invalidRpc.getStatus()

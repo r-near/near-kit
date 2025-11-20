@@ -2,7 +2,7 @@
  * Tests for Borsh schema and action serialization
  */
 
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test } from "vitest"
 import {
   addKey,
   createAccount,

@@ -3,7 +3,7 @@
  * Tests delegate actions, global contracts, secp256k1 keys, and complex scenarios
  */
 
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test } from "vitest"
 import {
   addKey,
   createAccount,

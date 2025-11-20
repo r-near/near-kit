@@ -5,7 +5,7 @@
  * Coverage targets: lines 67-101, 108-112
  */
 
-import { describe, expect, mock, test } from "bun:test"
+import { describe, expect, test, vi } from "vitest"
 import {
   addContractMethod,
   type ContractMethods,
@@ -28,8 +28,8 @@ describe("createContract()", () => {
       }
 
       const mockNear = {
-        view: mock(async () => "view-result"),
-        call: mock(async () => ({ status: "success" })),
+        view: vi.fn(async () => "view-result"),
+        call: vi.fn(async () => ({ status: "success" })),
       }
 
       const contract = createContract<TestContract>(
@@ -60,8 +60,8 @@ describe("createContract()", () => {
       }
 
       const mockNear = {
-        view: mock(async () => 42),
-        call: mock(),
+        view: vi.fn(async () => 42),
+        call: vi.fn(),
       }
 
       const contract = createContract<TestContract>(
@@ -89,8 +89,8 @@ describe("createContract()", () => {
       }
 
       const mockNear = {
-        view: mock(async () => "result"),
-        call: mock(),
+        view: vi.fn(async () => "result"),
+        call: vi.fn(),
       }
 
       const contract = createContract<TestContract>(
@@ -118,8 +118,8 @@ describe("createContract()", () => {
       }
 
       const mockNear = {
-        view: mock(async () => "result"),
-        call: mock(),
+        view: vi.fn(async () => "result"),
+        call: vi.fn(),
       }
 
       const contract = createContract<TestContract>(
@@ -147,8 +147,8 @@ describe("createContract()", () => {
       }
 
       const mockNear = {
-        view: mock(async () => "result"),
-        call: mock(),
+        view: vi.fn(async () => "result"),
+        call: vi.fn(),
       }
 
       const contract = createContract<TestContract>(
@@ -180,8 +180,8 @@ describe("createContract()", () => {
       }
 
       const mockNear = {
-        view: mock(async () => "result"),
-        call: mock(),
+        view: vi.fn(async () => "result"),
+        call: vi.fn(),
       }
 
       const contract = createContract<TestContract>(
@@ -216,8 +216,8 @@ describe("createContract()", () => {
       }
 
       const mockNear = {
-        view: mock(async () => "result"),
-        call: mock(),
+        view: vi.fn(async () => "result"),
+        call: vi.fn(),
       }
 
       const contract = createContract<TestContract>(
@@ -251,8 +251,8 @@ describe("createContract()", () => {
       }
 
       const mockNear = {
-        view: mock(async () => "result"),
-        call: mock(),
+        view: vi.fn(async () => "result"),
+        call: vi.fn(),
       }
 
       const contract = createContract<TestContract>(
@@ -299,8 +299,8 @@ describe("createContract()", () => {
       }
 
       const mockNear = {
-        view: mock(async () => "result"),
-        call: mock(),
+        view: vi.fn(async () => "result"),
+        call: vi.fn(),
       }
 
       const contract = createContract<TestContract>(
@@ -350,8 +350,8 @@ describe("createContract()", () => {
       }
 
       const mockNear = {
-        view: mock(),
-        call: mock(async () => ({ status: "success" })),
+        view: vi.fn(),
+        call: vi.fn(async () => ({ status: "success" })),
       }
 
       const contract = createContract<TestContract>(
@@ -383,8 +383,8 @@ describe("createContract()", () => {
       }
 
       const mockNear = {
-        view: mock(),
-        call: mock(async () => ({ status: "success" })),
+        view: vi.fn(),
+        call: vi.fn(async () => ({ status: "success" })),
       }
 
       const contract = createContract<TestContract>(
@@ -412,8 +412,8 @@ describe("createContract()", () => {
       }
 
       const mockNear = {
-        view: mock(),
-        call: mock(async () => ({ status: "success" })),
+        view: vi.fn(),
+        call: vi.fn(async () => ({ status: "success" })),
       }
 
       const contract = createContract<TestContract>(
@@ -443,8 +443,8 @@ describe("createContract()", () => {
       }
 
       const mockNear = {
-        view: mock(),
-        call: mock(async () => ({ status: "success" })),
+        view: vi.fn(),
+        call: vi.fn(async () => ({ status: "success" })),
       }
 
       const contract = createContract<TestContract>(
@@ -472,8 +472,8 @@ describe("createContract()", () => {
       }
 
       const mockNear = {
-        view: mock(),
-        call: mock(async () => ({ status: "success" })),
+        view: vi.fn(),
+        call: vi.fn(async () => ({ status: "success" })),
       }
 
       const contract = createContract<TestContract>(
@@ -505,8 +505,8 @@ describe("createContract()", () => {
       }
 
       const mockNear = {
-        view: mock(),
-        call: mock(async () => ({ status: "success" })),
+        view: vi.fn(),
+        call: vi.fn(async () => ({ status: "success" })),
       }
 
       const contract = createContract<TestContract>(
@@ -541,8 +541,8 @@ describe("createContract()", () => {
       }
 
       const mockNear = {
-        view: mock(),
-        call: mock(async () => ({ status: "success" })),
+        view: vi.fn(),
+        call: vi.fn(async () => ({ status: "success" })),
       }
 
       const contract = createContract<TestContract>(
@@ -582,8 +582,8 @@ describe("createContract()", () => {
       }
 
       const mockNear = {
-        view: mock(),
-        call: mock(async () => ({ status: "success" })),
+        view: vi.fn(),
+        call: vi.fn(async () => ({ status: "success" })),
       }
 
       const contract = createContract<TestContract>(
@@ -613,8 +613,8 @@ describe("createContract()", () => {
       }
 
       const mockNear = {
-        view: mock(),
-        call: mock(async () => ({ status: "success" })),
+        view: vi.fn(),
+        call: vi.fn(async () => ({ status: "success" })),
       }
 
       const contract = createContract<TestContract>(
@@ -669,8 +669,8 @@ describe("createContract()", () => {
       }
 
       const mockNear = {
-        view: mock(),
-        call: mock(async () => ({ status: "success" })),
+        view: vi.fn(),
+        call: vi.fn(async () => ({ status: "success" })),
       }
 
       const contract = createContract<TestContract>(
@@ -702,8 +702,8 @@ describe("createContract()", () => {
       }
 
       const mockNear = {
-        view: mock(async () => "result"),
-        call: mock(async () => ({ status: "success" })),
+        view: vi.fn(async () => "result"),
+        call: vi.fn(async () => ({ status: "success" })),
       }
 
       const contract1 = createContract<TestContract>(
@@ -763,8 +763,8 @@ describe("createContract()", () => {
       }
 
       const mockNear = {
-        view: mock(async () => "100"),
-        call: mock(async () => undefined),
+        view: vi.fn(async () => "100"),
+        call: vi.fn(async () => undefined),
       }
 
       const contract = createContract<MyContract>(
@@ -800,8 +800,8 @@ describe("createContract()", () => {
       }
 
       const mockNear = {
-        view: mock(async () => "result"),
-        call: mock(async () => ({ status: "success" })),
+        view: vi.fn(async () => "result"),
+        call: vi.fn(async () => ({ status: "success" })),
       }
 
       const contract = createContract<TestContract>(
@@ -825,8 +825,8 @@ describe("createContract()", () => {
       }
 
       const mockNear = {
-        view: mock(async () => "result"),
-        call: mock(async () => ({ status: "success" })),
+        view: vi.fn(async () => "result"),
+        call: vi.fn(async () => ({ status: "success" })),
       }
 
       const contract = createContract<TestContract>(
@@ -862,8 +862,8 @@ describe("createContract()", () => {
       }
 
       const mockNear = {
-        view: mock(async () => "result"),
-        call: mock(async () => ({ status: "success" })),
+        view: vi.fn(async () => "result"),
+        call: vi.fn(async () => ({ status: "success" })),
       }
 
       const contract = createContract<TestContract>(
@@ -904,8 +904,8 @@ describe("createContract()", () => {
       }
 
       const mockNear = {
-        view: mock(async () => "result"),
-        call: mock(async () => ({ status: "success" })),
+        view: vi.fn(async () => "result"),
+        call: vi.fn(async () => ({ status: "success" })),
       }
 
       const contract = createContract<TestContract>(
@@ -934,8 +934,8 @@ describe("addContractMethod()", () => {
   test("should add contract() method to Near prototype", () => {
     // Create a mock Near class for testing
     class MockNear {
-      view = mock(async () => "view-result")
-      call = mock(async () => ({ status: "success" }))
+      view = vi.fn(async () => "view-result")
+      call = vi.fn(async () => ({ status: "success" }))
     }
 
     // Add contract method to prototype
@@ -950,8 +950,8 @@ describe("addContractMethod()", () => {
 
   test("should create contract proxy when calling near.contract()", () => {
     class MockNear {
-      view = mock(async () => "view-result")
-      call = mock(async () => ({ status: "success" }))
+      view = vi.fn(async () => "view-result")
+      call = vi.fn(async () => ({ status: "success" }))
     }
 
     addContractMethod(MockNear.prototype as unknown as typeof Near.prototype)
@@ -972,8 +972,8 @@ describe("addContractMethod()", () => {
     }
 
     class MockNear {
-      view = mock(async () => "view-result")
-      call = mock(async () => ({ status: "success" }))
+      view = vi.fn(async () => "view-result")
+      call = vi.fn(async () => ({ status: "success" }))
     }
 
     addContractMethod(MockNear.prototype as unknown as typeof Near.prototype)
@@ -1001,8 +1001,8 @@ describe("addContractMethod()", () => {
     }
 
     class MockNear {
-      view = mock(async () => "result")
-      call = mock(async () => ({ status: "success" }))
+      view = vi.fn(async () => "result")
+      call = vi.fn(async () => ({ status: "success" }))
     }
 
     addContractMethod(MockNear.prototype as unknown as typeof Near.prototype)
@@ -1047,12 +1047,12 @@ describe("addContractMethod()", () => {
 
     class MockNear {
       private testProperty = "test-value"
-      view = mock(async (/* contractId: string */) => {
+      view = vi.fn(async (/* contractId: string */) => {
         // Verify 'this' context is preserved
         expect(this.testProperty).toBe("test-value")
         return "result"
       })
-      call = mock(async () => ({ status: "success" }))
+      call = vi.fn(async () => ({ status: "success" }))
     }
 
     addContractMethod(MockNear.prototype as unknown as typeof Near.prototype)
@@ -1082,8 +1082,8 @@ describe("addContractMethod()", () => {
     }
 
     class MockNear {
-      view = mock(async () => "100")
-      call = mock(async () => undefined)
+      view = vi.fn(async () => "100")
+      call = vi.fn(async () => undefined)
     }
 
     addContractMethod(MockNear.prototype as unknown as typeof Near.prototype)
@@ -1119,8 +1119,8 @@ describe("addContractMethod()", () => {
     }
 
     class MockNear {
-      view = mock(async () => "result")
-      call = mock(async () => ({ status: "success" }))
+      view = vi.fn(async () => "result")
+      call = vi.fn(async () => ({ status: "success" }))
     }
 
     addContractMethod(MockNear.prototype as unknown as typeof Near.prototype)

@@ -2,9 +2,9 @@
  * Tests for key generation and parsing utilities
  */
 
-import { describe, expect, test } from "bun:test"
 import * as bip39 from "@scure/bip39"
 import { wordlist } from "@scure/bip39/wordlists/english.js"
+import { describe, expect, test } from "vitest"
 import { KeyType } from "../../src/core/types.js"
 import { InvalidKeyError } from "../../src/errors/index.js"
 import {

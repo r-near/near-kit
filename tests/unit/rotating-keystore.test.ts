@@ -2,7 +2,7 @@
  * Comprehensive tests for RotatingKeyStore class
  */
 
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test } from "vitest"
 import { RotatingKeyStore } from "../../src/keys/rotating-keystore.js"
 import {
   Ed25519KeyPair,

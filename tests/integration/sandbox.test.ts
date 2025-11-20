@@ -19,7 +19,7 @@
  * See src/sandbox/README.md for more details.
  */
 
-import { afterAll, beforeAll, describe, expect, test } from "bun:test"
+import { afterAll, beforeAll, describe, expect, test } from "vitest"
 import { Near } from "../../src/core/near.js"
 import { Sandbox } from "../../src/sandbox/sandbox.js"
 
