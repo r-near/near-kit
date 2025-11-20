@@ -269,6 +269,13 @@ export function fromHotConnect(
             } catch {
               // If parsing fails, keep args as raw bytes (may be binary data)
             }
+          } else if (args instanceof Uint8Array) {
+            try {
+              const argsString = new TextDecoder().decode(args)
+              args = JSON.parse(argsString)
+            } catch {
+              // Keep raw bytes on parse failure
+            }
           }
 
           const argsObject: Record<string, unknown> =
