@@ -698,6 +698,31 @@ describe("parseRpcError", () => {
       }
     })
 
+    test("should handle chunk_reference object fallback paths", () => {
+      const error = {
+        name: "HANDLER_ERROR",
+        code: -32000,
+        message: "Chunk not available",
+        data: "detailed-chunk-ref",
+        cause: {
+          name: "UNKNOWN_CHUNK",
+          info: {
+            chunk_reference: { weird: "shape" },
+          },
+        },
+      }
+
+      expect(() => parseRpcError(error)).toThrow(UnknownChunkError)
+
+      try {
+        parseRpcError(error)
+      } catch (e) {
+        expect(e).toBeInstanceOf(UnknownChunkError)
+        const err = e as UnknownChunkError
+        expect(err.chunkReference).toBe("detailed-chunk-ref")
+      }
+    })
+
     test("should throw InvalidShardIdError for INVALID_SHARD_ID with number", () => {
       const error = {
         name: "HANDLER_ERROR",
@@ -790,6 +815,30 @@ describe("parseRpcError", () => {
         expect(e).toBeInstanceOf(UnknownEpochError)
         const err = e as UnknownEpochError
         expect(err.blockReference).toBe("Unknown epoch")
+      }
+    })
+
+    test("should extract BlockId from block_reference object", () => {
+      const error = {
+        name: "HANDLER_ERROR",
+        code: -32000,
+        message: "Unknown epoch",
+        cause: {
+          name: "UNKNOWN_EPOCH",
+          info: {
+            block_reference: { BlockId: 42 },
+          },
+        },
+      }
+
+      expect(() => parseRpcError(error)).toThrow(UnknownEpochError)
+
+      try {
+        parseRpcError(error)
+      } catch (e) {
+        expect(e).toBeInstanceOf(UnknownEpochError)
+        const err = e as UnknownEpochError
+        expect(err.blockReference).toBe("42")
       }
     })
   })

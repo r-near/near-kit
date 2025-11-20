@@ -210,8 +210,10 @@ export class RpcClient {
       }
     }
 
-    // This should never be reached, but TypeScript needs it
-    throw lastError || new NetworkError("Unknown error during RPC call")
+    if (lastError) {
+      throw lastError
+    }
+    throw new NetworkError("Unknown error during RPC call")
   }
 
   /**

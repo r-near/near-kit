@@ -381,4 +381,26 @@ describe("NEP-413 Message Signing", () => {
     const isValid = verifyNep413Signature(tamperedSignedMessage, params)
     expect(isValid).toBe(false)
   })
+
+  test("should reject signatures with future timestamps", () => {
+    const keyPair = Ed25519KeyPair.fromRandom()
+    const accountId = "test.near"
+
+    const nonce = new Uint8Array(32)
+    const view = new DataView(nonce.buffer)
+    view.setBigUint64(0, BigInt(Date.now() + 60_000), false)
+
+    const params: SignMessageParams = {
+      message: "Login to MyApp",
+      recipient: "myapp.near",
+      nonce,
+    }
+
+    const signedMessage = keyPair.signNep413Message(accountId, params)
+    const isValid = verifyNep413Signature(signedMessage, params, {
+      maxAge: 5 * 60 * 1000,
+    })
+
+    expect(isValid).toBe(false)
+  })
 })
