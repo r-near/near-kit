@@ -27,7 +27,7 @@ jobs:
       - name: Run lint
         run: bun run lint
 
-  unit-tests:
+  tests:
     runs-on: arc-runner-set
     steps:
       - name: Checkout code
@@ -41,61 +41,11 @@ jobs:
       - name: Install dependencies
         run: bun install
 
-      - name: Run unit tests with coverage
+      - name: Run tests with coverage
         run: |
-          bun run test:unit --coverage --coverage-reporter=lcov
+          bun run test
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           file: ./coverage/lcov.info
-          flags: unit-tests
-
-  integration-tests:
-    runs-on: arc-runner-set
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - name: Install dependencies
-        run: bun install
-
-      - name: Configure file descriptor limits for sandbox
-        run: ulimit -n 65535
-
-      - name: Run integration tests
-        run: bun run test:integration --coverage --coverage-reporter=lcov
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          file: ./coverage/lcov.info
-          flags: integration-tests
-
-  wallet-tests:
-    runs-on: arc-runner-set
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - name: Install dependencies
-        run: bun install
-
-      - name: Run wallet tests
-        run: bun run test:wallets --coverage --coverage-reporter=lcov
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          file: ./coverage/lcov.info
-          flags: wallet-tests
