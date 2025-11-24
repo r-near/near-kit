@@ -215,13 +215,16 @@ export function fromHotConnect(
 
           let args: unknown = fc.args
           if (
-            Array.isArray(args) &&
-            args.every((x: unknown) => typeof x === "number")
+            args instanceof Uint8Array ||
+            (Array.isArray(args) &&
+              args.every((x: unknown) => typeof x === "number"))
           ) {
             try {
-              const argsString = new TextDecoder().decode(
-                new Uint8Array(args as number[]),
-              )
+              const argsBytes =
+                args instanceof Uint8Array
+                  ? args
+                  : new Uint8Array(args as number[])
+              const argsString = new TextDecoder().decode(argsBytes)
               args = JSON.parse(argsString)
             } catch {
               // If parsing fails, keep args as raw bytes (may be binary data)

@@ -173,6 +173,50 @@ describe("Near class with wallets", () => {
         expect(firstAction.params.deposit).toBe("2000000000000000000000000")
       }
     })
+
+    it("should serialize BigInt values in function call args with HOT Connect", async () => {
+      mockConnector.clearCallLog()
+
+      // Call with BigInt values in args (simulating something like origin_nonce)
+      await near.call(
+        "contract.near",
+        "submit_transfer",
+        {
+          transfer_id: {
+            origin_chain: "Near",
+            origin_nonce: BigInt(123456789),
+          },
+          large_value: BigInt("9007199254740992"), // > Number.MAX_SAFE_INTEGER
+        },
+        { gas: "50 Tgas" },
+      )
+
+      const log = mockConnector.getCallLog()
+      const txCall = log.find((l) => l.method === "signAndSendTransaction")
+
+      expect(txCall).toBeDefined()
+      if (txCall?.method === "signAndSendTransaction") {
+        const action = txCall.params.actions[0] as {
+          type: string
+          params: { args: Record<string, unknown>; methodName: string }
+        }
+        expect(action.type).toBe("FunctionCall")
+        expect(action.params.methodName).toBe("submit_transfer")
+
+        // Verify BigInt values were serialized correctly through the HOT Connect adapter
+        const args = action.params.args
+
+        // Small BigInt should become number
+        const transferId = args["transfer_id"] as Record<string, unknown>
+        expect(transferId).toBeDefined()
+        expect(transferId["origin_nonce"]).toBe(123456789)
+        expect(typeof transferId["origin_nonce"]).toBe("number")
+
+        // Large BigInt should become string
+        expect(args["large_value"]).toBe("9007199254740992")
+        expect(typeof args["large_value"]).toBe("string")
+      }
+    })
   })
 
   describe("TransactionBuilder with wallets", () => {

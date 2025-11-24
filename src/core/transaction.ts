@@ -120,6 +120,17 @@ export type DelegateActionResult<
   format: F
 }
 
+// JSON replacer for BigInt serialization: converts to number if safe, otherwise string
+export function bigintReplacer(_key: string, value: unknown): unknown {
+  if (typeof value === "bigint") {
+    const maxSafe = BigInt(Number.MAX_SAFE_INTEGER)
+    return value <= maxSafe && value >= -maxSafe
+      ? Number(value)
+      : value.toString()
+  }
+  return value
+}
+
 /**
  * Compare two public keys for byte-level equality.
  * @internal
@@ -292,7 +303,7 @@ export class TransactionBuilder {
     const argsBytes =
       args instanceof Uint8Array
         ? args
-        : new TextEncoder().encode(JSON.stringify(args))
+        : new TextEncoder().encode(JSON.stringify(args, bigintReplacer))
 
     const gas = options.gas
       ? normalizeGas(options.gas)

@@ -23,7 +23,7 @@ import type {
   FinalExecutionOutcome,
   FinalExecutionOutcomeWithReceiptsMap,
 } from "./rpc/rpc-schemas.js"
-import { TransactionBuilder } from "./transaction.js"
+import { bigintReplacer, TransactionBuilder } from "./transaction.js"
 import type {
   CallOptions,
   KeyStore,
@@ -318,7 +318,7 @@ export class Near {
       const argsBytes =
         args instanceof Uint8Array
           ? args
-          : new TextEncoder().encode(JSON.stringify(args))
+          : new TextEncoder().encode(JSON.stringify(args, bigintReplacer))
 
       const gas = options.gas
         ? normalizeGas(options.gas)

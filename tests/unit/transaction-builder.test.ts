@@ -498,6 +498,40 @@ describe("TransactionBuilder - Edge Cases", () => {
     expect(builder.actions[0].functionCall.gas).toBe(BigInt(largeGas))
   })
 
+  test("should serialize BigInt values in function call args", () => {
+    const builder = createBuilder().functionCall(
+      "contract.near",
+      "test_method",
+      {
+        small_number: BigInt(123),
+        large_number: BigInt("9007199254740992"), // > Number.MAX_SAFE_INTEGER
+        nested: {
+          nonce: BigInt(456),
+        },
+      },
+    )
+
+    // @ts-expect-error - accessing private field for testing
+    const functionCall = builder.actions[0].functionCall
+    expect(functionCall).toBeDefined()
+
+    // Decode the serialized args to verify BigInt handling
+    const argsJson = new TextDecoder().decode(functionCall.args)
+    const parsedArgs = JSON.parse(argsJson)
+
+    // Small BigInt should be number
+    expect(parsedArgs.small_number).toBe(123)
+    expect(typeof parsedArgs.small_number).toBe("number")
+
+    // Large BigInt should be string
+    expect(parsedArgs.large_number).toBe("9007199254740992")
+    expect(typeof parsedArgs.large_number).toBe("string")
+
+    // Nested BigInt should be number
+    expect(parsedArgs.nested.nonce).toBe(456)
+    expect(typeof parsedArgs.nested.nonce).toBe("number")
+  })
+
   test("should create empty transaction", () => {
     const builder = createBuilder()
 

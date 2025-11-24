@@ -5,6 +5,7 @@ import {
   NetworkError,
 } from "../../errors/index.js"
 import type { BlockReference, RpcRetryConfigInput } from "../config-schemas.js"
+import { bigintReplacer } from "../transaction.js"
 import type {
   AccessKeyView,
   AccountView,
@@ -248,7 +249,7 @@ export class RpcClient {
     const argsBytes =
       args instanceof Uint8Array
         ? args
-        : new TextEncoder().encode(JSON.stringify(args))
+        : new TextEncoder().encode(JSON.stringify(args, bigintReplacer))
     const argsBase64 = base64.encode(argsBytes)
 
     const result = await this.call("query", {
