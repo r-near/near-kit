@@ -124,7 +124,7 @@ export type DelegateActionResult<
 export function bigintReplacer(_key: string, value: unknown): unknown {
   if (typeof value === "bigint") {
     const maxSafe = BigInt(Number.MAX_SAFE_INTEGER)
-    return value <= maxSafe && value >= -maxSafe
+    return value <= maxSafe && value >= Number.MIN_SAFE_INTEGER
       ? Number(value)
       : value.toString()
   }
