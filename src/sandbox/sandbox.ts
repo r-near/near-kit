@@ -31,6 +31,12 @@ const DOWNLOAD_BASE =
 const STARTUP_TIMEOUT = 60000
 const DOWNLOAD_TIMEOUT = 120000
 
+/**
+ * Default code hash for accounts without deployed contract code.
+ * This is a base58-encoded sha256 hash of an empty byte array.
+ */
+export const EMPTY_CODE_HASH = "11111111111111111111111111111111"
+
 interface PlatformInfo {
   system: string
   arch: string
@@ -51,10 +57,15 @@ export interface StateRecord {
   Account?: {
     account_id: string
     account: {
+      /** Account balance in yoctoNEAR (10^-24 NEAR) */
       amount: string
+      /** Locked balance for staking in yoctoNEAR */
       locked: string
+      /** Hash of deployed contract code, or 11111111111111111111111111111111 if no code */
       code_hash: string
+      /** Storage used by the account in bytes */
       storage_usage: number
+      /** Account version for protocol upgrades (optional, defaults to V1) */
       version?: string
     }
   }
@@ -67,6 +78,7 @@ export interface StateRecord {
         | "FullAccess"
         | {
             FunctionCall: {
+              /** Maximum amount that can be spent in yoctoNEAR, or null for unlimited */
               allowance: string | null
               receiver_id: string
               method_names: string[]
@@ -398,8 +410,12 @@ export class Sandbox {
         records: parsed.records || [],
         timestamp: Date.now(),
       }
-    } catch {
-      // If the command fails or file doesn't exist, return empty snapshot
+    } catch (error) {
+      // Log the error for debugging but return empty snapshot
+      // This allows tests to continue even if state dump fails
+      console.warn(
+        `Warning: Failed to read state dump from ${outputPath}: ${error instanceof Error ? error.message : error}`,
+      )
       return {
         records: [],
         timestamp: Date.now(),
@@ -520,15 +536,18 @@ export class Sandbox {
     const port = new URL(this.rpcUrl).port
 
     // Stop the current process
+    // First try to kill the process group (negative PID), which works for detached processes
+    // If that fails (e.g., process wasn't spawned in a group), fall back to direct kill
     try {
       process.kill(-pid, "SIGTERM")
       await sleep(500)
     } catch {
+      // Process group kill failed (ESRCH or other error), try direct process kill
       try {
         process.kill(pid, "SIGTERM")
         await sleep(500)
       } catch {
-        // Process might already be dead
+        // Process might already be dead, which is fine
       }
     }
 

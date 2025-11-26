@@ -36,6 +36,7 @@ vi.mock("node:child_process", async () => {
 
 // Import the types after mocking
 import type { StateRecord, StateSnapshot } from "../../src/sandbox/sandbox.js"
+import { EMPTY_CODE_HASH } from "../../src/sandbox/sandbox.js"
 
 describe("StateRecord types", () => {
   test("Account record has correct shape", () => {
@@ -45,7 +46,7 @@ describe("StateRecord types", () => {
         account: {
           amount: "1000000000000000000000000",
           locked: "0",
-          code_hash: "11111111111111111111111111111111",
+          code_hash: EMPTY_CODE_HASH,
           storage_usage: 100,
         },
       },
@@ -102,10 +103,17 @@ describe("StateRecord types", () => {
   })
 
   test("Contract record has correct shape", () => {
+    // Minimal valid WASM header: \0asm (magic number) + version 1
+    // In hex: 00 61 73 6D 01 00 00 00
+    // Base64 encoded: AGFzbQEAAAA=
+    const minimalWasmBase64 = Buffer.from([
+      0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00,
+    ]).toString("base64")
+
     const contractRecord: StateRecord = {
       Contract: {
         account_id: "contract.test.near",
-        code: "AGFzbQEAAAA=", // base64 encoded WASM (minimal valid WASM header)
+        code: minimalWasmBase64,
       },
     }
 
@@ -138,7 +146,7 @@ describe("StateSnapshot type", () => {
             account: {
               amount: "1000000000000000000000000000",
               locked: "0",
-              code_hash: "11111111111111111111111111111111",
+              code_hash: EMPTY_CODE_HASH,
               storage_usage: 100,
             },
           },
@@ -189,7 +197,7 @@ describe("patchState RPC request format", () => {
           account: {
             amount: "1000000000000000000000000",
             locked: "0",
-            code_hash: "11111111111111111111111111111111",
+            code_hash: EMPTY_CODE_HASH,
             storage_usage: 100,
           },
         },
@@ -427,7 +435,7 @@ describe("Multiple state records", () => {
             account: {
               amount: "1000000000000000000000000",
               locked: "0",
-              code_hash: "11111111111111111111111111111111",
+              code_hash: EMPTY_CODE_HASH,
               storage_usage: 100,
             },
           },

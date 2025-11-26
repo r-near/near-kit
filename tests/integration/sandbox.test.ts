@@ -22,7 +22,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "vitest"
 import { Near } from "../../src/core/near.js"
 import type { StateRecord } from "../../src/sandbox/sandbox.js"
-import { Sandbox } from "../../src/sandbox/sandbox.js"
+import { EMPTY_CODE_HASH, Sandbox } from "../../src/sandbox/sandbox.js"
 
 describe("Sandbox", () => {
   let sandbox: Sandbox
@@ -219,7 +219,7 @@ describe("Sandbox - Patch State", () => {
           account: {
             amount: newBalance,
             locked: "0",
-            code_hash: "11111111111111111111111111111111",
+            code_hash: EMPTY_CODE_HASH,
             storage_usage: 100,
           },
         },

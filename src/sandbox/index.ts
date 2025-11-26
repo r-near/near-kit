@@ -3,4 +3,4 @@
  */
 
 export type { SandboxOptions, StateRecord, StateSnapshot } from "./sandbox.js"
-export { Sandbox } from "./sandbox.js"
+export { EMPTY_CODE_HASH, Sandbox } from "./sandbox.js"
