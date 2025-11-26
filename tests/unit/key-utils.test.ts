@@ -2,9 +2,10 @@
  * Tests for key generation and parsing utilities
  */
 
+import { HDKey } from "@scure/bip32"
 import * as bip39 from "@scure/bip39"
 import { wordlist } from "@scure/bip39/wordlists/english.js"
-import { describe, expect, test } from "vitest"
+import { describe, expect, test, vi } from "vitest"
 import { KeyType } from "../../src/core/types.js"
 import { InvalidKeyError } from "../../src/errors/index.js"
 import {
@@ -224,6 +225,20 @@ describe("Seed Phrase Parsing", () => {
     expect(() => {
       parseSeedPhrase("word word word word word") // Only 5 words
     }).toThrow(InvalidKeyError)
+  })
+
+  test("parseSeedPhrase() throws when derivation yields no private key", () => {
+    const phrase = generateSeedPhrase(12)
+    const deriveMock = vi
+      .spyOn(HDKey, "fromMasterSeed")
+      // biome-ignore lint/suspicious/noExplicitAny: partial mock for error path
+      .mockReturnValue({ derive: () => ({ privateKey: undefined }) } as any)
+
+    expect(() => parseSeedPhrase(phrase)).toThrow(
+      "Failed to derive private key from seed phrase",
+    )
+
+    deriveMock.mockRestore()
   })
 
   test("parseSeedPhrase() should support custom derivation paths", () => {

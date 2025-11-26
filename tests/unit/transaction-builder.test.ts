@@ -3,12 +3,13 @@
  * Note: build() and send() are not tested here as they require RPC access
  */
 
-import { describe, expect, test } from "vitest"
+import { describe, expect, test, vi } from "vitest"
 import { RpcClient } from "../../src/core/rpc/rpc.js"
 import { TransactionBuilder } from "../../src/core/transaction.js"
 import { InMemoryKeyStore } from "../../src/keys/index.js"
 import { Amount } from "../../src/utils/amount.js"
 import { Gas } from "../../src/utils/gas.js"
+import { generateKey } from "../../src/utils/key.js"
 
 // Valid test public key for testing
 const TEST_PUBLIC_KEY = "ed25519:DcA2MzgpJbrUATQLLceocVckhhAqrkingax4oJ9kZ847"
@@ -93,6 +94,22 @@ describe("TransactionBuilder - Fluent API", () => {
     expect(builder.actions.length).toBe(1)
     // @ts-expect-error - accessing private field for testing
     expect(builder.actions[0].stake).toBeDefined()
+  })
+
+  test("should add functionCall permission when adding a key", () => {
+    const builder = createBuilder().addKey(TEST_PUBLIC_KEY, {
+      type: "functionCall",
+      receiverId: "contract.near",
+      methodNames: ["methodA"],
+      allowance: Amount.NEAR(1),
+    })
+
+    // @ts-expect-error - accessing private field for testing
+    const permission = builder.actions.at(-1)?.addKey?.accessKey.permission
+    expect(permission?.functionCall?.receiverId).toBe("contract.near")
+    expect(permission?.functionCall?.allowance).toBe(
+      BigInt("1000000000000000000000000"),
+    )
   })
 
   test("should return same builder instance for chaining", () => {
@@ -505,5 +522,63 @@ describe("TransactionBuilder - Edge Cases", () => {
     expect(builder.actions.length).toBe(0)
     // @ts-expect-error - accessing private field for testing
     expect(builder.signerId).toBe("alice.near")
+  })
+})
+
+describe("TransactionBuilder - delegate options", () => {
+  test("uses provided maxBlockHeight instead of calling status", async () => {
+    const rpc = new RpcClient("https://rpc.testnet.fastnear.com")
+    const keyStore = new InMemoryKeyStore()
+    const builder = new TransactionBuilder("alice.near", rpc, keyStore)
+    const keyPair = generateKey()
+    await keyStore.add("alice.near", keyPair)
+
+    const getAccessKey = vi
+      .spyOn(rpc as any, "getAccessKey")
+      .mockResolvedValue({
+        nonce: 5,
+      })
+    const getStatus = vi.spyOn(rpc as any, "getStatus").mockResolvedValue({
+      sync_info: { latest_block_height: 10 },
+    })
+
+    builder.transfer("bob.near", Amount.NEAR(1))
+    const delegate = await builder.delegate({ maxBlockHeight: 500n })
+
+    expect(
+      delegate.signedDelegateAction.signedDelegate.delegateAction
+        .maxBlockHeight,
+    ).toBe(500n)
+    expect(getAccessKey).toHaveBeenCalled()
+    expect(getStatus).not.toHaveBeenCalled()
+  })
+
+  test("uses provided nonce and skips access key lookup", async () => {
+    const rpc = new RpcClient("https://rpc.testnet.fastnear.com")
+    const keyStore = new InMemoryKeyStore()
+    const builder = new TransactionBuilder("alice.near", rpc, keyStore)
+    const keyPair = generateKey()
+    await keyStore.add("alice.near", keyPair)
+
+    const getAccessKey = vi
+      .spyOn(rpc as any, "getAccessKey")
+      .mockResolvedValue({
+        nonce: 5,
+      })
+    const getStatus = vi.spyOn(rpc as any, "getStatus").mockResolvedValue({
+      sync_info: { latest_block_height: 10 },
+    })
+
+    builder.transfer("bob.near", Amount.NEAR(1))
+    const delegate = await builder.delegate({
+      nonce: 42n,
+      maxBlockHeight: 500n,
+    })
+
+    expect(
+      delegate.signedDelegateAction.signedDelegate.delegateAction.nonce,
+    ).toBe(42n)
+    expect(getAccessKey).not.toHaveBeenCalled()
+    expect(getStatus).not.toHaveBeenCalled()
   })
 })

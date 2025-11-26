@@ -12,8 +12,9 @@ export default defineConfig({
       reporter: ["text", "html", "lcov"],
       include: ["src/**/*.ts"],
       exclude: [
-        "src/**/*.test.ts",
-        "src/**/*.spec.ts",
+        "src/**/index.ts", // barrel files
+        "src/**/types.ts",
+        "tests/**",
         "**/node_modules/**",
         "**/dist/**",
       ],

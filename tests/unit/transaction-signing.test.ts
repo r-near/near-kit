@@ -2,7 +2,7 @@
  * Tests for transaction signing functionality
  */
 
-import { describe, expect, test } from "vitest"
+import { describe, expect, test, vi } from "vitest"
 import { RpcClient } from "../../src/core/rpc/rpc.js"
 import { TransactionBuilder } from "../../src/core/transaction.js"
 import { InMemoryKeyStore } from "../../src/keys/index.js"
@@ -276,6 +276,23 @@ describe("TransactionBuilder - .serialize() method", () => {
 
     // Multiple calls should return same bytes
     expect(bytes1).toEqual(bytes2)
+  })
+})
+
+describe("TransactionBuilder - .send() error paths", () => {
+  test("throws when sign() fails to populate cache", async () => {
+    const { builder, keyStore } = createBuilderWithMocks()
+    const keyPair = parseKey(TEST_PRIVATE_KEY)
+    await keyStore.add("alice.near", keyPair)
+
+    builder.transfer("bob.near", Amount.NEAR(1))
+
+    vi.spyOn(
+      builder as unknown as { sign: () => Promise<TransactionBuilder> },
+      "sign",
+    ).mockResolvedValue(builder)
+
+    await expect(builder.send()).rejects.toThrow("Failed to sign transaction")
   })
 })
 
