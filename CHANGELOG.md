@@ -1,5 +1,11 @@
 # near-kit
 
+## 0.4.5
+
+### Patch Changes
+
+- b77f9c7: build(deps): bump the production-dependencies group with 2 updates
+
 ## 0.4.4
 
 ### Patch Changes
