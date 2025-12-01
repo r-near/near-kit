@@ -73,12 +73,16 @@ export type { SandboxOptions } from "./sandbox/index.js"
 // Utilities
 export {
   Amount,
+  type ContractCode,
+  createStateInit,
+  deriveAccountId,
   formatAmount,
   formatGas,
   Gas,
   generateKey,
   generateNonce,
   generateSeedPhrase,
+  isDeterministicAccountId,
   isPrivateKey,
   isValidAccountId,
   isValidPublicKey,
@@ -87,8 +91,12 @@ export {
   parseGas,
   parseKey,
   parseSeedPhrase,
+  type StateInit,
+  type StateInitOptions,
+  serializeStateInit,
   type VerifyNep413Options,
   validatePrivateKey,
+  verifyDeterministicAccountId,
   verifyNep413Signature,
 } from "./utils/index.js"
 // Wallet adapters

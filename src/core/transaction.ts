@@ -38,6 +38,7 @@ import {
   NearError,
 } from "../errors/index.js"
 import { parseKey, parsePublicKey } from "../utils/key.js"
+import { deriveAccountId } from "../utils/state-init.js"
 import {
   type Amount,
   type Gas,
@@ -431,6 +432,72 @@ export class TransactionBuilder {
 
     if (!this.receiverId) {
       this.receiverId = this.signerId
+    }
+
+    return this.invalidateCache()
+  }
+
+  /**
+   * Add a StateInit action for deploying a contract with a deterministically derived account ID.
+   *
+   * This enables NEP-616 deterministic AccountIds where the account ID is derived from:
+   * `"0s" + hex(keccak256(borsh(state_init))[12..32])`
+   *
+   * The transaction's receiverId will be automatically set to the derived account ID.
+   *
+   * @param options - StateInit configuration
+   * @param options.code - Reference to the contract code (codeHash or accountId)
+   * @param options.data - Optional initial storage key-value pairs
+   * @param options.deposit - Amount to attach for storage costs
+   *
+   * @example
+   * ```typescript
+   * // Deploy from a published global contract by account ID
+   * await near.transaction(signerAccount)
+   *   .stateInit({
+   *     code: { accountId: "publisher.near" },
+   *     deposit: "1 NEAR",
+   *   })
+   *   .send()
+   *
+   * // Deploy from a code hash with initial storage data
+   * await near.transaction(signerAccount)
+   *   .stateInit({
+   *     code: { codeHash: hashBytes },
+   *     data: new Map([[key1, value1]]),
+   *     deposit: "2 NEAR",
+   *   })
+   *   .send()
+   * ```
+   */
+  stateInit(options: {
+    code: { codeHash: string | Uint8Array } | { accountId: string }
+    data?: Map<Uint8Array, Uint8Array>
+    deposit: Amount
+  }): this {
+    const depositYocto = normalizeAmount(options.deposit)
+    const stateInitOptions: actions.StateInitOptions = {
+      code: options.code,
+      deposit: BigInt(depositYocto),
+    }
+    if (options.data !== undefined) {
+      stateInitOptions.data = options.data
+    }
+
+    this.actions.push(actions.stateInit(stateInitOptions))
+
+    // Set receiverId to the deterministically derived account ID
+    if (!this.receiverId) {
+      const deriveOptions: {
+        code: typeof options.code
+        data?: Map<Uint8Array, Uint8Array>
+      } = {
+        code: options.code,
+      }
+      if (options.data !== undefined) {
+        deriveOptions.data = options.data
+      }
+      this.receiverId = deriveAccountId(deriveOptions)
     }
 
     return this.invalidateCache()

@@ -3,8 +3,9 @@
  *
  * @remarks
  * This module exposes helpers for working with human-readable amounts and gas,
- * key generation and parsing, NEP-413 message signing, and validation of
- * common NEAR types (account IDs, public/private keys, amounts, gas).
+ * key generation and parsing, NEP-413 message signing, NEP-616 deterministic
+ * account IDs, and validation of common NEAR types (account IDs, public/private
+ * keys, amounts, gas).
  */
 export {
   Amount,
@@ -21,6 +22,16 @@ export {
   type VerifyNep413Options,
   verifyNep413Signature,
 } from "./nep413.js"
+export {
+  type ContractCode,
+  createStateInit,
+  deriveAccountId,
+  isDeterministicAccountId,
+  type StateInit,
+  type StateInitOptions,
+  serializeStateInit,
+  verifyDeterministicAccountId,
+} from "./state-init.js"
 export {
   isPrivateKey,
   isValidAccountId,

@@ -121,7 +121,7 @@ describe("Sandbox - Multiple Instances", () => {
 
 describe("Sandbox - Version Support", () => {
   test("can specify sandbox version", async () => {
-    const sandbox = await Sandbox.start({ version: "2.9.0" })
+    const sandbox = await Sandbox.start({ version: "2.10-release" })
 
     expect(sandbox).toBeDefined()
     expect(sandbox.rpcUrl).toBeDefined()

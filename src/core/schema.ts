@@ -217,6 +217,34 @@ const UseGlobalContractSchema = b.struct({
   contractIdentifier: GlobalContractIdentifierSchema,
 })
 
+// ==================== NEP-616 Deterministic Account (StateInit) Actions ====================
+
+/**
+ * DeterministicAccountStateInitV1 struct
+ * Contains the initialization state for a deterministic account
+ */
+const DeterministicAccountStateInitV1Schema = b.struct({
+  code: GlobalContractIdentifierSchema,
+  data: b.hashMap(b.bytes(), b.bytes()),
+})
+
+/**
+ * DeterministicAccountStateInit enum (versioned)
+ * V1 is the first version
+ */
+const DeterministicAccountStateInitSchema = b.enum({
+  V1: DeterministicAccountStateInitV1Schema,
+})
+
+/**
+ * DeterministicStateInit action (NEP-616)
+ * Used to deploy a contract with a deterministically derived account ID
+ */
+const DeterministicStateInitSchema = b.struct({
+  stateInit: DeterministicAccountStateInitSchema,
+  deposit: b.u128(),
+})
+
 // ==================== Delegate Actions ====================
 
 /**
@@ -235,6 +263,7 @@ const ClassicActionsSchema = b.enum({
   deleteAccount: DeleteAccountSchema,
   deployGlobalContract: DeployGlobalContractSchema,
   useGlobalContract: UseGlobalContractSchema,
+  deterministicStateInit: DeterministicStateInitSchema,
 })
 
 /**
@@ -278,6 +307,7 @@ const SignedDelegateSchema = b.struct({
  * 8 = SignedDelegate
  * 9 = DeployGlobalContract
  * 10 = UseGlobalContract
+ * 11 = DeterministicStateInit (NEP-616)
  */
 export const ActionSchema = b.enum({
   createAccount: CreateAccountSchema,
@@ -291,6 +321,7 @@ export const ActionSchema = b.enum({
   signedDelegate: SignedDelegateSchema,
   deployGlobalContract: DeployGlobalContractSchema,
   useGlobalContract: UseGlobalContractSchema,
+  deterministicStateInit: DeterministicStateInitSchema,
 })
 
 /**
@@ -324,6 +355,17 @@ export type UseGlobalContractAction = {
 }
 export type SignedDelegateAction = {
   signedDelegate: b.infer<typeof SignedDelegateSchema>
+}
+export type DeterministicStateInitAction = {
+  deterministicStateInit: b.infer<typeof DeterministicStateInitSchema>
+}
+
+// Export StateInit types for NEP-616
+export type StateInit = b.infer<typeof DeterministicAccountStateInitSchema>
+export type StateInitV1 = b.infer<typeof DeterministicAccountStateInitV1Schema>
+export {
+  DeterministicAccountStateInitSchema,
+  DeterministicAccountStateInitV1Schema,
 }
 
 // ==================== Transaction ====================
