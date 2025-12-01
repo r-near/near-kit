@@ -382,10 +382,16 @@ export function stateInit(
     codeIdentifier = { AccountId: options.code.accountId }
   } else {
     // Handle codeHash - could be string (base58) or Uint8Array
-    const hashBytes =
-      typeof options.code.codeHash === "string"
-        ? base58.decode(options.code.codeHash)
-        : options.code.codeHash
+    let hashBytes: Uint8Array
+    if (typeof options.code.codeHash === "string") {
+      try {
+        hashBytes = base58.decode(options.code.codeHash)
+      } catch {
+        throw new Error(`Invalid base58 code hash: ${options.code.codeHash}`)
+      }
+    } else {
+      hashBytes = options.code.codeHash
+    }
 
     // Validate hash is 32 bytes
     if (hashBytes.length !== 32) {

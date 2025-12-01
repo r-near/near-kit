@@ -83,10 +83,16 @@ export function createStateInit(options: StateInitOptions): StateInit {
   if ("accountId" in options.code) {
     code = { type: "accountId", accountId: options.code.accountId }
   } else {
-    const hashBytes =
-      typeof options.code.codeHash === "string"
-        ? base58.decode(options.code.codeHash)
-        : options.code.codeHash
+    let hashBytes: Uint8Array
+    if (typeof options.code.codeHash === "string") {
+      try {
+        hashBytes = base58.decode(options.code.codeHash)
+      } catch {
+        throw new Error(`Invalid base58 code hash: ${options.code.codeHash}`)
+      }
+    } else {
+      hashBytes = options.code.codeHash
+    }
 
     if (hashBytes.length !== 32) {
       throw new Error(

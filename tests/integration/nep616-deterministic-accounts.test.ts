@@ -11,12 +11,12 @@ import { readFileSync } from "node:fs"
 import { afterAll, beforeAll, describe, expect, test } from "vitest"
 import { Near } from "../../src/core/near.js"
 import { Sandbox } from "../../src/sandbox/sandbox.js"
+import { generateKey } from "../../src/utils/key.js"
 import {
   deriveAccountId,
   isDeterministicAccountId,
   verifyDeterministicAccountId,
 } from "../../src/utils/state-init.js"
-import { generateKey } from "../../src/utils/key.js"
 
 describe("NEP-616 - Deterministic AccountIds", () => {
   let sandbox: Sandbox
@@ -83,7 +83,10 @@ describe("NEP-616 - Deterministic AccountIds", () => {
       const id1 = deriveAccountId({ code })
 
       const data = new Map<Uint8Array, Uint8Array>()
-      data.set(new TextEncoder().encode("key"), new TextEncoder().encode("value"))
+      data.set(
+        new TextEncoder().encode("key"),
+        new TextEncoder().encode("value"),
+      )
 
       const id2 = deriveAccountId({ code, data })
 
@@ -106,20 +109,32 @@ describe("NEP-616 - Deterministic AccountIds", () => {
 
   describe("isDeterministicAccountId utility", () => {
     test("should return true for valid deterministic account IDs", () => {
-      expect(isDeterministicAccountId("0s1234567890abcdef1234567890abcdef12345678")).toBe(true)
-      expect(isDeterministicAccountId("0sabcdefabcdefabcdefabcdefabcdefabcdefab")).toBe(true)
+      expect(
+        isDeterministicAccountId("0s1234567890abcdef1234567890abcdef12345678"),
+      ).toBe(true)
+      expect(
+        isDeterministicAccountId("0sabcdefabcdefabcdefabcdefabcdefabcdefab"),
+      ).toBe(true)
     })
 
     test("should return false for non-deterministic account IDs", () => {
       expect(isDeterministicAccountId("alice.near")).toBe(false)
       expect(isDeterministicAccountId("test.testnet")).toBe(false)
-      expect(isDeterministicAccountId("0x1234567890abcdef1234567890abcdef12345678")).toBe(false) // Ethereum-style
+      expect(
+        isDeterministicAccountId("0x1234567890abcdef1234567890abcdef12345678"),
+      ).toBe(false) // Ethereum-style
     })
 
     test("should return false for malformed deterministic IDs", () => {
       expect(isDeterministicAccountId("0s123")).toBe(false) // Too short
-      expect(isDeterministicAccountId("0s1234567890abcdef1234567890abcdef12345678extra")).toBe(false) // Too long
-      expect(isDeterministicAccountId("0s1234567890ABCDEF1234567890ABCDEF12345678")).toBe(false) // Uppercase
+      expect(
+        isDeterministicAccountId(
+          "0s1234567890abcdef1234567890abcdef12345678extra",
+        ),
+      ).toBe(false) // Too long
+      expect(
+        isDeterministicAccountId("0s1234567890ABCDEF1234567890ABCDEF12345678"),
+      ).toBe(false) // Uppercase
     })
   })
 
@@ -132,7 +147,12 @@ describe("NEP-616 - Deterministic AccountIds", () => {
       const derivedId = deriveAccountId(options)
 
       expect(verifyDeterministicAccountId(derivedId, options)).toBe(true)
-      expect(verifyDeterministicAccountId("0s0000000000000000000000000000000000000000", options)).toBe(false)
+      expect(
+        verifyDeterministicAccountId(
+          "0s0000000000000000000000000000000000000000",
+          options,
+        ),
+      ).toBe(false)
     })
   })
 
@@ -179,11 +199,11 @@ describe("NEP-616 - Deterministic AccountIds", () => {
 
     test("should derive correct receiverId for stateInit", async () => {
       // Create a transaction builder and check that it derives the receiver correctly
-      const tx = near.transaction(sandbox.rootAccount.id)
-        .stateInit({
-          code: { accountId: "publisher.near" },
-          deposit: "1 NEAR",
-        })
+      // We verify by checking that the transaction can be built (which requires receiverId)
+      near.transaction(sandbox.rootAccount.id).stateInit({
+        code: { accountId: "publisher.near" },
+        deposit: "1 NEAR",
+      })
 
       // The derived account ID should match
       const expectedId = deriveAccountId({
