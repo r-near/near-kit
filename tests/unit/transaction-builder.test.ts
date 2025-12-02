@@ -507,3 +507,131 @@ describe("TransactionBuilder - Edge Cases", () => {
     expect(builder.signerId).toBe("alice.near")
   })
 })
+
+describe("TransactionBuilder - NEP-616 StateInit", () => {
+  test("should chain stateInit action with account ID reference", () => {
+    const builder = createBuilder().stateInit({
+      code: { accountId: "publisher.near" },
+      deposit: "5 NEAR",
+    })
+
+    expect(builder).toBeInstanceOf(TransactionBuilder)
+    // @ts-expect-error - accessing private field for testing
+    expect(builder.actions.length).toBe(1)
+    // @ts-expect-error - accessing private field for testing
+    expect(builder.actions[0].deterministicStateInit).toBeDefined()
+    // @ts-expect-error - accessing private field for testing
+    expect(builder.actions[0].deterministicStateInit.deposit).toBe(
+      5000000000000000000000000n,
+    )
+  })
+
+  test("should chain stateInit action with code hash (Uint8Array)", () => {
+    const codeHash = new Uint8Array(32).fill(0xab)
+    const builder = createBuilder().stateInit({
+      code: { codeHash },
+      deposit: "10 NEAR",
+    })
+
+    // @ts-expect-error - accessing private field for testing
+    expect(builder.actions.length).toBe(1)
+    // @ts-expect-error - accessing private field for testing
+    expect(builder.actions[0].deterministicStateInit).toBeDefined()
+  })
+
+  test("should chain stateInit action with code hash (base58 string)", () => {
+    const codeHash = "11111111111111111111111111111111" // Valid 32-byte base58
+    const builder = createBuilder().stateInit({
+      code: { codeHash },
+      deposit: "3 NEAR",
+    })
+
+    // @ts-expect-error - accessing private field for testing
+    expect(builder.actions.length).toBe(1)
+    // @ts-expect-error - accessing private field for testing
+    expect(builder.actions[0].deterministicStateInit).toBeDefined()
+  })
+
+  test("should chain stateInit action with initial data", () => {
+    const data = new Map<Uint8Array, Uint8Array>()
+    data.set(
+      new TextEncoder().encode("key1"),
+      new TextEncoder().encode("value1"),
+    )
+
+    const builder = createBuilder().stateInit({
+      code: { accountId: "publisher.near" },
+      data,
+      deposit: "5 NEAR",
+    })
+
+    // @ts-expect-error - accessing private field for testing
+    expect(builder.actions.length).toBe(1)
+    // @ts-expect-error - accessing private field for testing
+    expect(builder.actions[0].deterministicStateInit).toBeDefined()
+  })
+
+  test("should set receiver ID to deterministic account ID", () => {
+    const builder = createBuilder().stateInit({
+      code: { accountId: "publisher.near" },
+      deposit: "5 NEAR",
+    })
+
+    // @ts-expect-error - accessing private field for testing
+    expect(builder.receiverId).toMatch(/^0s[0-9a-f]{40}$/)
+    // @ts-expect-error - accessing private field for testing
+    expect(builder.receiverId?.length).toBe(42)
+  })
+
+  test("should throw error for invalid base58 code hash", () => {
+    expect(() =>
+      createBuilder().stateInit({
+        code: { codeHash: "invalid-base58-!@#" },
+        deposit: "5 NEAR",
+      }),
+    ).toThrow("Invalid base58 code hash")
+  })
+
+  test("should throw error for wrong-length code hash (Uint8Array)", () => {
+    const shortHash = new Uint8Array(16).fill(0xab) // Only 16 bytes instead of 32
+
+    expect(() =>
+      createBuilder().stateInit({
+        code: { codeHash: shortHash },
+        deposit: "5 NEAR",
+      }),
+    ).toThrow("Code hash must be 32 bytes")
+  })
+
+  test("should throw error for wrong-length code hash (base58)", () => {
+    const shortBase58 = "111111111111111111111111" // Less than 32 bytes when decoded
+
+    expect(() =>
+      createBuilder().stateInit({
+        code: { codeHash: shortBase58 },
+        deposit: "5 NEAR",
+      }),
+    ).toThrow("Code hash must be 32 bytes")
+  })
+
+  test("should chain stateInit with other actions", () => {
+    const builder = createBuilder()
+      .stateInit({
+        code: { accountId: "publisher.near" },
+        deposit: "5 NEAR",
+      })
+      .functionCall(
+        "contract.near",
+        "callback",
+        {},
+        { attachedDeposit: "1 NEAR" },
+      )
+
+    // @ts-expect-error - accessing private field for testing
+    expect(builder.actions.length).toBe(2)
+    // @ts-expect-error - accessing private field for testing
+    expect(builder.actions[0].deterministicStateInit).toBeDefined()
+    // @ts-expect-error - accessing private field for testing
+    expect(builder.actions[1].functionCall).toBeDefined()
+  })
+})
