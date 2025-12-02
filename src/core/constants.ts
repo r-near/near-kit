@@ -17,6 +17,10 @@ export const NETWORK_PRESETS = {
     rpcUrl: "http://localhost:3030",
     networkId: "localnet",
   },
+  betanet: {
+    rpcUrl: "https://rpc.betanet.near.org",
+    networkId: "betanet",
+  },
 } as const
 
 // ==================== Units ====================

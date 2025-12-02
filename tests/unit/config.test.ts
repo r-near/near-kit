@@ -39,6 +39,13 @@ describe("Network Configuration", () => {
     expect(config.rpcUrl).toBe("http://localhost:3030")
   })
 
+  test("should accept betanet preset", () => {
+    const config = resolveNetworkConfig("betanet")
+
+    expect(config.networkId).toBe("betanet")
+    expect(config.rpcUrl).toBe("https://rpc.betanet.near.org")
+  })
+
   test("should accept custom network config", () => {
     const config = resolveNetworkConfig({
       rpcUrl: "https://custom-rpc.example.com",
@@ -204,6 +211,12 @@ describe("Near Constructor", () => {
     expect(near).toBeInstanceOf(Near)
   })
 
+  test("should create instance with betanet config", () => {
+    const near = new Near({ network: "betanet" })
+
+    expect(near).toBeInstanceOf(Near)
+  })
+
   test("should create instance with custom network", () => {
     const near = new Near({
       network: {
@@ -349,6 +362,23 @@ describe("NEAR_NETWORK Environment Variable", () => {
 
     expect(config.networkId).toBe("localnet")
     expect(config.rpcUrl).toBe("http://localhost:3030")
+
+    // Restore original env
+    if (originalEnv === undefined) {
+      delete process.env["NEAR_NETWORK"]
+    } else {
+      process.env["NEAR_NETWORK"] = originalEnv
+    }
+  })
+
+  test("should use betanet from NEAR_NETWORK env", () => {
+    const originalEnv = process.env["NEAR_NETWORK"]
+    process.env["NEAR_NETWORK"] = "betanet"
+
+    const config = resolveNetworkConfig()
+
+    expect(config.networkId).toBe("betanet")
+    expect(config.rpcUrl).toBe("https://rpc.betanet.near.org")
 
     // Restore original env
     if (originalEnv === undefined) {
