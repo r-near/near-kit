@@ -216,11 +216,6 @@ describe("NEP-616 - Deterministic AccountIds", () => {
 
       expect(result.status).toHaveProperty("SuccessValue")
       console.log(`✓ Contract deployed to: ${deterministicId}`)
-
-      // Verify the account exists by checking we can query it
-      // Note: We can't call methods yet since the contract needs initialization
-      // For now, just verify the deployment succeeded
-      expect(result.status).toHaveProperty("SuccessValue")
       console.log(`✓ Deterministic account deployed successfully`)
     }, 60000)
 
@@ -254,9 +249,6 @@ describe("NEP-616 - Deterministic AccountIds", () => {
 
       expect(result.status).toHaveProperty("SuccessValue")
       console.log(`✓ Contract deployed with initial storage`)
-
-      // Verify the deployment succeeded
-      expect(result.status).toHaveProperty("SuccessValue")
       console.log(`✓ Deterministic account with data deployed successfully`)
     }, 60000)
 

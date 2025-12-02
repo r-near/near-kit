@@ -6,7 +6,7 @@
  * these functions directly; they are exported for advanced and custom tooling.
  */
 
-import { base58 } from "@scure/base"
+import { parseCodeHash } from "../utils/state-init.js"
 import type {
   AccessKeyPermissionBorsh,
   AddKeyAction,
@@ -381,34 +381,8 @@ export function stateInit(
   if ("accountId" in options.code) {
     codeIdentifier = { AccountId: options.code.accountId }
   } else {
-    // Handle codeHash - could be string (base58) or Uint8Array
-    let hashBytes: Uint8Array
-    if (typeof options.code.codeHash === "string") {
-      try {
-        hashBytes = base58.decode(options.code.codeHash)
-      } catch {
-        throw new Error(`Invalid base58 code hash: ${options.code.codeHash}`)
-      }
-    } else {
-      hashBytes = options.code.codeHash
-    }
-
-    // Validate hash is 32 bytes
-    if (hashBytes.length !== 32) {
-      throw new Error(
-        `Code hash must be 32 bytes, got ${hashBytes.length} bytes`,
-      )
-    }
-
+    const hashBytes = parseCodeHash(options.code.codeHash)
     codeIdentifier = { CodeHash: Array.from(hashBytes) as number[] }
-  }
-
-  // Convert to Map format that zorsh's hashMap expects
-  const dataMap = new Map<Uint8Array, Uint8Array>()
-  if (options.data) {
-    for (const [key, value] of options.data.entries()) {
-      dataMap.set(key, value)
-    }
   }
 
   return {
@@ -416,7 +390,7 @@ export function stateInit(
       stateInit: {
         V1: {
           code: codeIdentifier,
-          data: dataMap,
+          data: options.data ?? new Map(),
         },
       },
       deposit: options.deposit,

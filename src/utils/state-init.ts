@@ -44,6 +44,35 @@ export interface StateInitOptions {
   data?: Map<Uint8Array, Uint8Array>
 }
 
+// ==================== Helper Functions ====================
+
+/**
+ * Parse and validate a code hash from either base58 string or Uint8Array
+ *
+ * @param codeHash - Code hash as base58 string or Uint8Array
+ * @returns Validated 32-byte hash as Uint8Array
+ * @throws Error if base58 is invalid or hash is not 32 bytes
+ */
+export function parseCodeHash(codeHash: string | Uint8Array): Uint8Array {
+  let hashBytes: Uint8Array
+
+  if (typeof codeHash === "string") {
+    try {
+      hashBytes = base58.decode(codeHash)
+    } catch {
+      throw new Error(`Invalid base58 code hash: ${codeHash}`)
+    }
+  } else {
+    hashBytes = codeHash
+  }
+
+  if (hashBytes.length !== 32) {
+    throw new Error(`Code hash must be 32 bytes, got ${hashBytes.length} bytes`)
+  }
+
+  return hashBytes
+}
+
 // ==================== Borsh Schemas for StateInit ====================
 
 /**
@@ -83,23 +112,7 @@ export function createStateInit(options: StateInitOptions): StateInit {
   if ("accountId" in options.code) {
     code = { type: "accountId", accountId: options.code.accountId }
   } else {
-    let hashBytes: Uint8Array
-    if (typeof options.code.codeHash === "string") {
-      try {
-        hashBytes = base58.decode(options.code.codeHash)
-      } catch {
-        throw new Error(`Invalid base58 code hash: ${options.code.codeHash}`)
-      }
-    } else {
-      hashBytes = options.code.codeHash
-    }
-
-    if (hashBytes.length !== 32) {
-      throw new Error(
-        `Code hash must be 32 bytes, got ${hashBytes.length} bytes`,
-      )
-    }
-
+    const hashBytes = parseCodeHash(options.code.codeHash)
     code = { type: "codeHash", hash: hashBytes }
   }
 
@@ -124,11 +137,29 @@ export function serializeStateInit(stateInit: StateInit): Uint8Array {
     codeIdentifier = { CodeHash: Array.from(stateInit.code.hash) as number[] }
   }
 
-  // Use the data Map directly (zorsh's hashMap expects Map<Uint8Array, Uint8Array>)
+  // Sort the data map by keys to ensure deterministic serialization
+  // NEP-616 specifies BTreeMap which has sorted order, but JavaScript Map
+  // maintains insertion order. We must sort to ensure the same key-value pairs
+  // produce the same account ID regardless of insertion order.
+  const sortedData = new Map(
+    Array.from(stateInit.data.entries()).sort((a, b) => {
+      const [keyA] = a
+      const [keyB] = b
+      // Compare byte-by-byte
+      for (let i = 0; i < Math.min(keyA.length, keyB.length); i++) {
+        if (keyA[i] !== keyB[i]) {
+          return keyA[i] - keyB[i]
+        }
+      }
+      // If all bytes match, shorter key comes first
+      return keyA.length - keyB.length
+    }),
+  )
+
   return StateInitSchema.serialize({
     V1: {
       code: codeIdentifier,
-      data: stateInit.data,
+      data: sortedData,
     },
   })
 }

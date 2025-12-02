@@ -158,6 +158,40 @@ describe("deriveAccountId", () => {
 
     expect(id1).toBe(id2)
   })
+
+  test("should derive same ID regardless of map insertion order", () => {
+    const code = { accountId: "publisher.near" }
+
+    // Create first map with keys inserted in one order
+    const data1 = new Map<Uint8Array, Uint8Array>()
+    data1.set(new TextEncoder().encode("zzz"), new TextEncoder().encode("last"))
+    data1.set(
+      new TextEncoder().encode("aaa"),
+      new TextEncoder().encode("first"),
+    )
+    data1.set(
+      new TextEncoder().encode("mmm"),
+      new TextEncoder().encode("middle"),
+    )
+
+    // Create second map with keys inserted in different order
+    const data2 = new Map<Uint8Array, Uint8Array>()
+    data2.set(
+      new TextEncoder().encode("aaa"),
+      new TextEncoder().encode("first"),
+    )
+    data2.set(
+      new TextEncoder().encode("mmm"),
+      new TextEncoder().encode("middle"),
+    )
+    data2.set(new TextEncoder().encode("zzz"), new TextEncoder().encode("last"))
+
+    const id1 = deriveAccountId({ code, data: data1 })
+    const id2 = deriveAccountId({ code, data: data2 })
+
+    // Both should produce the same account ID despite different insertion order
+    expect(id1).toBe(id2)
+  })
 })
 
 describe("isDeterministicAccountId", () => {
