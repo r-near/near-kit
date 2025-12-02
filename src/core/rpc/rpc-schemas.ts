@@ -328,6 +328,13 @@ export const ActionSchema = z.union([
       signature: z.string(),
     }),
   }),
+  z.object({
+    DeterministicStateInit: z.object({
+      // Note: The RPC only returns deposit, not state_init data
+      // StateInit is only needed during transaction construction
+      deposit: z.string(), // yoctoNEAR as string
+    }),
+  }),
 ])
 
 /**

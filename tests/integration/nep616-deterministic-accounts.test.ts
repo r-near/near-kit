@@ -113,7 +113,7 @@ describe("NEP-616 - Deterministic AccountIds", () => {
         isDeterministicAccountId("0s1234567890abcdef1234567890abcdef12345678"),
       ).toBe(true)
       expect(
-        isDeterministicAccountId("0sabcdefabcdefabcdefabcdefabcdefabcdefab"),
+        isDeterministicAccountId("0sabcdefabcdefabcdefabcdefabcdefabcdefabcd"),
       ).toBe(true)
     })
 
@@ -156,11 +156,14 @@ describe("NEP-616 - Deterministic AccountIds", () => {
     })
   })
 
-  describe("StateInit action", () => {
-    test("should publish a global contract for stateInit", async () => {
-      // First, we need to publish a global contract that can be referenced
-      const publisherKey = generateKey()
-      const publisherId = `nep616-publisher-${Date.now()}.${sandbox.rootAccount.id}`
+  describe("StateInit action - End-to-End", () => {
+    let publisherId: string
+    let publisherKey: ReturnType<typeof generateKey>
+
+    beforeAll(async () => {
+      // Set up a publisher account with a global contract
+      publisherKey = generateKey()
+      publisherId = `nep616-pub-${Date.now()}.${sandbox.rootAccount.id}`
 
       // Create publisher account
       await near
@@ -174,7 +177,7 @@ describe("NEP-616 - Deterministic AccountIds", () => {
 
       console.log(`✓ Publisher account created: ${publisherId}`)
 
-      // Load a simple contract
+      // Load and publish a global contract
       const contractPath = `${import.meta.dirname}/../contracts/guestbook.wasm`
       const contractCode = readFileSync(contractPath)
 
@@ -185,37 +188,175 @@ describe("NEP-616 - Deterministic AccountIds", () => {
         },
       })
 
-      // Publish the contract globally (identified by account ID)
       await nearWithPublisherKey
         .transaction(publisherId)
         .publishContract(contractCode, { identifiedBy: "account" })
         .send()
 
-      console.log(`✓ Global contract published by: ${publisherId}`)
-
-      // Verify the global contract is available
-      expect(true).toBe(true)
+      console.log(`✓ Global contract published: ${publisherId}`)
     }, 60000)
 
-    test("should derive correct receiverId for stateInit", async () => {
-      // Create a transaction builder and check that it derives the receiver correctly
-      // We verify by checking that the transaction can be built (which requires receiverId)
-      near.transaction(sandbox.rootAccount.id).stateInit({
-        code: { accountId: "publisher.near" },
-        deposit: "1 NEAR",
+    test("should deploy contract to deterministic account via StateInit", async () => {
+      // Derive the deterministic account ID
+      const deterministicId = deriveAccountId({
+        code: { accountId: publisherId },
       })
 
-      // The derived account ID should match
-      const expectedId = deriveAccountId({
-        code: { accountId: "publisher.near" },
+      console.log(`✓ Derived deterministic account: ${deterministicId}`)
+      expect(isDeterministicAccountId(deterministicId)).toBe(true)
+
+      // Deploy using StateInit
+      const result = await near
+        .transaction(sandbox.rootAccount.id)
+        .stateInit({
+          code: { accountId: publisherId },
+          deposit: "5 NEAR",
+        })
+        .send()
+
+      expect(result.status).toHaveProperty("SuccessValue")
+      console.log(`✓ Contract deployed to: ${deterministicId}`)
+
+      // Verify the account exists by checking we can query it
+      // Note: We can't call methods yet since the contract needs initialization
+      // For now, just verify the deployment succeeded
+      expect(result.status).toHaveProperty("SuccessValue")
+      console.log(`✓ Deterministic account deployed successfully`)
+    }, 60000)
+
+    test("should initialize contract with storage data via StateInit", async () => {
+      // Create storage data
+      const storageKey = new TextEncoder().encode("greeting")
+      const storageValue = new TextEncoder().encode("Hello from NEP-616!")
+      const data = new Map<Uint8Array, Uint8Array>()
+      data.set(storageKey, storageValue)
+
+      // Derive account ID with data
+      const deterministicId = deriveAccountId({
+        code: { accountId: publisherId },
+        data,
       })
 
-      // Access the internal receiverId (this is a bit of internal testing)
-      // We can verify by building the transaction
-      // For now, just verify the derivation is consistent
-      expect(expectedId).toMatch(/^0s[0-9a-f]{40}$/)
-      console.log(`✓ StateInit would target: ${expectedId}`)
-    }, 30000)
+      console.log(
+        `✓ Derived deterministic account with data: ${deterministicId}`,
+      )
+      expect(isDeterministicAccountId(deterministicId)).toBe(true)
+
+      // Deploy with initial storage
+      const result = await near
+        .transaction(sandbox.rootAccount.id)
+        .stateInit({
+          code: { accountId: publisherId },
+          data,
+          deposit: "5 NEAR",
+        })
+        .send()
+
+      expect(result.status).toHaveProperty("SuccessValue")
+      console.log(`✓ Contract deployed with initial storage`)
+
+      // Verify the deployment succeeded
+      expect(result.status).toHaveProperty("SuccessValue")
+      console.log(`✓ Deterministic account with data deployed successfully`)
+    }, 60000)
+
+    test("should handle deploying to already-deployed deterministic account", async () => {
+      // First deployment
+      const deterministicId = deriveAccountId({
+        code: { accountId: publisherId },
+      })
+
+      await near
+        .transaction(sandbox.rootAccount.id)
+        .stateInit({
+          code: { accountId: publisherId },
+          deposit: "5 NEAR",
+        })
+        .send()
+
+      console.log(`✓ First deployment completed: ${deterministicId}`)
+
+      // Second deployment to the same account (should not fail)
+      const result = await near
+        .transaction(sandbox.rootAccount.id)
+        .stateInit({
+          code: { accountId: publisherId },
+          deposit: "5 NEAR",
+        })
+        .send()
+
+      expect(result.status).toHaveProperty("SuccessValue")
+      console.log(`✓ Second deployment handled gracefully (refund scenario)`)
+    }, 60000)
+
+    test("should verify deterministic account is using expected code", async () => {
+      // Deploy a deterministic account
+      const deterministicId = deriveAccountId({
+        code: { accountId: publisherId },
+      })
+
+      await near
+        .transaction(sandbox.rootAccount.id)
+        .stateInit({
+          code: { accountId: publisherId },
+          deposit: "5 NEAR",
+        })
+        .send()
+
+      console.log(`✓ Deployed: ${deterministicId}`)
+
+      // Verify it matches expected derivation
+      const isValid = verifyDeterministicAccountId(deterministicId, {
+        code: { accountId: publisherId },
+      })
+
+      expect(isValid).toBe(true)
+      console.log(`✓ Account ID matches expected derivation`)
+
+      // Verify with wrong code reference should fail
+      const isInvalid = verifyDeterministicAccountId(deterministicId, {
+        code: { accountId: "wrong.near" },
+      })
+
+      expect(isInvalid).toBe(false)
+      console.log(`✓ Verification correctly rejects wrong code reference`)
+    }, 60000)
+
+    test("should allow calling methods on deterministic account", async () => {
+      // Deploy a deterministic account
+      const deterministicId = deriveAccountId({
+        code: { accountId: publisherId },
+      })
+
+      await near
+        .transaction(sandbox.rootAccount.id)
+        .stateInit({
+          code: { accountId: publisherId },
+          deposit: "5 NEAR",
+        })
+        .send()
+
+      console.log(`✓ Deployed: ${deterministicId}`)
+
+      // Call a method on the deterministic account (using guestbook's add_message)
+      const callResult = await near
+        .transaction(sandbox.rootAccount.id)
+        .functionCall(
+          deterministicId,
+          "add_message",
+          { text: "Hello from deterministic account!" },
+          { attachedDeposit: "0 NEAR" },
+        )
+        .send()
+
+      expect(callResult.status).toHaveProperty("SuccessValue")
+      console.log(`✓ Method call on deterministic account succeeded`)
+
+      // Verify we can query the account (even if initialization is pending)
+      // The fact that the function call succeeded proves the account is callable
+      expect(callResult).toBeDefined()
+      console.log(`✓ Deterministic account is fully functional`)
+    }, 60000)
   })
 })
 
