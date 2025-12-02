@@ -20,7 +20,12 @@ import { NETWORK_PRESETS } from "./constants.js"
 /**
  * Schema for network presets (mainnet, testnet, localnet)
  */
-export const NetworkPresetSchema = z.enum(["mainnet", "testnet", "localnet"])
+export const NetworkPresetSchema = z.enum([
+  "mainnet",
+  "testnet",
+  "localnet",
+  "betanet",
+])
 
 /**
  * Schema for custom network configuration
@@ -207,7 +212,8 @@ export function resolveNetworkConfig(network?: NetworkConfig): {
       envNetwork &&
       (envNetwork === "mainnet" ||
         envNetwork === "testnet" ||
-        envNetwork === "localnet")
+        envNetwork === "localnet" ||
+        envNetwork === "betanet")
     ) {
       return NETWORK_PRESETS[envNetwork as NetworkPreset]
     }
