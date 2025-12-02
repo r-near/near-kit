@@ -1,5 +1,11 @@
 # near-kit
 
+## 0.5.1
+
+### Patch Changes
+
+- ee7d34d: Add betanet support to NetworkPresetSchema for type consistency with Network type from credential-schemas
+
 ## 0.5.0
 
 ### Minor Changes
