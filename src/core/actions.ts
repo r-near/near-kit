@@ -6,6 +6,7 @@
  * these functions directly; they are exported for advanced and custom tooling.
  */
 
+import { base58 } from "@scure/base"
 import { parseCodeHash } from "../utils/state-init.js"
 import type {
   AccessKeyPermissionBorsh,

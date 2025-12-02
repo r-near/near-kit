@@ -147,8 +147,10 @@ export function serializeStateInit(stateInit: StateInit): Uint8Array {
       const [keyB] = b
       // Compare byte-by-byte
       for (let i = 0; i < Math.min(keyA.length, keyB.length); i++) {
-        if (keyA[i] !== keyB[i]) {
-          return keyA[i] - keyB[i]
+        const byteA = keyA[i]
+        const byteB = keyB[i]
+        if (byteA !== undefined && byteB !== undefined && byteA !== byteB) {
+          return byteA - byteB
         }
       }
       // If all bytes match, shorter key comes first
