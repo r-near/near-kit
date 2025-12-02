@@ -2,7 +2,7 @@
  * Tests for Near client configuration
  */
 
-import { describe, expect, test } from "vitest"
+import { describe, expect, test, vi } from "vitest"
 import {
   NearConfigSchema,
   type NetworkConfig,
@@ -373,5 +373,21 @@ describe("NEAR_NETWORK Environment Variable", () => {
     } else {
       process.env["NEAR_NETWORK"] = originalEnv
     }
+  })
+
+  test("should handle environments without process global", () => {
+    const originalProcess = globalThis.process
+
+    // Simulate browser-like environment
+    // biome-ignore lint/suspicious/noExplicitAny: deliberately overriding global for test
+    vi.stubGlobal("process", undefined as any)
+
+    const config = resolveNetworkConfig()
+    expect(config.networkId).toBe("mainnet")
+
+    vi.unstubAllGlobals()
+    // Restore original process for other tests
+    // biome-ignore lint/suspicious/noExplicitAny: restoring captured global value
+    if (originalProcess) vi.stubGlobal("process", originalProcess as any)
   })
 })

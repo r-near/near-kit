@@ -433,3 +433,12 @@ async function waitForReady(
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
+
+// Internal hooks for tests
+export const _internal = {
+  ensureBinary,
+  loadValidatorKey,
+  findAvailablePort,
+  pingRpc,
+  waitForReady,
+}

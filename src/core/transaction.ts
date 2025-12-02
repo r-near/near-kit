@@ -963,13 +963,12 @@ export class TransactionBuilder {
       }
     }
 
-    // This should never be reached, but TypeScript needs it
-    throw (
-      lastError ||
-      new NearError(
-        "Unknown error during transaction send",
-        "UNKNOWN_TRANSACTION_ERROR",
-      )
+    if (lastError) {
+      throw lastError
+    }
+    throw new NearError(
+      "Unknown error during transaction send",
+      "UNKNOWN_TRANSACTION_ERROR",
     )
   }
 }

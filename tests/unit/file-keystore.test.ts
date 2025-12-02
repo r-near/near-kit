@@ -5,7 +5,7 @@
 import * as fs from "node:fs/promises"
 import * as os from "node:os"
 import * as path from "node:path"
-import { afterEach, beforeEach, describe, expect, test } from "vitest"
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 import { FileKeyStore } from "../../src/keys/file-keystore.js"
 import { generateKey } from "../../src/utils/key.js"
 
@@ -356,6 +356,27 @@ describe("FileKeyStore - get() method", () => {
     expect(retrieved).toBeNull()
   })
 
+  test("returns null when multi-key path is a file", async () => {
+    const keyStore = new FileKeyStore(tempDir, "testnet")
+    const networkDir = path.join(tempDir, "testnet")
+    await fs.mkdir(networkDir, { recursive: true })
+    const multiKeyPath = path.join(networkDir, "notadir.testnet")
+    await fs.writeFile(multiKeyPath, "not a dir")
+
+    const retrieved = await keyStore.get("notadir.testnet")
+    expect(retrieved).toBeNull()
+  })
+
+  test("returns null when multi-key dir has no key files", async () => {
+    const keyStore = new FileKeyStore(tempDir, "testnet")
+    const accountDir = path.join(tempDir, "testnet", "empty.testnet")
+    await fs.mkdir(accountDir, { recursive: true })
+    await fs.writeFile(path.join(accountDir, "readme.txt"), "noop")
+
+    const retrieved = await keyStore.get("empty.testnet")
+    expect(retrieved).toBeNull()
+  })
+
   test("should read legacy format with secret_key field", async () => {
     const keyStore = new FileKeyStore(tempDir, "testnet")
     const key = generateKey()
@@ -469,6 +490,64 @@ describe("FileKeyStore - remove() method", () => {
     const simplePath = path.join(tempDir, "testnet", "test.testnet.json")
     await expect(fs.stat(simplePath)).rejects.toThrow()
     await expect(fs.stat(accountDir)).rejects.toThrow()
+  })
+
+  test("should propagate unexpected unlink errors", async () => {
+    vi.resetModules()
+    const unlinkError = Object.assign(new Error("boom"), { code: "EACCES" })
+
+    vi.doMock("node:fs/promises", async () => {
+      const actual =
+        await vi.importActual<typeof import("node:fs/promises")>(
+          "node:fs/promises",
+        )
+      return {
+        ...actual,
+        unlink: vi.fn().mockRejectedValue(unlinkError),
+        rm: vi.fn(),
+      }
+    })
+
+    const { FileKeyStore: MockedFileKeyStore } = await import(
+      "../../src/keys/file-keystore.js"
+    )
+    const keyStore = new MockedFileKeyStore(tempDir, "testnet")
+
+    await expect(keyStore.remove("test.testnet")).rejects.toThrow("boom")
+
+    vi.resetModules()
+    vi.doUnmock("node:fs/promises")
+  })
+
+  test("should propagate unexpected rm errors", async () => {
+    vi.resetModules()
+    const rmError = Object.assign(new Error("rm-fail"), { code: "EACCES" })
+
+    vi.doMock("node:fs/promises", async () => {
+      const actual =
+        await vi.importActual<typeof import("node:fs/promises")>(
+          "node:fs/promises",
+        )
+      return {
+        ...actual,
+        unlink: vi
+          .fn()
+          .mockRejectedValue(
+            Object.assign(new Error("missing"), { code: "ENOENT" }),
+          ),
+        rm: vi.fn().mockRejectedValue(rmError),
+      }
+    })
+
+    const { FileKeyStore: MockedFileKeyStore } = await import(
+      "../../src/keys/file-keystore.js"
+    )
+    const keyStore = new MockedFileKeyStore(tempDir, "testnet")
+
+    await expect(keyStore.remove("test.testnet")).rejects.toThrow("rm-fail")
+
+    vi.resetModules()
+    vi.doUnmock("node:fs/promises")
   })
 })
 
@@ -622,5 +701,33 @@ describe("FileKeyStore - list() method", () => {
 
     expect(accounts).toContain("valid.testnet")
     expect(accounts).not.toContain("empty.testnet")
+  })
+
+  test("should rethrow unexpected errors when listing", async () => {
+    vi.resetModules()
+    const readdirError = Object.assign(new Error("list-fail"), {
+      code: "EACCES",
+    })
+
+    vi.doMock("node:fs/promises", async () => {
+      const actual =
+        await vi.importActual<typeof import("node:fs/promises")>(
+          "node:fs/promises",
+        )
+      return {
+        ...actual,
+        readdir: vi.fn().mockRejectedValue(readdirError),
+      }
+    })
+
+    const { FileKeyStore: MockedFileKeyStore } = await import(
+      "../../src/keys/file-keystore.js"
+    )
+    const keyStore = new MockedFileKeyStore(tempDir, "testnet")
+
+    await expect(keyStore.list()).rejects.toThrow("list-fail")
+
+    vi.resetModules()
+    vi.doUnmock("node:fs/promises")
   })
 })
