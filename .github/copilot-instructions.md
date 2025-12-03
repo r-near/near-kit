@@ -43,7 +43,7 @@ bun run lint               # Lint and format with Biome
 
 This project uses [changesets](https://github.com/changesets/changesets) for version management.
 
-**IMPORTANT:** When making changes that should be included in the next release, you MUST create a changeset file manually.
+**IMPORTANT:** When making changes that should be included in the next release, you MUST create a changeset file manually. The interactive CLI (`bun changeset`) does not work in AI environments.
 
 ### Creating a Changeset
 
@@ -112,7 +112,7 @@ describe("Feature", () => {
   beforeAll(async () => {
     sandbox = await Sandbox.start()
     near = new Near({ network: sandbox })
-  }, 60000) // Sandbox startup can take time
+  }, 60000) // 60 second timeout - Sandbox startup can take time
 
   test("should do X", async () => {
     const account = `test-${Date.now()}.${sandbox.rootAccount.id}`
