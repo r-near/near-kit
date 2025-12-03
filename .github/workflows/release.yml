@@ -11,10 +11,6 @@ on:
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
-permissions:
-  id-token: write  # Required for OIDC
-  contents: read
-
 jobs:
   release:
     name: Release
@@ -23,6 +19,7 @@ jobs:
       contents: write
       pull-requests: write
       repository-projects: write
+      id-token: write  # Required for OIDC
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v4
