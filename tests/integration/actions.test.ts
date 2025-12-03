@@ -88,7 +88,7 @@ describe("Transaction Actions - Integration Tests", () => {
       // Delete the account
       await nearWithNewKey
         .transaction(accountId)
-        .deleteAccount(beneficiaryId)
+        .deleteAccount({ beneficiary: beneficiaryId })
         .send()
 
       console.log(`✓ Account deleted: ${accountId}`)
@@ -114,7 +114,7 @@ describe("Transaction Actions - Integration Tests", () => {
       await expect(async () => {
         await near
           .transaction(fakeAccountId)
-          .deleteAccount(sandbox.rootAccount.id)
+          .deleteAccount({ beneficiary: sandbox.rootAccount.id })
           .send()
       }).rejects.toThrow()
     }, 30000)

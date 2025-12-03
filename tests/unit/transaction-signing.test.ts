@@ -128,7 +128,7 @@ describe("TransactionBuilder - .sign() method", () => {
     await builder.sign()
     expect(builder.getHash()).not.toBeNull()
 
-    builder.deleteAccount("beneficiary.near")
+    builder.deleteAccount({ beneficiary: "beneficiary.near" })
     expect(builder.getHash()).toBeNull()
 
     await builder.sign()

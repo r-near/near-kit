@@ -68,7 +68,9 @@ describe("TransactionBuilder - Fluent API", () => {
   })
 
   test("should chain deleteAccount action", () => {
-    const builder = createBuilder().deleteAccount("beneficiary.near")
+    const builder = createBuilder().deleteAccount({
+      beneficiary: "beneficiary.near",
+    })
 
     // @ts-expect-error - accessing private field for testing
     expect(builder.actions.length).toBe(1)
@@ -448,7 +450,7 @@ describe("TransactionBuilder - Complex Scenarios", () => {
       .deployContract("new.near", new Uint8Array())
       .functionCall("new.near", "init", {})
       .stake(TEST_PUBLIC_KEY, Amount.NEAR(100))
-      .deleteAccount("beneficiary.near")
+      .deleteAccount({ beneficiary: "beneficiary.near" })
 
     // @ts-expect-error - accessing private field for testing
     expect(builder.actions.length).toBe(6)
