@@ -23,11 +23,13 @@ bun install
 
 ### Testing
 
+Tests use [Vitest](https://vitest.dev/) (not Bun's test runner) which runs tests in parallel per-file for faster integration test execution.
+
 ```bash
-bun test                    # Run all tests
-bun test <file>             # Run specific test file
-bun test tests/unit/        # Run unit tests only
-bun test tests/integration/ # Run integration tests only
+bun run test                    # Run all tests
+bun run test <file>             # Run specific test file
+bun run test:unit               # Run unit tests only
+bun run test:integration        # Run integration tests only
 ```
 
 ### Building & Type Checking
@@ -263,6 +265,17 @@ git commit -m "docs: remove walletUrl and helperUrl from configuration"
 git push -u origin docs/remove-wallet-helper-urls
 gh pr create --title "docs: remove walletUrl and helperUrl" --body "Updates docs for r-near/near-kit#67"
 ```
+
+## For Coding Agents (Copilot, etc.)
+
+If you are an AI coding agent working independently (e.g., GitHub Copilot coding agent), you **MUST** complete these verification steps before creating or updating a pull request:
+
+```bash
+bun run lint       # Lint and auto-fix code style issues
+bun run typecheck  # Ensure no TypeScript type errors
+```
+
+**CRITICAL:** Do not create a PR or push code with lint or type errors. These checks are enforced by CI and will cause the PR to fail. If checks fail, run the commands locally, fix the reported issues, and commit the fixes.
 
 ## Git Workflow & Pull Requests
 

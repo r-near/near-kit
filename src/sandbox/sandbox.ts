@@ -111,8 +111,9 @@ export class Sandbox {
     }
 
     // 5. Start sandbox process
+    // Find two separate available ports to avoid conflicts when running in parallel
     const port = await findAvailablePort()
-    const networkPort = port + 1
+    const networkPort = await findAvailablePort()
     const childProcess = spawn(
       binaryPath,
       [
