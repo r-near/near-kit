@@ -300,10 +300,11 @@ describe("RotatingKeyStore Integration", () => {
         "total_messages",
         {},
       )
-
-      // biome-ignore lint/style/noNonNullAssertion: test knows view returns data
       console.log(
-        `✓ InMemoryKeyStore (1 key): ${singleSucceeded}/10 succeeded (${singleFinalCount! - singleInitialCount!} messages added)`,
+        `✓ InMemoryKeyStore (1 key): ${singleSucceeded}/10 succeeded (${
+          // biome-ignore lint/style/noNonNullAssertion: test knows view returns data
+          singleFinalCount! - singleInitialCount!
+        } messages added)`,
       )
 
       // Test 2: RotatingKeyStore (3 keys) - improved
@@ -368,9 +369,11 @@ describe("RotatingKeyStore Integration", () => {
         {},
       )
 
-      // biome-ignore lint/style/noNonNullAssertion: test knows view returns data
       console.log(
-        `✓ RotatingKeyStore (3 keys): ${multiSucceeded}/10 succeeded (${multiFinalCount! - multiInitialCount!} messages added)`,
+        `✓ RotatingKeyStore (3 keys): ${multiSucceeded}/10 succeeded (${
+          // biome-ignore lint/style/noNonNullAssertion: test knows view returns data
+          multiFinalCount! - multiInitialCount!
+        } messages added)`,
       )
 
       // Both should achieve 100% success rate
