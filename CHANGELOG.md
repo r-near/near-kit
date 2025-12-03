@@ -1,5 +1,12 @@
 # near-kit
 
+## 0.5.4
+
+### Patch Changes
+
+- 8cbd6cf: refactor(transaction): change deleteAccount to use object parameter with beneficiary field
+- ce1c6e9: fix: update view() return type to Promise<T | undefined>
+
 ## 0.5.3
 
 ### Patch Changes
