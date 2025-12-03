@@ -275,7 +275,7 @@ bun run lint       # Lint and auto-fix code style issues
 bun run typecheck  # Ensure no TypeScript type errors
 ```
 
-**CRITICAL:** Do not create a PR or push code with lint or type errors. These checks are enforced by CI and will cause the PR to fail.
+**CRITICAL:** Do not create a PR or push code with lint or type errors. These checks are enforced by CI and will cause the PR to fail. If checks fail, run the commands locally, fix the reported issues, and commit the fixes.
 
 ## Git Workflow & Pull Requests
 
