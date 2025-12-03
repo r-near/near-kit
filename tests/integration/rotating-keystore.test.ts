@@ -156,7 +156,8 @@ describe("RotatingKeyStore Integration", () => {
         {},
       )
 
-      expect(finalCount).toBe(initialCount + 3)
+      // biome-ignore lint/style/noNonNullAssertion: test knows view returns data
+      expect(finalCount).toBe(initialCount! + 3)
 
       console.log("✓ Successfully rotated through 3 keys")
     }, 90000)
@@ -245,7 +246,8 @@ describe("RotatingKeyStore Integration", () => {
         {},
       )
 
-      expect(finalCount).toBe(initialCount + succeeded)
+      // biome-ignore lint/style/noNonNullAssertion: test knows view returns data
+      expect(finalCount).toBe(initialCount! + succeeded)
     }, 120000)
 
     test("comparison: RotatingKeyStore vs InMemoryKeyStore", async () => {
@@ -298,9 +300,11 @@ describe("RotatingKeyStore Integration", () => {
         "total_messages",
         {},
       )
-
       console.log(
-        `✓ InMemoryKeyStore (1 key): ${singleSucceeded}/10 succeeded (${singleFinalCount - singleInitialCount} messages added)`,
+        `✓ InMemoryKeyStore (1 key): ${singleSucceeded}/10 succeeded (${
+          // biome-ignore lint/style/noNonNullAssertion: test knows view returns data
+          singleFinalCount! - singleInitialCount!
+        } messages added)`,
       )
 
       // Test 2: RotatingKeyStore (3 keys) - improved
@@ -366,7 +370,10 @@ describe("RotatingKeyStore Integration", () => {
       )
 
       console.log(
-        `✓ RotatingKeyStore (3 keys): ${multiSucceeded}/10 succeeded (${multiFinalCount - multiInitialCount} messages added)`,
+        `✓ RotatingKeyStore (3 keys): ${multiSucceeded}/10 succeeded (${
+          // biome-ignore lint/style/noNonNullAssertion: test knows view returns data
+          multiFinalCount! - multiInitialCount!
+        } messages added)`,
       )
 
       // Both should achieve 100% success rate
@@ -458,7 +465,8 @@ describe("RotatingKeyStore Integration", () => {
         {},
       )
 
-      expect(finalCount).toBe(initialCount + succeeded)
+      // biome-ignore lint/style/noNonNullAssertion: test knows view returns data
+      expect(finalCount).toBe(initialCount! + succeeded)
     }, 180000)
   })
 

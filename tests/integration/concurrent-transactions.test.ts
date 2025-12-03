@@ -144,7 +144,8 @@ describe("Concurrent Transactions", () => {
         {},
       )
 
-      expect(finalCount).toBeGreaterThanOrEqual(initialCount + succeeded)
+      // biome-ignore lint/style/noNonNullAssertion: test knows view returns data
+      expect(finalCount).toBeGreaterThanOrEqual(initialCount! + succeeded)
 
       console.log(`✓ Message count increased: ${initialCount} → ${finalCount}`)
     }, 90000)
@@ -175,7 +176,8 @@ describe("Concurrent Transactions", () => {
       )
 
       // All 5 should succeed when sent sequentially
-      expect(finalCount).toBe(initialCount + 5)
+      // biome-ignore lint/style/noNonNullAssertion: test knows view returns data
+      expect(finalCount).toBe(initialCount! + 5)
 
       console.log("✓ All sequential transactions succeeded")
     }, 90000)
@@ -240,7 +242,8 @@ describe("Concurrent Transactions", () => {
         {},
       )
 
-      expect(finalCount).toBeGreaterThanOrEqual(initialCount + succeeded)
+      // biome-ignore lint/style/noNonNullAssertion: test knows view returns data
+      expect(finalCount).toBeGreaterThanOrEqual(initialCount! + succeeded)
     }, 90000)
 
     test("should handle mixed transaction types concurrently", async () => {
@@ -369,7 +372,8 @@ describe("Concurrent Transactions", () => {
         {},
       )
 
-      expect(finalCount).toBe(initialCount + 4)
+      // biome-ignore lint/style/noNonNullAssertion: test knows view returns data
+      expect(finalCount).toBe(initialCount! + 4)
 
       console.log("✓ All multi-account transactions succeeded")
     }, 90000)

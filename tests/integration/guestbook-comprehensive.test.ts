@@ -106,7 +106,8 @@ describe("Guestbook Contract - Comprehensive Tests", () => {
       )
 
       expect(Array.isArray(messages)).toBe(true)
-      expect(messages.length).toBe(0)
+      // biome-ignore lint/style/noNonNullAssertion: test knows view returns data
+      expect(messages!.length).toBe(0)
       console.log("✓ Initial messages: []")
     })
   })
@@ -177,23 +178,27 @@ describe("Guestbook Contract - Comprehensive Tests", () => {
       )
 
       expect(Array.isArray(messages)).toBe(true)
-      expect(messages.length).toBe(4)
+      // biome-ignore lint/style/noNonNullAssertion: test knows view returns data
+      expect(messages!.length).toBe(4)
 
       // Verify message structure
-      expect(messages[0]).toHaveProperty("text")
-      expect(messages[0]).toHaveProperty("sender")
-      expect(messages[0]).toHaveProperty("premium")
+      // biome-ignore lint/style/noNonNullAssertion: test knows view returns data
+      expect(messages![0]).toHaveProperty("text")
+      // biome-ignore lint/style/noNonNullAssertion: test knows view returns data
+      expect(messages![0]).toHaveProperty("sender")
+      // biome-ignore lint/style/noNonNullAssertion: test knows view returns data
+      expect(messages![0]).toHaveProperty("premium")
 
       // Verify message content (order matters - should be chronological)
       // biome-ignore lint/style/noNonNullAssertion: test knows array element exists
-      expect(messages[0]!.text).toBe("Hello from user1!")
+      expect(messages![0]!.text).toBe("Hello from user1!")
       // biome-ignore lint/style/noNonNullAssertion: test knows array element exists
-      expect(messages[0]!.sender).toBe(user1Id)
+      expect(messages![0]!.sender).toBe(user1Id)
 
       // biome-ignore lint/style/noNonNullAssertion: test knows array element exists
-      expect(messages[1]!.text).toBe("Greetings from user2!")
+      expect(messages![1]!.text).toBe("Greetings from user2!")
       // biome-ignore lint/style/noNonNullAssertion: test knows array element exists
-      expect(messages[1]!.sender).toBe(user2Id)
+      expect(messages![1]!.sender).toBe(user2Id)
 
       console.log("✓ All messages retrieved with correct structure")
     })
@@ -209,9 +214,10 @@ describe("Guestbook Contract - Comprehensive Tests", () => {
         from_index: "2",
       })
 
-      expect(messages.length).toBe(2) // Should get messages from index 2 onwards
+      // biome-ignore lint/style/noNonNullAssertion: test knows view returns data
+      expect(messages!.length).toBe(2) // Should get messages from index 2 onwards
       // biome-ignore lint/style/noNonNullAssertion: test knows array element exists
-      expect(messages[0]!.text).toBe("Second message from user1")
+      expect(messages![0]!.text).toBe("Second message from user1")
 
       console.log("✓ Pagination with from_index works")
     })
@@ -227,11 +233,12 @@ describe("Guestbook Contract - Comprehensive Tests", () => {
         limit: "2",
       })
 
-      expect(messages.length).toBe(2)
+      // biome-ignore lint/style/noNonNullAssertion: test knows view returns data
+      expect(messages!.length).toBe(2)
       // biome-ignore lint/style/noNonNullAssertion: test knows array element exists
-      expect(messages[0]!.text).toBe("Hello from user1!")
+      expect(messages![0]!.text).toBe("Hello from user1!")
       // biome-ignore lint/style/noNonNullAssertion: test knows array element exists
-      expect(messages[1]!.text).toBe("Greetings from user2!")
+      expect(messages![1]!.text).toBe("Greetings from user2!")
 
       console.log("✓ Pagination with limit works")
     })
@@ -248,11 +255,12 @@ describe("Guestbook Contract - Comprehensive Tests", () => {
         limit: "2",
       })
 
-      expect(messages.length).toBe(2)
+      // biome-ignore lint/style/noNonNullAssertion: test knows view returns data
+      expect(messages!.length).toBe(2)
       // biome-ignore lint/style/noNonNullAssertion: test knows array element exists
-      expect(messages[0]!.text).toBe("Greetings from user2!")
+      expect(messages![0]!.text).toBe("Greetings from user2!")
       // biome-ignore lint/style/noNonNullAssertion: test knows array element exists
-      expect(messages[1]!.text).toBe("Second message from user1")
+      expect(messages![1]!.text).toBe("Second message from user1")
 
       console.log("✓ Pagination with from_index and limit works")
     })
@@ -341,7 +349,7 @@ describe("Guestbook Contract - Comprehensive Tests", () => {
       )
 
       // biome-ignore lint/style/noNonNullAssertion: Test code expects message to exist
-      const lastMessage = messages[messages.length - 1]!
+      const lastMessage = messages![messages!.length - 1]!
       expect(lastMessage.text).toBe(specialText)
       console.log("✓ Special characters handled correctly")
     }, 30000)
@@ -378,7 +386,8 @@ describe("Guestbook Contract - Comprehensive Tests", () => {
         {},
       )
 
-      expect(afterCount).toBe(beforeCount + 1)
+      // biome-ignore lint/style/noNonNullAssertion: test knows view returns data
+      expect(afterCount).toBe(beforeCount! + 1)
 
       interface Message {
         premium: boolean
@@ -392,7 +401,7 @@ describe("Guestbook Contract - Comprehensive Tests", () => {
         {},
       )
       // biome-ignore lint/style/noNonNullAssertion: Test code expects message to exist
-      const lastMessage = messages[messages.length - 1]!
+      const lastMessage = messages![messages!.length - 1]!
       expect(lastMessage.text).toBe("Testing persistence")
       expect(lastMessage.sender).toBe(user2Id)
 
@@ -425,7 +434,7 @@ describe("Guestbook Contract - Comprehensive Tests", () => {
       )
 
       // biome-ignore lint/style/noNonNullAssertion: Test code expects message to exist
-      const lastMessage = messages[messages.length - 1]!
+      const lastMessage = messages![messages!.length - 1]!
       expect(lastMessage.text).toBe("Premium message!")
       expect(lastMessage.premium).toBe(true)
 
@@ -453,7 +462,7 @@ describe("Guestbook Contract - Comprehensive Tests", () => {
       )
 
       // biome-ignore lint/style/noNonNullAssertion: Test code expects message to exist
-      const lastMessage = messages[messages.length - 1]!
+      const lastMessage = messages![messages!.length - 1]!
       expect(lastMessage.text).toBe("Regular message")
       expect(lastMessage.premium).toBe(false)
 
@@ -475,8 +484,10 @@ describe("Guestbook Contract - Comprehensive Tests", () => {
         {},
       )
 
-      const user1Messages = messages.filter((m) => m.sender === user1Id)
-      const user2Messages = messages.filter((m) => m.sender === user2Id)
+      // biome-ignore lint/style/noNonNullAssertion: test knows view returns data
+      const user1Messages = messages!.filter((m) => m.sender === user1Id)
+      // biome-ignore lint/style/noNonNullAssertion: test knows view returns data
+      const user2Messages = messages!.filter((m) => m.sender === user2Id)
 
       expect(user1Messages.length).toBeGreaterThan(0)
       expect(user2Messages.length).toBeGreaterThan(0)

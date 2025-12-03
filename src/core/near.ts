@@ -241,11 +241,14 @@ export class Near {
    * @param options - Optional {@link BlockReference} to specify finality or block.
    *
    * @returns Parsed JSON result when the contract returns JSON, otherwise the
-   * raw string value typed as `T`.
+   * raw string value typed as `T`. Returns `undefined` when the contract returns
+   * an empty response.
    *
    * @remarks
    * - View calls are free and do not require a signer or gas.
    * - Errors thrown by the contract surface as {@link ContractExecutionError}.
+   * - The generic type `T` is a type assertion for convenience; no runtime
+   *   validation is performed against `T`.
    *
    * @see NearConfig.defaultWaitUntil
    */
@@ -254,7 +257,7 @@ export class Near {
     methodName: string,
     args: object | Uint8Array = {},
     options?: BlockReference,
-  ): Promise<T> {
+  ): Promise<T | undefined> {
     const result = await this.rpc.viewFunction(
       contractId,
       methodName,
@@ -267,7 +270,7 @@ export class Near {
     const resultString = new TextDecoder().decode(resultBuffer)
 
     if (!resultString) {
-      return undefined as T
+      return undefined
     }
 
     try {
