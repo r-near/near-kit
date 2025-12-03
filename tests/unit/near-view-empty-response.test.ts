@@ -115,7 +115,7 @@ describe("Near.view() - Empty Response Handling", () => {
     const mockViewFunction = vi
       .spyOn(RpcClient.prototype, "viewFunction")
       .mockResolvedValue({
-        result: new Uint8Array(0), // Another way to represent empty
+        result: [],
         logs: [],
         block_height: 123456,
         block_hash: "test-hash",
