@@ -328,10 +328,34 @@ export class TransactionBuilder {
   }
 
   /**
-   * Add a delete account action
+   * Add a delete account action.
+   *
+   * Deletes the account that is the **receiver of this transaction** (typically set
+   * by a prior action or explicitly via the first action in the chain). The remaining
+   * balance is transferred to the specified beneficiary.
+   *
+   * @param options - Delete account options.
+   * @param options.beneficiary - Account ID that will receive the remaining NEAR balance
+   *                              after the account is deleted.
+   *
+   * @returns This builder instance for chaining.
+   *
+   * @example
+   * ```typescript
+   * // Delete "old-account.alice.near" and send remaining funds to "alice.near"
+   * await near.transaction('old-account.alice.near')
+   *   .deleteAccount({ beneficiary: 'alice.near' })
+   *   .send()
+   * ```
+   *
+   * @remarks
+   * - The account being deleted is the transaction receiver (set via `.transaction()` or
+   *   the first action).
+   * - Only the account itself can delete itself (the signer must have full access to the
+   *   account being deleted).
    */
-  deleteAccount(beneficiaryId: string): this {
-    this.actions.push(actions.deleteAccount(beneficiaryId))
+  deleteAccount(options: { beneficiary: string }): this {
+    this.actions.push(actions.deleteAccount(options.beneficiary))
 
     // The account being deleted is the receiver of the transaction
     if (!this.receiverId) {
