@@ -38,27 +38,6 @@ describe("Near.view() - Empty Response Handling", () => {
     mockViewFunction.mockRestore()
   })
 
-  test("should return undefined when contract returns whitespace-only string", async () => {
-    const near = new Near({ network: "testnet" })
-
-    // Mock the RPC client to return whitespace (which will decode to empty after trim)
-    // Note: The current implementation doesn't trim, so empty array is the only way to get undefined
-    const mockViewFunction = vi
-      .spyOn(RpcClient.prototype, "viewFunction")
-      .mockResolvedValue({
-        result: [], // Empty array results in empty string
-        logs: [],
-        block_height: 123456,
-        block_hash: "test-hash",
-      })
-
-    const result = await near.view("contract.near", "method", {})
-
-    expect(result).toBeUndefined()
-
-    mockViewFunction.mockRestore()
-  })
-
   test("should parse JSON when contract returns valid JSON", async () => {
     const near = new Near({ network: "testnet" })
 
