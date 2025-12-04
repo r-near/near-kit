@@ -12,7 +12,7 @@ import { sha256 } from "@noble/hashes/sha2.js"
 import { randomBytes } from "@noble/hashes/utils.js"
 import { base58, base64 } from "@scure/base"
 import { b } from "@zorsh/zorsh"
-import { RpcClient } from "../core/rpc/rpc.js"
+import type { Near } from "../core/near.js"
 import type { SignedMessage, SignMessageParams } from "../core/types.js"
 import { parsePublicKey } from "./key.js"
 
@@ -88,12 +88,6 @@ export function serializeNep413Message(params: SignMessageParams): Uint8Array {
 }
 
 /**
- * RPC configuration for NEP-413 signature verification.
- * Can be an RpcClient instance or a URL string to create one.
- */
-export type Nep413RpcConfig = RpcClient | string
-
-/**
  * Options for NEP-413 signature verification
  */
 export interface VerifyNep413Options {
@@ -104,30 +98,20 @@ export interface VerifyNep413Options {
   maxAge?: number
 
   /**
-   * RPC client or URL for verifying that the public key belongs to the account ID.
+   * Near client instance for verifying that the public key belongs to the account ID.
    *
-   * When provided, an RPC call to `view_access_key` will be made to verify that
-   * the public key in the signed message actually belongs to the claimed account ID.
+   * When provided, the function will verify that the public key in the signed message
+   * actually belongs to the claimed account ID by querying the NEAR blockchain.
    * This provides an additional layer of security by ensuring the signer has
    * a valid access key on the NEAR blockchain.
    *
-   * Can be:
-   * - An `RpcClient` instance
-   * - A URL string (e.g., "https://rpc.testnet.near.org")
-   *
    * @example
    * ```typescript
-   * // Using URL string
-   * const isValid = await verifyNep413Signature(signedMessage, params, {
-   *   rpc: "https://rpc.mainnet.near.org",
-   * })
-   *
-   * // Using RpcClient instance
-   * const rpc = new RpcClient("https://rpc.mainnet.near.org")
-   * const isValid = await verifyNep413Signature(signedMessage, params, { rpc })
+   * const near = new Near({ network: "mainnet" })
+   * const isValid = await verifyNep413Signature(signedMessage, params, { near })
    * ```
    */
-  rpc?: Nep413RpcConfig
+  near?: Near
 }
 
 /**
@@ -136,29 +120,28 @@ export interface VerifyNep413Options {
  * Automatically checks timestamp expiration (default: 5 minutes).
  * You must still track used nonces to prevent replay attacks.
  *
- * When `options.rpc` is provided, this function also verifies that the public key
+ * When `options.near` is provided, this function also verifies that the public key
  * in the signed message belongs to the claimed account ID by querying the NEAR
- * blockchain via RPC. This provides protection against attackers who might try
+ * blockchain. This provides protection against attackers who might try
  * to claim ownership of an account using a different key.
  *
  * @param signedMessage - The signed message to verify
  * @param params - Original message parameters (must match what was signed)
- * @param options - Verification options including optional RPC for access key validation
- * @returns Promise resolving to true if signature is valid, not expired, and (if RPC provided) the key belongs to the account
+ * @param options - Verification options including optional Near client for access key validation
+ * @returns Promise resolving to true if signature is valid, not expired, and (if Near client provided) the key belongs to the account
  *
  * @example
  * ```typescript
- * // Basic signature verification (no RPC)
+ * // Basic signature verification (no blockchain verification)
  * const isValid = await verifyNep413Signature(signedMessage, {
  *   message: "Login to MyApp",
  *   recipient: "myapp.com",
  *   nonce: Buffer.from(req.body.nonce),
  * })
  *
- * // With RPC validation to verify key ownership
- * const isValid = await verifyNep413Signature(signedMessage, params, {
- *   rpc: "https://rpc.mainnet.near.org",
- * })
+ * // With blockchain verification to ensure key belongs to account
+ * const near = new Near({ network: "mainnet" })
+ * const isValid = await verifyNep413Signature(signedMessage, params, { near })
  * ```
  */
 export async function verifyNep413Signature(
@@ -167,7 +150,7 @@ export async function verifyNep413Signature(
   options: VerifyNep413Options = {},
 ): Promise<boolean> {
   try {
-    const { maxAge = 5 * 60 * 1000, rpc } = options // Default: 5 minutes
+    const { maxAge = 5 * 60 * 1000, near } = options // Default: 5 minutes
 
     // Check timestamp expiration if maxAge is finite
     if (maxAge !== Infinity && params.nonce.length === 32) {
@@ -195,17 +178,13 @@ export async function verifyNep413Signature(
       throw new Error("Only Ed25519 keys are supported for NEP-413")
     }
 
-    // If RPC is provided, verify that the public key belongs to the account ID
-    if (rpc) {
-      const rpcClient = typeof rpc === "string" ? new RpcClient(rpc) : rpc
-
-      try {
-        // This will throw AccessKeyDoesNotExistError if the key doesn't exist
-        await rpcClient.getAccessKey(
-          signedMessage.accountId,
-          signedMessage.publicKey,
-        )
-      } catch {
+    // If Near client is provided, verify that the public key belongs to the account ID
+    if (near) {
+      const keyExists = await near.accessKeyExists(
+        signedMessage.accountId,
+        signedMessage.publicKey,
+      )
+      if (!keyExists) {
         // Key does not exist for this account, verification fails
         return false
       }

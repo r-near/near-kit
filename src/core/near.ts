@@ -541,6 +541,40 @@ export class Near {
   }
 
   /**
+   * Check if an access key exists for an account.
+   *
+   * @param accountId - Account ID to check.
+   * @param publicKey - Public key string (e.g., "ed25519:...").
+   * @param options - Optional {@link BlockReference} to control finality or block.
+   *
+   * @returns `true` if the access key exists for the account, `false` otherwise.
+   *
+   * @remarks
+   * This method is useful for verifying that a public key belongs to an account,
+   * such as when validating NEP-413 signed messages.
+   *
+   * @example
+   * ```typescript
+   * const hasKey = await near.accessKeyExists("alice.near", "ed25519:...")
+   * if (!hasKey) {
+   *   console.log("Key does not belong to this account")
+   * }
+   * ```
+   */
+  async accessKeyExists(
+    accountId: string,
+    publicKey: string,
+    options?: BlockReference,
+  ): Promise<boolean> {
+    try {
+      await this.rpc.getAccessKey(accountId, publicKey, options)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  /**
    * Get transaction status with detailed receipt information
    *
    * Queries the status of a transaction by hash using the EXPERIMENTAL_tx_status RPC method,

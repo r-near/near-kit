@@ -18,7 +18,6 @@ export * from "./key.js"
 export {
   generateNonce,
   NEP413_TAG,
-  type Nep413RpcConfig,
   serializeNep413Message,
   type VerifyNep413Options,
   verifyNep413Signature,

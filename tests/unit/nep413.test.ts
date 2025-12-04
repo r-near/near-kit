@@ -397,8 +397,8 @@ describe("NEP-413 Message Signing", () => {
   })
 })
 
-describe("NEP-413 RPC Validation", () => {
-  test("should create RpcClient from URL string when rpc option is provided", async () => {
+describe("NEP-413 Near Client Validation", () => {
+  test("should return false when key does not belong to account (Near validation)", async () => {
     const keyPair = Ed25519KeyPair.fromRandom()
     const accountId = "test.near"
     const nonce = generateNonce()
@@ -411,15 +411,20 @@ describe("NEP-413 RPC Validation", () => {
 
     const signedMessage = keyPair.signNep413Message(accountId, params)
 
-    // When using an invalid URL, the RPC call should fail and verification should return false
-    // This tests that the RPC option is being used
+    // Create a mock Near client that returns false for accessKeyExists
+    const mockNear = {
+      async accessKeyExists() {
+        return false
+      },
+    } as unknown as import("../../src/core/near.js").Near
+
     const isValid = await verifyNep413Signature(signedMessage, params, {
-      rpc: "http://invalid-rpc-url.invalid",
+      near: mockNear,
     })
     expect(isValid).toBe(false)
   })
 
-  test("should return false when key does not belong to account (RPC validation)", async () => {
+  test("should pass validation when key exists for account", async () => {
     const keyPair = Ed25519KeyPair.fromRandom()
     const accountId = "test.near"
     const nonce = generateNonce()
@@ -432,50 +437,15 @@ describe("NEP-413 RPC Validation", () => {
 
     const signedMessage = keyPair.signNep413Message(accountId, params)
 
-    // Create a mock RPC client that simulates a "key not found" error
-    const mockRpc = {
-      url: "https://mock.rpc",
-      headers: {},
-      async getAccessKey() {
-        throw new Error("access key does not exist")
+    // Create a mock Near client that returns true for accessKeyExists
+    const mockNear = {
+      async accessKeyExists() {
+        return true
       },
-    } as unknown as import("../../src/core/rpc/rpc.js").RpcClient
+    } as unknown as import("../../src/core/near.js").Near
 
     const isValid = await verifyNep413Signature(signedMessage, params, {
-      rpc: mockRpc,
-    })
-    expect(isValid).toBe(false)
-  })
-
-  test("should pass RPC validation when key exists for account", async () => {
-    const keyPair = Ed25519KeyPair.fromRandom()
-    const accountId = "test.near"
-    const nonce = generateNonce()
-
-    const params: SignMessageParams = {
-      message: "Login to MyApp",
-      recipient: "myapp.near",
-      nonce,
-    }
-
-    const signedMessage = keyPair.signNep413Message(accountId, params)
-
-    // Create a mock RPC client that returns a valid access key
-    const mockRpc = {
-      url: "https://mock.rpc",
-      headers: {},
-      async getAccessKey() {
-        return {
-          nonce: 12345,
-          permission: "FullAccess",
-          block_height: 100000,
-          block_hash: "ABC123",
-        }
-      },
-    } as unknown as import("../../src/core/rpc/rpc.js").RpcClient
-
-    const isValid = await verifyNep413Signature(signedMessage, params, {
-      rpc: mockRpc,
+      near: mockNear,
     })
     expect(isValid).toBe(true)
   })
