@@ -98,12 +98,16 @@ export interface VerifyNep413Options {
   maxAge?: number
 
   /**
-   * Near client instance for verifying that the public key belongs to the account ID.
+   * Near client instance for verifying that the public key belongs to the account ID
+   * and has full access permission.
    *
-   * When provided, the function will verify that the public key in the signed message
-   * actually belongs to the claimed account ID by querying the NEAR blockchain.
+   * When provided, the function will verify that:
+   * 1. The public key in the signed message actually belongs to the claimed account ID
+   * 2. The key has full access permission (not a function call key)
+   *
    * This provides an additional layer of security by ensuring the signer has
-   * a valid access key on the NEAR blockchain.
+   * a valid full access key on the NEAR blockchain. Function call keys are rejected
+   * because NEP-413 signatures should only be created with full access keys.
    *
    * @example
    * ```typescript
@@ -179,13 +183,14 @@ export async function verifyNep413Signature(
     }
 
     // If Near client is provided, verify that the public key belongs to the account ID
+    // and is a full access key (not a function call key)
     if (near) {
-      const keyExists = await near.accessKeyExists(
+      const hasFullAccessKey = await near.fullAccessKeyExists(
         signedMessage.accountId,
         signedMessage.publicKey,
       )
-      if (!keyExists) {
-        // Key does not exist for this account, verification fails
+      if (!hasFullAccessKey) {
+        // Key does not exist for this account or is not a full access key
         return false
       }
     }

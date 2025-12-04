@@ -541,34 +541,40 @@ export class Near {
   }
 
   /**
-   * Check if an access key exists for an account.
+   * Check if a full access key exists for an account.
    *
    * @param accountId - Account ID to check.
    * @param publicKey - Public key string (e.g., "ed25519:...").
    * @param options - Optional {@link BlockReference} to control finality or block.
    *
-   * @returns `true` if the access key exists for the account, `false` otherwise.
+   * @returns `true` if the full access key exists for the account, `false` otherwise.
    *
    * @remarks
-   * This method is useful for verifying that a public key belongs to an account,
-   * such as when validating NEP-413 signed messages.
+   * This method verifies that a public key belongs to an account AND has full access
+   * permission (not a function call key). This is important for validating NEP-413
+   * signed messages, which should only be signed by full access keys.
    *
    * @example
    * ```typescript
-   * const hasKey = await near.accessKeyExists("alice.near", "ed25519:...")
-   * if (!hasKey) {
-   *   console.log("Key does not belong to this account")
+   * const hasFullAccessKey = await near.fullAccessKeyExists("alice.near", "ed25519:...")
+   * if (!hasFullAccessKey) {
+   *   console.log("Key does not exist or is not a full access key")
    * }
    * ```
    */
-  async accessKeyExists(
+  async fullAccessKeyExists(
     accountId: string,
     publicKey: string,
     options?: BlockReference,
   ): Promise<boolean> {
     try {
-      await this.rpc.getAccessKey(accountId, publicKey, options)
-      return true
+      const accessKey = await this.rpc.getAccessKey(
+        accountId,
+        publicKey,
+        options,
+      )
+      // Check if it's a full access key (permission === "FullAccess")
+      return accessKey.permission === "FullAccess"
     } catch {
       return false
     }

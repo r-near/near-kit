@@ -398,7 +398,7 @@ describe("NEP-413 Message Signing", () => {
 })
 
 describe("NEP-413 Near Client Validation", () => {
-  test("should return false when key does not belong to account (Near validation)", async () => {
+  test("should return false when key does not belong to account", async () => {
     const keyPair = Ed25519KeyPair.fromRandom()
     const accountId = "test.near"
     const nonce = generateNonce()
@@ -411,9 +411,9 @@ describe("NEP-413 Near Client Validation", () => {
 
     const signedMessage = keyPair.signNep413Message(accountId, params)
 
-    // Create a mock Near client that returns false for accessKeyExists
+    // Create a mock Near client that returns false for fullAccessKeyExists
     const mockNear = {
-      async accessKeyExists() {
+      async fullAccessKeyExists() {
         return false
       },
     } as unknown as import("../../src/core/near.js").Near
@@ -424,7 +424,7 @@ describe("NEP-413 Near Client Validation", () => {
     expect(isValid).toBe(false)
   })
 
-  test("should pass validation when key exists for account", async () => {
+  test("should pass validation when full access key exists for account", async () => {
     const keyPair = Ed25519KeyPair.fromRandom()
     const accountId = "test.near"
     const nonce = generateNonce()
@@ -437,9 +437,9 @@ describe("NEP-413 Near Client Validation", () => {
 
     const signedMessage = keyPair.signNep413Message(accountId, params)
 
-    // Create a mock Near client that returns true for accessKeyExists
+    // Create a mock Near client that returns true for fullAccessKeyExists
     const mockNear = {
-      async accessKeyExists() {
+      async fullAccessKeyExists() {
         return true
       },
     } as unknown as import("../../src/core/near.js").Near
@@ -448,5 +448,32 @@ describe("NEP-413 Near Client Validation", () => {
       near: mockNear,
     })
     expect(isValid).toBe(true)
+  })
+
+  test("should return false when key is a function call key (not full access)", async () => {
+    const keyPair = Ed25519KeyPair.fromRandom()
+    const accountId = "test.near"
+    const nonce = generateNonce()
+
+    const params: SignMessageParams = {
+      message: "Login to MyApp",
+      recipient: "myapp.near",
+      nonce,
+    }
+
+    const signedMessage = keyPair.signNep413Message(accountId, params)
+
+    // Create a mock Near client that returns false for fullAccessKeyExists
+    // (simulating a function call key that exists but isn't full access)
+    const mockNear = {
+      async fullAccessKeyExists() {
+        return false // Key exists but is not a full access key
+      },
+    } as unknown as import("../../src/core/near.js").Near
+
+    const isValid = await verifyNep413Signature(signedMessage, params, {
+      near: mockNear,
+    })
+    expect(isValid).toBe(false)
   })
 })

@@ -147,4 +147,50 @@ describe("NEP-413 Access Key Validation - Integration Tests", () => {
 
     expect(isValid).toBe(true)
   })
+
+  test("should fail verification when key is a function call key (not full access)", async () => {
+    // Create a test account with a function call key
+    const fullAccessKey = Ed25519KeyPair.fromRandom()
+    const functionCallKey = Ed25519KeyPair.fromRandom()
+    const accountId = `nep413-func-key-${Date.now()}.${sandbox.rootAccount.id}`
+
+    // Create the account with a full access key first
+    await near
+      .transaction(sandbox.rootAccount.id)
+      .createAccount(accountId)
+      .addKey(fullAccessKey.publicKey.toString(), { type: "fullAccess" })
+      .transfer(accountId, "1 NEAR")
+      .send()
+
+    // Add the function call key to the keystore so we can use it
+    await keyStore.add(accountId, fullAccessKey)
+
+    // Add a function call key to the account
+    await near
+      .transaction(accountId)
+      .addKey(functionCallKey.publicKey.toString(), {
+        type: "functionCall",
+        receiverId: "some-contract.near",
+        methodNames: ["some_method"],
+      })
+      .send()
+
+    // Sign a message with the function call key
+    const nonce = generateNonce()
+    const params: SignMessageParams = {
+      message: "Login to MyApp",
+      recipient: "myapp.near",
+      nonce,
+    }
+
+    const signedMessage = functionCallKey.signNep413Message(accountId, params)
+
+    // Verify the signature with Near client validation - should fail because
+    // the key is a function call key, not a full access key
+    const isValid = await verifyNep413Signature(signedMessage, params, {
+      near,
+    })
+
+    expect(isValid).toBe(false)
+  }, 60000)
 })
