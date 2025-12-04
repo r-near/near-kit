@@ -236,7 +236,7 @@ describe("NEP-413 Message Signing", () => {
     expect(isValid).toBe(false)
   })
 
-  test("should verify base58-encoded signature with ed25519 prefix", async () => {
+  test("should produce base64-encoded signature per NEP-413 spec", async () => {
     const keyPair = Ed25519KeyPair.fromRandom()
     const accountId = "test.near"
     const nonce = generateNonce()
@@ -248,13 +248,14 @@ describe("NEP-413 Message Signing", () => {
     }
 
     const signedMessage = keyPair.signNep413Message(accountId, params)
-    expect(signedMessage.signature).toMatch(/^ed25519:[1-9A-HJ-NP-Za-km-z]+$/)
+    // NEP-413 spec requires base64 encoding (not base58 with prefix)
+    expect(signedMessage.signature).toMatch(/^[A-Za-z0-9+/]+=*$/)
 
     const isValid = await verifyNep413Signature(signedMessage, params)
     expect(isValid).toBe(true)
   })
 
-  test("should support legacy base64 signatures", async () => {
+  test("should support legacy base58 signatures with ed25519 prefix", async () => {
     const keyPair = Ed25519KeyPair.fromRandom()
     const accountId = "test.near"
     const nonce = generateNonce()
@@ -265,19 +266,17 @@ describe("NEP-413 Message Signing", () => {
       nonce,
     }
 
-    // Current format: base58 with prefix
+    // Current format: base64 (NEP-413 spec)
     const signedMessage = keyPair.signNep413Message(accountId, params)
 
-    // Convert to legacy base64 without prefix
-    const signatureBytes = base58.decode(
-      signedMessage.signature.replace(/^ed25519:/, ""),
-    )
-    const base64Signature = base64.encode(signatureBytes)
+    // Convert to legacy base58 with ed25519: prefix for backward compatibility test
+    const signatureBytes = base64.decode(signedMessage.signature)
+    const base58Signature = `ed25519:${base58.encode(signatureBytes)}`
 
     const legacySignedMessage: typeof signedMessage = {
       accountId,
       publicKey: signedMessage.publicKey,
-      signature: base64Signature,
+      signature: base58Signature,
     }
 
     const isValid = await verifyNep413Signature(legacySignedMessage, params)
@@ -375,14 +374,12 @@ describe("NEP-413 Message Signing", () => {
     const signedMessage = keyPair.signNep413Message(accountId, params)
 
     // Tamper with the signature bytes
-    const signatureBytes = base58.decode(
-      signedMessage.signature.replace(/^ed25519:/, ""),
-    )
+    const signatureBytes = base64.decode(signedMessage.signature)
     // Flip the first byte
     if (signatureBytes[0] !== undefined) {
       signatureBytes[0] = signatureBytes[0] ^ 0xff
     }
-    const tamperedSignature = `ed25519:${base58.encode(signatureBytes)}`
+    const tamperedSignature = base64.encode(signatureBytes)
 
     // Create signed message with tampered signature
     const tamperedSignedMessage: typeof signedMessage = {

@@ -209,6 +209,15 @@ export async function verifyNep413Signature(
 }
 
 function decodeSignature(signature: string): Uint8Array | null {
+  // NEP-413 spec: signatures should be base64 encoded
+  // Try base64 first (standard format)
+  try {
+    return base64.decode(signature)
+  } catch {
+    // fall through to legacy formats
+  }
+
+  // Backward compatibility: prefixed base58 (ed25519:... or secp256k1:...)
   const prefixed = signature.match(/^(ed25519:|secp256k1:)(.+)$/)
   if (prefixed?.[2]) {
     try {
@@ -218,21 +227,16 @@ function decodeSignature(signature: string): Uint8Array | null {
     }
   }
 
-  // Unprefixed base58 strings
+  // Backward compatibility: unprefixed base58 strings
   if (/^[1-9A-HJ-NP-Za-km-z]+$/.test(signature)) {
     try {
       return base58.decode(signature)
     } catch {
-      // fall through
+      return null
     }
   }
 
-  // Backward compatibility: accept legacy base64 signatures
-  try {
-    return base64.decode(signature)
-  } catch {
-    return null
-  }
+  return null
 }
 
 /**
