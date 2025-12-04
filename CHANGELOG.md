@@ -1,5 +1,11 @@
 # near-kit
 
+## 0.5.5
+
+### Patch Changes
+
+- b04a9e6: Switch NEP-413 signatures to key-type-prefixed base58 encoding for both Ed25519 and Secp256k1, while retaining legacy verification support.
+
 ## 0.5.4
 
 ### Patch Changes
