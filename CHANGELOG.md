@@ -1,5 +1,11 @@
 # near-kit
 
+## 0.6.1
+
+### Patch Changes
+
+- 16f28aa: Add default export condition for Jest compatibility
+
 ## 0.6.0
 
 ### Minor Changes
