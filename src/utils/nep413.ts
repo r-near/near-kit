@@ -154,25 +154,40 @@ export function verifyNep413Signature(
     // Reconstruct the hashed payload
     const hash = serializeNep413Message(params)
 
-    // Decode the signature
-    // Try base64 first (most common), fallback to base58
-    let signatureBytes: Uint8Array
-    try {
-      signatureBytes = base64.decode(signedMessage.signature)
-    } catch {
-      try {
-        // Remove ed25519: prefix if present
-        const sig = signedMessage.signature.replace("ed25519:", "")
-        signatureBytes = base58.decode(sig)
-      } catch {
-        return false
-      }
-    }
+    const signatureBytes = decodeSignature(signedMessage.signature)
+    if (!signatureBytes) return false
 
     // Verify the signature
     return ed25519.verify(signatureBytes, hash, publicKey.data)
   } catch {
     return false
+  }
+}
+
+function decodeSignature(signature: string): Uint8Array | null {
+  const prefixed = signature.match(/^(ed25519:|secp256k1:)(.+)$/)
+  if (prefixed?.[2]) {
+    try {
+      return base58.decode(prefixed[2])
+    } catch {
+      return null
+    }
+  }
+
+  // Unprefixed base58 strings
+  if (/^[1-9A-HJ-NP-Za-km-z]+$/.test(signature)) {
+    try {
+      return base58.decode(signature)
+    } catch {
+      // fall through
+    }
+  }
+
+  // Backward compatibility: accept legacy base64 signatures
+  try {
+    return base64.decode(signature)
+  } catch {
+    return null
   }
 }
 
