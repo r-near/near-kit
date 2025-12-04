@@ -1,5 +1,11 @@
 # near-kit
 
+## 0.6.2
+
+### Patch Changes
+
+- 7cec6d4: Fix NEP-413 signature encoding to use base64 per spec instead of base58 with prefix. Maintains backward compatibility with legacy base58 signatures.
+
 ## 0.6.1
 
 ### Patch Changes
