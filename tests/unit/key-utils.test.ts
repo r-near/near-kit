@@ -448,7 +448,7 @@ describe("NEP-413 Message Signing - Ed25519", () => {
 
     expect(signedMessage.accountId).toBe("alice.near")
     expect(signedMessage.publicKey).toBe(keyPair.publicKey.toString())
-    expect(signedMessage.signature).toMatch(/^ed25519:[1-9A-HJ-NP-Za-km-z]+$/) // Base58 with prefix
+    expect(signedMessage.signature).toMatch(/^[A-Za-z0-9+/]+=*$/) // Base64 per NEP-413
     expect(signedMessage.signature.length).toBeGreaterThan(50)
   })
 
@@ -536,7 +536,7 @@ describe("NEP-413 Message Signing - Secp256k1", () => {
     expect(signedMessage.accountId).toBe("alice.near")
     expect(signedMessage.publicKey).toBe(keyPair.publicKey.toString())
     expect(signedMessage.publicKey).toMatch(/^secp256k1:/)
-    expect(signedMessage.signature).toMatch(/^secp256k1:[1-9A-HJ-NP-Za-km-z]+$/) // Base58 with prefix
+    expect(signedMessage.signature).toMatch(/^[A-Za-z0-9+/]+=*$/) // Base64 per NEP-413
   })
 
   test("signNep413Message() should produce consistent signatures for same message", () => {
