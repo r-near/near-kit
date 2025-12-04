@@ -350,7 +350,7 @@ export interface SignedMessage {
   accountId: string
   /** The public key used to sign, in format "<key-type>:<base58-key-bytes>" */
   publicKey: string
-  /** The base64 representation of the signature */
+  /** The base58 signature prefixed with the key type (e.g., "ed25519:...") */
   signature: string
   /** Optional state returned from browser wallets (for CSRF protection) */
   state?: string

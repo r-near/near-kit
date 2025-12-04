@@ -1,6 +1,6 @@
 import { ed25519 } from "@noble/curves/ed25519.js"
 import { secp256k1 } from "@noble/curves/secp256k1.js"
-import { base58, base64 } from "@scure/base"
+import { base58 } from "@scure/base"
 import { HDKey } from "@scure/bip32"
 import * as bip39 from "@scure/bip39"
 import { wordlist } from "@scure/bip39/wordlists/english.js"
@@ -58,7 +58,7 @@ export class Ed25519KeyPair implements KeyPair {
    *
    * @param accountId - The NEAR account ID that owns this key
    * @param params - Message signing parameters (message, recipient, nonce)
-   * @returns Signed message with account ID, public key, and base64-encoded signature
+   * @returns Signed message with account ID, public key, and base58-encoded signature prefixed with `ed25519:`
    *
    * @see https://github.com/near/NEPs/blob/master/neps/nep-0413.md
    *
@@ -70,7 +70,7 @@ export class Ed25519KeyPair implements KeyPair {
    *   recipient: "myapp.near",
    *   nonce,
    * })
-   * console.log(signedMessage.signature) // Base64-encoded signature
+   * console.log(signedMessage.signature) // Base58-encoded signature
    * ```
    */
   signNep413Message(
@@ -83,11 +83,11 @@ export class Ed25519KeyPair implements KeyPair {
     // Sign the hash
     const signature = ed25519.sign(hash, this.privateKey)
 
-    // Return signed message with base64-encoded signature
+    // Return signed message with base58-encoded signature (ed25519:... prefix)
     return {
       accountId,
       publicKey: this.publicKey.toString(),
-      signature: base64.encode(signature),
+      signature: `${ED25519_KEY_PREFIX}${base58.encode(signature)}`,
     }
   }
 
@@ -159,7 +159,7 @@ export class Secp256k1KeyPair implements KeyPair {
    *
    * @param accountId - The NEAR account ID that owns this key
    * @param params - Message signing parameters (message, recipient, nonce)
-   * @returns Signed message with account ID, public key, and base64-encoded signature
+   * @returns Signed message with account ID, public key, and base58-encoded signature prefixed with `secp256k1:`
    *
    * @see https://github.com/near/NEPs/blob/master/neps/nep-0413.md
    *
@@ -171,7 +171,7 @@ export class Secp256k1KeyPair implements KeyPair {
    *   recipient: "myapp.near",
    *   nonce,
    * })
-   * console.log(signedMessage.signature) // Base64-encoded signature
+   * console.log(signedMessage.signature) // Base58-encoded signature
    * ```
    */
   signNep413Message(
@@ -186,11 +186,11 @@ export class Secp256k1KeyPair implements KeyPair {
       format: "recovered",
     })
 
-    // Return signed message with base64-encoded signature
+    // Return signed message with base58-encoded signature (secp256k1:... prefix)
     return {
       accountId,
       publicKey: this.publicKey.toString(),
-      signature: base64.encode(signature),
+      signature: `${SECP256K1_KEY_PREFIX}${base58.encode(signature)}`,
     }
   }
 

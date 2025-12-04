@@ -247,26 +247,14 @@ describe("NEP-413 Message Signing", () => {
       nonce,
     }
 
-    // Create a normal signature (base64)
     const signedMessage = keyPair.signNep413Message(accountId, params)
+    expect(signedMessage.signature).toMatch(/^ed25519:[1-9A-HJ-NP-Za-km-z]+$/)
 
-    // Convert the base64 signature to base58 format with ed25519: prefix
-    const signatureBytes = base64.decode(signedMessage.signature)
-    const base58Signature = `ed25519:${base58.encode(signatureBytes)}`
-
-    // Create signed message with base58 signature
-    const signedMessageBase58: typeof signedMessage = {
-      accountId,
-      publicKey: signedMessage.publicKey,
-      signature: base58Signature,
-    }
-
-    // Verification should succeed with base58 signature
-    const isValid = verifyNep413Signature(signedMessageBase58, params)
+    const isValid = verifyNep413Signature(signedMessage, params)
     expect(isValid).toBe(true)
   })
 
-  test("should use base58 fallback when base64 decode fails", () => {
+  test("should support legacy base64 signatures", () => {
     const keyPair = Ed25519KeyPair.fromRandom()
     const accountId = "test.near"
     const nonce = generateNonce()
@@ -277,22 +265,46 @@ describe("NEP-413 Message Signing", () => {
       nonce,
     }
 
-    // Create a normal signature (base64)
+    // Current format: base58 with prefix
     const signedMessage = keyPair.signNep413Message(accountId, params)
 
-    // Convert to base58 with ed25519: prefix (triggers fallback because : fails base64)
-    const signatureBytes = base64.decode(signedMessage.signature)
-    const base58Signature = `ed25519:${base58.encode(signatureBytes)}`
+    // Convert to legacy base64 without prefix
+    const signatureBytes = base58.decode(
+      signedMessage.signature.replace(/^ed25519:/, ""),
+    )
+    const base64Signature = base64.encode(signatureBytes)
 
-    // Create signed message with base58 + ed25519: prefix
-    const base58SignedMessage: typeof signedMessage = {
+    const legacySignedMessage: typeof signedMessage = {
       accountId,
       publicKey: signedMessage.publicKey,
-      signature: base58Signature,
+      signature: base64Signature,
     }
 
-    // Verification should succeed - fallback decodes as base58
-    const isValid = verifyNep413Signature(base58SignedMessage, params)
+    const isValid = verifyNep413Signature(legacySignedMessage, params)
+    expect(isValid).toBe(true)
+  })
+
+  test("should support base58 signatures without prefix", () => {
+    const keyPair = Ed25519KeyPair.fromRandom()
+    const accountId = "test.near"
+    const nonce = generateNonce()
+
+    const params: SignMessageParams = {
+      message: "Login to MyApp",
+      recipient: "myapp.near",
+      nonce,
+    }
+
+    const signedMessage = keyPair.signNep413Message(accountId, params)
+    const unprefixedSignature = signedMessage.signature.replace(/^ed25519:/, "")
+
+    const unprefixedSignedMessage: typeof signedMessage = {
+      accountId,
+      publicKey: signedMessage.publicKey,
+      signature: unprefixedSignature,
+    }
+
+    const isValid = verifyNep413Signature(unprefixedSignedMessage, params)
     expect(isValid).toBe(true)
   })
 
@@ -363,12 +375,14 @@ describe("NEP-413 Message Signing", () => {
     const signedMessage = keyPair.signNep413Message(accountId, params)
 
     // Tamper with the signature bytes
-    const signatureBytes = base64.decode(signedMessage.signature)
+    const signatureBytes = base58.decode(
+      signedMessage.signature.replace(/^ed25519:/, ""),
+    )
     // Flip the first byte
     if (signatureBytes[0] !== undefined) {
       signatureBytes[0] = signatureBytes[0] ^ 0xff
     }
-    const tamperedSignature = base64.encode(signatureBytes)
+    const tamperedSignature = `ed25519:${base58.encode(signatureBytes)}`
 
     // Create signed message with tampered signature
     const tamperedSignedMessage: typeof signedMessage = {
