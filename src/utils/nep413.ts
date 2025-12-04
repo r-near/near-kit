@@ -12,6 +12,7 @@ import { sha256 } from "@noble/hashes/sha2.js"
 import { randomBytes } from "@noble/hashes/utils.js"
 import { base58, base64 } from "@scure/base"
 import { b } from "@zorsh/zorsh"
+import type { Near } from "../core/near.js"
 import type { SignedMessage, SignMessageParams } from "../core/types.js"
 import { parsePublicKey } from "./key.js"
 
@@ -95,6 +96,26 @@ export interface VerifyNep413Options {
    * @default 300000 (5 minutes)
    */
   maxAge?: number
+
+  /**
+   * Near client instance for verifying that the public key belongs to the account ID
+   * and has full access permission.
+   *
+   * When provided, the function will verify that:
+   * 1. The public key in the signed message actually belongs to the claimed account ID
+   * 2. The key has full access permission (not a function call key)
+   *
+   * This provides an additional layer of security by ensuring the signer has
+   * a valid full access key on the NEAR blockchain. Function call keys are rejected
+   * because NEP-413 signatures should only be created with full access keys.
+   *
+   * @example
+   * ```typescript
+   * const near = new Near({ network: "mainnet" })
+   * const isValid = await verifyNep413Signature(signedMessage, params, { near })
+   * ```
+   */
+  near?: Near
 }
 
 /**
@@ -103,27 +124,37 @@ export interface VerifyNep413Options {
  * Automatically checks timestamp expiration (default: 5 minutes).
  * You must still track used nonces to prevent replay attacks.
  *
+ * When `options.near` is provided, this function also verifies that the public key
+ * in the signed message belongs to the claimed account ID by querying the NEAR
+ * blockchain. This provides protection against attackers who might try
+ * to claim ownership of an account using a different key.
+ *
  * @param signedMessage - The signed message to verify
  * @param params - Original message parameters (must match what was signed)
- * @param options - Verification options
- * @returns true if signature is valid and not expired
+ * @param options - Verification options including optional Near client for access key validation
+ * @returns Promise resolving to true if signature is valid, not expired, and (if Near client provided) the key belongs to the account
  *
  * @example
  * ```typescript
- * const isValid = verifyNep413Signature(signedMessage, {
+ * // Basic signature verification (no blockchain verification)
+ * const isValid = await verifyNep413Signature(signedMessage, {
  *   message: "Login to MyApp",
  *   recipient: "myapp.com",
  *   nonce: Buffer.from(req.body.nonce),
  * })
+ *
+ * // With blockchain verification to ensure key belongs to account
+ * const near = new Near({ network: "mainnet" })
+ * const isValid = await verifyNep413Signature(signedMessage, params, { near })
  * ```
  */
-export function verifyNep413Signature(
+export async function verifyNep413Signature(
   signedMessage: SignedMessage,
   params: SignMessageParams,
   options: VerifyNep413Options = {},
-): boolean {
+): Promise<boolean> {
   try {
-    const { maxAge = 5 * 60 * 1000 } = options // Default: 5 minutes
+    const { maxAge = 5 * 60 * 1000, near } = options // Default: 5 minutes
 
     // Check timestamp expiration if maxAge is finite
     if (maxAge !== Infinity && params.nonce.length === 32) {
@@ -149,6 +180,19 @@ export function verifyNep413Signature(
     // Only Ed25519 is currently supported
     if (publicKey.keyType !== 0) {
       throw new Error("Only Ed25519 keys are supported for NEP-413")
+    }
+
+    // If Near client is provided, verify that the public key belongs to the account ID
+    // and is a full access key (not a function call key)
+    if (near) {
+      const hasFullAccessKey = await near.fullAccessKeyExists(
+        signedMessage.accountId,
+        signedMessage.publicKey,
+      )
+      if (!hasFullAccessKey) {
+        // Key does not exist for this account or is not a full access key
+        return false
+      }
     }
 
     // Reconstruct the hashed payload

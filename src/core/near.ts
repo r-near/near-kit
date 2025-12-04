@@ -541,6 +541,46 @@ export class Near {
   }
 
   /**
+   * Check if a full access key exists for an account.
+   *
+   * @param accountId - Account ID to check.
+   * @param publicKey - Public key string (e.g., "ed25519:...").
+   * @param options - Optional {@link BlockReference} to control finality or block.
+   *
+   * @returns `true` if the full access key exists for the account, `false` otherwise.
+   *
+   * @remarks
+   * This method verifies that a public key belongs to an account AND has full access
+   * permission (not a function call key). This is important for validating NEP-413
+   * signed messages, which should only be signed by full access keys.
+   *
+   * @example
+   * ```typescript
+   * const hasFullAccessKey = await near.fullAccessKeyExists("alice.near", "ed25519:...")
+   * if (!hasFullAccessKey) {
+   *   console.log("Key does not exist or is not a full access key")
+   * }
+   * ```
+   */
+  async fullAccessKeyExists(
+    accountId: string,
+    publicKey: string,
+    options?: BlockReference,
+  ): Promise<boolean> {
+    try {
+      const accessKey = await this.rpc.getAccessKey(
+        accountId,
+        publicKey,
+        options,
+      )
+      // Check if it's a full access key (permission === "FullAccess")
+      return accessKey.permission === "FullAccess"
+    } catch {
+      return false
+    }
+  }
+
+  /**
    * Get transaction status with detailed receipt information
    *
    * Queries the status of a transaction by hash using the EXPERIMENTAL_tx_status RPC method,

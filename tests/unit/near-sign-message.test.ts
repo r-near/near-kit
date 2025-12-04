@@ -47,7 +47,7 @@ describe("Near.signMessage() - Keystore-based signing", () => {
     expect(typeof result.signature).toBe("string")
 
     // Verify the signature is valid
-    const isValid = verifyNep413Signature(result, params)
+    const isValid = await verifyNep413Signature(result, params)
     expect(isValid).toBe(true)
   })
 
@@ -186,7 +186,7 @@ describe("Near.signMessage() - Wallet-based signing", () => {
     expect(result.publicKey).toBe(keyPair.publicKey.toString())
 
     // Verify the signature is valid
-    const isValid = verifyNep413Signature(result, params)
+    const isValid = await verifyNep413Signature(result, params)
     expect(isValid).toBe(true)
   })
 
@@ -227,7 +227,7 @@ describe("Near.signMessage() - Wallet-based signing", () => {
     expect(result.publicKey).toBe(keyPair.publicKey.toString())
 
     // Verify the signature is valid
-    const isValid = verifyNep413Signature(result, params)
+    const isValid = await verifyNep413Signature(result, params)
     expect(isValid).toBe(true)
   })
 
@@ -267,7 +267,7 @@ describe("Near.signMessage() - Wallet-based signing", () => {
     expect(result.publicKey).toBe(keyPair.publicKey.toString())
 
     // Verify the signature is valid
-    const isValid = verifyNep413Signature(result, params)
+    const isValid = await verifyNep413Signature(result, params)
     expect(isValid).toBe(true)
   })
 })
@@ -293,7 +293,7 @@ describe("Near.signMessage() - Edge cases", () => {
     const result = await near.signMessage(params, { signerId: "alice.near" })
 
     expect(result.accountId).toBe("alice.near")
-    const isValid = verifyNep413Signature(result, params)
+    const isValid = await verifyNep413Signature(result, params)
     expect(isValid).toBe(true)
   })
 
@@ -317,7 +317,7 @@ describe("Near.signMessage() - Edge cases", () => {
     const result = await near.signMessage(params, { signerId: "alice.near" })
 
     expect(result.accountId).toBe("alice.near")
-    const isValid = verifyNep413Signature(result, params)
+    const isValid = await verifyNep413Signature(result, params)
     expect(isValid).toBe(true)
   })
 
@@ -341,7 +341,7 @@ describe("Near.signMessage() - Edge cases", () => {
     const result = await near.signMessage(params, { signerId: "alice.near" })
 
     expect(result.accountId).toBe("alice.near")
-    const isValid = verifyNep413Signature(result, params)
+    const isValid = await verifyNep413Signature(result, params)
     expect(isValid).toBe(true)
   })
 })

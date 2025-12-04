@@ -48,7 +48,7 @@ describe("NEP-413 Message Signing", () => {
     }).toThrow("Nonce must be exactly 32 bytes")
   })
 
-  test("should sign and verify message correctly", () => {
+  test("should sign and verify message correctly", async () => {
     const keyPair = Ed25519KeyPair.fromRandom()
     const accountId = "test.near"
     const nonce = generateNonce()
@@ -68,11 +68,11 @@ describe("NEP-413 Message Signing", () => {
     expect(typeof signedMessage.signature).toBe("string")
 
     // Verify the signature
-    const isValid = verifyNep413Signature(signedMessage, params)
+    const isValid = await verifyNep413Signature(signedMessage, params)
     expect(isValid).toBe(true)
   })
 
-  test("should fail verification with wrong message", () => {
+  test("should fail verification with wrong message", async () => {
     const keyPair = Ed25519KeyPair.fromRandom()
     const accountId = "test.near"
     const nonce = generateNonce()
@@ -92,11 +92,11 @@ describe("NEP-413 Message Signing", () => {
       nonce,
     }
 
-    const isValid = verifyNep413Signature(signedMessage, differentParams)
+    const isValid = await verifyNep413Signature(signedMessage, differentParams)
     expect(isValid).toBe(false)
   })
 
-  test("should fail verification with wrong nonce", () => {
+  test("should fail verification with wrong nonce", async () => {
     const keyPair = Ed25519KeyPair.fromRandom()
     const accountId = "test.near"
     const nonce = generateNonce()
@@ -117,11 +117,11 @@ describe("NEP-413 Message Signing", () => {
       nonce: differentNonce,
     }
 
-    const isValid = verifyNep413Signature(signedMessage, differentParams)
+    const isValid = await verifyNep413Signature(signedMessage, differentParams)
     expect(isValid).toBe(false)
   })
 
-  test("should fail verification with wrong recipient", () => {
+  test("should fail verification with wrong recipient", async () => {
     const keyPair = Ed25519KeyPair.fromRandom()
     const accountId = "test.near"
     const nonce = generateNonce()
@@ -141,7 +141,7 @@ describe("NEP-413 Message Signing", () => {
       nonce,
     }
 
-    const isValid = verifyNep413Signature(signedMessage, differentParams)
+    const isValid = await verifyNep413Signature(signedMessage, differentParams)
     expect(isValid).toBe(false)
   })
 
@@ -169,7 +169,7 @@ describe("NEP-413 Message Signing", () => {
     expect(signature1.signature).toBe(signature2.signature)
   })
 
-  test("should handle empty message", () => {
+  test("should handle empty message", async () => {
     const keyPair = Ed25519KeyPair.fromRandom()
     const accountId = "test.near"
     const nonce = generateNonce()
@@ -181,11 +181,11 @@ describe("NEP-413 Message Signing", () => {
     }
 
     const signedMessage = keyPair.signNep413Message(accountId, params)
-    const isValid = verifyNep413Signature(signedMessage, params)
+    const isValid = await verifyNep413Signature(signedMessage, params)
     expect(isValid).toBe(true)
   })
 
-  test("should handle long message", () => {
+  test("should handle long message", async () => {
     const keyPair = Ed25519KeyPair.fromRandom()
     const accountId = "test.near"
     const nonce = generateNonce()
@@ -197,11 +197,11 @@ describe("NEP-413 Message Signing", () => {
     }
 
     const signedMessage = keyPair.signNep413Message(accountId, params)
-    const isValid = verifyNep413Signature(signedMessage, params)
+    const isValid = await verifyNep413Signature(signedMessage, params)
     expect(isValid).toBe(true)
   })
 
-  test("should handle unicode characters in message", () => {
+  test("should handle unicode characters in message", async () => {
     const keyPair = Ed25519KeyPair.fromRandom()
     const accountId = "test.near"
     const nonce = generateNonce()
@@ -213,11 +213,11 @@ describe("NEP-413 Message Signing", () => {
     }
 
     const signedMessage = keyPair.signNep413Message(accountId, params)
-    const isValid = verifyNep413Signature(signedMessage, params)
+    const isValid = await verifyNep413Signature(signedMessage, params)
     expect(isValid).toBe(true)
   })
 
-  test("should reject non-Ed25519 keys (secp256k1) for NEP-413 verification", () => {
+  test("should reject non-Ed25519 keys (secp256k1) for NEP-413 verification", async () => {
     const keyPair = Secp256k1KeyPair.fromRandom()
     const accountId = "test.near"
     const nonce = generateNonce()
@@ -232,11 +232,11 @@ describe("NEP-413 Message Signing", () => {
     const signedMessage = keyPair.signNep413Message(accountId, params)
 
     // Verification should fail because secp256k1 (keyType=1) is not supported
-    const isValid = verifyNep413Signature(signedMessage, params)
+    const isValid = await verifyNep413Signature(signedMessage, params)
     expect(isValid).toBe(false)
   })
 
-  test("should verify base58-encoded signature with ed25519 prefix", () => {
+  test("should verify base58-encoded signature with ed25519 prefix", async () => {
     const keyPair = Ed25519KeyPair.fromRandom()
     const accountId = "test.near"
     const nonce = generateNonce()
@@ -250,11 +250,11 @@ describe("NEP-413 Message Signing", () => {
     const signedMessage = keyPair.signNep413Message(accountId, params)
     expect(signedMessage.signature).toMatch(/^ed25519:[1-9A-HJ-NP-Za-km-z]+$/)
 
-    const isValid = verifyNep413Signature(signedMessage, params)
+    const isValid = await verifyNep413Signature(signedMessage, params)
     expect(isValid).toBe(true)
   })
 
-  test("should support legacy base64 signatures", () => {
+  test("should support legacy base64 signatures", async () => {
     const keyPair = Ed25519KeyPair.fromRandom()
     const accountId = "test.near"
     const nonce = generateNonce()
@@ -280,11 +280,11 @@ describe("NEP-413 Message Signing", () => {
       signature: base64Signature,
     }
 
-    const isValid = verifyNep413Signature(legacySignedMessage, params)
+    const isValid = await verifyNep413Signature(legacySignedMessage, params)
     expect(isValid).toBe(true)
   })
 
-  test("should support base58 signatures without prefix", () => {
+  test("should support base58 signatures without prefix", async () => {
     const keyPair = Ed25519KeyPair.fromRandom()
     const accountId = "test.near"
     const nonce = generateNonce()
@@ -304,11 +304,11 @@ describe("NEP-413 Message Signing", () => {
       signature: unprefixedSignature,
     }
 
-    const isValid = verifyNep413Signature(unprefixedSignedMessage, params)
+    const isValid = await verifyNep413Signature(unprefixedSignedMessage, params)
     expect(isValid).toBe(true)
   })
 
-  test("should return false when both base64 and base58 decoding fail", () => {
+  test("should return false when both base64 and base58 decoding fail", async () => {
     const keyPair = Ed25519KeyPair.fromRandom()
     const accountId = "test.near"
     const nonce = generateNonce()
@@ -330,11 +330,11 @@ describe("NEP-413 Message Signing", () => {
     }
 
     // Verification should return false
-    const isValid = verifyNep413Signature(invalidSignedMessage, params)
+    const isValid = await verifyNep413Signature(invalidSignedMessage, params)
     expect(isValid).toBe(false)
   })
 
-  test("should return false when public key parsing fails", () => {
+  test("should return false when public key parsing fails", async () => {
     const keyPair = Ed25519KeyPair.fromRandom()
     const accountId = "test.near"
     const nonce = generateNonce()
@@ -356,11 +356,11 @@ describe("NEP-413 Message Signing", () => {
     }
 
     // Verification should return false
-    const isValid = verifyNep413Signature(invalidSignedMessage, params)
+    const isValid = await verifyNep413Signature(invalidSignedMessage, params)
     expect(isValid).toBe(false)
   })
 
-  test("should return false when signature verification fails", () => {
+  test("should return false when signature verification fails", async () => {
     const keyPair = Ed25519KeyPair.fromRandom()
     const accountId = "test.near"
     const nonce = generateNonce()
@@ -392,7 +392,97 @@ describe("NEP-413 Message Signing", () => {
     }
 
     // Verification should fail due to tampered signature
-    const isValid = verifyNep413Signature(tamperedSignedMessage, params)
+    const isValid = await verifyNep413Signature(tamperedSignedMessage, params)
+    expect(isValid).toBe(false)
+  })
+})
+
+describe("NEP-413 Near Client Validation", () => {
+  test("should return false when key does not belong to account", async () => {
+    const keyPair = Ed25519KeyPair.fromRandom()
+    const accountId = "test.near"
+    const nonce = generateNonce()
+
+    const params: SignMessageParams = {
+      message: "Login to MyApp",
+      recipient: "myapp.near",
+      nonce,
+    }
+
+    const signedMessage = keyPair.signNep413Message(accountId, params)
+
+    // Create a mock Near client that returns false for fullAccessKeyExists
+    const mockNear = {
+      async fullAccessKeyExists(
+        _accountId: string,
+        _publicKey: string,
+      ): Promise<boolean> {
+        return false
+      },
+    } as unknown as import("../../src/core/near.js").Near
+
+    const isValid = await verifyNep413Signature(signedMessage, params, {
+      near: mockNear,
+    })
+    expect(isValid).toBe(false)
+  })
+
+  test("should pass validation when full access key exists for account", async () => {
+    const keyPair = Ed25519KeyPair.fromRandom()
+    const accountId = "test.near"
+    const nonce = generateNonce()
+
+    const params: SignMessageParams = {
+      message: "Login to MyApp",
+      recipient: "myapp.near",
+      nonce,
+    }
+
+    const signedMessage = keyPair.signNep413Message(accountId, params)
+
+    // Create a mock Near client that returns true for fullAccessKeyExists
+    const mockNear = {
+      async fullAccessKeyExists(
+        _accountId: string,
+        _publicKey: string,
+      ): Promise<boolean> {
+        return true
+      },
+    } as unknown as import("../../src/core/near.js").Near
+
+    const isValid = await verifyNep413Signature(signedMessage, params, {
+      near: mockNear,
+    })
+    expect(isValid).toBe(true)
+  })
+
+  test("should return false when key is a function call key (not full access)", async () => {
+    const keyPair = Ed25519KeyPair.fromRandom()
+    const accountId = "test.near"
+    const nonce = generateNonce()
+
+    const params: SignMessageParams = {
+      message: "Login to MyApp",
+      recipient: "myapp.near",
+      nonce,
+    }
+
+    const signedMessage = keyPair.signNep413Message(accountId, params)
+
+    // Create a mock Near client that returns false for fullAccessKeyExists
+    // (simulating a function call key that exists but isn't full access)
+    const mockNear = {
+      async fullAccessKeyExists(
+        _accountId: string,
+        _publicKey: string,
+      ): Promise<boolean> {
+        return false // Key exists but is not a full access key
+      },
+    } as unknown as import("../../src/core/near.js").Near
+
+    const isValid = await verifyNep413Signature(signedMessage, params, {
+      near: mockNear,
+    })
     expect(isValid).toBe(false)
   })
 })
