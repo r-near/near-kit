@@ -86,6 +86,7 @@ export {
   isPrivateKey,
   isValidAccountId,
   isValidPublicKey,
+  type Nep413RpcConfig,
   type PrivateKey,
   parseAmount,
   parseGas,
