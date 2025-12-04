@@ -413,7 +413,10 @@ describe("NEP-413 Near Client Validation", () => {
 
     // Create a mock Near client that returns false for fullAccessKeyExists
     const mockNear = {
-      async fullAccessKeyExists() {
+      async fullAccessKeyExists(
+        _accountId: string,
+        _publicKey: string,
+      ): Promise<boolean> {
         return false
       },
     } as unknown as import("../../src/core/near.js").Near
@@ -439,7 +442,10 @@ describe("NEP-413 Near Client Validation", () => {
 
     // Create a mock Near client that returns true for fullAccessKeyExists
     const mockNear = {
-      async fullAccessKeyExists() {
+      async fullAccessKeyExists(
+        _accountId: string,
+        _publicKey: string,
+      ): Promise<boolean> {
         return true
       },
     } as unknown as import("../../src/core/near.js").Near
@@ -466,7 +472,10 @@ describe("NEP-413 Near Client Validation", () => {
     // Create a mock Near client that returns false for fullAccessKeyExists
     // (simulating a function call key that exists but isn't full access)
     const mockNear = {
-      async fullAccessKeyExists() {
+      async fullAccessKeyExists(
+        _accountId: string,
+        _publicKey: string,
+      ): Promise<boolean> {
         return false // Key exists but is not a full access key
       },
     } as unknown as import("../../src/core/near.js").Near
