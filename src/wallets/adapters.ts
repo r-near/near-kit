@@ -214,7 +214,14 @@ export function fromHotConnect(
           }
 
           let args: unknown = fc.args
-          if (
+          if (args instanceof Uint8Array) {
+            try {
+              const argsString = new TextDecoder().decode(args)
+              args = JSON.parse(argsString)
+            } catch {
+              // If parsing fails, keep args as raw bytes (may be binary data)
+            }
+          } else if (
             Array.isArray(args) &&
             args.every((x: unknown) => typeof x === "number")
           ) {

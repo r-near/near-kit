@@ -143,6 +143,40 @@ describe("Wallet Adapters", () => {
       expect(txCall?.params.receiverId).toBe("bob.near")
     })
 
+    it("should correctly parse JSON args in HOT Connect functionCall", async () => {
+      const mockConnector = new MockHotConnect([
+        { accountId: "alice.near", publicKey: "ed25519:abc123" },
+      ])
+
+      const adapter = fromHotConnect(mockConnector)
+
+      const args = { foo: "bar" }
+      const argsBytes = new TextEncoder().encode(JSON.stringify(args))
+
+      const callAction = actions.functionCall(
+        "myMethod",
+        argsBytes,
+        BigInt(30000000000000),
+        BigInt(0),
+      )
+
+      await adapter.signAndSendTransaction({
+        signerId: "alice.near",
+        receiverId: "contract.near",
+        actions: [callAction],
+      })
+
+      const log = mockConnector.getCallLog()
+      const txCall = log.find((l) => l.method === "signAndSendTransaction")
+      expect(txCall).toBeDefined()
+
+      // biome-ignore lint/suspicious/noExplicitAny: Testing internal action structure
+      const hotAction = (txCall?.params.actions as any[])[0]
+      expect(hotAction.type).toBe("FunctionCall")
+      expect(hotAction.params.methodName).toBe("myMethod")
+      expect(hotAction.params.args).toEqual(args)
+    })
+
     it("should adapt HOT Connect signMessage", async () => {
       const mockConnector = new MockHotConnect([
         { accountId: "alice.near", publicKey: "ed25519:abc123" },
