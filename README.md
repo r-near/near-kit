@@ -441,6 +441,25 @@ await Promise.all([
 // Nonces are automatically managed and conflicts are retried
 ```
 
+For high-throughput scenarios (trading bots, faucets, relayers), use `RotatingKeyStore` with multiple access keys per account:
+
+```typescript
+import { RotatingKeyStore } from "near-kit"
+
+const keyStore = new RotatingKeyStore({
+  "bot.near": ["ed25519:key1...", "ed25519:key2...", "ed25519:key3..."],
+})
+
+const near = new Near({ keyStore })
+
+// Send 20 concurrent transactions - each key handles its own nonce
+await Promise.all(
+  Array(20)
+    .fill(0)
+    .map(() => near.send("recipient.near", "0.1 NEAR"))
+)
+```
+
 ### Smart Retry Logic
 
 Automatic retries for network errors with exponential backoff:

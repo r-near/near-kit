@@ -27,6 +27,14 @@ Client signs, server verifies.
 Same API works everywhere: server with private keys, browser with wallets.
 Write once, run anywhere.
 
+### [`rotating-keystore.ts`](./rotating-keystore.ts)
+High-throughput concurrent transactions using multiple access keys.
+Send many transactions without nonce collisions.
+
+```bash
+bun run examples/rotating-keystore.ts
+```
+
 ## Setup
 
 Most examples require credentials:
