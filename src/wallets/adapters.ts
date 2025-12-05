@@ -52,13 +52,13 @@ type WalletSelectorWallet = {
  * Converts a wallet-selector Wallet instance to the WalletConnection interface.
  *
  * @param wallet - Wallet instance from wallet-selector
- * @returns WalletConnection interface compatible with near-ts
+ * @returns WalletConnection interface compatible with near-kit
  *
  * @example
  * ```typescript
- * import { Near } from 'near-ts'
+ * import { Near } from 'near-kit'
  * import { setupWalletSelector } from '@near-wallet-selector/core'
- * import { fromWalletSelector } from 'near-ts/wallets'
+ * import { fromWalletSelector } from 'near-kit/wallets'
  *
  * const selector = await setupWalletSelector({
  *   network: 'mainnet',
@@ -128,34 +128,6 @@ export function fromWalletSelector(
  * Converts a HOT Connect NearConnector instance to the WalletConnection interface.
  *
  * @param connector - NearConnector instance from HOT Connect
- * @returns WalletConnection interface compatible with near-ts
- *
- * @example
- * ```typescript
- * import { Near } from 'near-ts'
- * import { NearConnector } from '@hot-labs/near-connect'
- * import { fromHotConnect } from 'near-ts/wallets'
- *
- * const connector = new NearConnector({ network: 'mainnet' })
- *
- * // Wait for user to connect their wallet
- * connector.on('wallet:signIn', async () => {
- *   const near = new Near({
- *     network: 'mainnet',
- *     wallet: fromHotConnect(connector)
- *   })
- *
- *   // Use near-ts with the connected wallet
- *   await near.call('contract.near', 'method', { arg: 'value' })
- * })
- * ```
- */
-/**
- * Adapter for @hot-labs/near-connect (HOT Connect)
- *
- * Converts a HOT Connect NearConnector instance to the WalletConnection interface.
- *
- * @param connector - NearConnector instance from HOT Connect
  * @returns WalletConnection interface compatible with near-kit
  *
  * @example
@@ -214,14 +186,9 @@ export function fromHotConnect(
           }
 
           let args: unknown = fc.args
-          if (
-            Array.isArray(args) &&
-            args.every((x: unknown) => typeof x === "number")
-          ) {
+          if (args instanceof Uint8Array) {
             try {
-              const argsString = new TextDecoder().decode(
-                new Uint8Array(args as number[]),
-              )
+              const argsString = new TextDecoder().decode(args)
               args = JSON.parse(argsString)
             } catch {
               // If parsing fails, keep args as raw bytes (may be binary data)
