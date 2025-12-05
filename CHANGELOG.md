@@ -1,5 +1,11 @@
 # near-kit
 
+## 0.6.3
+
+### Patch Changes
+
+- ed5f588: Fix HOT Connect adapter not parsing Uint8Array function call arguments.
+
 ## 0.6.2
 
 ### Patch Changes
