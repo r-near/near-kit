@@ -1,5 +1,11 @@
 # near-kit
 
+## 0.6.4
+
+### Patch Changes
+
+- ce59f4b: Add RotatingKeyStore example and update README documentation
+
 ## 0.6.3
 
 ### Patch Changes
