@@ -68,9 +68,9 @@
     }
   },
   "devDependencies": {
-    "@biomejs/biome": "2.3.8",
+    "@biomejs/biome": "2.3.9",
     "@changesets/cli": "^2.29.7",
-    "@hot-labs/near-connect": "^0.6.9",
+    "@hot-labs/near-connect": "^0.8.1",
     "@near-js/transactions": "^2.5.1",
     "@near-js/types": "^2.5.1",
     "@near-wallet-selector/core": "^10.1.1",
