@@ -167,11 +167,16 @@ export function toGas(tgas: number): string {
 }
 
 /**
- * Convert raw gas to TGas as a string.
- * Uses string-based BigInt division to avoid floating point precision errors.
+ * Convert raw gas to TGas.
+ * Uses string-based BigInt division to avoid floating point division errors.
+ *
+ * Note: The final conversion to number may lose precision for values larger than
+ * Number.MAX_SAFE_INTEGER (~9007 TGas). For typical NEAR gas limits (300 TGas max),
+ * this is not a concern. For applications requiring arbitrary precision, use
+ * formatGas() which returns a formatted string.
  *
  * @param gas - Gas amount in raw units.
- * @returns Amount in TGas as a number (may lose precision for very large values).
+ * @returns Amount in TGas as a number.
  */
 export function toTGas(gas: string | bigint): number {
   const amount = typeof gas === "string" ? BigInt(gas) : gas
