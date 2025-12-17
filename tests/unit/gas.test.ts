@@ -67,6 +67,12 @@ describe("parseGas", () => {
       const result = parseGas("30.999 Tgas")
       expect(result).toBe("30999000000000")
     })
+
+    test("handles decimal without leading zero", () => {
+      // Covers the || "0" fallback for wholePart in parseTgasToRawGas
+      const result = parseGasUnsafe(".5 Tgas")
+      expect(result).toBe("500000000000") // 0.5 Tgas
+    })
   })
 
   describe("raw gas format", () => {
@@ -192,6 +198,18 @@ describe("formatGas", () => {
     test("uses 2 decimal places by default", () => {
       const gas = "30000000000000"
       expect(formatGas(gas)).toBe("30.00 Tgas")
+    })
+
+    test("formats whole number with precision 0", () => {
+      // Covers line 133: precision === 0 with fracPart === 0
+      const gas = "30000000000000" // exactly 30 Tgas
+      expect(formatGas(gas, 0)).toBe("30 Tgas")
+    })
+
+    test("rounds down fractional value with precision 0", () => {
+      // Covers line 147: precision === 0 with first decimal < 5
+      const gas = "30400000000000" // 30.4 Tgas - should round down to 30
+      expect(formatGas(gas, 0)).toBe("30 Tgas")
     })
   })
 

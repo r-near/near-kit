@@ -58,8 +58,8 @@ export const Gas = {
  * Avoids floating point precision errors.
  */
 function parseTgasToRawGas(value: string): string {
-  // Validate format
-  if (!/^[\d.]+$/.test(value) || value.split(".").length > 2) {
+  // Validate format: integer or decimal with digits on at least one side of the dot
+  if (!/^\d+(\.\d+)?$/.test(value) && !/^\d*\.\d+$/.test(value)) {
     throw new Error(`Invalid Tgas value: ${value}`)
   }
 
@@ -69,11 +69,6 @@ function parseTgasToRawGas(value: string): string {
   const fracPart = (parts[1] || "")
     .padEnd(TGAS_DECIMALS, "0")
     .substring(0, TGAS_DECIMALS)
-
-  // Check for negative values
-  if (wholePart.startsWith("-")) {
-    throw new Error("Gas amount must be non-negative")
-  }
 
   // Convert to raw gas units
   const rawGas = BigInt(wholePart) * GAS_PER_TGAS + BigInt(fracPart)
@@ -139,15 +134,17 @@ export function formatGas(gas: string | bigint, precision = 2): string {
     const decimals = fracStr.substring(0, precision)
 
     if (precision === 0) {
-      // Round to nearest integer
-      const firstDecimalDigit = Number.parseInt(fracStr[0] || "0", 10)
+      // Round to nearest integer based on first decimal digit
+      // fracStr always has TGAS_DECIMALS characters from padStart
+      // biome-ignore lint/style/noNonNullAssertion: fracStr always has 12 chars from padStart
+      const firstDecimalDigit = Number.parseInt(fracStr[0]!, 10)
       if (firstDecimalDigit >= 5) {
         result = (wholePart + BigInt(1)).toString()
       } else {
         result = wholePart.toString()
       }
     } else {
-      result = decimals ? `${wholePart}.${decimals}` : wholePart.toString()
+      result = `${wholePart}.${decimals}`
     }
   }
 
@@ -170,10 +167,13 @@ export function toGas(tgas: number): string {
  * Convert raw gas to TGas.
  * Uses string-based BigInt division to avoid floating point division errors.
  *
- * Note: The final conversion to number may lose precision for values larger than
- * Number.MAX_SAFE_INTEGER (~9007 TGas). For typical NEAR gas limits (300 TGas max),
- * this is not a concern. For applications requiring arbitrary precision, use
- * formatGas() which returns a formatted string.
+ * Note: The final conversion to number may lose precision either when the result
+ * exceeds Number.MAX_SAFE_INTEGER (~9007 TGas) or when it has more than
+ * approximately 15–17 significant digits (for example, many fractional digits),
+ * even if the whole part is within the safe integer range. For typical NEAR gas
+ * limits (300 TGas max) without excessive decimal precision, this is not a concern.
+ * For applications requiring arbitrary precision, use formatGas(), which returns
+ * a formatted string.
  *
  * @param gas - Gas amount in raw units.
  * @returns Amount in TGas as a number.
