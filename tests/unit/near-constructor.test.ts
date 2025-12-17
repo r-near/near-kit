@@ -16,7 +16,7 @@ describe("Near Constructor - RPC Initialization", () => {
   test("_initializeRpc: uses default mainnet RPC URL", async () => {
     const near = new Near({ network: "mainnet" })
     const status = await near.getStatus()
-    expect(status.chainId).toBe("mainnet")
+    expect(status.chain_id).toBe("mainnet")
   })
 
   test("_initializeRpc: uses custom RPC URL", async () => {
@@ -25,13 +25,13 @@ describe("Near Constructor - RPC Initialization", () => {
       rpcUrl: "https://rpc.mainnet.near.org",
     })
     const status = await near.getStatus()
-    expect(status.chainId).toBe("mainnet")
+    expect(status.chain_id).toBe("mainnet")
   })
 
   test("_initializeRpc: uses testnet RPC URL", async () => {
     const near = new Near({ network: "testnet" })
     const status = await near.getStatus()
-    expect(status.chainId).toBe("testnet")
+    expect(status.chain_id).toBe("testnet")
   })
 
   test("_initializeRpc: accepts custom headers and retry config", () => {

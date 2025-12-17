@@ -33,6 +33,7 @@ export type {
   Signature,
   SignedMessage,
   SignMessageParams,
+  StatusResponse,
   TxExecutionStatus,
   WalletAccount,
   WalletConnection,

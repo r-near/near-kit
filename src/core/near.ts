@@ -23,6 +23,7 @@ import type {
   AccessKeyView,
   FinalExecutionOutcome,
   FinalExecutionOutcomeWithReceiptsMap,
+  StatusResponse,
 } from "./rpc/rpc-schemas.js"
 import { TransactionBuilder } from "./transaction.js"
 import type {
@@ -639,22 +640,12 @@ export class Near {
   }
 
   /**
-   * Get basic network status information.
+   * Get network status information.
    *
-   * @returns An object containing `chainId`, `latestBlockHeight`, and `syncing` flag.
+   * @returns The full network status response from the RPC.
    */
-  async getStatus(): Promise<{
-    chainId: string
-    latestBlockHeight: number
-    syncing: boolean
-  }> {
-    const status = await this.rpc.getStatus()
-
-    return {
-      chainId: status.chain_id,
-      latestBlockHeight: status.sync_info.latest_block_height,
-      syncing: status.sync_info.syncing,
-    }
+  async getStatus(): Promise<StatusResponse> {
+    return this.rpc.getStatus()
   }
 
   /**
