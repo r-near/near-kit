@@ -225,7 +225,7 @@ describe("parseAmount", () => {
 describe("formatAmount", () => {
   test("formats whole NEAR amount", () => {
     const result = formatAmount("10000000000000000000000000")
-    expect(result).toBe("10 NEAR")
+    expect(result).toBe("10.00 NEAR")
   })
 
   test("formats decimal NEAR amount", () => {
@@ -245,12 +245,12 @@ describe("formatAmount", () => {
 
   test("formats zero", () => {
     const result = formatAmount("0")
-    expect(result).toBe("0 NEAR")
+    expect(result).toBe("0.00 NEAR")
   })
 
   test("accepts bigint input", () => {
     const result = formatAmount(10000000000000000000000000n)
-    expect(result).toBe("10 NEAR")
+    expect(result).toBe("10.00 NEAR")
   })
 
   describe("precision option", () => {
@@ -326,7 +326,7 @@ describe("precision tests", () => {
     // 100 NEAR in yoctoNEAR
     const hundredNear = "100000000000000000000000000"
     const result = formatAmount(hundredNear)
-    expect(result).toBe("100 NEAR")
+    expect(result).toBe("100.00 NEAR")
   })
 
   test("formatAmount handles extreme precision correctly", () => {
