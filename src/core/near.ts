@@ -20,6 +20,7 @@ import {
 import { DEFAULT_FUNCTION_CALL_GAS } from "./constants.js"
 import { RpcClient } from "./rpc/rpc.js"
 import type {
+  AccessKeyView,
   FinalExecutionOutcome,
   FinalExecutionOutcomeWithReceiptsMap,
 } from "./rpc/rpc-schemas.js"
@@ -541,42 +542,35 @@ export class Near {
   }
 
   /**
-   * Check if a full access key exists for an account.
+   * Get access key information for an account.
    *
    * @param accountId - Account ID to check.
    * @param publicKey - Public key string (e.g., "ed25519:...").
    * @param options - Optional {@link BlockReference} to control finality or block.
    *
-   * @returns `true` if the full access key exists for the account, `false` otherwise.
+   * @returns Access key information if it exists, `null` otherwise.
    *
    * @remarks
-   * This method verifies that a public key belongs to an account AND has full access
-   * permission (not a function call key). This is important for validating NEP-413
-   * signed messages, which should only be signed by full access keys.
+   * This method retrieves detailed information about a specific access key,
+   * including its nonce and permission type (FullAccess or FunctionCall).
    *
    * @example
    * ```typescript
-   * const hasFullAccessKey = await near.fullAccessKeyExists("alice.near", "ed25519:...")
-   * if (!hasFullAccessKey) {
-   *   console.log("Key does not exist or is not a full access key")
+   * const accessKey = await near.getAccessKey("alice.near", "ed25519:...")
+   * if (accessKey && accessKey.permission === "FullAccess") {
+   *   console.log("Key is a full access key")
    * }
    * ```
    */
-  async fullAccessKeyExists(
+  async getAccessKey(
     accountId: string,
     publicKey: string,
     options?: BlockReference,
-  ): Promise<boolean> {
+  ): Promise<AccessKeyView | null> {
     try {
-      const accessKey = await this.rpc.getAccessKey(
-        accountId,
-        publicKey,
-        options,
-      )
-      // Check if it's a full access key (permission === "FullAccess")
-      return accessKey.permission === "FullAccess"
+      return await this.rpc.getAccessKey(accountId, publicKey, options)
     } catch {
-      return false
+      return null
     }
   }
 

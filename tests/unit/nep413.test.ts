@@ -408,13 +408,13 @@ describe("NEP-413 Near Client Validation", () => {
 
     const signedMessage = keyPair.signNep413Message(accountId, params)
 
-    // Create a mock Near client that returns false for fullAccessKeyExists
+    // Create a mock Near client that returns null for getAccessKey (key doesn't exist)
     const mockNear = {
-      async fullAccessKeyExists(
+      async getAccessKey(
         _accountId: string,
         _publicKey: string,
-      ): Promise<boolean> {
-        return false
+      ): Promise<null> {
+        return null
       },
     } as unknown as import("../../src/core/near.js").Near
 
@@ -437,13 +437,15 @@ describe("NEP-413 Near Client Validation", () => {
 
     const signedMessage = keyPair.signNep413Message(accountId, params)
 
-    // Create a mock Near client that returns true for fullAccessKeyExists
+    // Create a mock Near client that returns a full access key
     const mockNear = {
-      async fullAccessKeyExists(
-        _accountId: string,
-        _publicKey: string,
-      ): Promise<boolean> {
-        return true
+      async getAccessKey(_accountId: string, _publicKey: string) {
+        return {
+          nonce: 0,
+          permission: "FullAccess" as const,
+          block_height: 1,
+          block_hash: "test",
+        }
       },
     } as unknown as import("../../src/core/near.js").Near
 
@@ -466,14 +468,22 @@ describe("NEP-413 Near Client Validation", () => {
 
     const signedMessage = keyPair.signNep413Message(accountId, params)
 
-    // Create a mock Near client that returns false for fullAccessKeyExists
+    // Create a mock Near client that returns a function call key
     // (simulating a function call key that exists but isn't full access)
     const mockNear = {
-      async fullAccessKeyExists(
-        _accountId: string,
-        _publicKey: string,
-      ): Promise<boolean> {
-        return false // Key exists but is not a full access key
+      async getAccessKey(_accountId: string, _publicKey: string) {
+        return {
+          nonce: 0,
+          permission: {
+            FunctionCall: {
+              receiver_id: "contract.near",
+              method_names: ["some_method"],
+              allowance: null,
+            },
+          },
+          block_height: 1,
+          block_hash: "test",
+        }
       },
     } as unknown as import("../../src/core/near.js").Near
 

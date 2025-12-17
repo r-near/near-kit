@@ -20,6 +20,7 @@ export type { DelegateActionResult } from "./core/transaction.js"
 export { TransactionBuilder } from "./core/transaction.js"
 // Types
 export type {
+  AccessKeyView,
   CallOptions,
   FinalExecutionOutcome,
   KeyConfig,
