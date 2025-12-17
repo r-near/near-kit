@@ -58,8 +58,9 @@ export const Gas = {
  * Avoids floating point precision errors.
  */
 function parseTgasToRawGas(value: string): string {
-  // Validate format: integer or decimal with digits on at least one side of the dot
-  if (!/^\d+(\.\d+)?$/.test(value) && !/^\d*\.\d+$/.test(value)) {
+  // Validate format: must have at least one digit and at most one decimal point
+  // Matches: "30", "30.5", ".5", "0.123" but not ".", "..", "abc"
+  if (!/^\d*\.?\d+$/.test(value)) {
     throw new Error(`Invalid Tgas value: ${value}`)
   }
 
