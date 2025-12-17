@@ -25,8 +25,9 @@ import {
  *
  * ## Requirements
  * - Requires `@napi-rs/keyring` native dependency
- * - Linux requires a Secret Service implementation (e.g., GNOME Keyring, KWallet)
- *   when using the Secret Service backend, but no additional system libraries like libsecret
+ * - Linux: Uses either keyutils (kernel keyring, no additional requirements) or
+ *   D-Bus Secret Service API (requires a daemon like GNOME Keyring or KWallet,
+ *   but no additional system libraries like `libsecret`)
  *
  * ## Limitations
  * - Not available in browser environments (use InMemoryKeyStore instead)
