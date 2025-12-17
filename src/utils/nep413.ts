@@ -185,11 +185,11 @@ export async function verifyNep413Signature(
     // If Near client is provided, verify that the public key belongs to the account ID
     // and is a full access key (not a function call key)
     if (near) {
-      const hasFullAccessKey = await near.fullAccessKeyExists(
+      const accessKey = await near.getAccessKey(
         signedMessage.accountId,
         signedMessage.publicKey,
       )
-      if (!hasFullAccessKey) {
+      if (!accessKey || accessKey.permission !== "FullAccess") {
         // Key does not exist for this account or is not a full access key
         return false
       }
