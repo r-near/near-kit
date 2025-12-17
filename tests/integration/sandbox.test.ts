@@ -56,9 +56,9 @@ describe("Sandbox", () => {
     // Test that RPC is working
     const status = await near.getStatus()
     expect(status).toBeDefined()
-    expect(status.chainId).toBe("localnet")
+    expect(status.chain_id).toBe("localnet")
     console.log(
-      `✓ Near client connected, block height: ${status.latestBlockHeight}`,
+      `✓ Near client connected, block height: ${status.sync_info.latest_block_height}`,
     )
   })
 
@@ -109,8 +109,8 @@ describe("Sandbox - Multiple Instances", () => {
       near2.getStatus(),
     ])
 
-    expect(status1.chainId).toBe("localnet")
-    expect(status2.chainId).toBe("localnet")
+    expect(status1.chain_id).toBe("localnet")
+    expect(status2.chain_id).toBe("localnet")
 
     await sandbox1.stop()
     await sandbox2.stop()
@@ -128,7 +128,7 @@ describe("Sandbox - Version Support", () => {
 
     const near = new Near({ network: sandbox })
     const status = await near.getStatus()
-    expect(status.chainId).toBe("localnet")
+    expect(status.chain_id).toBe("localnet")
 
     await sandbox.stop()
     console.log("✓ Sandbox with specific version works")
