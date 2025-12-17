@@ -15,7 +15,7 @@ import {
  * This keystore uses the operating system's native secure credential storage:
  * - **macOS**: Keychain Access
  * - **Windows**: Credential Manager (DPAPI)
- * - **Linux**: libsecret/Secret Service API
+ * - **Linux**: keyutils (kernel keyring) or D-Bus Secret Service API
  *
  * ## Security Benefits
  * - Keys stored in OS-level secure storage (not plain files)
@@ -25,7 +25,9 @@ import {
  *
  * ## Requirements
  * - Requires `@napi-rs/keyring` native dependency
- * - Linux requires `libsecret` (`apt install libsecret-1-dev` on Debian/Ubuntu)
+ * - Linux: Uses either keyutils (kernel keyring, no additional requirements) or
+ *   D-Bus Secret Service API (requires a daemon like GNOME Keyring or KWallet,
+ *   but no additional system libraries like `libsecret`)
  *
  * ## Limitations
  * - Not available in browser environments (use InMemoryKeyStore instead)
