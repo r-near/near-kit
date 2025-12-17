@@ -311,3 +311,49 @@ describe("formatAmount", () => {
     })
   })
 })
+
+describe("precision tests", () => {
+  test("formatAmount handles values close to Number.MAX_SAFE_INTEGER in yocto", () => {
+    // This is a large yoctoNEAR value that would lose precision with Number
+    // Number.MAX_SAFE_INTEGER is 9007199254740991
+    const largeYocto = "9007199254740991000000000"
+    const result = formatAmount(largeYocto, { precision: 2 })
+    expect(result).toBe("9.00 NEAR")
+  })
+
+  test("formatAmount handles values larger than Number.MAX_SAFE_INTEGER", () => {
+    // This value is much larger than Number.MAX_SAFE_INTEGER
+    // 100 NEAR in yoctoNEAR
+    const hundredNear = "100000000000000000000000000"
+    const result = formatAmount(hundredNear)
+    expect(result).toBe("100 NEAR")
+  })
+
+  test("formatAmount handles extreme precision correctly", () => {
+    // 1.234567890123456789012345 NEAR
+    const preciseYocto = "1234567890123456789012345"
+    const result = formatAmount(preciseYocto, {
+      precision: 24,
+      includeSuffix: false,
+    })
+    expect(result).toBe("1.234567890123456789012345")
+  })
+
+  test("parseAmount and formatAmount round-trip preserves precision", () => {
+    const original = "1.23 NEAR"
+    const yocto = parseAmount(original)
+    const formatted = formatAmount(yocto, {
+      precision: 2,
+      trimZeros: true,
+      includeSuffix: true,
+    })
+    expect(formatted).toBe(original)
+  })
+
+  test("formatAmount handles billion NEAR correctly", () => {
+    // 1 billion NEAR
+    const billionNear = "1000000000000000000000000000000000"
+    const result = formatAmount(billionNear, { precision: 0 })
+    expect(result).toBe("1000000000 NEAR")
+  })
+})

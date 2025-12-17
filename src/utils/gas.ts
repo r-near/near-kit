@@ -10,6 +10,9 @@
 
 import { GAS_PER_TGAS } from "../core/constants.js"
 
+// Number of decimal places for TGas (10^12)
+const TGAS_DECIMALS = 12
+
 /**
  * Gas input type - string with unit specification.
  *
@@ -51,6 +54,34 @@ export const Gas = {
 } as const
 
 /**
+ * Internal: Parse TGas value string to raw gas units using string manipulation.
+ * Avoids floating point precision errors.
+ */
+function parseTgasToRawGas(value: string): string {
+  // Validate format
+  if (!/^[\d.]+$/.test(value) || value.split(".").length > 2) {
+    throw new Error(`Invalid Tgas value: ${value}`)
+  }
+
+  // Split into whole and fractional parts
+  const parts = value.split(".")
+  const wholePart = parts[0] || "0"
+  const fracPart = (parts[1] || "")
+    .padEnd(TGAS_DECIMALS, "0")
+    .substring(0, TGAS_DECIMALS)
+
+  // Check for negative values
+  if (wholePart.startsWith("-")) {
+    throw new Error("Gas amount must be non-negative")
+  }
+
+  // Convert to raw gas units
+  const rawGas = BigInt(wholePart) * GAS_PER_TGAS + BigInt(fracPart)
+
+  return rawGas.toString()
+}
+
+/**
  * Parse gas string to raw gas units.
  *
  * @param gas - Gas with unit (e.g., `"30 Tgas"`) or raw gas number.
@@ -65,12 +96,7 @@ export function parseGas(gas: GasInput | number): string {
   if (tgasMatch) {
     // Safe to use non-null assertion after match check
     // biome-ignore lint/style/noNonNullAssertion: regex capture group guaranteed to exist when match succeeds
-    const tgas = parseFloat(tgasMatch[1]!)
-    if (Number.isNaN(tgas) || tgas < 0) {
-      // biome-ignore lint/style/noNonNullAssertion: same capture group as above
-      throw new Error(`Invalid Tgas value: ${tgasMatch[1]!}`)
-    }
-    return BigInt(Math.floor(tgas * 1e12)).toString()
+    return parseTgasToRawGas(tgasMatch[1]!)
   }
 
   // Raw number (no unit) - assume it's already in gas units
@@ -88,7 +114,7 @@ export function parseGas(gas: GasInput | number): string {
 }
 
 /**
- * Format gas to TGas.
+ * Format gas to TGas using string-based BigInt division.
  *
  * @param gas - Gas in raw units.
  * @param precision - Decimal places (default: 2).
@@ -96,25 +122,70 @@ export function parseGas(gas: GasInput | number): string {
  */
 export function formatGas(gas: string | bigint, precision = 2): string {
   const amount = typeof gas === "string" ? BigInt(gas) : gas
-  const tgas = Number(amount) / Number(GAS_PER_TGAS)
-  return `${tgas.toFixed(precision)} Tgas`
+
+  const wholePart = amount / GAS_PER_TGAS
+  const fracPart = amount % GAS_PER_TGAS
+
+  let result: string
+
+  if (fracPart === BigInt(0)) {
+    if (precision === 0) {
+      result = wholePart.toString()
+    } else {
+      result = `${wholePart}.${"0".repeat(precision)}`
+    }
+  } else {
+    const fracStr = fracPart.toString().padStart(TGAS_DECIMALS, "0")
+    const decimals = fracStr.substring(0, precision)
+
+    if (precision === 0) {
+      // Round to nearest integer
+      const firstDecimalDigit = Number.parseInt(fracStr[0] || "0", 10)
+      if (firstDecimalDigit >= 5) {
+        result = (wholePart + BigInt(1)).toString()
+      } else {
+        result = wholePart.toString()
+      }
+    } else {
+      result = decimals ? `${wholePart}.${decimals}` : wholePart.toString()
+    }
+  }
+
+  return `${result} Tgas`
 }
 
 /**
- * Convert TGas to raw gas units.
+ * Convert TGas to raw gas units using string manipulation.
+ * Avoids floating point precision errors.
+ *
  * @param tgas - Amount in TGas.
  * @returns Gas amount as string.
  */
 export function toGas(tgas: number): string {
-  return (BigInt(Math.floor(tgas * 1e12)) * BigInt(1)).toString()
+  // Convert number to string and use string manipulation
+  return parseTgasToRawGas(tgas.toString())
 }
 
 /**
- * Convert raw gas to TGas.
+ * Convert raw gas to TGas as a string.
+ * Uses string-based BigInt division to avoid floating point precision errors.
+ *
  * @param gas - Gas amount in raw units.
- * @returns Amount in TGas.
+ * @returns Amount in TGas as a number (may lose precision for very large values).
  */
 export function toTGas(gas: string | bigint): number {
   const amount = typeof gas === "string" ? BigInt(gas) : gas
-  return Number(amount) / Number(GAS_PER_TGAS)
+
+  const wholePart = amount / GAS_PER_TGAS
+  const fracPart = amount % GAS_PER_TGAS
+
+  if (fracPart === BigInt(0)) {
+    return Number(wholePart)
+  }
+
+  // Build decimal string to avoid floating point division
+  const fracStr = fracPart.toString().padStart(TGAS_DECIMALS, "0")
+  const decimalStr = `${wholePart}.${fracStr}`
+
+  return Number.parseFloat(decimalStr)
 }

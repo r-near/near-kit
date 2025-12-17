@@ -299,3 +299,58 @@ describe("toTGas", () => {
     expect(BigInt(backToRaw)).toBe(raw)
   })
 })
+
+describe("precision tests", () => {
+  test("parseGas handles precise decimal values correctly", () => {
+    // This would have precision issues with floating point multiplication
+    const result = parseGas("0.000000000001 Tgas")
+    expect(result).toBe("1")
+  })
+
+  test("formatGas handles large gas values without precision loss", () => {
+    // 300 Tgas (max gas) = 300000000000000 raw gas
+    const maxGas = "300000000000000"
+    const result = formatGas(maxGas)
+    expect(result).toBe("300.00 Tgas")
+  })
+
+  test("formatGas handles values close to Number.MAX_SAFE_INTEGER", () => {
+    // Number.MAX_SAFE_INTEGER is 9007199254740991 (about 9000 Tgas)
+    const largeGas = "9007199254740991"
+    const result = formatGas(largeGas)
+    expect(result).toBe("9007.19 Tgas")
+  })
+
+  test("formatGas handles values larger than Number.MAX_SAFE_INTEGER", () => {
+    // This value is larger than Number.MAX_SAFE_INTEGER
+    const hugeGas = "90071992547409919999"
+    const result = formatGas(hugeGas)
+    expect(result).toBe("90071992.54 Tgas")
+  })
+
+  test("toTGas handles precise fractional values", () => {
+    // 30.5 Tgas in raw gas
+    const result = toTGas("30500000000000")
+    expect(result).toBe(30.5)
+  })
+
+  test("toGas handles precise decimal input", () => {
+    // This tests string-based parsing
+    const result = toGas(30.123456789012)
+    // Should truncate at 12 decimal places (TGas precision)
+    expect(result).toBe("30123456789012")
+  })
+
+  test("parseGas preserves precision for small decimal Tgas values", () => {
+    // 0.123456789012 Tgas
+    const result = parseGas("0.123456789012 Tgas")
+    expect(result).toBe("123456789012")
+  })
+
+  test("round-trip with high precision values", () => {
+    const originalRaw = "30123456789012"
+    const tgas = toTGas(originalRaw)
+    const backToRaw = toGas(tgas)
+    expect(backToRaw).toBe(originalRaw)
+  })
+})

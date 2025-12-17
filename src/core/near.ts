@@ -6,6 +6,7 @@ import type { ContractMethods } from "../contracts/contract.js"
 import { createContract } from "../contracts/contract.js"
 import { NearError } from "../errors/index.js"
 import { InMemoryKeyStore } from "../keys/index.js"
+import { formatAmount } from "../utils/amount.js"
 import { parseKey } from "../utils/key.js"
 import { generateNonce } from "../utils/nep413.js"
 import type { Amount, Gas } from "../utils/validation.js"
@@ -509,11 +510,9 @@ export class Near {
     // RPC client now throws AccountDoesNotExistError directly
     const account = await this.rpc.getAccount(accountId, options)
 
-    // Convert yoctoNEAR to NEAR
-    const balanceYocto = BigInt(account.amount)
-    const balanceNear = Number(balanceYocto) / 1e24
-
-    return balanceNear.toFixed(2)
+    // Convert yoctoNEAR to NEAR using string-based BigInt division
+    // to avoid floating point precision errors
+    return formatAmount(account.amount, { precision: 2, includeSuffix: false })
   }
 
   /**
