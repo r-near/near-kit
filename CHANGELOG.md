@@ -1,5 +1,38 @@
 # near-kit
 
+## 0.7.0
+
+### Minor Changes
+
+- 0c98e53: Replace `fullAccessKeyExists` with more general `getAccessKey` method
+
+  **Breaking change**: `Near.fullAccessKeyExists()` has been removed.
+
+  **New method**: `Near.getAccessKey(accountId, publicKey)` - Returns the full access key information or `null` if the key doesn't exist.
+
+  Migration:
+
+  ```typescript
+  // Before
+  const hasFullAccessKey = await near.fullAccessKeyExists(
+    "alice.near",
+    "ed25519:..."
+  );
+
+  // After
+  const accessKey = await near.getAccessKey("alice.near", "ed25519:...");
+  const hasFullAccessKey =
+    accessKey !== null && accessKey.permission === "FullAccess";
+  ```
+
+  This change provides more flexibility by exposing the full `AccessKeyView` data instead of a boolean, allowing users to inspect key permissions, nonces, and other metadata.
+
+### Patch Changes
+
+- ce59f4b: Add RotatingKeyStore example and update README documentation
+- dae8f9e: Fix floating point precision errors in decimal math operations for NEAR amounts and gas units
+- 147e699: refactor: make near.getStatus() a passthrough to rpc.getStatus()
+
 ## 0.6.3
 
 ### Patch Changes
