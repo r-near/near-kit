@@ -162,7 +162,12 @@ export function formatAmount(
   let result: string
 
   if (fracPart === BigInt(0)) {
-    result = wholePart.toString()
+    // For whole numbers, include decimal zeros if precision > 0 and not trimming
+    if (precision > 0 && !trimZeros) {
+      result = `${wholePart}.${"0".repeat(precision)}`
+    } else {
+      result = wholePart.toString()
+    }
   } else {
     const fracStr = fracPart.toString().padStart(24, "0")
     let decimals = fracStr.substring(0, precision)
