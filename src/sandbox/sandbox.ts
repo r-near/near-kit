@@ -39,6 +39,11 @@ interface ValidatorKey {
 export interface SandboxOptions {
   version?: string
   /**
+   * Path to a local near-sandbox binary. If provided, skips downloading.
+   * Falls back to NEAR_SANDBOX_BIN_PATH environment variable if not set.
+   */
+  binaryPath?: string
+  /**
    * Whether to spawn the sandbox process as detached.
    * Default: true
    * Set to false in test environments to prevent the process from being killed by test runners.
@@ -95,7 +100,7 @@ export class Sandbox {
     const detached = options.detached ?? true
 
     // 1. Ensure binary is available
-    const binaryPath = await ensureBinary(version)
+    const binaryPath = await ensureBinary(version, options.binaryPath)
 
     // 2. Create temporary home directory
     const homeDir = await mkdtemp(path.join(os.tmpdir(), "near-sandbox-"))
@@ -291,7 +296,28 @@ async function downloadBinary(version: string): Promise<string> {
  * Ensure binary is available and return its path.
  * @internal
  */
-async function ensureBinary(version: string): Promise<string> {
+async function ensureBinary(
+  version: string,
+  explicitPath?: string,
+): Promise<string> {
+  // 1. Explicit path from options
+  if (explicitPath) {
+    if (!fs.existsSync(explicitPath)) {
+      throw new Error(`Sandbox binary not found: ${explicitPath}`)
+    }
+    return explicitPath
+  }
+
+  // 2. Environment variable
+  const envPath = process.env["NEAR_SANDBOX_BIN_PATH"]
+  if (envPath) {
+    if (!fs.existsSync(envPath)) {
+      throw new Error(`NEAR_SANDBOX_BIN_PATH binary not found: ${envPath}`)
+    }
+    return envPath
+  }
+
+  // 3. Download
   return await downloadBinary(version)
 }
 
