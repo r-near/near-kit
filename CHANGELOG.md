@@ -1,5 +1,11 @@
 # near-kit
 
+## 0.8.0
+
+### Minor Changes
+
+- a2900f0: Add support for custom sandbox binary path via `binaryPath` option or `NEAR_SANDBOX_BIN_PATH` environment variable
+
 ## 0.7.0
 
 ### Minor Changes
