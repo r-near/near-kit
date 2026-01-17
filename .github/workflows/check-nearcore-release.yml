@@ -1,0 +1,73 @@
+name: Check Nearcore Release
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  check-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for new version
+        id: check
+        run: |
+          CURRENT=$(grep -oP 'DEFAULT_VERSION = "\K[^"]+' src/sandbox/sandbox.ts)
+          LATEST=$(gh api repos/near/nearcore/releases/latest --jq '.tag_name | sub("^v"; "")')
+
+          echo "current=$CURRENT" >> $GITHUB_OUTPUT
+          echo "latest=$LATEST" >> $GITHUB_OUTPUT
+          echo "Current: $CURRENT, Latest: $LATEST"
+
+          if [ "$CURRENT" != "$LATEST" ]; then
+            echo "needs_update=true" >> $GITHUB_OUTPUT
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Create PR with updated version
+        if: steps.check.outputs.needs_update == 'true'
+        run: |
+          BRANCH="deps/nearcore-${{ steps.check.outputs.latest }}"
+
+          # Check if PR already exists
+          if gh pr list --head "$BRANCH" | grep -q .; then
+            echo "PR already exists for $BRANCH"
+            exit 0
+          fi
+
+          # Create branch and update version
+          git checkout -b "$BRANCH"
+          sed -i 's/DEFAULT_VERSION = "[^"]*"/DEFAULT_VERSION = "${{ steps.check.outputs.latest }}"/' src/sandbox/sandbox.ts
+
+          # Create changeset
+          cat > .changeset/nearcore-${{ steps.check.outputs.latest }}.md << EOF
+          ---
+          "near-kit": patch
+          ---
+
+          Update sandbox to nearcore ${{ steps.check.outputs.latest }}
+          EOF
+
+          # Commit and push
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "build(sandbox): update nearcore to ${{ steps.check.outputs.latest }}"
+          git push -u origin "$BRANCH"
+
+          # Create PR
+          gh pr create \
+            --title "build(sandbox): update nearcore to ${{ steps.check.outputs.latest }}" \
+            --body "Updates sandbox binary to nearcore ${{ steps.check.outputs.latest }}
+
+          [Release notes](https://github.com/near/nearcore/releases/tag/${{ steps.check.outputs.latest }})" \
+            --label "dependencies,automated"
+        env:
+          GH_TOKEN: ${{ github.token }}
