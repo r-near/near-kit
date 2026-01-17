@@ -62,12 +62,13 @@ jobs:
           git commit -m "build(sandbox): update nearcore to ${{ steps.check.outputs.latest }}"
           git push -u origin "$BRANCH"
 
-          # Create PR
+          # Create PR (without labels to avoid failure if they don't exist)
           gh pr create \
             --title "build(sandbox): update nearcore to ${{ steps.check.outputs.latest }}" \
             --body "Updates sandbox binary to nearcore ${{ steps.check.outputs.latest }}
 
-          [Release notes](https://github.com/near/nearcore/releases/tag/${{ steps.check.outputs.latest }})" \
-            --label "dependencies,automated"
+          [Release notes](https://github.com/near/nearcore/releases/tag/${{ steps.check.outputs.latest }})
+
+          *This PR was automatically created by the Check Nearcore Release workflow.*"
         env:
           GH_TOKEN: ${{ github.token }}
