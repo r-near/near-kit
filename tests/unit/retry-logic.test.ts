@@ -435,6 +435,14 @@ describe("Transaction InvalidNonceError Retry", () => {
           },
         } as StatusResponse
       },
+      async getBlock() {
+        return {
+          header: {
+            hash: "GVgoqd4XN1r7VEde3bpw2qH1FYvjJR3z8dXJ5C5FQuUL",
+            height: 12345,
+          },
+        }
+      },
       async sendTransaction() {
         sendAttemptCount++
         if (sendAttemptCount === 1) {
@@ -499,6 +507,14 @@ describe("Transaction InvalidNonceError Retry", () => {
           },
         } as StatusResponse
       },
+      async getBlock() {
+        return {
+          header: {
+            hash: "GVgoqd4XN1r7VEde3bpw2qH1FYvjJR3z8dXJ5C5FQuUL",
+            height: 12345,
+          },
+        }
+      },
       async sendTransaction() {
         sendAttemptCount++
         // Always throw InvalidNonceError
@@ -548,6 +564,14 @@ describe("Transaction InvalidNonceError Retry", () => {
             latest_block_hash: "GVgoqd4XN1r7VEde3bpw2qH1FYvjJR3z8dXJ5C5FQuUL",
           },
         } as StatusResponse
+      },
+      async getBlock() {
+        return {
+          header: {
+            hash: "GVgoqd4XN1r7VEde3bpw2qH1FYvjJR3z8dXJ5C5FQuUL",
+            height: 12345,
+          },
+        }
       },
       async sendTransaction() {
         sendAttemptCount++
