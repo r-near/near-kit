@@ -71,6 +71,74 @@ export const AccessKeyInfoViewSchema = z.object({
 })
 
 /**
+ * Block header view schema
+ */
+export const BlockHeaderViewSchema = z.object({
+  height: z.number(),
+  prev_height: z.number().nullable().optional(),
+  epoch_id: z.string(),
+  next_epoch_id: z.string(),
+  hash: z.string(),
+  prev_hash: z.string(),
+  prev_state_root: z.string(),
+  chunk_receipts_root: z.string(),
+  chunk_headers_root: z.string(),
+  chunk_tx_root: z.string(),
+  outcome_root: z.string(),
+  chunks_included: z.number(),
+  challenges_root: z.string(),
+  timestamp: z.number(),
+  timestamp_nanosec: z.string(),
+  random_value: z.string(),
+  validator_proposals: z.array(z.any()),
+  chunk_mask: z.array(z.boolean()),
+  gas_price: z.string(),
+  block_ordinal: z.number().nullable().optional(),
+  total_supply: z.string(),
+  challenges_result: z.array(z.any()),
+  last_final_block: z.string(),
+  last_ds_final_block: z.string(),
+  next_bp_hash: z.string(),
+  block_merkle_root: z.string(),
+  epoch_sync_data_hash: z.string().nullable().optional(),
+  approvals: z.array(z.string().nullable()),
+  signature: z.string(),
+  latest_protocol_version: z.number(),
+})
+
+/**
+ * Chunk header view schema (simplified)
+ */
+export const ChunkHeaderViewSchema = z.object({
+  chunk_hash: z.string(),
+  prev_block_hash: z.string(),
+  outcome_root: z.string(),
+  prev_state_root: z.string(),
+  encoded_merkle_root: z.string(),
+  encoded_length: z.number(),
+  height_created: z.number(),
+  height_included: z.number(),
+  shard_id: z.number(),
+  gas_used: z.number(),
+  gas_limit: z.number(),
+  validator_reward: z.string(),
+  balance_burnt: z.string(),
+  outgoing_receipts_root: z.string(),
+  tx_root: z.string(),
+  validator_proposals: z.array(z.any()),
+  signature: z.string(),
+})
+
+/**
+ * Block view schema
+ */
+export const BlockViewSchema = z.object({
+  author: z.string(),
+  header: BlockHeaderViewSchema,
+  chunks: z.array(ChunkHeaderViewSchema),
+})
+
+/**
  * Status response schema
  */
 export const StatusResponseSchema = z.object({
@@ -481,6 +549,9 @@ export type ViewFunctionCallResult = z.infer<
 export type AccountView = z.infer<typeof AccountViewSchema>
 export type AccessKeyView = z.infer<typeof AccessKeyViewSchema>
 export type AccessKeyInfoView = z.infer<typeof AccessKeyInfoViewSchema>
+export type BlockHeaderView = z.infer<typeof BlockHeaderViewSchema>
+export type ChunkHeaderView = z.infer<typeof ChunkHeaderViewSchema>
+export type BlockView = z.infer<typeof BlockViewSchema>
 export type StatusResponse = z.infer<typeof StatusResponseSchema>
 export type GasPriceResponse = z.infer<typeof GasPriceResponseSchema>
 export type AccessKeyListResponse = z.infer<typeof AccessKeyListResponseSchema>

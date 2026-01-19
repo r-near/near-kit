@@ -789,8 +789,10 @@ export class TransactionBuilder {
       },
     )
 
-    const status = await this.rpc.getStatus()
-    const blockHash = base58.decode(status.sync_info.latest_block_hash)
+    // Use finalized block hash - more stable across load-balanced RPC nodes
+    // than getStatus() which returns the optimistic head
+    const block = await this.rpc.getBlock({ finality: "final" })
+    const blockHash = base58.decode(block.header.hash)
 
     const transaction: Transaction = {
       signerId: this.signerId,

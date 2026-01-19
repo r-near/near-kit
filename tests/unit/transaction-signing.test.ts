@@ -35,6 +35,12 @@ function createBuilderWithMocks(): {
       latest_block_hash: "GwVStJW8yLesiDA1Fhd7tkMx48ViJQBoTMBBLXa2YUhP",
     },
   })
+  ;(rpc as unknown as Record<string, unknown>)["getBlock"] = async () => ({
+    header: {
+      hash: "GwVStJW8yLesiDA1Fhd7tkMx48ViJQBoTMBBLXa2YUhP",
+      height: 12345,
+    },
+  })
 
   const builder = new TransactionBuilder("alice.near", rpc, keyStore)
 

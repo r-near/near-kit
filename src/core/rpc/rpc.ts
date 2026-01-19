@@ -8,6 +8,7 @@ import type { BlockReference, RpcRetryConfigInput } from "../config-schemas.js"
 import type {
   AccessKeyView,
   AccountView,
+  BlockView,
   ExecutionOutcomeWithId,
   FinalExecutionOutcome,
   FinalExecutionOutcomeMap,
@@ -27,6 +28,7 @@ import {
 import {
   AccessKeyViewSchema,
   AccountViewSchema,
+  BlockViewSchema,
   FinalExecutionOutcomeSchema,
   FinalExecutionOutcomeWithReceiptsSchema,
   GasPriceResponseSchema,
@@ -504,6 +506,39 @@ export class RpcClient {
   async getStatus(): Promise<StatusResponse> {
     const result = await this.call("status", [])
     return StatusResponseSchema.parse(result)
+  }
+
+  /**
+   * Get block information via `block`.
+   *
+   * @param options - Block reference specifying which block to fetch.
+   *                  Use `{ finality: "final" }` for the latest finalized block,
+   *                  `{ finality: "optimistic" }` for the latest block,
+   *                  or `{ blockId: <hash or height> }` for a specific block.
+   *
+   * @example
+   * ```typescript
+   * // Get latest finalized block (recommended for transactions)
+   * const block = await rpc.getBlock({ finality: "final" })
+   *
+   * // Get latest optimistic block
+   * const block = await rpc.getBlock({ finality: "optimistic" })
+   *
+   * // Get specific block by height
+   * const block = await rpc.getBlock({ blockId: 12345 })
+   *
+   * // Get specific block by hash
+   * const block = await rpc.getBlock({ blockId: "ABC123..." })
+   * ```
+   */
+  async getBlock(options?: BlockReference): Promise<BlockView> {
+    const result = await this.call("block", {
+      ...(options?.blockId
+        ? { block_id: options.blockId }
+        : { finality: options?.finality || "final" }),
+    })
+
+    return BlockViewSchema.parse(result)
   }
 
   /**
