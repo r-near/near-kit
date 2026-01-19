@@ -1,5 +1,11 @@
 # near-kit
 
+## 0.8.2
+
+### Patch Changes
+
+- 11a32ba: Fix "Transaction Expired" errors when sending parallel transactions to load-balanced RPC endpoints by using finalized block hash instead of optimistic head
+
 ## 0.8.1
 
 ### Patch Changes
