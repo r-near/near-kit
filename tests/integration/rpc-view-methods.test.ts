@@ -66,6 +66,46 @@ describe("RPC View Methods - Mainnet", () => {
     )
   }, 10000) // 10 second timeout
 
+  test("getBlock should return block with default finality", async () => {
+    const block = await rpc.getBlock()
+
+    expect(block).toBeDefined()
+    expect(block.header).toBeDefined()
+    expect(block.header.hash).toBeDefined()
+    expect(block.header.height).toBeGreaterThan(0)
+    expect(block.author).toBeDefined()
+    expect(Array.isArray(block.chunks)).toBe(true)
+
+    console.log(
+      `✓ Block (final): height=${block.header.height}, hash=${block.header.hash.slice(0, 8)}...`,
+    )
+  }, 10000)
+
+  test("getBlock should accept finality parameter", async () => {
+    const block = await rpc.getBlock({ finality: "optimistic" })
+
+    expect(block).toBeDefined()
+    expect(block.header.hash).toBeDefined()
+    expect(block.header.height).toBeGreaterThan(0)
+
+    console.log(`✓ Block (optimistic): height=${block.header.height}`)
+  }, 10000)
+
+  test("getBlock should accept blockId parameter", async () => {
+    // First get the current final block to get a valid height
+    const finalBlock = await rpc.getBlock({ finality: "final" })
+    const targetHeight = finalBlock.header.height - 5 // Get a block 5 behind
+
+    const block = await rpc.getBlock({ blockId: targetHeight })
+
+    expect(block).toBeDefined()
+    expect(block.header.height).toBe(targetHeight)
+
+    console.log(
+      `✓ Block (by height ${targetHeight}): hash=${block.header.hash.slice(0, 8)}...`,
+    )
+  }, 10000)
+
   test("getAccount should return account info for known account", async () => {
     const account: AccountView = await rpc.getAccount(MAINNET_ACCOUNT)
 
