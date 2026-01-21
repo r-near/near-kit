@@ -339,12 +339,14 @@ export const ActionSchema = z.union([
     }),
   }),
   z.object({
-    DeployGlobalContractByAccountId: z.object({
+    // DeployGlobalContract: deploy by code hash (immutable)
+    DeployGlobalContract: z.object({
       code: z.string(), // base64 encoded contract code
     }),
   }),
   z.object({
-    DeployGlobalContractByCodeHash: z.object({
+    // DeployGlobalContractByAccountId: deploy by account (upgradeable)
+    DeployGlobalContractByAccountId: z.object({
       code: z.string(), // base64 encoded contract code
     }),
   }),
@@ -374,13 +376,15 @@ export const ActionSchema = z.union([
     }),
   }),
   z.object({
-    UseGlobalContractByAccountId: z.object({
-      account_id: z.string(),
+    // UseGlobalContract: use by code hash
+    UseGlobalContract: z.object({
+      code_hash: z.string(),
     }),
   }),
   z.object({
-    UseGlobalContractByCodeHash: z.object({
-      code_hash: z.string(),
+    // UseGlobalContractByAccountId: use by account
+    UseGlobalContractByAccountId: z.object({
+      account_id: z.string(),
     }),
   }),
   z.object({

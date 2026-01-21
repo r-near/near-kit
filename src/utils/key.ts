@@ -1,7 +1,8 @@
 import { ed25519 } from "@noble/curves/ed25519.js"
 import { secp256k1 } from "@noble/curves/secp256k1.js"
+import { hmac } from "@noble/hashes/hmac.js"
+import { sha512 } from "@noble/hashes/sha2.js"
 import { base58, base64 } from "@scure/base"
-import { HDKey } from "@scure/bip32"
 import * as bip39 from "@scure/bip39"
 import { wordlist } from "@scure/bip39/wordlists/english.js"
 import { ED25519_KEY_PREFIX, SECP256K1_KEY_PREFIX } from "../core/constants.js"
@@ -298,34 +299,117 @@ export function generateSeedPhrase(
 }
 
 /**
- * Parse a BIP39 seed phrase to derive a key pair using proper BIP32/SLIP10 derivation
+ * SLIP-0010 master key derivation for ed25519
+ * Uses 'ed25519 seed' as the HMAC key per SLIP-0010 specification
+ * @internal
+ */
+function getMasterKeyFromSeed(seed: Uint8Array): {
+  key: Uint8Array
+  chainCode: Uint8Array
+} {
+  const ED25519_SEED = new TextEncoder().encode("ed25519 seed")
+  const I = hmac(sha512, ED25519_SEED, seed)
+  return {
+    key: I.slice(0, 32),
+    chainCode: I.slice(32),
+  }
+}
+
+/**
+ * SLIP-0010 child key derivation for ed25519
+ * Only supports hardened derivation (index >= 0x80000000)
+ * @internal
+ */
+function deriveChild(
+  parentKey: Uint8Array,
+  parentChainCode: Uint8Array,
+  index: number,
+): { key: Uint8Array; chainCode: Uint8Array } {
+  // Build data: 0x00 || parent_key || index (big-endian)
+  const data = new Uint8Array(37)
+  data[0] = 0
+  data.set(parentKey, 1)
+  const view = new DataView(data.buffer)
+  view.setUint32(33, index, false) // big-endian
+
+  const I = hmac(sha512, parentChainCode, data)
+  return {
+    key: I.slice(0, 32),
+    chainCode: I.slice(32),
+  }
+}
+
+/**
+ * Parse derivation path and derive key using SLIP-0010 for ed25519
+ * @internal
+ */
+function derivePath(path: string, seed: Uint8Array): Uint8Array {
+  const HARDENED_OFFSET = 0x80000000
+
+  // Validate path format
+  if (!/^m(\/\d+')+$/.test(path)) {
+    throw new InvalidKeyError(
+      `Invalid derivation path: ${path}. Must be hardened (e.g., m/44'/397'/0')`,
+    )
+  }
+
+  // Get master key
+  let { key, chainCode } = getMasterKeyFromSeed(seed)
+
+  // Parse and apply each path segment
+  const segments = path
+    .split("/")
+    .slice(1) // Remove 'm'
+    .map((s) => Number.parseInt(s.replace("'", ""), 10))
+
+  for (const segment of segments) {
+    const result = deriveChild(key, chainCode, segment + HARDENED_OFFSET)
+    key = result.key
+    chainCode = result.chainCode
+  }
+
+  return key
+}
+
+/**
+ * Parse a BIP39 seed phrase to derive a key pair using SLIP-0010 for ed25519.
+ *
+ * This uses the correct 'ed25519 seed' HMAC key per SLIP-0010 specification,
+ * which is compatible with NEAR CLI and wallet-generated seed phrases.
+ *
  * @param phrase - BIP39 seed phrase (12-24 words)
- * @param path - BIP32 derivation path (defaults to "m/44'/397'/0'" for NEAR)
+ * @param path - Derivation path (defaults to "m/44'/397'/0'" for NEAR)
  * @returns KeyPair instance
+ *
+ * @example
+ * ```typescript
+ * const keyPair = parseSeedPhrase("word1 word2 ... word12")
+ * console.log(keyPair.publicKey.toString()) // ed25519:...
+ * ```
  */
 export function parseSeedPhrase(
   phrase: string,
   path: string = "m/44'/397'/0'",
 ): KeyPair {
+  // Normalize the seed phrase (trim, lowercase, single spaces)
+  const normalizedPhrase = phrase
+    .trim()
+    .split(/\s+/)
+    .map((word) => word.toLowerCase())
+    .join(" ")
+
   // Validate the mnemonic
-  if (!bip39.validateMnemonic(phrase, wordlist)) {
+  if (!bip39.validateMnemonic(normalizedPhrase, wordlist)) {
     throw new InvalidKeyError("Invalid BIP39 seed phrase")
   }
 
   // Convert mnemonic to seed (64 bytes)
-  const seed = bip39.mnemonicToSeedSync(phrase)
+  const seed = bip39.mnemonicToSeedSync(normalizedPhrase)
 
-  // Derive HD key using BIP32 with ed25519 (SLIP10)
-  // Note: HDKey from @scure/bip32 supports ed25519 via SLIP10
-  const hdkey = HDKey.fromMasterSeed(seed)
-  const derived = hdkey.derive(path)
-
-  if (!derived.privateKey) {
-    throw new InvalidKeyError("Failed to derive private key from seed phrase")
-  }
+  // Derive key using SLIP-0010 for ed25519
+  const privateKey = derivePath(path, seed)
 
   // Get the ed25519 public key from private key
-  const privateKey = derived.privateKey
   const publicKey = ed25519.getPublicKey(privateKey)
 
   // Combine into 64-byte format for compatibility
