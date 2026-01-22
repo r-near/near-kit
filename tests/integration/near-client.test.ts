@@ -103,6 +103,15 @@ describe("Near Client - Integration Tests", () => {
       expect(keys.keys.length).toBeGreaterThan(0)
       expect(keys.block_height).toBe(blockHeight)
     })
+
+    test("should accept finality option", async () => {
+      const keys = await near.getAccessKeys(sandbox.rootAccount.id, {
+        finality: "final",
+      })
+
+      expect(keys).toBeDefined()
+      expect(keys.keys.length).toBeGreaterThan(0)
+    })
   })
 
   describe("Near.getStatus()", () => {
