@@ -6,6 +6,7 @@ import {
 } from "../../errors/index.js"
 import type { BlockReference, RpcRetryConfigInput } from "../config-schemas.js"
 import type {
+  AccessKeyListResponse,
   AccessKeyView,
   AccountView,
   BlockView,
@@ -26,6 +27,7 @@ import {
   parseRpcError,
 } from "./rpc-error-handler.js"
 import {
+  AccessKeyListResponseSchema,
   AccessKeyViewSchema,
   AccountViewSchema,
   BlockViewSchema,
@@ -315,6 +317,27 @@ export class RpcClient {
     parseQueryError(result, { accountId, publicKey })
 
     return AccessKeyViewSchema.parse(result)
+  }
+
+  /**
+   * Get all access keys for an account via `view_access_key_list`.
+   *
+   * @param accountId - Account ID to list keys for.
+   * @param options - Optional {@link BlockReference} to control finality or block.
+   */
+  async getAccessKeys(
+    accountId: string,
+    options?: BlockReference,
+  ): Promise<AccessKeyListResponse> {
+    const result = await this.call("query", {
+      request_type: "view_access_key_list",
+      ...(options?.blockId
+        ? { block_id: options.blockId }
+        : { finality: options?.finality || "optimistic" }),
+      account_id: accountId,
+    })
+
+    return AccessKeyListResponseSchema.parse(result)
   }
 
   /**
