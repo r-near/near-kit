@@ -599,7 +599,7 @@ export class Near {
     accountId: string,
     options?: BlockReference,
   ): Promise<AccessKeyListResponse> {
-    return await this.rpc.getAccessKeys(accountId, options)
+    return this.rpc.getAccessKeys(accountId, options)
   }
 
   /**

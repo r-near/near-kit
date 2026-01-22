@@ -112,6 +112,13 @@ describe("Near Client - Integration Tests", () => {
       expect(keys).toBeDefined()
       expect(keys.keys.length).toBeGreaterThan(0)
     })
+
+    test("should use default finality with empty options", async () => {
+      const keys = await near.getAccessKeys(sandbox.rootAccount.id, {})
+
+      expect(keys).toBeDefined()
+      expect(keys.keys.length).toBeGreaterThan(0)
+    })
   })
 
   describe("Near.getStatus()", () => {
