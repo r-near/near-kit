@@ -89,6 +89,20 @@ describe("Near Client - Integration Tests", () => {
       const keys = await near.getAccessKeys("nonexistent-account-xyz.test.near")
       expect(keys.keys).toEqual([])
     })
+
+    test("should accept blockId option", async () => {
+      // First get the current block height
+      const status = await near.getStatus()
+      const blockHeight = status.sync_info.latest_block_height
+
+      const keys = await near.getAccessKeys(sandbox.rootAccount.id, {
+        blockId: blockHeight,
+      })
+
+      expect(keys).toBeDefined()
+      expect(keys.keys.length).toBeGreaterThan(0)
+      expect(keys.block_height).toBe(blockHeight)
+    })
   })
 
   describe("Near.getStatus()", () => {
