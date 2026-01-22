@@ -21,6 +21,7 @@ import {
 import { DEFAULT_FUNCTION_CALL_GAS } from "./constants.js"
 import { RpcClient } from "./rpc/rpc.js"
 import type {
+  AccessKeyListResponse,
   AccessKeyView,
   FinalExecutionOutcome,
   FinalExecutionOutcomeWithReceiptsMap,
@@ -572,6 +573,33 @@ export class Near {
     } catch {
       return null
     }
+  }
+
+  /**
+   * Get all access keys for an account.
+   *
+   * @param accountId - Account ID to list keys for.
+   * @param options - Optional {@link BlockReference} to control finality or block.
+   *
+   * @returns List of access keys with their public keys and permissions.
+   *
+   * @remarks
+   * This method retrieves all access keys associated with an account,
+   * including both full access keys and function call keys.
+   *
+   * @example
+   * ```typescript
+   * const keys = await near.getAccessKeys("alice.near")
+   * for (const key of keys.keys) {
+   *   console.log(key.public_key, key.access_key.permission)
+   * }
+   * ```
+   */
+  async getAccessKeys(
+    accountId: string,
+    options?: BlockReference,
+  ): Promise<AccessKeyListResponse> {
+    return await this.rpc.getAccessKeys(accountId, options)
   }
 
   /**

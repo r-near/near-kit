@@ -63,6 +63,34 @@ describe("Near Client - Integration Tests", () => {
     })
   })
 
+  describe("Near.getAccessKeys()", () => {
+    test("should list access keys for existing account", async () => {
+      const keys = await near.getAccessKeys(sandbox.rootAccount.id)
+
+      expect(keys).toBeDefined()
+      expect(keys.keys).toBeDefined()
+      expect(Array.isArray(keys.keys)).toBe(true)
+      expect(keys.keys.length).toBeGreaterThan(0)
+
+      // Verify the structure of the first key
+      const firstKey = keys.keys[0]
+      expect(firstKey?.public_key).toBeDefined()
+      expect(firstKey?.public_key).toMatch(/^ed25519:/)
+      expect(firstKey?.access_key).toBeDefined()
+      expect(typeof firstKey?.access_key.nonce).toBe("number")
+      expect(firstKey?.access_key.permission).toBeDefined()
+
+      console.log(
+        `✓ Found ${keys.keys.length} access key(s) for ${sandbox.rootAccount.id}`,
+      )
+    })
+
+    test("should return empty keys for non-existent account", async () => {
+      const keys = await near.getAccessKeys("nonexistent-account-xyz.test.near")
+      expect(keys.keys).toEqual([])
+    })
+  })
+
   describe("Near.getStatus()", () => {
     test("should get network status", async () => {
       const status = await near.getStatus()
