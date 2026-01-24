@@ -6,6 +6,8 @@
 export type { Contract, ContractMethods } from "./contracts/contract.js"
 // Delegate actions
 export { DelegateAction } from "./core/actions.js"
+// Constants
+export { STORAGE_AMOUNT_PER_BYTE } from "./core/constants.js"
 // Main class
 export { Near } from "./core/near.js"
 export {
@@ -21,6 +23,7 @@ export { TransactionBuilder } from "./core/transaction.js"
 // Types
 export type {
   AccessKeyView,
+  AccountState,
   CallOptions,
   FinalExecutionOutcome,
   KeyConfig,

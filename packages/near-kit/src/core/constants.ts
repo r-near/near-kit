@@ -32,6 +32,19 @@ export const GAS_PER_TGAS = BigInt("1000000000000")
 
 export const DEFAULT_FUNCTION_CALL_GAS = "30000000000000" // 30 TGas
 
+// ==================== Storage ====================
+
+/**
+ * Cost per byte of storage in yoctoNEAR.
+ *
+ * This is a protocol constant (10^19 yoctoNEAR per byte = 0.00001 NEAR/byte).
+ * It has remained unchanged since NEAR genesis and would require a hard fork
+ * to modify. Used for calculating available balance.
+ *
+ * @see https://docs.near.org/concepts/storage/storage-staking
+ */
+export const STORAGE_AMOUNT_PER_BYTE = BigInt("10000000000000000000") // 10^19 yoctoNEAR
+
 // ==================== Account ID Validation ====================
 
 export const ACCOUNT_ID_REGEX =
