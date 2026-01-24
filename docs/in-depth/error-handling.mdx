@@ -1,0 +1,110 @@
+---
+title: "Error Handling"
+description: "Typed errors for clean exception handling"
+---
+
+`near-kit` converts cryptic RPC JSON errors into typed JavaScript Error classes. You can `catch` these errors and handle them logically.
+
+## The Error Hierarchy
+
+All errors extend `NearError`. You can check for specific types using `instanceof`.
+
+```typescript
+import {
+  FunctionCallError,
+  AccountDoesNotExistError,
+  NetworkError,
+} from "near-kit"
+
+try {
+  await near.call("contract.near", "method", {})
+} catch (e) {
+  if (e instanceof FunctionCallError) {
+    // The contract logic failed
+    console.log("Panic:", e.panic)
+    console.log("Logs:", e.logs)
+  } else if (e instanceof AccountDoesNotExistError) {
+    // The account isn't real
+    console.log(`Account ${e.accountId} not found`)
+  } else if (e instanceof NetworkError) {
+    // RPC is down
+    if (e.retryable) {
+      // You might want to try again
+    }
+  }
+}
+```
+
+## Error Types
+
+<AccordionGroup>
+  <Accordion title="FunctionCallError" icon="code">
+    Thrown when a smart contract call fails (panics or runs out of gas).
+    
+    **Properties:**
+    - `panic`: The panic message from the contract
+    - `logs`: Any logs emitted before the failure
+    
+    ```typescript
+    if (e instanceof FunctionCallError) {
+      console.log("Contract panicked:", e.panic)
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="AccountDoesNotExistError" icon="user-slash">
+    Thrown when trying to interact with an account that doesn't exist.
+    
+    **Properties:**
+    - `accountId`: The account that wasn't found
+    
+    ```typescript
+    if (e instanceof AccountDoesNotExistError) {
+      console.log(`Account ${e.accountId} not found`)
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="NetworkError" icon="wifi-slash">
+    Thrown when there's a network or RPC issue.
+    
+    **Properties:**
+    - `retryable`: Whether it's safe to retry
+    - `statusCode`: HTTP status code (if applicable)
+    
+    ```typescript
+    if (e instanceof NetworkError && e.retryable) {
+      // Wait and try again
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="InsufficientBalanceError" icon="wallet">
+    Thrown when an account doesn't have enough NEAR for the operation.
+    
+    **Properties:**
+    - `accountId`: The account with insufficient balance
+    - `required`: Amount needed
+    - `available`: Amount available
+  </Accordion>
+  
+  <Accordion title="InvalidNonceError" icon="rotate">
+    Thrown when a transaction's nonce is stale (usually from concurrent transactions).
+    
+    <Tip>
+    Use `RotatingKeyStore` to avoid nonce issues in high-concurrency scenarios.
+    </Tip>
+  </Accordion>
+</AccordionGroup>
+
+## Panic Messages
+
+When a contract fails, the most important info is the **Panic Message**. `near-kit` extracts this from the deep RPC response and puts it right on `error.panic`.
+
+Common panics include:
+
+- `ERR_NOT_ENOUGH_FUNDS`
+- `ERR_INVALID_ARGUMENT`
+- `Smart contract panicked: ...`
+
+Use this string to debug or show user-friendly error messages in your UI.

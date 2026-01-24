@@ -1,0 +1,137 @@
+---
+title: "Reading Data"
+---
+
+Reading data from the blockchain is free, fast, and does not require a private key (unless you are connecting to a private node).
+
+## 1. Calling View Methods
+
+Use `near.view()` to query smart contracts. This connects to the RPC and fetches the state directly.
+
+### Basic Usage
+
+Arguments are automatically JSON-serialized for you.
+
+```typescript
+const messages = await near.view(
+  "guestbook.near", // Contract ID
+  "get_messages", // Method Name
+  { limit: 10 } // Arguments object
+)
+```
+
+### Typed Return Values
+
+By default, `near.view` returns `any`. You can pass a generic type to get a strongly-typed response.
+
+```typescript
+// Define what the contract returns
+type Message = {
+  sender: string
+  text: string
+}
+
+// Pass the type to .view<T>()
+const messages = await near.view<Message[]>("guestbook.near", "get_messages", {
+  limit: 10,
+})
+
+// Now 'messages' is typed as Message[]
+console.log(messages[0].sender)
+```
+
+> **Pro Tip:** For even better type safety (including arguments), check out [Type-Safe Contracts](./type-safe-contracts).
+
+## 2. Reading Historical Data (Time Travel)
+
+By default, you read from the "Optimistic" head of the chain (the absolute latest state). Sometimes you need to read from a specific point in the past, or ensure you are reading fully finalized data.
+
+Most read methods accept an options object as the last argument.
+
+```typescript
+// Read from a specific Block Height
+await near.view(
+  "token.near",
+  "ft_balance_of",
+  { account_id: "alice.near" },
+  {
+    blockId: 120494923,
+  }
+)
+
+// Read from a specific Block Hash
+await near.getBalance("alice.near", {
+  blockId: "GZ8vK...",
+})
+
+// Read only "Final" data (slower, but immutable)
+await near.view(
+  "game.near",
+  "get_winner",
+  {},
+  {
+    finality: "final",
+  }
+)
+```
+
+## 3. Checking Balances
+
+Use `near.getBalance()` to get a formatted, human-readable string.
+
+```typescript
+const balance = await near.getBalance("alice.near")
+console.log(balance) // "10.50 NEAR"
+```
+
+> **Note:** If you need the raw BigInt value for calculations (yoctoNEAR), use `near.getAccountDetails("alice.near")`.
+
+## 4. Listing Access Keys
+
+Use `near.getAccessKeys()` to list all access keys for an account.
+
+```typescript
+const keys = await near.getAccessKeys("alice.near")
+
+for (const key of keys.keys) {
+  console.log(key.public_key) // "ed25519:..."
+  
+  if (key.access_key.permission === "FullAccess") {
+    console.log("Full access key")
+  } else {
+    // Function call key - has receiver_id, method_names, allowance
+    console.log("Function call key for:", key.access_key.permission.FunctionCall.receiver_id)
+  }
+}
+```
+
+To get a single access key by public key, use `near.getAccessKey()`:
+
+```typescript
+const accessKey = await near.getAccessKey("alice.near", "ed25519:...")
+if (accessKey) {
+  console.log("Nonce:", accessKey.nonce)
+}
+```
+
+## 5. Batching Requests
+
+If you need to make multiple read calls at once, use `near.batch()`. This runs them in parallel (like `Promise.all`) but preserves the types of the results in the returned tuple.
+
+```typescript
+const [balance, messages, exists] = await near.batch(
+  near.getBalance("alice.near"),
+  near.view<Message[]>("guestbook.near", "get_messages", {}),
+  near.accountExists("bob.near")
+)
+```
+
+## 6. Network Status
+
+Use `near.getStatus()` to check the health of the node and the latest block height.
+
+```typescript
+const status = await near.getStatus()
+console.log(`Latest Block: ${status.latestBlockHeight}`)
+console.log(`Syncing: ${status.syncing}`)
+```

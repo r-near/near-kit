@@ -1,0 +1,97 @@
+---
+title: "Meta-Transactions (Gasless)"
+---
+
+Meta-transactions (NEP-366) allow a user to sign a transaction off-chain, which is then submitted and paid for by a separate "Relayer" account.
+
+## How it Works
+
+1.  **User (Client):** Constructs a transaction and calls `.delegate()`. This returns a **typed object** (for UI/validation) and a **serialized string** (for transport).
+2.  **Transport:** The user sends the serialized string (`payload`) to your backend.
+3.  **Relayer (Server):** Your server decodes the payload back into an object, validates it, wraps it, and submits it.
+
+---
+
+## 1. Client Side: Signing the Action
+
+On the frontend, use the `.delegate()` method. This works exactly like `.send()`, but implies no network activity and no gas cost for the signer.
+
+It returns two properties:
+
+- `signedDelegateAction`: The raw JS object. Useful for debugging or showing details in your UI.
+- `payload`: A Base64-encoded string. This is what you send to the server.
+
+```typescript
+// 1. Delegate (builds and signs the transaction off-chain)
+const { signedDelegateAction, payload } = userNear
+  .transaction("user.near")
+  .functionCall("game.near", "move", { x: 1, y: 2 })
+  .delegate()
+
+// Inspect locally (Typed Object)
+console.log("User signed for:", signedDelegateAction.delegateAction.receiverId)
+
+// 3. Send the PAYLOAD to your API (Base64 String)
+await fetch("https://api.mygame.com/relay", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ payload }),
+})
+```
+
+---
+
+## 2. Server Side: The Relayer
+
+The server receives the Base64 string (`payload`). It must decode this string back into a typed object to inspect it before submitting.
+
+Use `near-kit`'s `decodeSignedDelegateAction` helper for this.
+
+### Example: Express.js Route
+
+```typescript
+import { Near, decodeSignedDelegateAction } from "near-kit"
+
+const relayer = new Near({
+  network: "testnet",
+  privateKey: process.env.RELAYER_KEY,
+})
+
+app.post("/relay", async (req, res) => {
+  try {
+    const { payload } = req.body
+
+    // 1. Decode the Base64 string back into a Typed Object
+    const userAction = decodeSignedDelegateAction(payload)
+
+    // 2. SECURITY: Inspect the object before paying for it!
+    // access the inner details via .delegateAction
+    const innerAction = userAction.delegateAction
+
+    // Example Check: Only allow calls to "game.near"
+    if (innerAction.receiverId !== "game.near") {
+      return res.status(400).send("Invalid target contract")
+    }
+
+    // 3. Submit to the Network
+    // The relayer wraps the user's action in its own transaction
+    const result = await relayer
+      .transaction("relayer.near")
+      .signedDelegateAction(userAction)
+      .send()
+
+    res.json({ hash: result.transaction.hash })
+  } catch (e) {
+    console.error(e)
+    res.status(500).send("Relay failed")
+  }
+})
+```
+
+## Security Checklist
+
+Running a relayer makes you a target.
+
+1.  **Whitelist Receivers:** Always check `userAction.delegateAction.receiverId`.
+2.  **Whitelist Methods:** Inspect `userAction.delegateAction.actions` to ensure users are only calling allowed methods (e.g., "move" vs "withdraw").
+3.  **Rate Limiting:** Rate limit your API endpoint to prevent draining your relayer's funds.

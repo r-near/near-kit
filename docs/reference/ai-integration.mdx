@@ -1,0 +1,157 @@
+---
+title: "For AI Agents"
+description: "How to use near-kit documentation with AI coding assistants"
+---
+
+This documentation is optimized for AI coding assistants. Whether you're using **Cursor**, **Windsurf**, **Claude**, **ChatGPT**, or other AI tools, there are multiple ways to give them context about `near-kit`.
+
+<Warning>
+**Important:** `near-kit` is NOT `near-api-js`. AI models often confuse the two. Always provide context to ensure the AI uses the correct, modern API.
+</Warning>
+
+## Quick Access Methods
+
+<CardGroup cols={2}>
+  <Card title="Contextual Menu" icon="mouse-pointer">
+    Select any text on this site and use the popup menu to send it directly to ChatGPT, Claude, Cursor, or VS Code.
+  </Card>
+  <Card title="MCP Server" icon="plug">
+    Connect your AI tool to our Model Context Protocol server for live documentation access.
+  </Card>
+  <Card title="llms.txt" icon="file-text">
+    Fetch the full documentation as a single text file optimized for LLMs.
+  </Card>
+  <Card title="Markdown Export" icon="download">
+    Click the copy button on any page to get markdown for your AI context.
+  </Card>
+</CardGroup>
+
+---
+
+## Model Context Protocol (MCP)
+
+MCP allows AI tools to connect directly to our documentation server. This gives your AI assistant live access to search and read the docs.
+
+### Supported Tools
+
+- **Claude Desktop** - Native MCP support
+- **Cursor** - Via MCP extension
+- **VS Code** - Via Copilot MCP extensions
+
+### Connection URL
+
+```
+https://kit.near.tools/mcp
+```
+
+<Tabs>
+  <Tab title="Claude Desktop">
+    Add to your `claude_desktop_config.json`:
+
+    ```json
+    {
+      "mcpServers": {
+        "near-kit": {
+          "command": "npx",
+          "args": ["-y", "@anthropic-ai/mcp-remote", "https://kit.near.tools/mcp"]
+        }
+      }
+    }
+    ```
+  </Tab>
+  <Tab title="Cursor">
+    Add to your Cursor MCP settings:
+
+    ```json
+    {
+      "mcpServers": {
+        "near-kit": {
+          "url": "https://kit.near.tools/mcp"
+        }
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## llms.txt Files
+
+The full documentation is available as plain text files optimized for LLM context windows.
+
+<AccordionGroup>
+  <Accordion title="llms-full.txt (Recommended)" icon="file">
+    Contains the entire documentation in a single text file. Use this for most coding tasks.
+
+    **URL:** [https://kit.near.tools/llms-full.txt](https://kit.near.tools/llms-full.txt)
+
+    ```bash
+    curl https://kit.near.tools/llms-full.txt
+    ```
+  </Accordion>
+
+  <Accordion title="llms.txt (Index Only)" icon="list">
+    A condensed table of contents with page summaries. Use this if you're hitting context window limits.
+
+    **URL:** [https://kit.near.tools/llms.txt](https://kit.near.tools/llms.txt)
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Using with AI Assistants
+
+<Tabs>
+  <Tab title="Cursor / Windsurf">
+    1. Open the **Chat** pane
+    2. Type `@Docs` and add the URL: `https://kit.near.tools/llms-full.txt`
+    3. Or use `@Web` to fetch any documentation page directly
+
+    The editor will ingest the documentation as a reference file.
+  </Tab>
+
+  <Tab title="Claude Desktop">
+    Connect via MCP for the best experience:
+
+    1. Open Claude Desktop settings
+    2. Add the MCP server: `https://kit.near.tools/mcp`
+    3. Claude can now search and read the docs directly
+
+    Or paste the llms-full.txt URL in your conversation.
+  </Tab>
+
+  <Tab title="ChatGPT">
+    1. Paste the URL in your chat: `https://kit.near.tools/llms-full.txt`
+    2. Ask ChatGPT to read and reference it
+    3. Add the recommended prompt below
+  </Tab>
+
+  <Tab title="VS Code Copilot">
+    Use the contextual menu on this site:
+
+    1. Select code or text you want to reference
+    2. Click the VS Code option in the popup menu
+    3. The content opens in your editor for Copilot context
+  </Tab>
+</Tabs>
+
+---
+
+## Recommended Prompt
+
+When starting a new AI session, use this prompt to ensure accurate responses:
+
+```text
+I am building an application using the `near-kit` TypeScript library for NEAR blockchain.
+
+IMPORTANT: `near-kit` is NOT `near-api-js`. They are completely different libraries.
+- Do NOT use `near-api-js` patterns (like `utils.format`, `account.functionCall`, `BN`)
+- Use human-readable strings for amounts: "10 NEAR", "30 Tgas"
+- Use the fluent transaction builder: `near.transaction().transfer().send()`
+- Reference the provided documentation as the source of truth
+```
+
+<Note>
+This prompt helps prevent the AI from hallucinating `near-api-js` patterns, which is a common issue since that library has more training data.
+</Note>

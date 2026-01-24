@@ -1,0 +1,74 @@
+---
+title: "Type-Safe Contracts"
+---
+
+Using `near.view` and `near.call` works well for quick scripts, but they are "stringly typed." If you misspell a method name or pass the wrong arguments, you won't know until your code crashes at runtime.
+
+`near-kit` allows you to define a TypeScript interface for your contract. This gives you:
+
+1.  **Autocomplete** for method names.
+2.  **Type Checking** for arguments and return values.
+3.  **Inline Documentation** (if you add JSDoc comments).
+
+## 1. Define the Interface
+
+You define a type that passes a generic object to `Contract`. This object must have `view` and `call` properties describing your methods.
+
+```typescript
+import type { Contract } from "near-kit"
+
+// Define your data shapes
+type Message = { sender: string; text: string }
+
+// Define the contract type using the Generic syntax
+type Guestbook = Contract<{
+  view: {
+    // MethodName: (args: Arguments) => Promise<ReturnValue>
+    get_messages: (args: { limit: number }) => Promise<Message[]>
+    total_messages: () => Promise<number>
+  }
+  call: {
+    // Call methods usually return void, but can return values too
+    add_message: (args: { text: string }) => Promise<void>
+  }
+}>
+```
+
+## 2. Create the Proxy
+
+Use the `near.contract<T>()` method to create a typed proxy for a specific contract ID.
+
+```typescript
+// This object now has all the methods defined in your type
+const guestbook = near.contract<Guestbook>("guestbook.near")
+```
+
+## 3. Use it!
+
+You can now access methods directly under `.view` and `.call`.
+
+### Calling Views
+
+Arguments are passed as the first parameter.
+
+```typescript
+// ✅ Autocomplete works here!
+const messages = await guestbook.view.get_messages({ limit: 5 })
+
+// ❌ TypeScript Error: Argument 'limit' is missing
+// const messages = await guestbook.view.get_messages({});
+```
+
+### Calling Change Methods
+
+Change methods take two arguments:
+
+1.  **Args:** The arguments for the contract function.
+2.  **Options:** (Optional) Gas and Attached Deposit.
+
+```typescript
+await guestbook.call.add_message(
+  { text: "Hello Types!" }, // 1. Contract Args
+  { gas: "30 Tgas", attachedDeposit: "0.1 NEAR" } // 2. Transaction Options
+)
+```

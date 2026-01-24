@@ -1,0 +1,133 @@
+---
+title: "Key Management"
+---
+
+Managing private keys securely is the most critical part of any blockchain application. `near-kit` provides several `KeyStore` implementations to suit different environments, from temporary testing to secure production servers.
+
+## 1. `InMemoryKeyStore` (Testing & Scripts)
+
+- **Best for:** Unit tests, CI/CD, and short-lived scripts.
+
+This store keeps keys in a plain JavaScript object in RAM. If the process exits, the keys are gone.
+
+```typescript
+import { InMemoryKeyStore, Near } from "near-kit"
+
+const keyStore = new InMemoryKeyStore()
+
+// You can pre-seed it with keys
+await keyStore.add("alice.testnet", parseKey("ed25519:..."))
+
+const near = new Near({
+  network: "testnet",
+  keyStore: keyStore,
+})
+```
+
+## 2. `FileKeyStore` (Dev & Servers)
+
+- **Best for:** Local development and simple server deployments.
+- **Requires:** Node.js or Bun.
+
+This store reads and writes keys to JSON files in the standard `~/.near-credentials` directory. This makes it compatible with the NEAR CLI.
+
+```typescript
+import { FileKeyStore } from "near-kit/keys";
+
+// Uses ~/.near-credentials/testnet/
+const keyStore = new FileKeyStore("~/.near-credentials", "testnet");
+
+const near = new Near({
+  network: "testnet",
+  keyStore: keyStore
+});
+
+// Now you can sign for any account in that folder
+await near.transaction("alice.testnet")...
+```
+
+## 3. `NativeKeyStore` (Maximum Security)
+
+- **Best for:** Production servers, desktop apps, and CLI tools.
+- **Requires:** Node.js/Bun and `@napi-rs/keyring`.
+
+This store uses your operating system's native secure credential storage (Keychain on macOS, Credential Manager on Windows, libsecret on Linux). Keys are encrypted by the OS and protected by the user's password/biometrics.
+
+```bash
+# Install the native dependency first
+npm install @napi-rs/keyring
+```
+
+```typescript
+import { NativeKeyStore } from "near-kit/keys/native"
+
+// Keys are stored in the OS Keychain under "NEAR Credentials"
+const keyStore = new NativeKeyStore()
+
+const near = new Near({
+  network: "mainnet",
+  keyStore,
+})
+
+// The first time you add a key, the OS may prompt for permission
+await keyStore.add("secure-admin.near", keyPair)
+```
+
+> **Note:** OS Keyrings do not allow listing all keys for security reasons. You must know the `accountId` you want to retrieve.
+
+## 4. `RotatingKeyStore` (High Throughput)
+
+- **Best for:** Trading bots, faucets, and high-traffic relayers.
+
+The NEAR network processes transactions sequentially for each Access Key. If you try to send 50 transactions in parallel from one account, most will fail with `InvalidNonce` errors.
+
+`RotatingKeyStore` solves this by managing multiple keys for a single account and rotating through them round-robin.
+
+```typescript
+import { RotatingKeyStore } from "near-kit"
+
+const keyStore = new RotatingKeyStore({
+  "bot.near": ["ed25519:key1...", "ed25519:key2...", "ed25519:key3..."],
+})
+
+const near = new Near({ keyStore })
+
+// Now you can fire off concurrent requests!
+await Promise.all([
+  near.send("a.near", "1 NEAR"),
+  near.send("b.near", "1 NEAR"), // Uses Key 2
+  near.send("c.near", "1 NEAR"), // Uses Key 3
+])
+```
+
+<Tip title="Complete Example">
+See [`examples/rotating-keystore.ts`](https://github.com/r-near/near-kit/blob/main/examples/rotating-keystore.ts) for a complete working example including account setup and adding multiple access keys.
+</Tip>
+
+## Permissions
+
+When you add a key to an account (using `.addKey`), you define what that key can do.
+
+### Full Access
+
+Can do anything: transfer NEAR, delete the account, deploy code, add more keys.
+
+- **Use case:** Your main admin key.
+
+### Function Call Access
+
+Can **only** call specific methods on a specific contract. It cannot transfer NEAR.
+
+- **Use case:** "Log in with NEAR", limited session keys, automated agents.
+
+```typescript
+await near
+  .transaction("alice.near")
+  .addKey(newPublicKey, {
+    type: "functionCall",
+    receiverId: "game.near",
+    methodNames: ["move", "attack"], // Only these methods
+    allowance: "0.25 NEAR", // Max gas fees this key can spend
+  })
+  .send()
+```

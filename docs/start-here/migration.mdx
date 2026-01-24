@@ -1,0 +1,175 @@
+---
+title: "Migrating from near-api-js"
+description: "Side-by-side comparisons to help you migrate"
+---
+
+If you are coming from `near-api-js`, you will find `near-kit` to be more concise and less prone to "unit arithmetic" errors.
+
+## Core Philosophy Shifts
+
+<CardGroup cols={3}>
+  <Card title="No Account Object" icon="user-slash">
+    Use the central `Near` instance and pass signer IDs as arguments
+  </Card>
+  <Card title="Strings, not BigInts" icon="quote-left">
+    No more `utils.format` or counting zeros
+  </Card>
+  <Card title="Fluent Builder" icon="link">
+    Chain readable methods instead of config objects
+  </Card>
+</CardGroup>
+
+---
+
+## Side-by-Side Comparisons
+
+### 1. Connecting & Keys
+
+<Tabs>
+  <Tab title="near-api-js">
+    You have to manually assemble the Account, JsonRpcProvider, and KeyPairSigner.
+    
+    ```typescript
+    import { Account } from "@near-js/accounts"
+    import { JsonRpcProvider } from "@near-js/providers"
+    import { KeyPairSigner } from "@near-js/signers"
+
+    const provider = new JsonRpcProvider({
+      url: "https://test.rpc.fastnear.com",
+    })
+    const signer = KeyPairSigner.fromSecretKey("ed25519:...")
+    const account = new Account("alice.testnet", provider, signer)
+    ```
+  </Tab>
+  <Tab title="near-kit">
+    Configuration is flattened. The KeyStore is optional for simple cases.
+    
+    ```typescript
+    const near = new Near({
+      network: "testnet",
+      privateKey: "ed25519:...", // Automatically sets up an InMemoryKeyStore
+      defaultSignerId: "alice.testnet",
+    })
+    ```
+  </Tab>
+</Tabs>
+
+### 2. Handling Units
+
+<Tabs>
+  <Tab title="near-api-js">
+    Requires manual conversion, often leading to `BN` (BigNumber) headaches.
+    
+    ```typescript
+    import { parseNearAmount } from "@near-js/utils"
+
+    const amount = parseNearAmount("10.5") // "1050000..."
+    const gas = "30000000000000" // Hope you counted the zeros right!
+    ```
+  </Tab>
+  <Tab title="near-kit">
+    Parses human-readable strings automatically.
+    
+    ```typescript
+    const amount = "10.5 NEAR"
+    const gas = "30 Tgas"
+    ```
+  </Tab>
+</Tabs>
+
+### 3. Calling Contracts
+
+<Tabs>
+  <Tab title="near-api-js">
+    Arguments are passed inside a configuration object.
+    
+    ```typescript
+    const account = new Account("alice.testnet", provider, signer)
+
+    await account.callFunction({
+      contractId: "market.near",
+      methodName: "buy",
+      args: { id: "1" },
+      gas: "50000000000000",
+      deposit: parseNearAmount("1")!,
+    })
+    ```
+  </Tab>
+  <Tab title="near-kit">
+    Uses a fluent chain.
+    
+    ```typescript
+    await near
+      .transaction("alice.testnet")
+      .functionCall(
+        "market.near",
+        "buy",
+        { id: "1" },
+        { gas: "50 Tgas", attachedDeposit: "1 NEAR" }
+      )
+      .send()
+    ```
+  </Tab>
+</Tabs>
+
+### 4. Error Handling
+
+<Tabs>
+  <Tab title="near-api-js">
+    Often throws raw RPC errors or generic "TypedErrors" that are hard to parse.
+    
+    ```typescript
+    try {
+      // ...
+    } catch (e) {
+      // You have to inspect e.type or e.message string matching
+      if (e.type === 'FunctionCallError') { ... }
+    }
+    ```
+  </Tab>
+  <Tab title="near-kit">
+    Throws distinct, standard JavaScript Error subclasses.
+    
+    ```typescript
+    import { FunctionCallError } from "near-kit"
+
+    try {
+      // ...
+    } catch (e) {
+      if (e instanceof FunctionCallError) {
+        console.log(e.panic) // Access the panic message directly
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+### 5. Access Keys
+
+<Tabs>
+  <Tab title="near-api-js">
+    ```typescript
+    await account.addFunctionCallAccessKey({
+      publicKey,
+      contractId: "market.near",
+      methodNames: ["buy"],
+      allowance: parseNearAmount("0.25")!,
+    })
+    ```
+  </Tab>
+  <Tab title="near-kit">
+    Explicitly typed permissions object.
+    
+    ```typescript
+    await near
+      .transaction("alice.testnet")
+      .addKey(publicKey, {
+        type: "functionCall",
+        receiverId: "market.near",
+        methodNames: ["buy"],
+        allowance: "0.25 NEAR",
+      })
+      .send()
+    ```
+  </Tab>
+</Tabs>

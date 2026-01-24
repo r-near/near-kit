@@ -1,0 +1,183 @@
+---
+title: "Advanced Transactions"
+---
+
+The `TransactionBuilder` allows you to orchestrate complex account management and state changes. Understanding how these actions execute is critical for writing safe smart contracts and scripts.
+
+## 1. Atomicity & Execution
+
+All actions added to a single transaction are executed **sequentially as one atomic unit on-chain**:
+
+- If **all actions succeed**, the state changes produced by those actions are committed and any promises (cross-contract calls) they created are emitted.
+- If **any action fails** (e.g. a function call panics, a transfer hits insufficient balance, etc.), the entire transaction is reverted.
+
+In other words: **within one transaction / receipt, it’s all-or-nothing.**
+
+<Warning title="The atomicity boundary stops at the transaction itself">
+Cross-contract calls created *by* your transaction run later as separate receipts. Once those child receipts have been emitted and executed on other contracts, their effects are **not** automatically rolled back if something else fails later—you must implement any "compensating logic" yourself.
+</Warning>
+
+## 2. The "Factory" Pattern (Batching)
+
+Because of the atomicity rules above, we can safely use the "Factory" pattern: creating a new sub-account, funding it, deploying a contract to it, and initializing that contract—all in one transaction.
+
+<Tip title="Why do it this way?">
+If you deploy a contract but forget to initialize it, anyone could call `init` and take ownership. By bundling `deploy` and `init` in one atomic transaction, you guarantee that **only you** can initialize it, and if initialization fails, the account creation is rolled back entirely.
+</Tip>
+
+```typescript
+import { generateKey } from "near-kit"
+import { readFileSync } from "fs"
+
+const wasm = readFileSync("./token.wasm")
+const newKey = generateKey() // Generate a fresh KeyPair
+
+const newAccountId = "token.alice.near"
+
+await near
+  .transaction("alice.near")
+  // 1. Create the account on-chain
+  .createAccount(newAccountId)
+
+  // 2. Fund it (needs storage for the contract)
+  .transfer(newAccountId, "6 NEAR")
+
+  // 3. Add a Full Access Key so we can control it later
+  .addKey(newKey.publicKey.toString(), { type: "fullAccess" })
+
+  // 4. Deploy the compiled Wasm
+  .deployContract(newAccountId, wasm)
+
+  // 5. Initialize the contract state
+  .functionCall(newAccountId, "init", {
+    owner_id: "alice.near",
+    total_supply: "1000000",
+  })
+
+  .send()
+
+console.log("🚀 Deployed!")
+```
+
+## 3. Managing Access Keys
+
+NEAR has a unique permission system based on Access Keys. You can add multiple keys to a single account with different permission levels.
+
+### Adding a Restricted Key (FunctionCall)
+
+This is how "Sign in with NEAR" works. You create a key that can **only** call specific methods on a specific contract. It cannot transfer NEAR.
+
+```typescript
+const appKey = generateKey()
+
+await near
+  .transaction("alice.near")
+  .addKey(appKey.publicKey.toString(), {
+    type: "functionCall",
+
+    // The ONLY contract this key can interact with
+    receiverId: "game.near",
+
+    // The ONLY methods this key can call
+    // (Empty array = Any method on this contract)
+    methodNames: ["move", "attack", "heal"],
+
+    // The max amount of gas fees this key can spend
+    allowance: "0.25 NEAR",
+  })
+  .send()
+```
+
+<Info title="Understanding Allowance">
+The `allowance` is a specific amount of NEAR set aside **strictly for gas fees**. It cannot be transferred or withdrawn. If the key uses up this allowance, it will be deleted automatically.
+</Info>
+
+### Rotating Keys (Security)
+
+To rotate keys (e.g., for security hygiene), you add a new key and delete the old one in the same transaction. This prevents you from locking yourself out.
+
+```typescript
+const newMasterKey = generateKey()
+
+await near
+  .transaction("alice.near")
+  .addKey(newMasterKey.publicKey.toString(), { type: "fullAccess" })
+  .deleteKey("alice.near", "ed25519:OLD_KEY...")
+  .send()
+```
+
+## 4. Staking
+
+You can stake NEAR natively with a validator to earn rewards.
+
+```typescript
+// Stake 100 NEAR with the 'figment' validator
+await near
+  .transaction("alice.near")
+  .stake("figment.poolv1.near", "100 NEAR")
+  .send()
+```
+
+<Note title="Unstaking">
+To unstake, you typically need to call function methods (`unstake`, `withdraw`) on the staking pool contract rather than using a native action.
+</Note>
+
+## 5. Deleting Accounts
+
+You can delete an account to recover its storage rent (the NEAR locked to pay for its data). The account passed to `.transaction()` is the account being deleted, and the `beneficiary` receives the remaining NEAR balance.
+
+```typescript
+// Delete 'old-account.alice.near' and send all funds to 'alice.near'
+await near
+  .transaction("old-account.alice.near")
+  .deleteAccount({ beneficiary: "alice.near" })
+  .send()
+```
+
+## 6. Transaction Lifecycle & Finality
+
+When you call `.send()`, you can control exactly when `near-kit` returns using the `waitUntil` option.
+
+### The Lifecycle
+
+1.  **Validation:** RPC checks structure.
+2.  **Inclusion:** The transaction hits a validator node. Signature is checked, gas is pre-paid, nonce is updated.
+3.  **Execution:** The receipt is processed. If it's a function call, the VM runs.
+4.  **Finalization:** The block containing the transaction is finalized by consensus.
+
+### `waitUntil` Options
+
+You can pass these options to `.send({ waitUntil: "..." })`.
+
+#### `EXECUTED_OPTIMISTIC` (Default)
+
+- **Returns:** When the entire chain of receipts finishes execution.
+- **Data:** Full logs and return values are available.
+
+<Tip title="Best for most cases">
+This is the default for a reason. It provides the return value you need for your UI, and happens relatively quickly (~2s).
+</Tip>
+
+#### `INCLUDED`
+
+- **Returns:** When the transaction is in a block.
+- **Data:** **No return values or logs are available yet.**
+
+<Warning title="Missing Data">
+Use `INCLUDED` only for "fire-and-forget" UI feedback. You cannot check if the smart contract call actually succeeded or failed logic checks yet.
+</Warning>
+
+#### `FINAL`
+
+- **Returns:** When the block containing the _last_ receipt is finalized.
+- **State:** 100% irreversible.
+
+<Tip title="High Value Transfer">
+Use `FINAL` when moving large amounts of money to ensure 100% certainty.
+
+```typescript
+await near.transaction("alice.near")
+  .transfer("bob.near", "10000 NEAR")
+  .send({ waitUntil: "FINAL" });
+```
+</Tip>

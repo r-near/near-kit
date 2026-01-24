@@ -230,11 +230,9 @@ describe("Feature", () => {
 - Node.js-only exports (FileKeyStore, NativeKeyStore) require explicit import paths
 - Browser-safe by default (excludes Node.js dependencies)
 
-## Documentation Repository
+## Documentation
 
-The documentation for near-kit is maintained in a separate repository at `~/near-kit-docs`.
-
-**IMPORTANT:** When making changes to the library (especially API changes, new features, or configuration changes), check if corresponding documentation updates are needed in `~/near-kit-docs/src`.
+Documentation lives in the `docs/` folder. When making changes to the library (especially API changes, new features, or configuration changes), update the corresponding docs in the same PR.
 
 Common scenarios requiring doc updates:
 - New public APIs or methods
@@ -242,29 +240,6 @@ Common scenarios requiring doc updates:
 - New features or capabilities
 - Breaking changes
 - Updated examples or usage patterns
-
-### Making Documentation PRs
-
-When documentation updates are needed, create a corresponding PR in the docs repository:
-
-1. Navigate to the docs repo: `cd ~/near-kit-docs`
-2. Follow the same Git workflow:
-   - Create a branch (e.g., `docs/update-config-options`)
-   - Make documentation changes in `~/near-kit-docs/src`
-   - Commit with semantic commit message
-   - Push and create PR using `gh pr create`
-3. Link the docs PR to the library PR in the description
-
-**Example:**
-```bash
-cd ~/near-kit-docs
-git checkout -b docs/remove-wallet-helper-urls
-# Make changes to src/reference/configuration.md
-git add src/reference/configuration.md
-git commit -m "docs: remove walletUrl and helperUrl from configuration"
-git push -u origin docs/remove-wallet-helper-urls
-gh pr create --title "docs: remove walletUrl and helperUrl" --body "Updates docs for r-near/near-kit#67"
-```
 
 ## For Coding Agents (Copilot, etc.)
 

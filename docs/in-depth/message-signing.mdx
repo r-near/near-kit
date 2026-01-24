@@ -1,0 +1,121 @@
+---
+title: "Message Signing (Authentication)"
+---
+
+Transactions change the blockchain state and cost gas. Sometimes, you just want to prove **who you are**.
+
+Message Signing (standardized in [NEP-413](https://github.com/near/NEPs/blob/master/neps/nep-0413)) allows a user to sign a piece of data with their private key off-chain. This is free, instant, and is the standard way to implement **"Log in with NEAR"**.
+
+## How it Works
+
+1.  **Client:** Generates a random "nonce" and asks the user to sign a specific message.
+2.  **Wallet:** Shows the message to the user. If approved, it returns a cryptographic signature.
+3.  **Backend:** Verifies the signature against the user's public key and checks the nonce to prevent replay attacks.
+
+## 1. The Client (Frontend)
+
+Use `near.signMessage` to request a signature.
+
+You **must** generate a random nonce. This ensures that a captured signature cannot be re-used by an attacker later.
+
+```typescript
+import { Near, generateNonce } from "near-kit"
+import { hex } from "@scure/base"
+
+// 1. Generate a random 32-byte nonce with embedded timestamp
+const nonce = generateNonce()
+
+// 2. Request Signature
+const signedMessage = await near.signMessage({
+  message: "Log in to MyApp", // What the user sees
+  recipient: "myapp.com", // Your app identifier (prevents phishing)
+  nonce,
+})
+
+// 3. Send to Backend
+await fetch("/api/login", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    signedMessage,
+    message: "Log in to MyApp",
+    recipient: "myapp.com",
+    nonce: hex.encode(nonce), // Convert Uint8Array to hex string
+  }),
+})
+```
+
+The `signature` field is base64 encoded per the NEP-413 specification. Send it unchanged to your backend.
+
+## 2. The Server (Backend)
+
+**Automatic Expiration:** Nonces include an embedded timestamp. Signatures older than 5 minutes are automatically rejected, limiting the replay attack window.
+
+```typescript
+import { Near, verifyNep413Signature } from "near-kit"
+import { hex } from "@scure/base"
+
+const near = new Near({ network: "mainnet" })
+
+app.post("/api/login", async (req, res) => {
+  const { signedMessage, message, recipient, nonce } = req.body
+
+  // 1. Verify Signature
+  const isValid = await verifyNep413Signature(
+    signedMessage,
+    {
+      message,
+      recipient,
+      nonce: hex.decode(nonce), // Convert hex string back to Uint8Array
+    },
+    { near }
+  )
+
+  if (!isValid) {
+    return res.status(401).send("Invalid or expired signature")
+  }
+
+  // 2. (Recommended) Check for Replays
+  // if (db.seenNonces.has(nonce)) ...
+
+  // 3. Success!
+  console.log(`User verified: ${signedMessage.accountId}`)
+  res.send({ token: "session_token_123" })
+})
+```
+
+This verifies the cryptographic signature and confirms the public key belongs to the claimed account as a full access key.
+
+Customize expiration window if needed:
+
+```typescript
+// Accept signatures up to 10 minutes old
+await verifyNep413Signature(signedMessage, params, { near, maxAge: 10 * 60 * 1000 })
+```
+
+You can also check key existence directly:
+
+```typescript
+// Returns true if the key exists and is a full access key
+const hasKey = await near.fullAccessKeyExists("alice.near", "ed25519:...")
+```
+
+<Warning title="Security Critical: Replay Attacks">
+Cryptographic verification alone is not enough! If you do not check if the `nonce` has been used before, an attacker who intercepts the signed message can "replay" it to your server to log in as the user again.
+
+**Always store used nonces in your database (with an expiration time) and reject duplicates.**
+</Warning>
+
+## Type Definition
+
+The `SignedMessage` object returned by the client and sent to the server looks like this:
+
+```typescript
+type SignedMessage = {
+  accountId: string // "alice.near"
+  publicKey: string // "ed25519:..."
+  signature: string // Base64-encoded signature per NEP-413 spec
+}
+```
+
+`near.signMessage` returns a base64-encoded signature as specified in NEP-413. `verifyNep413Signature` also accepts legacy base58 signatures (with or without key type prefix) for backward compatibility.

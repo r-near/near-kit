@@ -1,0 +1,305 @@
+---
+title: "Action Reference"
+description: "Every method available on the TransactionBuilder"
+---
+
+This page documents every method available on the `TransactionBuilder`.
+
+To start a transaction:
+
+```typescript
+near.transaction(signerId: string)
+```
+
+## Token Operations
+
+<AccordionGroup>
+  <Accordion title=".transfer(receiverId, amount)">
+    Sends NEAR tokens from the signer to the receiver.
+
+    <ResponseField name="receiverId" type="string" required>
+      The account receiving the tokens.
+    </ResponseField>
+    <ResponseField name="amount" type="Amount" required>
+      The amount to send (e.g. `"10 NEAR"`, `"0.5 NEAR"`, `"1000 yocto"`).
+    </ResponseField>
+
+    ```typescript
+    .transfer("bob.near", "10 NEAR")
+    ```
+  </Accordion>
+
+  <Accordion title=".stake(publicKey, amount)">
+    Stakes NEAR with a validator.
+
+    <ResponseField name="publicKey" type="string" required>
+      The validator's public key.
+    </ResponseField>
+    <ResponseField name="amount" type="Amount" required>
+      The amount to stake.
+    </ResponseField>
+  </Accordion>
+</AccordionGroup>
+
+## Contract Operations
+
+<AccordionGroup>
+  <Accordion title=".functionCall(contractId, methodName, args, options)">
+    Calls a method on a smart contract.
+
+    <ResponseField name="contractId" type="string" required>
+      The contract account ID.
+    </ResponseField>
+    <ResponseField name="methodName" type="string" required>
+      The method to call.
+    </ResponseField>
+    <ResponseField name="args" type="object | Uint8Array">
+      Arguments. Objects are automatically JSON serialized.
+    </ResponseField>
+    <ResponseField name="options" type="object">
+      <Expandable title="properties">
+        <ResponseField name="gas" type="Gas" default="30 Tgas">
+          Computation limit.
+        </ResponseField>
+        <ResponseField name="attachedDeposit" type="Amount" default="0 yocto">
+          NEAR to send to the contract.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+
+    ```typescript
+    .functionCall(
+      "market.near",
+      "buy",
+      { item_id: "sword-1" },
+      { gas: "50 Tgas", attachedDeposit: "1 NEAR" }
+    )
+    ```
+  </Accordion>
+
+  <Accordion title=".deployContract(accountId, code)">
+    Deploys Wasm code to an account. If the account already has a contract, it will be updated.
+
+    <ResponseField name="accountId" type="string" required>
+      The account to deploy to.
+    </ResponseField>
+    <ResponseField name="code" type="Uint8Array" required>
+      The raw bytes of the compiled Wasm file.
+    </ResponseField>
+  </Accordion>
+
+  <Accordion title=".stateInit(stateInit, options?)">
+    Deploys a contract to a deterministic account ID (NEP-616). The address is auto-derived from the initialization state. Idempotent—refunds if already deployed.
+
+    <ResponseField name="stateInit" type="object" required>
+      <Expandable title="properties">
+        <ResponseField name="code" type="object" required>
+          Global contract reference: `{ accountId: string }` or `{ codeHash: string }`
+        </ResponseField>
+        <ResponseField name="data" type="Map<string, string>">
+          Initial storage key-value pairs.
+        </ResponseField>
+        <ResponseField name="deposit" type="Amount" required>
+          Storage cost reserve.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="options" type="object">
+      <Expandable title="properties">
+        <ResponseField name="refundTo" type="string">
+          Custom refund recipient.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+
+    ```typescript
+    .stateInit({
+      code: { accountId: "publisher.near" },
+      data: new Map([["owner", "alice.near"]]),
+      deposit: "1 NEAR",
+    })
+    ```
+
+    See [Global Contracts](/in-depth/global-contracts) for more details.
+  </Accordion>
+</AccordionGroup>
+
+## Account Management
+
+<AccordionGroup>
+  <Accordion title=".createAccount(accountId)">
+    Creates a new account. This is often chained with `.transfer` (to fund it) and `.addKey` (to secure it).
+
+    <ResponseField name="accountId" type="string" required>
+      The full ID of the new account (must be a sub-account of the signer).
+    </ResponseField>
+
+    ```typescript
+    .createAccount("bob.alice.near")
+    .transfer("bob.alice.near", "1 NEAR")
+    .addKey(publicKey, { type: "fullAccess" })
+    ```
+  </Accordion>
+
+  <Accordion title=".deleteAccount({ beneficiary })">
+    Deletes the transaction receiver's account and sends all remaining funds to the beneficiary.
+
+    <ResponseField name="beneficiary" type="string" required>
+      The account that receives the remaining NEAR balance.
+    </ResponseField>
+
+    ```typescript
+    // Delete 'old-account.alice.near' and send remaining funds to 'alice.near'
+    await near
+      .transaction("old-account.alice.near")
+      .deleteAccount({ beneficiary: "alice.near" })
+      .send()
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Access Keys
+
+<AccordionGroup>
+  <Accordion title=".addKey(publicKey, permission)">
+    Adds a new access key to the account.
+
+    <ResponseField name="publicKey" type="string" required>
+      The public key to add (ed25519 or secp256k1).
+    </ResponseField>
+    <ResponseField name="permission" type="AccessKeyPermission" required>
+      One of:
+      - `{ type: "fullAccess" }` - Can do anything.
+      - `{ type: "functionCall", receiverId, methodNames?, allowance? }` - Restricted to specific contracts/methods.
+    </ResponseField>
+
+    <Tabs>
+      <Tab title="Full Access">
+        ```typescript
+        .addKey(pk, { type: "fullAccess" })
+        ```
+      </Tab>
+      <Tab title="Function Call (Restricted)">
+        ```typescript
+        .addKey(pk, {
+          type: "functionCall",
+          receiverId: "app.near",
+          methodNames: ["vote", "comment"],
+          allowance: "0.25 NEAR" // Gas allowance
+        })
+        ```
+      </Tab>
+    </Tabs>
+  </Accordion>
+
+  <Accordion title=".deleteKey(accountId, publicKey)">
+    Removes an access key.
+
+    <ResponseField name="accountId" type="string" required>
+      The account to remove the key from.
+    </ResponseField>
+    <ResponseField name="publicKey" type="string" required>
+      The public key to remove.
+    </ResponseField>
+  </Accordion>
+</AccordionGroup>
+
+## Global Contracts
+
+<AccordionGroup>
+  <Accordion title=".publishContract(code, options?)">
+    Publishes contract code to the global registry so others can deploy it by reference.
+
+    <ResponseField name="code" type="Uint8Array" required>
+      The Wasm bytes.
+    </ResponseField>
+    <ResponseField name="options" type="object">
+      <Expandable title="properties">
+        <ResponseField name="identifiedBy" type="string" default="account">
+          How the contract is referenced:
+          - `"account"`: Updatable by signer, identified by signer's account ID
+          - `"hash"`: Immutable, identified by code hash
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+
+    <Tabs>
+      <Tab title="Updatable (default)">
+        ```typescript
+        // Identified by your account - you can update it later
+        .publishContract(wasm)
+        ```
+      </Tab>
+      <Tab title="Immutable">
+        ```typescript
+        // Identified by hash - can never be changed
+        .publishContract(wasm, { identifiedBy: "hash" })
+        ```
+      </Tab>
+    </Tabs>
+  </Accordion>
+
+  <Accordion title=".deployFromPublished(reference)">
+    Deploys contract code that was previously published to the registry. This saves gas by avoiding uploading the full Wasm bytes.
+
+    <ResponseField name="reference" type="object" required>
+      One of:
+      - `{ accountId: string }` - Account ID of the publisher (for updatable contracts)
+      - `{ codeHash: string }` - Base58 hash of an immutable contract
+    </ResponseField>
+  </Accordion>
+</AccordionGroup>
+
+## Advanced / Meta-Transactions
+
+<AccordionGroup>
+  <Accordion title=".delegate(options?)">
+    Instead of sending the transaction, this method signs it and returns a `SignedDelegateAction` payload. This is used for meta-transactions where a relayer pays the gas.
+
+    <ResponseField name="options" type="object">
+      <Expandable title="properties">
+        <ResponseField name="maxBlockHeight" type="bigint">
+          Expiration block.
+        </ResponseField>
+        <ResponseField name="payloadFormat" type="string" default="base64">
+          Output format: `"base64"` or `"bytes"`.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+
+    **Returns:** `{ signedDelegateAction, payload, format }`
+  </Accordion>
+
+  <Accordion title=".signedDelegateAction(signedDelegate)">
+    Adds a pre-signed delegate action to this transaction. Used by relayers to submit a user's action.
+
+    <ResponseField name="signedDelegate" type="SignedDelegateAction" required>
+      The signed delegate action from the user.
+    </ResponseField>
+  </Accordion>
+
+  <Accordion title=".signWith(key)">
+    Overrides the signer for _this specific transaction_. Does not change the global `Near` configuration.
+
+    <ResponseField name="key" type="string | Signer" required>
+      A private key string OR a custom signer function.
+    </ResponseField>
+
+    <Tabs>
+      <Tab title="Private Key">
+        ```typescript
+        // Use a specific key just for this transaction
+        .signWith("ed25519:...")
+        ```
+      </Tab>
+      <Tab title="Custom Signer">
+        ```typescript
+        // Use a custom signer (e.g. hardware wallet)
+        .signWith(async (hash) => {
+          return ledger.sign(hash);
+        })
+        ```
+      </Tab>
+    </Tabs>
+  </Accordion>
+</AccordionGroup>

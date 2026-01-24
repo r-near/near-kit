@@ -1,0 +1,88 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "NEAR Kit",
+  "description": "A TypeScript library for interacting with NEAR - simple, type-safe, and intuitive",
+  "colors": {
+    "primary": "#00C08B",
+    "light": "#00EC9E",
+    "dark": "#00A87A"
+  },
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/r-near/near-kit"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/r-near/near-kit"
+    }
+  },
+  "contextual": {
+    "options": [
+      "copy",
+      "view",
+      "chatgpt",
+      "claude",
+      "perplexity",
+      "cursor",
+      "mcp",
+      "vscode"
+    ]
+  },
+  "navigation": {
+    "groups": [
+      {
+        "group": "Getting Started",
+        "icon": "rocket",
+        "pages": [
+          "index",
+          "start-here/quickstart",
+          "start-here/mental-model",
+          "start-here/migration"
+        ]
+      },
+      {
+        "group": "Essentials",
+        "icon": "book-open",
+        "pages": [
+          "essentials/reading-data",
+          "essentials/writing-data",
+          "essentials/type-safe-contracts"
+        ]
+      },
+      {
+        "group": "Building dApps",
+        "icon": "browser",
+        "pages": [
+          "dapp-workflow/frontend-integration",
+          "dapp-workflow/universal-pattern",
+          "dapp-workflow/testing"
+        ]
+      },
+      {
+        "group": "Advanced",
+        "icon": "graduation-cap",
+        "pages": [
+          "in-depth/error-handling",
+          "in-depth/key-management",
+          "in-depth/advanced-transactions",
+          "in-depth/meta-transactions",
+          "in-depth/message-signing",
+          "in-depth/global-contracts"
+        ]
+      },
+      {
+        "group": "Reference",
+        "icon": "code",
+        "pages": [
+          "reference/actions",
+          "reference/configuration",
+          "reference/data-structures",
+          "reference/ai-integration"
+        ]
+      }
+    ]
+  }
+}
