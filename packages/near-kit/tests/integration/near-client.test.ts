@@ -28,13 +28,13 @@ describe("Near Client - Integration Tests", () => {
   })
 
   describe("Near.getBalance()", () => {
-    test("should get balance for existing account", async () => {
+    test("should get available balance for existing account", async () => {
       const balance = await near.getBalance(sandbox.rootAccount.id)
 
       expect(balance).toBeDefined()
       expect(typeof balance).toBe("string")
       expect(Number.parseFloat(balance)).toBeGreaterThan(0)
-      console.log(`✓ Balance: ${balance} NEAR`)
+      console.log(`✓ Available balance: ${balance} NEAR`)
     })
 
     test("should format balance correctly", async () => {
@@ -44,9 +44,79 @@ describe("Near Client - Integration Tests", () => {
       expect(balance).toMatch(/^\d+\.\d{2}$/)
     })
 
+    test("should return available balance (accounting for storage)", async () => {
+      // Get full account state to compare
+      const account = await near.getAccount(sandbox.rootAccount.id)
+      const balance = await near.getBalance(sandbox.rootAccount.id)
+
+      // getBalance should return the available amount, not total
+      expect(balance).toBe(account.available)
+      console.log(
+        `✓ Available: ${balance} NEAR (balance: ${account.balance}, storage: ${account.storageUsage})`,
+      )
+    })
+
     test("should throw for non-existent account", async () => {
       await expect(async () => {
         await near.getBalance("nonexistent.test.near")
+      }).rejects.toThrow()
+    })
+  })
+
+  describe("Near.getAccount()", () => {
+    test("should return complete account state", async () => {
+      const account = await near.getAccount(sandbox.rootAccount.id)
+
+      expect(account).toBeDefined()
+      expect(account.balance).toBeDefined()
+      expect(account.available).toBeDefined()
+      expect(account.staked).toBeDefined()
+      expect(account.storageUsage).toBeDefined()
+      expect(typeof account.storageBytes).toBe("number")
+      expect(typeof account.hasContract).toBe("boolean")
+      expect(account.codeHash).toBeDefined()
+
+      console.log(`✓ Account state:`)
+      console.log(`  Balance: ${account.balance} NEAR`)
+      console.log(`  Available: ${account.available} NEAR`)
+      console.log(`  Staked: ${account.staked} NEAR`)
+      console.log(
+        `  Storage: ${account.storageUsage} NEAR (${account.storageBytes} bytes)`,
+      )
+      console.log(`  Has contract: ${account.hasContract}`)
+    })
+
+    test("should calculate available balance correctly", async () => {
+      const account = await near.getAccount(sandbox.rootAccount.id)
+
+      // For a regular account (no staking), available should be less than balance
+      // due to storage costs
+      const balance = Number.parseFloat(account.balance)
+      const available = Number.parseFloat(account.available)
+      const storageUsage = Number.parseFloat(account.storageUsage)
+
+      // Available = balance - max(0, storageRequired - staked)
+      // For non-staked accounts: available = balance - storageRequired
+      expect(available).toBeLessThanOrEqual(balance)
+      expect(available).toBeGreaterThan(0)
+
+      // Storage usage should be positive
+      expect(storageUsage).toBeGreaterThan(0)
+
+      console.log(`✓ Available (${available}) <= Balance (${balance})`)
+    })
+
+    test("should detect accounts without contracts", async () => {
+      const account = await near.getAccount(sandbox.rootAccount.id)
+
+      // Root account typically doesn't have a contract
+      expect(account.hasContract).toBe(false)
+      expect(account.codeHash).toBe("11111111111111111111111111111111")
+    })
+
+    test("should throw for non-existent account", async () => {
+      await expect(async () => {
+        await near.getAccount("nonexistent.test.near")
       }).rejects.toThrow()
     })
   })

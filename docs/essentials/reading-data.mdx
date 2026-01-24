@@ -77,14 +77,39 @@ await near.view(
 
 ## 3. Checking Balances
 
-Use `near.getBalance()` to get a formatted, human-readable string.
+### Available Balance
+
+Use `near.getBalance()` to get the **available** (spendable) balance. This accounts for storage costs and staked tokens.
 
 ```typescript
-const balance = await near.getBalance("alice.near")
-console.log(balance) // "10.50 NEAR"
+const available = await near.getBalance("alice.near")
+console.log(`Can spend: ${available} NEAR`) // "98.50"
 ```
 
-> **Note:** If you need the raw BigInt value for calculations (yoctoNEAR), use `near.getAccountDetails("alice.near")`.
+### Full Account State
+
+Use `near.getAccount()` when you need all balance details:
+
+```typescript
+const account = await near.getAccount("alice.near")
+
+console.log(`Liquid balance: ${account.balance} NEAR`)     // Total liquid tokens
+console.log(`Available to spend: ${account.available} NEAR`) // What you can actually transfer
+console.log(`Staked: ${account.staked} NEAR`)              // Locked for staking (validators)
+console.log(`Storage cost: ${account.storageUsage} NEAR`)  // Reserved for on-chain storage
+console.log(`Storage bytes: ${account.storageBytes}`)      // Raw storage in bytes
+console.log(`Has contract: ${account.hasContract}`)        // Whether contract is deployed
+```
+
+<Note>
+**Why is available different from balance?**
+
+NEAR accounts must reserve tokens to pay for on-chain storage. However, staked tokens count towards this requirement. So:
+- If staked ≥ storage cost → all liquid balance is available
+- If staked < storage cost → some liquid balance is reserved
+
+This is why `getBalance()` returns `available`, not `balance` — it's what you can actually spend.
+</Note>
 
 ## 4. Listing Access Keys
 

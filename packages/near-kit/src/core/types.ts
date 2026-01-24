@@ -308,6 +308,66 @@ export interface ContractMethods {
   call: Record<string, (...args: unknown[]) => Promise<unknown>>
 }
 
+// ==================== Account State ====================
+
+/**
+ * Complete account state with computed balance fields.
+ *
+ * This provides a user-friendly view of account balances including the
+ * "available" balance - the amount that can actually be spent or transferred.
+ *
+ * @remarks
+ * The available balance calculation accounts for the fact that staked tokens
+ * (locked balance) count towards the storage requirement. This means:
+ * - If staked >= storage cost: all liquid balance is available
+ * - If staked < storage cost: some liquid balance is reserved for storage
+ *
+ * @see https://nomicon.io/Economics/Economics.html#state-stake
+ */
+export interface AccountState {
+  /**
+   * Liquid balance in NEAR (formatted string, e.g., "100.50").
+   * This is the `amount` field from the RPC, representing tokens not locked for staking.
+   */
+  balance: string
+
+  /**
+   * Available balance in NEAR that can be spent or transferred.
+   * Calculated as: balance - max(0, storageUsed - staked)
+   *
+   * This accounts for the protocol rule that staked tokens count towards storage.
+   */
+  available: string
+
+  /**
+   * Staked/locked balance in NEAR (for validators).
+   * Most regular accounts have "0" here.
+   */
+  staked: string
+
+  /**
+   * Amount of NEAR reserved for storage costs.
+   * Calculated as: storageBytes * STORAGE_AMOUNT_PER_BYTE
+   */
+  storageUsage: string
+
+  /**
+   * Storage used in bytes.
+   */
+  storageBytes: number
+
+  /**
+   * Whether the account has a contract deployed.
+   */
+  hasContract: boolean
+
+  /**
+   * Code hash of the deployed contract (if any).
+   * Will be "11111111111111111111111111111111" for accounts without contracts.
+   */
+  codeHash: string
+}
+
 // ==================== Wallet Interface ====================
 
 export interface WalletSignInOptions {

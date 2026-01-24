@@ -18,7 +18,10 @@ import {
   NearConfigSchema,
   resolveNetworkConfig,
 } from "./config-schemas.js"
-import { DEFAULT_FUNCTION_CALL_GAS } from "./constants.js"
+import {
+  DEFAULT_FUNCTION_CALL_GAS,
+  STORAGE_AMOUNT_PER_BYTE,
+} from "./constants.js"
 import { RpcClient } from "./rpc/rpc.js"
 import type {
   AccessKeyListResponse,
@@ -29,6 +32,7 @@ import type {
 } from "./rpc/rpc-schemas.js"
 import { TransactionBuilder } from "./transaction.js"
 import type {
+  AccountState,
   CallOptions,
   KeyStore,
   SignedMessage,
@@ -491,31 +495,144 @@ export class Near {
   }
 
   /**
-   * Get account balance in NEAR.
+   * Calculate available balance from account data.
+   *
+   * The available balance accounts for the protocol rule that staked tokens
+   * count towards the storage requirement:
+   * - available = amount - max(0, storageRequired - locked)
+   *
+   * @internal
+   */
+  private calculateAvailableBalance(
+    amount: string,
+    locked: string,
+    storageUsage: number,
+  ): bigint {
+    const amountBigInt = BigInt(amount)
+    const lockedBigInt = BigInt(locked)
+    const storageRequired = STORAGE_AMOUNT_PER_BYTE * BigInt(storageUsage)
+
+    // If staked >= storage requirement, all liquid balance is available
+    if (lockedBigInt >= storageRequired) {
+      return amountBigInt
+    }
+
+    // Otherwise, some liquid balance is reserved for storage
+    const reservedForStorage = storageRequired - lockedBigInt
+    if (reservedForStorage >= amountBigInt) {
+      return BigInt(0)
+    }
+
+    return amountBigInt - reservedForStorage
+  }
+
+  /**
+   * Get the available (spendable) balance for an account in NEAR.
+   *
+   * This returns the amount that can actually be spent or transferred,
+   * accounting for storage requirements. Staked tokens count towards
+   * the storage requirement, so:
+   * - If staked >= storage cost: all liquid balance is available
+   * - If staked < storage cost: some liquid balance is reserved for storage
    *
    * @param accountId - Account ID to query.
    * @param options - Optional {@link BlockReference} to control finality or block.
    *
-   * @returns Balance formatted as `"X.YY NEAR"`.
+   * @returns Available balance formatted as a decimal string (e.g., "98.50").
    *
    * @throws {AccountDoesNotExistError} If the account does not exist.
    * @throws {NetworkError} If the RPC request fails.
    *
    * @remarks
-   * This is a convenience helper over {@link RpcClient.getAccount}. For more
-   * detailed information (storage, locked balance, etc.) call `rpc.getAccount`
-   * directly.
+   * For the full account state including all balance fields, use {@link getAccount}.
+   *
+   * @example
+   * ```typescript
+   * const available = await near.getBalance("alice.near")
+   * console.log(`Can spend: ${available} NEAR`)
+   * ```
    */
   async getBalance(
     accountId: string,
     options?: BlockReference,
   ): Promise<string> {
-    // RPC client now throws AccountDoesNotExistError directly
     const account = await this.rpc.getAccount(accountId, options)
 
-    // Convert yoctoNEAR to NEAR using string-based BigInt division
-    // to avoid floating point precision errors
-    return formatAmount(account.amount, { precision: 2, includeSuffix: false })
+    const available = this.calculateAvailableBalance(
+      account.amount,
+      account.locked,
+      account.storage_usage,
+    )
+
+    return formatAmount(available.toString(), {
+      precision: 2,
+      includeSuffix: false,
+    })
+  }
+
+  /**
+   * Get complete account state including all balance information.
+   *
+   * Returns a user-friendly object with computed fields like `available`
+   * (the actually spendable balance) and `storageUsage` (NEAR reserved for storage).
+   *
+   * @param accountId - Account ID to query.
+   * @param options - Optional {@link BlockReference} to control finality or block.
+   *
+   * @returns Complete account state with all balance fields.
+   *
+   * @throws {AccountDoesNotExistError} If the account does not exist.
+   * @throws {NetworkError} If the RPC request fails.
+   *
+   * @example
+   * ```typescript
+   * const account = await near.getAccount("alice.near")
+   * console.log(`Balance: ${account.balance} NEAR`)
+   * console.log(`Available to spend: ${account.available} NEAR`)
+   * console.log(`Staked: ${account.staked} NEAR`)
+   * console.log(`Storage: ${account.storageUsage} NEAR (${account.storageBytes} bytes)`)
+   * console.log(`Has contract: ${account.hasContract}`)
+   * ```
+   */
+  async getAccount(
+    accountId: string,
+    options?: BlockReference,
+  ): Promise<AccountState> {
+    const account = await this.rpc.getAccount(accountId, options)
+
+    const available = this.calculateAvailableBalance(
+      account.amount,
+      account.locked,
+      account.storage_usage,
+    )
+
+    const storageRequired =
+      STORAGE_AMOUNT_PER_BYTE * BigInt(account.storage_usage)
+
+    // Code hash for accounts without contracts
+    const emptyCodeHash = "11111111111111111111111111111111"
+
+    return {
+      balance: formatAmount(account.amount, {
+        precision: 2,
+        includeSuffix: false,
+      }),
+      available: formatAmount(available.toString(), {
+        precision: 2,
+        includeSuffix: false,
+      }),
+      staked: formatAmount(account.locked, {
+        precision: 2,
+        includeSuffix: false,
+      }),
+      storageUsage: formatAmount(storageRequired.toString(), {
+        precision: 4,
+        includeSuffix: false,
+      }),
+      storageBytes: account.storage_usage,
+      hasContract: account.code_hash !== emptyCodeHash,
+      codeHash: account.code_hash,
+    }
   }
 
   /**
