@@ -21,6 +21,7 @@ export { TransactionBuilder } from "./core/transaction.js"
 // Types
 export type {
   AccessKeyView,
+  AuthPayload,
   CallOptions,
   FinalExecutionOutcome,
   KeyConfig,
@@ -76,6 +77,7 @@ export type { SandboxOptions } from "./sandbox/index.js"
 export {
   Amount,
   type ContractCode,
+  createAuthPayload,
   createStateInit,
   deriveAccountId,
   formatAmount,
@@ -90,6 +92,7 @@ export {
   isValidPublicKey,
   type PrivateKey,
   parseAmount,
+  parseAuthPayload,
   parseGas,
   parseKey,
   parseSeedPhrase,

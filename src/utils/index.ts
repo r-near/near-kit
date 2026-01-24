@@ -16,8 +16,10 @@ export {
 export { formatGas, Gas, type GasInput, parseGas } from "./gas.js"
 export * from "./key.js"
 export {
+  createAuthPayload,
   generateNonce,
   NEP413_TAG,
+  parseAuthPayload,
   serializeNep413Message,
   type VerifyNep413Options,
   verifyNep413Signature,

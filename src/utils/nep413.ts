@@ -13,7 +13,11 @@ import { randomBytes } from "@noble/hashes/utils.js"
 import { base58, base64 } from "@scure/base"
 import { b } from "@zorsh/zorsh"
 import type { Near } from "../core/near.js"
-import type { SignedMessage, SignMessageParams } from "../core/types.js"
+import type {
+  AuthPayload,
+  SignedMessage,
+  SignMessageParams,
+} from "../core/types.js"
 import { parsePublicKey } from "./key.js"
 
 /**
@@ -269,4 +273,93 @@ export function generateNonce(): Uint8Array {
   nonce.set(randomPart, 8)
 
   return nonce
+}
+
+/**
+ * Create an AuthPayload for sending to a backend server.
+ *
+ * This encodes the nonce as base64 for compact JSON serialization.
+ *
+ * @param signedMessage - The signed message from near.signMessage()
+ * @param params - The original signing parameters
+ * @returns An AuthPayload ready to be JSON.stringify'd and sent over HTTP
+ *
+ * @example
+ * ```typescript
+ * const signedMessage = await near.signMessage({
+ *   message: "Login to MyApp",
+ *   recipient: "myapp.com",
+ *   nonce,
+ * })
+ *
+ * const payload = createAuthPayload(signedMessage, {
+ *   message: "Login to MyApp",
+ *   recipient: "myapp.com",
+ *   nonce,
+ * })
+ *
+ * await fetch("/api/login", {
+ *   method: "POST",
+ *   headers: { "Content-Type": "application/json" },
+ *   body: JSON.stringify(payload),
+ * })
+ * ```
+ */
+export function createAuthPayload(
+  signedMessage: SignedMessage,
+  params: SignMessageParams,
+): AuthPayload {
+  const payload: AuthPayload = {
+    signedMessage,
+    nonce: base64.encode(params.nonce),
+    message: params.message,
+    recipient: params.recipient,
+  }
+  if (params.callbackUrl !== undefined) {
+    payload.callbackUrl = params.callbackUrl
+  }
+  return payload
+}
+
+/**
+ * Parse an AuthPayload received from an HTTP request into SignMessageParams.
+ *
+ * This decodes the base64 nonce back to a Uint8Array.
+ *
+ * @param payload - The AuthPayload from the HTTP request body
+ * @returns SignMessageParams ready for verification
+ *
+ * @example
+ * ```typescript
+ * app.post("/api/login", async (req, res) => {
+ *   const payload = req.body as AuthPayload
+ *   const params = parseAuthPayload(payload)
+ *
+ *   const isValid = await verifyNep413Signature(
+ *     payload.signedMessage,
+ *     params,
+ *     { near }
+ *   )
+ *
+ *   if (isValid) {
+ *     res.json({ success: true, accountId: payload.signedMessage.accountId })
+ *   } else {
+ *     res.status(401).json({ error: "Invalid signature" })
+ *   }
+ * })
+ * ```
+ */
+export function parseAuthPayload(payload: AuthPayload): SignMessageParams {
+  const params: SignMessageParams = {
+    message: payload.message,
+    recipient: payload.recipient,
+    nonce: new Uint8Array(base64.decode(payload.nonce)),
+  }
+  if (payload.callbackUrl !== undefined) {
+    params.callbackUrl = payload.callbackUrl
+  }
+  if (payload.signedMessage.state !== undefined) {
+    params.state = payload.signedMessage.state
+  }
+  return params
 }

@@ -360,6 +360,42 @@ export interface SignedMessage {
 }
 
 /**
+ * HTTP authentication payload for NEP-413 message signing.
+ *
+ * This is the structure sent from frontend to backend for authentication.
+ * The nonce is base64-encoded for compact JSON serialization.
+ *
+ * @see https://github.com/near/NEPs/blob/master/neps/nep-0413.md
+ *
+ * @example
+ * ```typescript
+ * // Frontend: create and send payload
+ * const payload = createAuthPayload(signedMessage, params)
+ * await fetch("/api/login", {
+ *   method: "POST",
+ *   body: JSON.stringify(payload),
+ * })
+ *
+ * // Backend: receive and verify
+ * const payload = req.body as AuthPayload
+ * const params = parseAuthPayload(payload)
+ * const isValid = await verifyNep413Signature(payload.signedMessage, params, { near })
+ * ```
+ */
+export interface AuthPayload {
+  /** The signed message from the client */
+  signedMessage: SignedMessage
+  /** The nonce as a base64-encoded string (32 bytes) */
+  nonce: string
+  /** The message that was signed */
+  message: string
+  /** The recipient identifier */
+  recipient: string
+  /** Optional callback URL */
+  callbackUrl?: string
+}
+
+/**
  * Wallet connection interface
  * Compatible with both @near-wallet-selector and @hot-labs/near-connect
  */
