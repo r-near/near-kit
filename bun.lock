@@ -4,6 +4,16 @@
   "workspaces": {
     "": {
       "name": "near",
+      "devDependencies": {
+        "@biomejs/biome": "2.3.11",
+        "@changesets/cli": "^2.29.7",
+        "lefthook": "^2.0.4",
+        "typescript": "^5.9.3",
+      },
+    },
+    "packages/near-kit": {
+      "name": "near-kit",
+      "version": "0.8.2",
       "dependencies": {
         "@napi-rs/keyring": "^1.2.0",
         "@noble/curves": "^2.0.1",
@@ -16,8 +26,6 @@
         "zod": "^4.1.12",
       },
       "devDependencies": {
-        "@biomejs/biome": "2.3.11",
-        "@changesets/cli": "^2.29.7",
         "@hot-labs/near-connect": "^0.8.1",
         "@near-js/transactions": "^2.5.1",
         "@near-js/types": "^2.5.1",
@@ -26,7 +34,6 @@
         "@types/tar": "^6.1.13",
         "@vitest/coverage-v8": "^4.0.10",
         "@vitest/ui": "^4.0.10",
-        "lefthook": "^2.0.4",
         "typescript": "^5.9.3",
         "vitest": "^4.0.10",
       },
@@ -488,6 +495,8 @@
     "mustache": ["mustache@4.0.0", "", { "bin": { "mustache": "./bin/mustache" } }, "sha512-FJgjyX/IVkbXBXYUwH+OYwQKqWpFPLaLVESd70yHjSDunwzV2hZOoTBvPf4KLoxesUzzyfTH6F784Uqd7Wm5yA=="],
 
     "nanoid": ["nanoid@3.3.11", "", { "bin": { "nanoid": "bin/nanoid.cjs" } }, "sha512-N8SpfPUnUp1bK+PMYW8qSWdl9U+wwNWI4QKxOYDy9JAro3WMX7p2OeVRF9v+347pnakNevPmiHhNmZ2HbFA76w=="],
+
+    "near-kit": ["near-kit@workspace:packages/near-kit"],
 
     "node-addon-api": ["node-addon-api@5.1.0", "", {}, "sha512-eh0GgfEkpnoWDq+VY8OyvYhFEzBk6jIYbRKdIlyTiAXIVJ8PyBaKb0rp7oDtoddbdoHWhq8wwr+XZ81F1rpNdA=="],
 
