@@ -1,0 +1,463 @@
+---
+title: "Hooks Reference"
+description: "Complete API reference for all @near-kit/react hooks"
+---
+
+All hooks require being inside a `NearProvider`. They will throw an error if used outside the provider context.
+
+## Read Hooks
+
+These hooks fetch data from the blockchain. They all return a consistent shape:
+
+```typescript
+interface ViewResult<T> {
+  data: T | undefined          // The fetched data
+  error: Error | undefined     // Any error that occurred
+  isLoading: boolean           // Whether fetch is in progress
+  refetch: () => Promise<void> // Manually trigger a refetch
+}
+```
+
+---
+
+### useView
+
+<ParamField body="params" type="UseViewParams" required>
+  Call any view method on a NEAR smart contract.
+</ParamField>
+
+<Expandable title="UseViewParams Properties">
+  <ResponseField name="contractId" type="string" required>
+    The contract account ID (e.g., `"guestbook.near"`)
+  </ResponseField>
+  <ResponseField name="method" type="string" required>
+    The view method name to call
+  </ResponseField>
+  <ResponseField name="args" type="object">
+    Arguments to pass to the method. Defaults to `{}`
+  </ResponseField>
+  <ResponseField name="enabled" type="boolean">
+    Whether the query is enabled. Defaults to `true`
+  </ResponseField>
+</Expandable>
+
+<CodeGroup>
+```tsx Basic Usage
+import { useView } from "@near-kit/react"
+
+function Messages() {
+  const { data, isLoading, error, refetch } = useView<{ limit: number }, Message[]>({
+    contractId: "guestbook.near",
+    method: "get_messages",
+    args: { limit: 10 },
+  })
+
+  if (isLoading) return <p>Loading...</p>
+  if (error) return <p>Error: {error.message}</p>
+
+  return (
+    <div>
+      {data?.map((msg) => <p key={msg.id}>{msg.text}</p>)}
+      <button onClick={refetch}>Refresh</button>
+    </div>
+  )
+}
+```
+
+```tsx Conditional Fetching
+function UserProfile({ userId }: { userId?: string }) {
+  // Only fetch when we have a userId
+  const { data: profile } = useView({
+    contractId: "profiles.near",
+    method: "get_profile",
+    args: { user_id: userId },
+    enabled: !!userId, // Won't fetch until userId is truthy
+  })
+
+  if (!userId) return <p>Select a user</p>
+  return <p>{profile?.name}</p>
+}
+```
+
+```tsx Type-Safe Arguments
+interface GetMessagesArgs {
+  limit: number
+  offset?: number
+}
+
+interface Message {
+  id: string
+  sender: string
+  text: string
+  timestamp: number
+}
+
+// Full type safety for args and return type
+const { data } = useView<GetMessagesArgs, Message[]>({
+  contractId: "guestbook.near",
+  method: "get_messages",
+  args: { limit: 20, offset: 0 },
+})
+```
+</CodeGroup>
+
+<Tip>
+  When `args` change (by reference or value), the hook automatically refetches. Use `useMemo` for computed args to prevent unnecessary refetches.
+</Tip>
+
+---
+
+### useBalance
+
+<ParamField body="params" type="UseBalanceParams" required>
+  Fetch an account's NEAR balance as a formatted string.
+</ParamField>
+
+<Expandable title="UseBalanceParams Properties">
+  <ResponseField name="accountId" type="string" required>
+    The account ID to check balance for
+  </ResponseField>
+  <ResponseField name="enabled" type="boolean">
+    Whether the query is enabled. Defaults to `true`
+  </ResponseField>
+</Expandable>
+
+```tsx
+import { useBalance } from "@near-kit/react"
+
+function WalletBalance({ accountId }: { accountId: string }) {
+  const { data: balance, isLoading, refetch } = useBalance({ accountId })
+
+  if (isLoading) return <span>...</span>
+
+  return (
+    <div>
+      <span>{balance}</span> {/* "10.50 NEAR" */}
+      <button onClick={refetch}>↻</button>
+    </div>
+  )
+}
+```
+
+<Note>
+  Returns a human-readable string like `"10.50 NEAR"`. For raw BigInt values, use `useNear()` and call `near.getAccountDetails()` directly.
+</Note>
+
+---
+
+### useAccountExists
+
+<ParamField body="params" type="UseAccountExistsParams" required>
+  Check if a NEAR account exists on the network.
+</ParamField>
+
+<Expandable title="UseAccountExistsParams Properties">
+  <ResponseField name="accountId" type="string" required>
+    The account ID to check
+  </ResponseField>
+  <ResponseField name="enabled" type="boolean">
+    Whether the query is enabled. Defaults to `true`
+  </ResponseField>
+</Expandable>
+
+```tsx
+import { useAccountExists } from "@near-kit/react"
+
+function AccountChecker() {
+  const [input, setInput] = useState("")
+  const { data: exists, isLoading } = useAccountExists({
+    accountId: input,
+    enabled: input.length > 0,
+  })
+
+  return (
+    <div>
+      <input value={input} onChange={(e) => setInput(e.target.value)} />
+      {isLoading && <span>Checking...</span>}
+      {exists === true && <span>✓ Account exists</span>}
+      {exists === false && <span>✗ Account not found</span>}
+    </div>
+  )
+}
+```
+
+---
+
+### useAccount
+
+<ParamField body="(no params)" type="">
+  Get the current connected account state from the Near client.
+</ParamField>
+
+Returns:
+
+```typescript
+interface AccountState {
+  accountId: string | undefined  // The connected account ID
+  isConnected: boolean           // Whether any account is connected
+  isLoading: boolean             // Whether state is being fetched
+  refetch: () => Promise<void>   // Refresh account state
+}
+```
+
+```tsx
+import { useAccount } from "@near-kit/react"
+
+function Header() {
+  const { accountId, isConnected, isLoading } = useAccount()
+
+  if (isLoading) return <span>Loading...</span>
+  if (!isConnected) return <button>Connect Wallet</button>
+
+  return <span>Connected: {accountId}</span>
+}
+```
+
+<Warning>
+  This hook accesses internal Near client state. The account is derived from whatever signer was configured (wallet adapter, private key, or keystore).
+</Warning>
+
+---
+
+## Mutation Hooks
+
+These hooks modify blockchain state. They return a consistent shape:
+
+```typescript
+interface MutationResult<TArgs, TResult> {
+  mutate: (args: TArgs) => Promise<TResult>  // Execute the mutation
+  data: TResult | undefined                  // Last successful result
+  error: Error | undefined                   // Any error from last call
+  isPending: boolean                         // Whether mutation is in progress
+  isSuccess: boolean                         // Whether last call succeeded
+  isError: boolean                           // Whether last call failed
+  reset: () => void                          // Reset mutation state
+}
+```
+
+---
+
+### useCall
+
+<ParamField body="params" type="UseCallParams" required>
+  Call a change method on a NEAR smart contract.
+</ParamField>
+
+<Expandable title="UseCallParams Properties">
+  <ResponseField name="contractId" type="string" required>
+    The contract account ID
+  </ResponseField>
+  <ResponseField name="method" type="string" required>
+    The change method name to call
+  </ResponseField>
+  <ResponseField name="options" type="CallOptions">
+    Default options (gas, attachedDeposit, etc.)
+  </ResponseField>
+</Expandable>
+
+<CodeGroup>
+```tsx Basic Usage
+import { useCall } from "@near-kit/react"
+
+function IncrementButton() {
+  const { mutate, isPending, isError, error } = useCall({
+    contractId: "counter.testnet",
+    method: "increment",
+  })
+
+  return (
+    <div>
+      <button onClick={() => mutate({})} disabled={isPending}>
+        {isPending ? "Processing..." : "Increment"}
+      </button>
+      {isError && <p>Error: {error?.message}</p>}
+    </div>
+  )
+}
+```
+
+```tsx With Arguments and Options
+interface AddMessageArgs {
+  text: string
+}
+
+function AddMessage() {
+  const { mutate, isPending, isSuccess, reset } = useCall<AddMessageArgs, void>({
+    contractId: "guestbook.near",
+    method: "add_message",
+    options: {
+      gas: "30 Tgas",
+      attachedDeposit: "0.01 NEAR", // Storage deposit
+    },
+  })
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault()
+    const formData = new FormData(e.target as HTMLFormElement)
+    await mutate({ text: formData.get("text") as string })
+  }
+
+  if (isSuccess) {
+    return (
+      <div>
+        <p>Message sent!</p>
+        <button onClick={reset}>Send another</button>
+      </div>
+    )
+  }
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <input name="text" placeholder="Your message" />
+      <button type="submit" disabled={isPending}>
+        {isPending ? "Sending..." : "Send"}
+      </button>
+    </form>
+  )
+}
+```
+
+```tsx Override Options Per-Call
+const { mutate } = useCall({
+  contractId: "nft.near",
+  method: "nft_mint",
+  options: { gas: "50 Tgas" },
+})
+
+// Override deposit for this specific call
+await mutate(
+  { token_id: "1", receiver_id: "alice.near" },
+  { attachedDeposit: "0.1 NEAR" }
+)
+```
+</CodeGroup>
+
+<Accordion title="CallOptions Reference">
+  | Option | Type | Description |
+  |--------|------|-------------|
+  | `gas` | `string` | Gas limit (e.g., `"30 Tgas"`, `"100 Tgas"`) |
+  | `attachedDeposit` | `string` | NEAR to attach (e.g., `"1 NEAR"`, `"0.01 NEAR"`) |
+  | `waitUntil` | `"INCLUDED" \| "EXECUTED" \| "FINAL"` | When to resolve the promise |
+</Accordion>
+
+---
+
+### useSend
+
+<ParamField body="(no params)" type="">
+  Send NEAR tokens to another account.
+</ParamField>
+
+Returns a `mutate` function with signature:
+
+```typescript
+mutate: (to: string, amount: AmountInput) => Promise<void>
+```
+
+Where `AmountInput` is `"10 NEAR"` | `"1000 yocto"` | `bigint`
+
+```tsx
+import { useSend } from "@near-kit/react"
+
+function SendForm() {
+  const { mutate: send, isPending, isSuccess, error } = useSend()
+  const [recipient, setRecipient] = useState("")
+  const [amount, setAmount] = useState("")
+
+  const handleSend = async () => {
+    try {
+      await send(recipient, `${amount} NEAR`)
+    } catch (err) {
+      // Error is also available via `error` state
+      console.error("Transfer failed:", err)
+    }
+  }
+
+  return (
+    <div>
+      <input
+        placeholder="Recipient (e.g., bob.near)"
+        value={recipient}
+        onChange={(e) => setRecipient(e.target.value)}
+      />
+      <input
+        placeholder="Amount in NEAR"
+        value={amount}
+        onChange={(e) => setAmount(e.target.value)}
+      />
+      <button onClick={handleSend} disabled={isPending}>
+        {isPending ? "Sending..." : "Send NEAR"}
+      </button>
+      {isSuccess && <p>Transfer complete!</p>}
+      {error && <p>Error: {error.message}</p>}
+    </div>
+  )
+}
+```
+
+---
+
+## Utility Hooks
+
+### useNear
+
+Access the raw Near client instance for advanced operations:
+
+```tsx
+import { useNear } from "@near-kit/react"
+
+function AdvancedTransaction() {
+  const near = useNear()
+
+  const handleBatch = async () => {
+    // Full access to the transaction builder
+    await near
+      .transaction("alice.near")
+      .createAccount("sub.alice.near")
+      .transfer("sub.alice.near", "5 NEAR")
+      .addKey("sub.alice.near", "ed25519:...")
+      .send()
+  }
+
+  return <button onClick={handleBatch}>Create Subaccount</button>
+}
+```
+
+---
+
+### useContract
+
+<ParamField body="contractId" type="string" required>
+  Get a fully-typed contract interface using `near.contract<T>()`.
+</ParamField>
+
+```tsx
+import { useContract } from "@near-kit/react"
+import type { Contract } from "near-kit"
+
+// Define your contract's type signature
+type FungibleToken = Contract<{
+  view: {
+    ft_balance_of: (args: { account_id: string }) => Promise<string>
+    ft_metadata: () => Promise<{ name: string; symbol: string; decimals: number }>
+  }
+  call: {
+    ft_transfer: (args: { receiver_id: string; amount: string }) => Promise<void>
+  }
+}>
+
+function TokenBalance({ accountId }: { accountId: string }) {
+  const token = useContract<FungibleToken>("usdt.tether-token.near")
+  const [balance, setBalance] = useState<string>()
+
+  useEffect(() => {
+    token.view.ft_balance_of({ account_id: accountId }).then(setBalance)
+  }, [token, accountId])
+
+  return <p>Balance: {balance}</p>
+}
+```
+
+<Tip>
+  For reactive data fetching with contracts, combine `useContract` with `useEffect` or integrate with React Query. See [Data Fetching](/react/data-fetching) for patterns.
+</Tip>

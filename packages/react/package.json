@@ -1,0 +1,51 @@
+{
+  "name": "@near-kit/react",
+  "version": "0.8.2",
+  "description": "React bindings for near-kit - hooks and providers for NEAR Protocol",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "lint": "biome check . --write",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "bun run build"
+  },
+  "keywords": [
+    "near",
+    "near-protocol",
+    "blockchain",
+    "react",
+    "hooks",
+    "web3"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "near-kit": ">=0.8.0",
+    "react": ">=18.0.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.0.6",
+    "@testing-library/react": "^16.2.0",
+    "@types/react": "^19.0.0",
+    "jsdom": "^26.0.0",
+    "near-kit": "workspace:*",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.10"
+  }
+}
