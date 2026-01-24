@@ -5,11 +5,13 @@
  * Users prove account ownership without paying gas fees.
  */
 
+import { hex } from "@scure/base"
 import {
   generateNonce,
   Near,
   type PrivateKey,
   type SignedMessage,
+  type SignMessageParams,
   verifyNep413Signature,
 } from "../src/index.js"
 
@@ -39,12 +41,19 @@ async function clientSignMessage() {
   })
 
   console.log("Client signed message:", signedMessage.accountId)
+  console.log("Nonce (hex for HTTP):", hex.encode(nonce))
 
   // Send to server for verification
   // In production:
   //   await fetch('/api/login', {
   //     method: 'POST',
-  //     body: JSON.stringify({ signedMessage, nonce: Array.from(nonce) })
+  //     headers: { 'Content-Type': 'application/json' },
+  //     body: JSON.stringify({
+  //       signedMessage,
+  //       message: 'Sign in to My App',
+  //       recipient: 'myapp.com',
+  //       nonce: hex.encode(nonce)
+  //     })
   //   })
 
   return { signedMessage, nonce }
@@ -54,16 +63,20 @@ async function clientSignMessage() {
 // Server Side: Verify signature
 // ============================================================================
 
+// In production, this would be an HTTP handler:
+// app.post('/api/login', async (req, res) => {
+//   const { signedMessage, message, recipient, nonce } = req.body
+//   const params = { message, recipient, nonce: hex.decode(nonce) }
+//   const isValid = await verifyNep413Signature(signedMessage, params, { near })
+//   ...
+// })
+
 function serverVerifySignature(
   signedMessage: SignedMessage,
-  nonce: Uint8Array,
+  params: SignMessageParams,
 ): boolean {
   // Verify the signature matches the message
-  const isValid = verifyNep413Signature(signedMessage, {
-    message: "Sign in to My App",
-    recipient: "myapp.com",
-    nonce,
-  })
+  const isValid = verifyNep413Signature(signedMessage, params)
 
   if (!isValid) {
     console.log("Invalid signature")
@@ -71,11 +84,12 @@ function serverVerifySignature(
   }
 
   // Check nonce hasn't been used before (store in database)
-  // if (await db.nonceExists(nonce)) {
+  // const nonceHex = hex.encode(params.nonce)
+  // if (await db.nonceExists(nonceHex)) {
   //   console.log("Nonce already used (replay attack)")
   //   return false
   // }
-  // await db.storeNonce(nonce)
+  // await db.storeNonce(nonceHex)
 
   console.log("Signature valid for account:", signedMessage.accountId)
 
@@ -97,7 +111,12 @@ async function main() {
   const { signedMessage, nonce } = await clientSignMessage()
 
   // 2. Server verifies signature
-  const isValid = serverVerifySignature(signedMessage, nonce)
+  const params: SignMessageParams = {
+    message: "Sign in to My App",
+    recipient: "myapp.com",
+    nonce,
+  }
+  const isValid = serverVerifySignature(signedMessage, params)
 
   console.log("\nAuthentication:", isValid ? "SUCCESS" : "FAILED")
 }

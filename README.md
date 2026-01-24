@@ -384,16 +384,26 @@ await near
 Authenticate users without gas fees:
 
 ```typescript
+import { hex } from "@scure/base"
+import { generateNonce, Near } from "near-kit"
+
+const nonce = generateNonce()
 const signedMessage = await near.signMessage({
   message: "Login to MyApp",
   recipient: "myapp.near",
-  nonce: crypto.getRandomValues(new Uint8Array(32)),
+  nonce,
 })
 
 // Send to backend for verification
 await fetch("/api/auth", {
   method: "POST",
-  body: JSON.stringify(signedMessage),
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    signedMessage,
+    message: "Login to MyApp",
+    recipient: "myapp.near",
+    nonce: hex.encode(nonce), // hex-encode for JSON transport
+  }),
 })
 ```
 
