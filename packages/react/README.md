@@ -5,9 +5,9 @@ React bindings for [near-kit](https://github.com/r-near/near-kit) — a simple, 
 ## Installation
 
 ```bash
-npm install @near-kit/react near-kit
+npm install @near-kit/react
 # or
-bun add @near-kit/react near-kit
+bun add @near-kit/react
 ```
 
 ## Quick Start
