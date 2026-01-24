@@ -1,0 +1,499 @@
+---
+title: "Data Fetching Patterns"
+description: "Integrate @near-kit/react with React Query or SWR for production-grade caching"
+---
+
+The built-in hooks (`useView`, `useBalance`, etc.) are intentionally thin - they manage loading and error states but don't include caching, deduplication, or background refetching.
+
+For production applications, we recommend pairing `@near-kit/react` with a data fetching library:
+
+<CardGroup cols={2}>
+  <Card title="React Query" icon="react" href="#react-query">
+    Most popular. Full-featured with devtools, mutations, and infinite queries.
+  </Card>
+  <Card title="SWR" icon="bolt" href="#swr">
+    Lightweight alternative from Vercel. Simpler API, smaller bundle.
+  </Card>
+</CardGroup>
+
+---
+
+## React Query
+
+[TanStack Query](https://tanstack.com/query) (React Query) is the most popular data fetching library for React. It provides caching, background updates, stale-while-revalidate, and excellent DevTools.
+
+### Installation
+
+```bash
+npm install @tanstack/react-query
+```
+
+### Setup
+
+<Steps>
+  <Step title="Add QueryClientProvider alongside NearProvider">
+    ```tsx
+    import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+    import { Near } from "near-kit"
+    import { NearProvider } from "@near-kit/react"
+
+    const queryClient = new QueryClient()
+    const near = new Near({ network: "mainnet" })
+
+    function App() {
+      return (
+        <QueryClientProvider client={queryClient}>
+          <NearProvider near={near}>
+            <YourApp />
+          </NearProvider>
+        </QueryClientProvider>
+      )
+    }
+    ```
+  </Step>
+
+  <Step title="Create custom hooks using useNear">
+    ```tsx
+    import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+    import { useNear } from "@near-kit/react"
+
+    // Cached view call
+    export function useMessages(limit: number) {
+      const near = useNear()
+
+      return useQuery({
+        queryKey: ["messages", limit],
+        queryFn: () => near.view<Message[]>("guestbook.near", "get_messages", { limit }),
+        staleTime: 30_000, // Consider fresh for 30 seconds
+      })
+    }
+
+    // Mutation with cache invalidation
+    export function useAddMessage() {
+      const near = useNear()
+      const queryClient = useQueryClient()
+
+      return useMutation({
+        mutationFn: (text: string) =>
+          near.call("guestbook.near", "add_message", { text }),
+        onSuccess: () => {
+          // Invalidate messages cache after adding
+          queryClient.invalidateQueries({ queryKey: ["messages"] })
+        },
+      })
+    }
+    ```
+  </Step>
+</Steps>
+
+### Complete Example
+
+<Accordion title="Full Guestbook with React Query">
+```tsx
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { useNear } from "@near-kit/react"
+
+interface Message {
+  id: number
+  sender: string
+  text: string
+}
+
+// Custom hooks
+function useMessages() {
+  const near = useNear()
+  return useQuery({
+    queryKey: ["guestbook", "messages"],
+    queryFn: () => near.view<Message[]>("guestbook.near", "get_messages", { limit: 50 }),
+    staleTime: 10_000,
+    refetchInterval: 30_000, // Poll every 30s
+  })
+}
+
+function useAddMessage() {
+  const near = useNear()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (text: string) => {
+      await near.call("guestbook.near", "add_message", { text })
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["guestbook", "messages"] })
+    },
+  })
+}
+
+// Components
+function MessageList() {
+  const { data: messages, isLoading, error } = useMessages()
+
+  if (isLoading) return <p>Loading messages...</p>
+  if (error) return <p>Error loading messages</p>
+
+  return (
+    <ul>
+      {messages?.map((msg) => (
+        <li key={msg.id}>
+          <strong>{msg.sender}</strong>: {msg.text}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function AddMessageForm() {
+  const { mutate, isPending } = useAddMessage()
+  const [text, setText] = useState("")
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault()
+    mutate(text, {
+      onSuccess: () => setText(""),
+    })
+  }
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <input
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder="Your message"
+        disabled={isPending}
+      />
+      <button type="submit" disabled={isPending || !text}>
+        {isPending ? "Sending..." : "Send"}
+      </button>
+    </form>
+  )
+}
+
+function Guestbook() {
+  return (
+    <div>
+      <h1>Guestbook</h1>
+      <AddMessageForm />
+      <MessageList />
+    </div>
+  )
+}
+```
+</Accordion>
+
+### Patterns
+
+<Tabs>
+  <Tab title="Optimistic Updates">
+    Update the UI immediately, then reconcile with the server response:
+
+    ```tsx
+    function useAddMessage() {
+      const near = useNear()
+      const queryClient = useQueryClient()
+
+      return useMutation({
+        mutationFn: (text: string) =>
+          near.call("guestbook.near", "add_message", { text }),
+
+        // Optimistically add the message
+        onMutate: async (text) => {
+          await queryClient.cancelQueries({ queryKey: ["messages"] })
+
+          const previous = queryClient.getQueryData<Message[]>(["messages"])
+
+          queryClient.setQueryData<Message[]>(["messages"], (old) => [
+            ...(old ?? []),
+            { id: Date.now(), sender: "you.near", text },
+          ])
+
+          return { previous }
+        },
+
+        // Rollback on error
+        onError: (err, text, context) => {
+          queryClient.setQueryData(["messages"], context?.previous)
+        },
+
+        // Refetch to get the real data
+        onSettled: () => {
+          queryClient.invalidateQueries({ queryKey: ["messages"] })
+        },
+      })
+    }
+    ```
+  </Tab>
+
+  <Tab title="Dependent Queries">
+    Fetch data that depends on other data:
+
+    ```tsx
+    function useUserProfile(accountId: string) {
+      const near = useNear()
+
+      // First, check if account exists
+      const { data: exists } = useQuery({
+        queryKey: ["account-exists", accountId],
+        queryFn: () => near.accountExists(accountId),
+      })
+
+      // Then fetch profile only if account exists
+      return useQuery({
+        queryKey: ["profile", accountId],
+        queryFn: () => near.view("profiles.near", "get_profile", { account_id: accountId }),
+        enabled: exists === true, // Only runs if account exists
+      })
+    }
+    ```
+  </Tab>
+
+  <Tab title="Parallel Queries">
+    Fetch multiple resources in parallel:
+
+    ```tsx
+    function useDashboardData(accountId: string) {
+      const near = useNear()
+
+      const results = useQueries({
+        queries: [
+          {
+            queryKey: ["balance", accountId],
+            queryFn: () => near.getBalance(accountId),
+          },
+          {
+            queryKey: ["nfts", accountId],
+            queryFn: () => near.view("nft.near", "nft_tokens_for_owner", { account_id: accountId }),
+          },
+          {
+            queryKey: ["staking", accountId],
+            queryFn: () => near.view("poolv1.near", "get_account", { account_id: accountId }),
+          },
+        ],
+      })
+
+      return {
+        balance: results[0].data,
+        nfts: results[1].data,
+        staking: results[2].data,
+        isLoading: results.some((r) => r.isLoading),
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## SWR
+
+[SWR](https://swr.vercel.app/) is a lightweight data fetching library from Vercel. It's simpler than React Query with a smaller bundle size.
+
+### Installation
+
+```bash
+npm install swr
+```
+
+### Setup
+
+<Steps>
+  <Step title="Add SWRConfig alongside NearProvider">
+    ```tsx
+    import { SWRConfig } from "swr"
+    import { Near } from "near-kit"
+    import { NearProvider } from "@near-kit/react"
+
+    const near = new Near({ network: "mainnet" })
+
+    function App() {
+      return (
+        <SWRConfig value={{ revalidateOnFocus: false }}>
+          <NearProvider near={near}>
+            <YourApp />
+          </NearProvider>
+        </SWRConfig>
+      )
+    }
+    ```
+  </Step>
+
+  <Step title="Create custom hooks using useNear">
+    ```tsx
+    import useSWR from "swr"
+    import useSWRMutation from "swr/mutation"
+    import { useNear } from "@near-kit/react"
+
+    // Cached view call
+    export function useMessages(limit: number) {
+      const near = useNear()
+
+      return useSWR(
+        ["messages", limit],
+        () => near.view<Message[]>("guestbook.near", "get_messages", { limit })
+      )
+    }
+
+    // Mutation
+    export function useAddMessage() {
+      const near = useNear()
+
+      return useSWRMutation(
+        "messages",
+        (_, { arg: text }: { arg: string }) =>
+          near.call("guestbook.near", "add_message", { text })
+      )
+    }
+    ```
+  </Step>
+</Steps>
+
+### Complete Example
+
+<Accordion title="Full Guestbook with SWR">
+```tsx
+import useSWR, { mutate } from "swr"
+import useSWRMutation from "swr/mutation"
+import { useNear } from "@near-kit/react"
+
+interface Message {
+  id: number
+  sender: string
+  text: string
+}
+
+// Custom hooks
+function useMessages() {
+  const near = useNear()
+
+  return useSWR("messages", () =>
+    near.view<Message[]>("guestbook.near", "get_messages", { limit: 50 })
+  )
+}
+
+function useAddMessage() {
+  const near = useNear()
+
+  return useSWRMutation(
+    "messages",
+    async (_, { arg: text }: { arg: string }) => {
+      await near.call("guestbook.near", "add_message", { text })
+    },
+    {
+      onSuccess: () => mutate("messages"), // Revalidate after success
+    }
+  )
+}
+
+// Components
+function MessageList() {
+  const { data: messages, isLoading, error } = useMessages()
+
+  if (isLoading) return <p>Loading messages...</p>
+  if (error) return <p>Error loading messages</p>
+
+  return (
+    <ul>
+      {messages?.map((msg) => (
+        <li key={msg.id}>
+          <strong>{msg.sender}</strong>: {msg.text}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function AddMessageForm() {
+  const { trigger, isMutating } = useAddMessage()
+  const [text, setText] = useState("")
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault()
+    await trigger(text)
+    setText("")
+  }
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <input
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder="Your message"
+        disabled={isMutating}
+      />
+      <button type="submit" disabled={isMutating || !text}>
+        {isMutating ? "Sending..." : "Send"}
+      </button>
+    </form>
+  )
+}
+```
+</Accordion>
+
+### Patterns
+
+<Tabs>
+  <Tab title="Conditional Fetching">
+    ```tsx
+    function useProfile(accountId?: string) {
+      const near = useNear()
+
+      return useSWR(
+        accountId ? ["profile", accountId] : null, // null key = don't fetch
+        () => near.view("profiles.near", "get_profile", { account_id: accountId })
+      )
+    }
+    ```
+  </Tab>
+
+  <Tab title="Revalidation">
+    ```tsx
+    function useBalance(accountId: string) {
+      const near = useNear()
+
+      return useSWR(
+        ["balance", accountId],
+        () => near.getBalance(accountId),
+        {
+          refreshInterval: 10_000,     // Refetch every 10s
+          revalidateOnFocus: true,     // Refetch when window regains focus
+          dedupingInterval: 2_000,     // Dedupe requests within 2s
+        }
+      )
+    }
+    ```
+  </Tab>
+
+  <Tab title="Global Mutate">
+    ```tsx
+    import { mutate } from "swr"
+
+    // Revalidate specific key
+    mutate(["balance", "alice.near"])
+
+    // Revalidate all keys starting with "balance"
+    mutate((key) => Array.isArray(key) && key[0] === "balance")
+
+    // Revalidate everything
+    mutate(() => true)
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Comparison
+
+| Feature | Built-in Hooks | React Query | SWR |
+|---------|----------------|-------------|-----|
+| Bundle size | 0 KB | ~13 KB | ~4 KB |
+| Caching | ❌ | ✅ | ✅ |
+| Deduplication | ❌ | ✅ | ✅ |
+| Background refetch | ❌ | ✅ | ✅ |
+| Stale-while-revalidate | ❌ | ✅ | ✅ |
+| Optimistic updates | ❌ | ✅ | ✅ |
+| DevTools | ❌ | ✅ | ❌ |
+| Infinite queries | ❌ | ✅ | ✅ |
+| Learning curve | Low | Medium | Low |
+
+<Info>
+  **Recommendation**: Use built-in hooks for prototypes and simple apps. For production, choose React Query for complex apps with mutations, or SWR for simpler read-heavy apps.
+</Info>

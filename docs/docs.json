@@ -53,6 +53,16 @@
         ]
       },
       {
+        "group": "React",
+        "icon": "react",
+        "pages": [
+          "react/overview",
+          "react/provider",
+          "react/hooks",
+          "react/data-fetching"
+        ]
+      },
+      {
         "group": "Building dApps",
         "icon": "browser",
         "pages": [

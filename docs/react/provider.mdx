@@ -1,0 +1,253 @@
+---
+title: "Provider Setup"
+description: "Configure the NearProvider for your React application"
+---
+
+The `NearProvider` component makes a `Near` client instance available to all components in your app via React Context.
+
+## Basic Setup
+
+<Steps>
+  <Step title="Create the Near client">
+    Create your `Near` instance with your desired configuration. This can be done outside your component tree.
+
+    ```tsx
+    import { Near } from "near-kit"
+
+    const near = new Near({
+      network: "mainnet",
+    })
+    ```
+  </Step>
+
+  <Step title="Wrap your app with NearProvider">
+    Place the `NearProvider` at the root of your component tree.
+
+    ```tsx
+    import { NearProvider } from "@near-kit/react"
+
+    function App() {
+      return (
+        <NearProvider near={near}>
+          <YourApp />
+        </NearProvider>
+      )
+    }
+    ```
+  </Step>
+
+  <Step title="Use hooks in any component">
+    All hooks from `@near-kit/react` will now have access to the Near client.
+
+    ```tsx
+    import { useBalance } from "@near-kit/react"
+
+    function WalletDisplay() {
+      const { data: balance } = useBalance({ accountId: "alice.near" })
+      return <p>Balance: {balance}</p>
+    }
+    ```
+  </Step>
+</Steps>
+
+## Provider Props
+
+<ResponseField name="near" type="Near" required>
+  The Near client instance to provide to all child components.
+</ResponseField>
+
+<ResponseField name="children" type="ReactNode" required>
+  React children to render inside the provider.
+</ResponseField>
+
+## useNear Hook
+
+Access the Near client directly when you need the full API:
+
+```tsx
+import { useNear } from "@near-kit/react"
+
+function AdvancedComponent() {
+  const near = useNear()
+
+  const handleComplex = async () => {
+    // Full access to the Near client API
+    const result = await near
+      .transaction("alice.near")
+      .functionCall("contract.near", "method", { arg: "value" })
+      .transfer("bob.near", "1 NEAR")
+      .send()
+  }
+
+  return <button onClick={handleComplex}>Complex Transaction</button>
+}
+```
+
+<Warning>
+  `useNear()` will throw an error if called outside of a `NearProvider`. Always ensure your components are wrapped.
+</Warning>
+
+## Framework-Specific Setup
+
+<Tabs>
+  <Tab title="Next.js (App Router)">
+    Create a client component for the provider:
+
+    ```tsx
+    // providers/near-provider.tsx
+    "use client"
+
+    import { Near } from "near-kit"
+    import { NearProvider } from "@near-kit/react"
+
+    const near = new Near({ network: "mainnet" })
+
+    export function NearProviderWrapper({ children }: { children: React.ReactNode }) {
+      return <NearProvider near={near}>{children}</NearProvider>
+    }
+    ```
+
+    Use it in your root layout:
+
+    ```tsx
+    // app/layout.tsx
+    import { NearProviderWrapper } from "@/providers/near-provider"
+
+    export default function RootLayout({ children }: { children: React.ReactNode }) {
+      return (
+        <html>
+          <body>
+            <NearProviderWrapper>{children}</NearProviderWrapper>
+          </body>
+        </html>
+      )
+    }
+    ```
+
+    <Note>
+      The `@near-kit/react` package includes the `"use client"` directive, so you don't need to add it to your imports. However, components using the hooks must be client components.
+    </Note>
+  </Tab>
+
+  <Tab title="Next.js (Pages Router)">
+    Set up the provider in `_app.tsx`:
+
+    ```tsx
+    // pages/_app.tsx
+    import type { AppProps } from "next/app"
+    import { Near } from "near-kit"
+    import { NearProvider } from "@near-kit/react"
+
+    const near = new Near({ network: "mainnet" })
+
+    export default function App({ Component, pageProps }: AppProps) {
+      return (
+        <NearProvider near={near}>
+          <Component {...pageProps} />
+        </NearProvider>
+      )
+    }
+    ```
+  </Tab>
+
+  <Tab title="Vite / CRA">
+    Set up the provider in your entry point:
+
+    ```tsx
+    // main.tsx or index.tsx
+    import React from "react"
+    import ReactDOM from "react-dom/client"
+    import { Near } from "near-kit"
+    import { NearProvider } from "@near-kit/react"
+    import App from "./App"
+
+    const near = new Near({ network: "mainnet" })
+
+    ReactDOM.createRoot(document.getElementById("root")!).render(
+      <React.StrictMode>
+        <NearProvider near={near}>
+          <App />
+        </NearProvider>
+      </React.StrictMode>
+    )
+    ```
+  </Tab>
+</Tabs>
+
+## With Wallet Connection
+
+For dApps where users connect their own wallets, create the Near instance dynamically:
+
+```tsx
+"use client"
+
+import { useState, useEffect } from "react"
+import { Near, fromWalletSelector } from "near-kit"
+import { NearProvider } from "@near-kit/react"
+import { setupWalletSelector } from "@near-wallet-selector/core"
+
+export function WalletProvider({ children }: { children: React.ReactNode }) {
+  const [near, setNear] = useState<Near | null>(null)
+
+  useEffect(() => {
+    async function init() {
+      const selector = await setupWalletSelector({
+        network: "mainnet",
+        modules: [/* ... */],
+      })
+
+      if (selector.isSignedIn()) {
+        const wallet = await selector.wallet()
+        setNear(
+          new Near({
+            network: "mainnet",
+            wallet: fromWalletSelector(wallet),
+          })
+        )
+      }
+    }
+    init()
+  }, [])
+
+  // Show loading or connect button when not connected
+  if (!near) {
+    return <ConnectWalletButton />
+  }
+
+  return <NearProvider near={near}>{children}</NearProvider>
+}
+```
+
+<Tip>
+  For a complete wallet integration example, see the [Frontend Integration](/dapp-workflow/frontend-integration) guide.
+</Tip>
+
+## Error: Nested Provider
+
+<Warning>
+  `NearProvider` throws an error if nested inside another `NearProvider`. This prevents accidental context shadowing.
+</Warning>
+
+```tsx
+// ❌ This will throw an error
+<NearProvider near={near1}>
+  <NearProvider near={near2}>  {/* Error! */}
+    <App />
+  </NearProvider>
+</NearProvider>
+
+// ✅ Use a single provider at the root
+<NearProvider near={near}>
+  <App />
+</NearProvider>
+```
+
+If you need multiple Near clients (rare), manage them outside of context:
+
+```tsx
+const mainnetNear = new Near({ network: "mainnet" })
+const testnetNear = new Near({ network: "testnet" })
+
+// Use the specific client directly where needed
+const balance = await testnetNear.getBalance("alice.testnet")
+```

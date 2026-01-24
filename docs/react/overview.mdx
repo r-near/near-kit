@@ -1,0 +1,170 @@
+---
+title: "React Integration"
+description: "First-class React hooks for NEAR blockchain interactions"
+icon: "react"
+---
+
+`@near-kit/react` provides thin, focused React hooks that wrap the core `near-kit` library. These hooks handle the React lifecycle for you while giving you full control over caching and data fetching strategies.
+
+<Info>
+  **Design Philosophy**: These hooks are intentionally thin wrappers. They manage loading states and errors, but don't include built-in caching. For production apps, we recommend pairing them with [React Query](/react/data-fetching#react-query) or [SWR](/react/data-fetching#swr).
+</Info>
+
+## Installation
+
+<CodeGroup>
+```bash npm
+npm install @near-kit/react near-kit
+```
+
+```bash bun
+bun add @near-kit/react near-kit
+```
+
+```bash yarn
+yarn add @near-kit/react near-kit
+```
+
+```bash pnpm
+pnpm add @near-kit/react near-kit
+```
+</CodeGroup>
+
+<Note>
+  `@near-kit/react` requires `near-kit` as a peer dependency. Both packages are versioned together.
+</Note>
+
+## Quick Example
+
+Here's a complete example showing provider setup, reading data, and sending transactions:
+
+```tsx
+import { Near } from "near-kit"
+import { NearProvider, useNear, useBalance, useSend } from "@near-kit/react"
+
+// 1. Create the Near client
+const near = new Near({
+  network: "testnet",
+  privateKey: "ed25519:...",
+  defaultSignerId: "alice.testnet",
+})
+
+// 2. Wrap your app with NearProvider
+function App() {
+  return (
+    <NearProvider near={near}>
+      <Wallet />
+    </NearProvider>
+  )
+}
+
+// 3. Use hooks in any component
+function Wallet() {
+  const { data: balance, isLoading } = useBalance({ accountId: "alice.testnet" })
+  const { send, isPending } = useSend()
+
+  const handleSend = async () => {
+    await send({ receiver: "bob.testnet", amount: "1 NEAR" })
+  }
+
+  if (isLoading) return <p>Loading...</p>
+
+  return (
+    <div>
+      <p>Balance: {balance}</p>
+      <button onClick={handleSend} disabled={isPending}>
+        {isPending ? "Sending..." : "Send 1 NEAR"}
+      </button>
+    </div>
+  )
+}
+```
+
+## Available Hooks
+
+<CardGroup cols={2}>
+  <Card title="useNear" icon="link" href="/react/hooks#usenear">
+    Access the Near client instance from context
+  </Card>
+  <Card title="useView" icon="eye" href="/react/hooks#useview">
+    Call view methods on smart contracts
+  </Card>
+  <Card title="useBalance" icon="wallet" href="/react/hooks#usebalance">
+    Get formatted account balance
+  </Card>
+  <Card title="useAccountExists" icon="user-check" href="/react/hooks#useaccountexists">
+    Check if an account exists
+  </Card>
+  <Card title="useCall" icon="terminal" href="/react/hooks#usecall">
+    Call contract methods that modify state
+  </Card>
+  <Card title="useSend" icon="paper-plane" href="/react/hooks#usesend">
+    Send NEAR tokens to another account
+  </Card>
+  <Card title="useAccount" icon="user" href="/react/hooks#useaccount">
+    Get full account details and access keys
+  </Card>
+  <Card title="useContract" icon="file-code" href="/react/hooks#usecontract">
+    Get a typed contract interface
+  </Card>
+</CardGroup>
+
+## Hook Categories
+
+<Tabs>
+  <Tab title="Read Hooks">
+    These hooks fetch data from the blockchain. They return `{ data, error, isLoading, refetch }`.
+
+    ```tsx
+    // View method call
+    const { data: messages } = useView<Message[]>({
+      contractId: "guestbook.near",
+      method: "get_messages",
+      args: { limit: 10 },
+    })
+
+    // Account balance
+    const { data: balance } = useBalance({ accountId: "alice.near" })
+
+    // Account existence check
+    const { data: exists } = useAccountExists({ accountId: "bob.near" })
+
+    // Full account details
+    const { data: account } = useAccount({ accountId: "alice.near" })
+    ```
+  </Tab>
+  <Tab title="Mutation Hooks">
+    These hooks modify blockchain state. They return `{ mutate, isPending, error, data, reset }`.
+
+    ```tsx
+    // Send tokens
+    const { send, isPending } = useSend()
+    await send({ receiver: "bob.near", amount: "5 NEAR" })
+
+    // Call contract method
+    const { call, isPending } = useCall()
+    await call({
+      contractId: "counter.near",
+      method: "increment",
+      args: {},
+    })
+    ```
+  </Tab>
+</Tabs>
+
+## What's Next?
+
+<CardGroup cols={2}>
+  <Card title="Provider Setup" icon="gear" href="/react/provider">
+    Configure the NearProvider for your app
+  </Card>
+  <Card title="Hooks Reference" icon="book" href="/react/hooks">
+    Complete API reference for all hooks
+  </Card>
+  <Card title="Data Fetching" icon="arrows-rotate" href="/react/data-fetching">
+    Integrate with React Query or SWR
+  </Card>
+  <Card title="Wallet Connection" icon="wallet" href="/dapp-workflow/frontend-integration">
+    Connect user wallets in the browser
+  </Card>
+</CardGroup>
