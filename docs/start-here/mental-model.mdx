@@ -1,0 +1,65 @@
+---
+title: "The Mental Model"
+description: "Three concepts to understand 90% of near-kit"
+---
+
+To use `near-kit` effectively, there are only three concepts you need to internalize. If you understand these, you can guess 90% of the API.
+
+<Steps>
+  <Step title="Everything hangs off Near">
+    The `Near` class is your single entry point. You initialize it once with your configuration (network and credentials), and reuse that instance everywhere.
+
+    ```typescript
+    const near = new Near({ ...config });
+
+    // All operations start here:
+    near.view(...)
+    near.transaction(...)
+    near.getBalance(...)
+    ```
+  </Step>
+  
+  <Step title="We hate math (Units)">
+    Blockchain development is plagued by unit conversion errors. `near-kit` solves this by using **Human-Readable Strings**.
+
+    - **Amounts:** Never count 24 zeros. Use `"1.5 NEAR"` or `"1 yocto"`.
+    - **Gas:** Never calculate gas units. Use `"30 Tgas"`.
+
+    The library parses these strings automatically. If you try to pass a raw number where a unit is expected, `near-kit` will throw an error to protect you from mistakes.
+
+    ```typescript
+    // ✅ Good
+    near.transfer("bob.near", "5 NEAR")
+
+    // ❌ Bad (Throws Error)
+    near.transfer("bob.near", 5) // Did you mean 5 NEAR or 5 yocto?
+    ```
+  </Step>
+  
+  <Step title="Transactions are Fluent Chains">
+    NEAR transactions can contain multiple actions (e.g., "Create Account" AND "Transfer Money"). `near-kit` models this as a fluent chain.
+
+    1. **Start:** `.transaction(signer)` identifies _who is paying_.
+    2. **Chain:** Add as many actions as you want (`.transfer`, `.functionCall`).
+    3. **Send:** Call `.send()` to sign and broadcast.
+
+    ```typescript
+    await near
+      .transaction("alice.near") // 1. Start
+      .createAccount("bob.alice.near") // 2. Chain
+      .transfer("bob.alice.near", "1 NEAR") // 2. Chain
+      .send() // 3. Send
+    ```
+  </Step>
+</Steps>
+
+## Quick Reference
+
+<CardGroup cols={2}>
+  <Card title="Reading Data" icon="book-open" href="/essentials/reading-data">
+    Query balances, state, and call view methods
+  </Card>
+  <Card title="Writing Data" icon="pen" href="/essentials/writing-data">
+    Build and send transactions
+  </Card>
+</CardGroup>

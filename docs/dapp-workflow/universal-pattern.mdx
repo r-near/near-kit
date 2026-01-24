@@ -1,0 +1,136 @@
+---
+title: 'The "Universal Code" Pattern'
+description: "Write once, run anywhere - backend, frontend, or tests"
+---
+
+One of `near-kit`'s superpowers is that it abstracts the "Signer."
+
+Whether a transaction is signed by a generic private key, a secure server-side keystore, or a user's browser wallet, **the code to build and send that transaction is identical.**
+
+This allows you to write "Universal Business Logic"—functions that define _what_ to do, without caring _where_ they are running.
+
+## 1. The Business Logic
+
+First, write your logic as a standalone function. It should accept a `Near` instance and a `signerId`.
+
+```typescript
+// src/features/buy-item.ts
+import { Near } from "near-kit"
+
+/**
+ * Buys an item from the market.
+ * This function works on the Server, Client, and in Tests!
+ */
+export async function buyItem(near: Near, signerId: string, itemId: string) {
+  console.log(`Attempting to buy ${itemId} as ${signerId}...`)
+
+  return await near
+    .transaction(signerId)
+    .functionCall(
+      "market.near",
+      "buy",
+      { item_id: itemId },
+      { attachedDeposit: "1 NEAR", gas: "50 Tgas" }
+    )
+    .send()
+}
+```
+
+## 2. Injecting the `Near` Instance
+
+Now, let's see how to initialize the `Near` object for different environments.
+
+<Tabs>
+  <Tab title="Script">
+    For simple scripts, passing a raw private key is the easiest method.
+    
+    ```typescript
+    import { Near } from "near-kit"
+    import { buyItem } from "./features/buy-item"
+
+    const near = new Near({
+      network: "testnet",
+      privateKey: process.env.ADMIN_KEY, // "ed25519:..."
+      defaultSignerId: "admin.testnet",
+    })
+
+    await buyItem(near, "admin.testnet", "sword-1")
+    ```
+  </Tab>
+  <Tab title="Backend">
+    In production server environments, you rarely handle raw private key strings manually. You use a `KeyStore`.
+
+    A `KeyStore` manages keys for multiple accounts. When you call `.transaction("alice.near")`, the `Near` instance automatically looks up Alice's key in the store.
+    
+    ```typescript
+    import { Near } from "near-kit"
+    import { FileKeyStore } from "near-kit/keys" // Node.js only
+    import { buyItem } from "./features/buy-item"
+
+    // Load keys from the standard ~/.near-credentials directory
+    const keyStore = new FileKeyStore("~/.near-credentials", "testnet")
+
+    const near = new Near({
+      network: "testnet",
+      keyStore: keyStore, // Pass the store instead of a single key
+    })
+
+    // The Near instance will look inside ~/.near-credentials/testnet/worker.json
+    // to find the key for 'worker.testnet'
+    await buyItem(near, "worker.testnet", "sword-1")
+    ```
+
+    <Tip>
+    **Why use a KeyStore?** It allows your app to manage multiple accounts (e.g., `worker-1`, `worker-2`, `admin`) seamlessly. You just switch the `signerId` argument, and `near-kit` finds the right key.
+    </Tip>
+  </Tab>
+  <Tab title="Frontend">
+    In the browser, you don't have private keys. You have a Wallet Adapter.
+    
+    ```typescript
+    import { Near, fromWalletSelector } from "near-kit"
+    import { buyItem } from "./features/buy-item"
+
+    // ... setup wallet selector ...
+    const wallet = await selector.wallet()
+
+    const near = new Near({
+      network: "testnet",
+      wallet: fromWalletSelector(wallet), // Adapter handles signing
+    })
+
+    const userAccount = (await wallet.getAccounts())[0].accountId
+
+    // The wallet popup will appear for the user!
+    await buyItem(near, userAccount, "sword-1")
+    ```
+  </Tab>
+  <Tab title="Testing">
+    In tests, `near-kit` auto-configures everything when you pass the sandbox object.
+    
+    ```typescript
+    import { Near } from "near-kit"
+    import { Sandbox } from "near-kit/sandbox"
+    import { buyItem } from "./features/buy-item"
+
+    const sandbox = await Sandbox.start()
+
+    const near = new Near({
+      network: sandbox, // Auto-configures RPC and Root Key
+    })
+
+    await buyItem(near, sandbox.rootAccount.id, "sword-1")
+    ```
+  </Tab>
+</Tabs>
+
+## Summary
+
+| Environment  | Config Option       | Who Signs?                                      |
+| :----------- | :------------------ | :---------------------------------------------- |
+| **Script**   | `privateKey: "..."` | The provided key string.                        |
+| **Backend**  | `keyStore: store`   | The key matching `signerId` found in the store. |
+| **Frontend** | `wallet: adapter`   | The user (via wallet popup).                    |
+| **Sandbox**  | `network: sandbox`  | The root account key (in-memory).               |
+
+Your business logic (`buyItem`) never needs to know which one is happening.

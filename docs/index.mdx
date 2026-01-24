@@ -1,0 +1,49 @@
+---
+title: "Introduction"
+description: "A modern, lightweight TypeScript SDK for NEAR blockchain"
+---
+
+Welcome to `near-kit`.
+
+If you have built on NEAR before, you know that the tooling can sometimes feel... heavy. `near-kit` is an attempt to fix that. It is a modern, lightweight, and opinionated TypeScript SDK designed to make interacting with the NEAR blockchain feel as simple as using `fetch`.
+
+## Why `near-kit`?
+
+<CardGroup cols={2}>
+  <Card title="Human-Readable Units" icon="text">
+    No more calculating zeros. Write `"10.5 NEAR"` or `"30 Tgas"` — the library handles conversions.
+  </Card>
+  <Card title="Fluent API" icon="link">
+    Chainable builder pattern that makes your code read like a sentence.
+  </Card>
+  <Card title="Type Safety" icon="shield-check">
+    Full TypeScript support with typed errors and contract interfaces.
+  </Card>
+  <Card title="Universal" icon="globe">
+    Same API for backend scripts, frontend dApps, and integration tests.
+  </Card>
+</CardGroup>
+
+## See It In Action
+
+```typescript
+await near
+  .transaction("alice.near")
+  .createAccount("bob.alice.near")
+  .transfer("bob.alice.near", "10 NEAR")
+  .send()
+```
+
+## Get Started
+
+<CardGroup cols={3}>
+  <Card title="Quickstart" icon="rocket" href="/start-here/quickstart">
+    Send your first transaction in under 2 minutes.
+  </Card>
+  <Card title="Mental Model" icon="brain" href="/start-here/mental-model">
+    Understand the core concepts behind near-kit.
+  </Card>
+  <Card title="Migration Guide" icon="arrow-right-arrow-left" href="/start-here/migration">
+    Coming from near-api-js? We've got you covered.
+  </Card>
+</CardGroup>

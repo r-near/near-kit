@@ -1,0 +1,81 @@
+---
+title: "Testing with Sandbox"
+---
+
+Don't rely on Testnet for integration tests. It's slow, you need a faucet, and other people can mess up your state. `near-kit` includes a built-in **Sandbox** manager that runs a local NEAR node for you.
+
+## Setup
+
+We recommend using a test runner like `bun:test`, `jest`, or `vitest`.
+
+```typescript
+import { Near } from "near-kit"
+import { Sandbox } from "near-kit/sandbox"
+import { beforeAll, afterAll, test, expect } from "bun:test"
+
+let sandbox: Sandbox
+let near: Near
+
+// 1. Start Sandbox
+beforeAll(async () => {
+  // This downloads a NEAR binary and starts a node locally
+  sandbox = await Sandbox.start()
+
+  // near-kit automatically configures the RPC and
+  // loads the root account key for you.
+  near = new Near({ network: sandbox })
+})
+
+// 2. Stop Sandbox
+afterAll(async () => {
+  if (sandbox) await sandbox.stop()
+})
+
+// 3. Write Tests
+test("can create account", async () => {
+  const newAccount = `test.${sandbox.rootAccount.id}`
+
+  await near
+    .transaction(sandbox.rootAccount.id)
+    .createAccount(newAccount)
+    .send()
+
+  const exists = await near.accountExists(newAccount)
+  expect(exists).toBe(true)
+})
+```
+
+## Pre-Funded Accounts
+
+The sandbox comes with one "Root Account" (`test.near`) that has a massive balance. Use this account to create sub-accounts for your tests.
+
+```typescript
+const root = sandbox.rootAccount
+console.log(root.id) // "test.near"
+console.log(root.secretKey) // "ed25519:..."
+```
+
+## Custom Binary
+
+By default, `Sandbox.start()` downloads the near-sandbox binary from NEAR's servers. You can use a local binary instead:
+
+```typescript
+// Option 1: Pass the path directly
+const sandbox = await Sandbox.start({
+  binaryPath: "/path/to/near-sandbox"
+})
+
+// Option 2: Set environment variable
+// NEAR_SANDBOX_BIN_PATH=/path/to/near-sandbox
+const sandbox = await Sandbox.start()
+```
+
+Priority order:
+1. `binaryPath` option (if provided)
+2. `NEAR_SANDBOX_BIN_PATH` environment variable
+3. Download from NEAR's S3 bucket
+
+This is useful for:
+- CI environments with pre-cached binaries
+- Testing against a custom-built sandbox
+- Offline development

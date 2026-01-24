@@ -1,0 +1,138 @@
+---
+title: "Writing Data (Transactions)"
+---
+
+To change state on the blockchain (send money, write to a contract), you must send a transaction. Transactions cost **Gas** and must be signed by an account with a private key.
+
+## 1. The Transaction Builder
+
+The primary way to write data is the fluent **Transaction Builder**. It allows you to chain multiple actions into a single, atomic package.
+
+```typescript
+const result = await near
+  .transaction("alice.near") // 1. Who is paying? (Signer)
+  .functionCall(
+    // 2. Action
+    "guestbook.near",
+    "add_message",
+    { text: "Hello World" }
+  )
+  .send() // 3. Sign & Broadcast
+```
+
+## 2. Atomicity (Batching Actions)
+
+You can chain multiple actions in one transaction. **This is atomic**: either every action succeeds, or the entire transaction is rolled back.
+
+This is perfect for scenarios like "Create an account AND fund it AND deploy a contract."
+
+```typescript
+await near
+  .transaction("alice.near")
+  .createAccount("bob.alice.near") // 1. Create
+  .transfer("bob.alice.near", "1 NEAR") // 2. Fund
+  .deployContract("bob.alice.near", code) // 3. Deploy Code
+  .functionCall("bob.alice.near", "init", {}) // 4. Initialize
+  .send()
+```
+
+If the `init` call fails, the account `bob.alice.near` will not be created, and the 1 NEAR will stay with Alice.
+
+## 3. Attaching Gas & Deposits
+
+When calling a function, you often need to attach Gas (computation limit) or a Deposit (real NEAR tokens).
+
+These are passed as the 4th argument (the `options` object) to `.functionCall`.
+
+```typescript
+await near
+  .transaction("alice.near")
+  .functionCall(
+    "nft.near",
+    "mint_token",
+    { token_id: "1" },
+    {
+      gas: "100 Tgas", // Limit for complex operations
+      attachedDeposit: "0.1 NEAR", // Payment (e.g. for storage)
+    }
+  )
+  .send()
+```
+
+- **Gas:** Defaults to 30 Tgas. Increase this for complex calculations.
+- **Deposit:** Defaults to 0. Required if the contract needs to pay for storage or if you are transferring value to a contract.
+
+## 4. Working with Amounts (Dynamic Values)
+
+For dynamic calculations, use the `Amount` helper instead of manually constructing strings:
+
+```typescript
+import { Amount } from "near-kit"
+
+// Dynamic NEAR amounts
+const basePrice = 5
+const quantity = 2
+await near.send("bob.near", Amount.NEAR(basePrice * quantity)) // "10 NEAR"
+
+// Fractional amounts
+await near.send("bob.near", Amount.NEAR(10.5)) // "10.5 NEAR"
+
+// YoctoNEAR (10^-24 NEAR) for precise calculations
+await near.send("bob.near", Amount.yocto(1000000n)) // "1000000 yocto"
+
+// Or pass bigint directly (treated as yoctoNEAR)
+await near.send("bob.near", 1000000n)
+```
+
+**Constants:**
+- `Amount.ZERO` → `"0 yocto"`
+- `Amount.ONE_NEAR` → `"1 NEAR"`
+- `Amount.ONE_YOCTO` → `"1 yocto"`
+
+## 5. Shortcuts
+
+For simple, single-action transactions, `near-kit` provides shortcuts. These are just syntax sugar around the builder.
+
+```typescript
+// Shortcut for .transaction().transfer().send()
+await near.send("bob.near", "5 NEAR")
+
+// Shortcut for .transaction().functionCall().send()
+await near.call("counter.near", "increment", {})
+```
+
+## 6. Inspecting the Result
+
+The `.send()` method returns a `FinalExecutionOutcome` object. This contains everything that happened on-chain.
+
+```typescript
+const result = await near.call(...);
+
+// ✅ Check the Transaction Hash
+console.log("Tx Hash:", result.transaction.hash);
+
+// 📜 Check Logs
+// Logs from ALL receipts in the transaction are collected here
+const logs = result.receipts_outcome.flatMap(r => r.outcome.logs);
+console.log("Contract Logs:", logs);
+
+// 📦 Get the Return Value
+// If the contract returned data (e.g. a JSON object), it's base64 encoded here.
+if (result.status.SuccessValue) {
+  const raw = Buffer.from(result.status.SuccessValue, 'base64').toString();
+  const value = JSON.parse(raw);
+  console.log("Returned:", value);
+}
+```
+
+## 7. Execution Speed (WaitUntil)
+
+By default, `.send()` waits until the transaction is "Optimistically Executed" (usually 1-2 seconds). You can change this behavior.
+
+```typescript
+// Fast: Returns as soon as the network accepts it. No return value available.
+.send({ waitUntil: "INCLUDED" })
+
+// Slow: Waits for full BFT Finality (extra 2-3 seconds). 100% irreversible.
+.send({ waitUntil: "FINAL" })
+```

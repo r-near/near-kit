@@ -1,0 +1,37 @@
+---
+title: "Introduction"
+---
+
+Welcome to `near-kit`.
+
+If you have built on NEAR before, you know that the tooling can sometimes feel... heavy. `near-kit` is an attempt to fix that. It is a modern, lightweight, and opinionated TypeScript SDK designed to make interacting with the NEAR blockchain feel as simple as using `fetch`.
+
+## Why `near-kit`?
+
+### 1. It Speaks Human
+
+We hate calculating zeros. Instead of forcing you to convert units manually or worry about big integers, `near-kit` accepts strings like `"10.5 NEAR"` or `"30 Tgas"`. The library handles the math and conversion for you.
+
+### 2. Fluent API
+
+Building transactions shouldn't require an instruction manual. `near-kit` uses a chainable builder pattern that makes your code read like a sentence:
+
+```typescript
+await near
+  .transaction("alice.near")
+  .createAccount("bob.alice.near")
+  .transfer("bob.alice.near", "10 NEAR")
+  .send()
+```
+
+### 3. Type Safety
+
+We leverage TypeScript to catch bugs before you run your code. From typed errors to fully typed contract interfaces, your IDE is your best friend.
+
+### 4. Universal
+
+Whether you are writing a backend script, a frontend React dApp, or an integration test, your code looks exactly the same. Learn the API once, use it everywhere.
+
+## What's Next?
+
+Ready to write some code? Jump to the [Quickstart](/start-here/quickstart).
