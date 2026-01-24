@@ -1,5 +1,5 @@
 ---
-"@near-kit/react": minor
+"@near-kit/react": patch
 ---
 
 Initial release of @near-kit/react - React bindings for near-kit.
