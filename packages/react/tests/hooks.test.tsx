@@ -204,6 +204,37 @@ describe("useBalance", () => {
     expect(result.current.data).toBe("10 NEAR")
     expect(mockGetBalance).toHaveBeenCalledWith("alice.testnet")
   })
+
+  it("respects enabled=false", async () => {
+    const { result } = renderHook(
+      () => useBalance({ accountId: "alice.testnet", enabled: false }),
+      { wrapper },
+    )
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false)
+    })
+
+    expect(mockGetBalance).not.toHaveBeenCalled()
+    expect(result.current.data).toBeUndefined()
+  })
+
+  it("handles errors", async () => {
+    const error = new Error("Account not found")
+    mockGetBalance.mockRejectedValue(error)
+
+    const { result } = renderHook(
+      () => useBalance({ accountId: "missing.testnet" }),
+      { wrapper },
+    )
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false)
+    })
+
+    expect(result.current.error).toBeInstanceOf(Error)
+    expect(result.current.error?.message).toBe("Account not found")
+  })
 })
 
 describe("useAccountExists", () => {
@@ -240,5 +271,36 @@ describe("useAccountExists", () => {
     })
 
     expect(result.current.data).toBe(false)
+  })
+
+  it("respects enabled=false", async () => {
+    const { result } = renderHook(
+      () => useAccountExists({ accountId: "alice.testnet", enabled: false }),
+      { wrapper },
+    )
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false)
+    })
+
+    expect(mockAccountExists).not.toHaveBeenCalled()
+    expect(result.current.data).toBeUndefined()
+  })
+
+  it("handles errors", async () => {
+    const error = new Error("Network error")
+    mockAccountExists.mockRejectedValue(error)
+
+    const { result } = renderHook(
+      () => useAccountExists({ accountId: "alice.testnet" }),
+      { wrapper },
+    )
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false)
+    })
+
+    expect(result.current.error).toBeInstanceOf(Error)
+    expect(result.current.error?.message).toBe("Network error")
   })
 })

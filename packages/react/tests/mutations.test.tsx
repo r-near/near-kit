@@ -243,4 +243,25 @@ describe("useSend", () => {
     expect(result.current.isError).toBe(true)
     expect(result.current.error?.message).toBe("Insufficient balance")
   })
+
+  it("resets state", async () => {
+    mockSend.mockResolvedValue(undefined)
+
+    const { result } = renderHook(() => useSend(), { wrapper })
+
+    await act(async () => {
+      await result.current.mutate("bob.testnet", "1 NEAR")
+    })
+
+    expect(result.current.isSuccess).toBe(true)
+
+    act(() => {
+      result.current.reset()
+    })
+
+    expect(result.current.isSuccess).toBe(false)
+    expect(result.current.isPending).toBe(false)
+    expect(result.current.isError).toBe(false)
+    expect(result.current.error).toBeUndefined()
+  })
 })
