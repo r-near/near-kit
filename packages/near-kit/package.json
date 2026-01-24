@@ -53,6 +53,11 @@
   ],
   "author": "",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/r-near/near-kit",
+    "directory": "packages/near-kit"
+  },
   "peerDependencies": {
     "@hot-labs/near-connect": ">=0.6.0",
     "@near-wallet-selector/core": ">=8.0.0"

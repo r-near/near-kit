@@ -33,6 +33,11 @@
     "web3"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/r-near/near-kit",
+    "directory": "packages/react"
+  },
   "dependencies": {
     "near-kit": "workspace:*"
   },
