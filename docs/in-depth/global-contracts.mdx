@@ -103,12 +103,16 @@ await near
 ```typescript
 import { deriveAccountId } from "near-kit"
 
+const encoder = new TextEncoder();
+
 // Deploy to deterministic address (auto-derived from state)
 await near
   .transaction("alice.near")
   .stateInit({
     code: { accountId: "publisher.near" },
-    data: new Map([["owner", "alice.near"]]),
+    data: new Map([
+      [encoder.encode("owner"), encoder.encode("alice.near")]
+    ]),
     deposit: "1 NEAR",
   })
   .send()
@@ -121,10 +125,14 @@ The account ID is derived as: `"0s" + hex(keccak256(borsh(state_init))[12..32])`
 ### Computing Addresses
 
 ```typescript
+const encoder = new TextEncoder();
+
 // Derive the address without deploying
 const accountId = deriveAccountId({
   code: { accountId: "publisher.near" },
-  data: new Map([["owner", "alice.near"]]),
+  data: new Map([
+    [encoder.encode("owner"), encoder.encode("alice.near")]
+  ]),
 })
 // => "0s1234567890abcdef1234567890abcdef12345678"
 

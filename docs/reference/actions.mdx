@@ -96,8 +96,8 @@ near.transaction(signerId: string)
         <ResponseField name="code" type="object" required>
           Global contract reference: `{ accountId: string }` or `{ codeHash: string }`
         </ResponseField>
-        <ResponseField name="data" type="Map<string, string>">
-          Initial storage key-value pairs.
+        <ResponseField name="data" type="Map<Uint8Array, Uint8Array>">
+          Initial storage key-value pairs (borsh-serialized bytes).
         </ResponseField>
         <ResponseField name="deposit" type="Amount" required>
           Storage cost reserve.
@@ -113,9 +113,12 @@ near.transaction(signerId: string)
     </ResponseField>
 
     ```typescript
+    const encoder = new TextEncoder();
     .stateInit({
       code: { accountId: "publisher.near" },
-      data: new Map([["owner", "alice.near"]]),
+      data: new Map([
+        [encoder.encode("owner"), encoder.encode("alice.near")]
+      ]),
       deposit: "1 NEAR",
     })
     ```
