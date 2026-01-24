@@ -25,6 +25,12 @@ jobs:
       - name: Checkout Repo
         uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: "https://registry.npmjs.org"
+
       - uses: oven-sh/setup-bun@v2
         name: Install bun
         with:
@@ -37,6 +43,9 @@ jobs:
         id: changesets
         uses: changesets/action@v1
         with:
+          # Custom version script: runs changeset version + bun update to sync lockfile
+          version: bun run ci:version
+          # Custom publish script: uses bun pm pack to resolve workspace:* references
           publish: bun run release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
