@@ -1,6 +1,6 @@
 {
   "name": "@near-kit/react",
-  "version": "0.8.2",
+  "version": "0.8.3",
   "description": "React bindings for near-kit - hooks and providers for NEAR Protocol",
   "type": "module",
   "main": "./dist/index.js",
@@ -34,7 +34,7 @@
   ],
   "license": "MIT",
   "peerDependencies": {
-    "near-kit": ">=0.8.0",
+    "near-kit": ">=0.8.3",
     "react": ">=18.0.0"
   },
   "devDependencies": {

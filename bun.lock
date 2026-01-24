@@ -13,7 +13,7 @@
     },
     "packages/near-kit": {
       "name": "near-kit",
-      "version": "0.8.2",
+      "version": "0.8.3",
       "dependencies": {
         "@napi-rs/keyring": "^1.2.0",
         "@noble/curves": "^2.0.1",
@@ -48,7 +48,7 @@
     },
     "packages/react": {
       "name": "@near-kit/react",
-      "version": "0.8.2",
+      "version": "0.8.3",
       "devDependencies": {
         "@biomejs/biome": "2.0.6",
         "@testing-library/react": "^16.2.0",
@@ -61,7 +61,7 @@
         "vitest": "^4.0.10",
       },
       "peerDependencies": {
-        "near-kit": ">=0.8.0",
+        "near-kit": ">=0.8.3",
         "react": ">=18.0.0",
       },
     },
