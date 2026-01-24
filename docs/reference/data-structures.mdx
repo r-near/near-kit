@@ -11,7 +11,13 @@ Returned by `.send()` and `near.call()`.
 ```typescript
 type FinalExecutionOutcome = {
   // High-level status of the transaction execution
-  final_execution_status: "NONE" | "INCLUDED" | "EXECUTED_OPTIMISTIC" | "FINAL";
+  final_execution_status:
+    | "NONE"
+    | "INCLUDED"
+    | "INCLUDED_FINAL"
+    | "EXECUTED_OPTIMISTIC"
+    | "EXECUTED"
+    | "FINAL";
 
   // Detailed status of the transaction
   status:
@@ -132,9 +138,12 @@ Computes the deterministic account ID from initialization state.
 ```typescript
 import { deriveAccountId } from "near-kit";
 
+const encoder = new TextEncoder();
 deriveAccountId({
   code: { accountId: "publisher.near" },
-  data: new Map([["owner", "alice.near"]]),
+  data: new Map([
+    [encoder.encode("owner"), encoder.encode("alice.near")]
+  ]),
 });
 // => "0s1234567890abcdef1234567890abcdef12345678"
 ```
@@ -153,11 +162,14 @@ isDeterministicAccountId("alice.near"); // false
 Verifies an account ID matches the expected derivation.
 
 ```typescript
+const encoder = new TextEncoder();
 verifyDeterministicAccountId("0s123...", {
   code: { accountId: "publisher.near" },
-  data: new Map([["owner", "alice.near"]]),
+  data: new Map([
+    [encoder.encode("owner"), encoder.encode("alice.near")]
+  ]),
 });
 // => true if matches
 ```
 
-See [Global Contracts](/in-depth/global-contracts.md#3-deterministic-account-ids-nep-616).
+See [Global Contracts](/in-depth/global-contracts#3-deterministic-account-ids-nep-616).

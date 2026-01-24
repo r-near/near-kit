@@ -111,10 +111,10 @@ await near
 You can stake NEAR natively with a validator to earn rewards.
 
 ```typescript
-// Stake 100 NEAR with the 'figment' validator
+// Stake 100 NEAR with your validator's public key
 await near
   .transaction("alice.near")
-  .stake("figment.poolv1.near", "100 NEAR")
+  .stake("ed25519:VALIDATOR_PUBLIC_KEY...", "100 NEAR")
   .send()
 ```
 

@@ -11,7 +11,7 @@ Managing private keys securely is the most critical part of any blockchain appli
 This store keeps keys in a plain JavaScript object in RAM. If the process exits, the keys are gone.
 
 ```typescript
-import { InMemoryKeyStore, Near } from "near-kit"
+import { InMemoryKeyStore, Near, parseKey } from "near-kit"
 
 const keyStore = new InMemoryKeyStore()
 
@@ -32,7 +32,7 @@ const near = new Near({
 This store reads and writes keys to JSON files in the standard `~/.near-credentials` directory. This makes it compatible with the NEAR CLI.
 
 ```typescript
-import { FileKeyStore } from "near-kit/keys";
+import { FileKeyStore } from "near-kit/keys/file";
 
 // Uses ~/.near-credentials/testnet/
 const keyStore = new FileKeyStore("~/.near-credentials", "testnet");
