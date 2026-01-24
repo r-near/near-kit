@@ -7,7 +7,6 @@ export default defineConfig({
       port: 41204,
     },
     coverage: {
-      enabled: true,
       provider: "v8",
       reporter: ["text", "html", "lcov"],
       include: ["src/**/*.ts"],

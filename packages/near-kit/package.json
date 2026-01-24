@@ -1,0 +1,91 @@
+{
+  "name": "near-kit",
+  "version": "0.8.2",
+  "description": "A simple, intuitive TypeScript library for interacting with NEAR Protocol",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./keys": {
+      "import": "./dist/keys/index.js",
+      "types": "./dist/keys/index.d.ts"
+    },
+    "./sandbox": {
+      "import": "./dist/sandbox/index.js",
+      "types": "./dist/sandbox/index.d.ts"
+    },
+    "./keys/file": {
+      "import": "./dist/keys/file-keystore.js",
+      "types": "./dist/keys/file-keystore.d.ts"
+    },
+    "./keys/native": {
+      "import": "./dist/keys/native-keystore.js",
+      "types": "./dist/keys/native-keystore.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "test:ui": "vitest --ui",
+    "test:unit": "vitest run tests/unit",
+    "test:integration": "vitest run tests/integration",
+    "test:wallets": "vitest run tests/wallets",
+    "lint": "biome check . --write",
+    "typecheck": "tsc --noEmit --project tsconfig.typecheck.json",
+    "prepublishOnly": "bun run build"
+  },
+  "keywords": [
+    "near",
+    "near-protocol",
+    "blockchain",
+    "typescript",
+    "web3"
+  ],
+  "author": "",
+  "license": "MIT",
+  "peerDependencies": {
+    "@hot-labs/near-connect": ">=0.6.0",
+    "@near-wallet-selector/core": ">=8.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@hot-labs/near-connect": {
+      "optional": true
+    },
+    "@near-wallet-selector/core": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@hot-labs/near-connect": "^0.8.1",
+    "@near-js/transactions": "^2.5.1",
+    "@near-js/types": "^2.5.1",
+    "@near-wallet-selector/core": "^10.1.1",
+    "@types/bun": "^1.3.2",
+    "@types/tar": "^6.1.13",
+    "@vitest/coverage-v8": "^4.0.10",
+    "@vitest/ui": "^4.0.10",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.10"
+  },
+  "dependencies": {
+    "@napi-rs/keyring": "^1.2.0",
+    "@noble/curves": "^2.0.1",
+    "@noble/hashes": "^2.0.1",
+    "@scure/base": "^2.0.0",
+    "@scure/bip32": "^2.0.1",
+    "@scure/bip39": "^2.0.1",
+    "@zorsh/zorsh": "^0.4.0",
+    "tar": "^7.5.2",
+    "zod": "^4.1.12"
+  }
+}

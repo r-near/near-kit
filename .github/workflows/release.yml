@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - ".changeset/**"
+      - "packages/**"
       - ".github/workflows/release.yml"
   workflow_dispatch:
 
@@ -19,7 +20,7 @@ jobs:
       contents: write
       pull-requests: write
       repository-projects: write
-      id-token: write  # Required for OIDC
+      id-token: write
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v4
