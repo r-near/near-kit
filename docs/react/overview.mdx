@@ -61,10 +61,10 @@ function App() {
 // 3. Use hooks in any component
 function Wallet() {
   const { data: balance, isLoading } = useBalance({ accountId: "alice.testnet" })
-  const { send, isPending } = useSend()
+  const { mutate: send, isPending } = useSend()
 
   const handleSend = async () => {
-    await send({ receiver: "bob.testnet", amount: "1 NEAR" })
+    await send("bob.testnet", "1 NEAR")
   }
 
   if (isLoading) return <p>Loading...</p>
@@ -129,8 +129,8 @@ function Wallet() {
     // Account existence check
     const { data: exists } = useAccountExists({ accountId: "bob.near" })
 
-    // Full account details
-    const { data: account } = useAccount({ accountId: "alice.near" })
+    // Full account details (connected wallet account)
+    const { data: account } = useAccount()
     ```
   </Tab>
   <Tab title="Mutation Hooks">
@@ -138,16 +138,15 @@ function Wallet() {
 
     ```tsx
     // Send tokens
-    const { send, isPending } = useSend()
-    await send({ receiver: "bob.near", amount: "5 NEAR" })
+    const { mutate: send, isPending } = useSend()
+    await send("bob.near", "5 NEAR")
 
     // Call contract method
-    const { call, isPending } = useCall()
-    await call({
+    const { mutate, isPending: isCallPending } = useCall({
       contractId: "counter.near",
       method: "increment",
-      args: {},
     })
+    await mutate({})
     ```
   </Tab>
 </Tabs>
