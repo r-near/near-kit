@@ -5,12 +5,12 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "bun run --filter near-kit build && bun run --filter @near-kit/react build",
-    "clean": "rm -rf packages/*/dist",
+    "build": "tsc --build",
+    "clean": "tsc --build --clean && rm -rf packages/*/dist",
     "dev": "bun run --filter '*' dev",
     "test": "bun run --filter '*' test",
     "lint": "biome check . --write",
-    "typecheck": "bun run --filter near-kit typecheck && bun run --filter @near-kit/react typecheck",
+    "typecheck": "tsc --build --noEmit",
     "ci:version": "changeset version && bun update",
     "ci:publish": "bun run build && for dir in packages/*; do (cd \"$dir\" && PKG_NAME=$(jq -r .name package.json) && PKG_VERSION=$(jq -r .version package.json) && if npm view \"$PKG_NAME@$PKG_VERSION\" version 2>/dev/null; then echo \"$PKG_NAME@$PKG_VERSION already published, skipping\"; else bun pm pack && npm publish *.tgz --access public && rm *.tgz; fi); done && changeset tag",
     "release": "bun run ci:publish",

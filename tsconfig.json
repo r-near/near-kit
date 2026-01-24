@@ -1,12 +1,14 @@
 {
   "compilerOptions": {
     "lib": ["ESNext", "DOM"],
-    "target": "ES2020",
-    "module": "ESNext",
+    "target": "ESNext",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
     "moduleDetection": "force",
     "jsx": "react-jsx",
-    "allowJs": true,
-    "moduleResolution": "bundler",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
     "strict": true,
     "allowUnusedLabels": false,
     "allowUnreachableCode": false,
@@ -20,7 +22,9 @@
     "noUnusedParameters": true,
     "isolatedModules": true,
     "esModuleInterop": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "composite": true
   },
-  "exclude": ["node_modules", "**/dist"]
+  "files": [],
+  "references": [{ "path": "packages/near-kit" }, { "path": "packages/react" }]
 }

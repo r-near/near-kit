@@ -3,10 +3,8 @@
   "compilerOptions": {
     "types": ["bun-types"],
     "outDir": "./dist",
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true
+    "rootDir": "src"
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["src"],
+  "references": []
 }
