@@ -1,5 +1,20 @@
 # @near-kit/react
 
+## 0.9.0
+
+### Minor Changes
+
+- a42b460: Release v0.9.0
+
+  - Move near-kit from peerDependencies to dependencies in @near-kit/react
+  - This enables proper lockstep versioning with changesets
+
+### Patch Changes
+
+- Updated dependencies [a58fd6c]
+- Updated dependencies [a42b460]
+  - near-kit@0.9.0
+
 ## 0.8.3
 
 ### Patch Changes
