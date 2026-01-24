@@ -6,8 +6,8 @@
       "name": "near",
       "devDependencies": {
         "@biomejs/biome": "2.3.11",
-        "@changesets/cli": "^2.29.7",
-        "lefthook": "^2.0.4",
+        "@changesets/cli": "^2.29.8",
+        "lefthook": "^2.0.15",
         "typescript": "^5.9.3",
       },
     },
@@ -49,19 +49,20 @@
     "packages/react": {
       "name": "@near-kit/react",
       "version": "0.8.3",
+      "dependencies": {
+        "near-kit": "workspace:*",
+      },
       "devDependencies": {
         "@biomejs/biome": "2.0.6",
         "@testing-library/react": "^16.2.0",
         "@types/react": "^19.0.0",
         "jsdom": "^26.0.0",
-        "near-kit": "workspace:*",
         "react": "^19.0.0",
         "react-dom": "^19.0.0",
         "typescript": "^5.9.3",
         "vitest": "^4.0.10",
       },
       "peerDependencies": {
-        "near-kit": ">=0.8.3",
         "react": ">=18.0.0",
       },
     },
