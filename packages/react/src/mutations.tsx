@@ -5,6 +5,12 @@ import { useCallback, useRef, useState } from "react"
 import { useNear } from "./provider.js"
 
 /**
+ * Amount input for NEAR transfers.
+ * Accepts "10 NEAR", "1000 yocto", or raw bigint.
+ */
+export type AmountInput = `${number} NEAR` | `${bigint} yocto` | bigint
+
+/**
  * Parameters for useCall hook
  */
 export interface UseCallParams {
@@ -131,12 +137,6 @@ export function useCall<TArgs extends object = object, TResult = unknown>(
 
   return { mutate, data, error, isPending, isSuccess, isError, reset }
 }
-
-/**
- * Amount input for NEAR transfers.
- * Accepts "10 NEAR", "1000 yocto", or raw bigint.
- */
-export type AmountInput = `${number} NEAR` | `${bigint} yocto` | bigint
 
 /**
  * Result type for useSend hook

@@ -22,5 +22,6 @@
     "esModuleInterop": true,
     "skipLibCheck": true
   },
-  "exclude": ["node_modules", "**/dist"]
+  "files": [],
+  "references": [{ "path": "packages/near-kit" }, { "path": "packages/react" }]
 }

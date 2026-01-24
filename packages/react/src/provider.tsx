@@ -50,13 +50,23 @@ export function NearProvider(props: NearProviderProps): ReactNode {
     )
   }
 
+  // Extract the Near instance or config for stable dependency tracking
+  const nearProp = "near" in props ? props.near : undefined
+  const configProp = "config" in props ? props.config : undefined
+  // Serialize config for dependency comparison (only used when config is provided)
+  const configKey = configProp ? JSON.stringify(configProp) : undefined
+
   // Create or use the provided Near instance
+  // biome-ignore lint/correctness/useExhaustiveDependencies: configKey is derived from configProp for stable comparison
   const nearInstance = useMemo(() => {
-    if ("near" in props && props.near) {
-      return props.near
+    if (nearProp) {
+      return nearProp
     }
-    return new Near(props.config)
-  }, [props])
+    if (configProp) {
+      return new Near(configProp)
+    }
+    throw new Error("NearProvider requires either 'near' or 'config' prop")
+  }, [nearProp, configKey])
 
   return (
     <NearProviderDetectionContext.Provider value={true}>
