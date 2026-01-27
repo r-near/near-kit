@@ -243,6 +243,10 @@ interface MutationResult<TArgs, TResult> {
   Call a change method on a NEAR smart contract.
 </ParamField>
 
+<Warning>
+  **Cache invalidation not included.** After a mutation, related queries won't automatically refetch. For apps where mutations should update the UI, use [React Query with `invalidateQueries()`](/react/data-fetching#react-query) instead.
+</Warning>
+
 <Expandable title="UseCallParams Properties">
   <ResponseField name="contractId" type="string" required>
     The contract account ID

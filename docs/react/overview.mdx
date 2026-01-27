@@ -79,6 +79,10 @@ function Wallet() {
 }
 ```
 
+<Tip>
+  **For production apps with mutations**, we recommend using [React Query](/react/data-fetching#react-query) with `useNear()` for proper cache invalidation. The thin hooks above are great for prototyping but don't automatically refetch data after mutations.
+</Tip>
+
 ## Available Hooks
 
 <CardGroup cols={2}>

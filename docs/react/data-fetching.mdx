@@ -497,3 +497,44 @@ function AddMessageForm() {
 <Info>
   **Recommendation**: Use built-in hooks for prototypes and simple apps. For production, choose React Query for complex apps with mutations, or SWR for simpler read-heavy apps.
 </Info>
+
+---
+
+## Common Pitfalls
+
+### Data not refreshing after mutations
+
+**Problem**: You call `useCall` to submit a transaction, then call `refetch()` from `useView`, but the data doesn't update.
+
+**Cause**: React state updates are batched and asynchronous. When you call `refetch()` immediately after a mutation, React may not have re-rendered yet, so the refetch uses stale parameters.
+
+```tsx
+// ❌ This won't work reliably
+const { refetch: refetchMessages } = useView({ ... })
+const { mutate } = useCall({ ... })
+
+const handleSubmit = async () => {
+  await mutate({ text: "Hello" })
+  await refetchMessages() // May use stale args!
+}
+```
+
+**Solution**: Use React Query's `invalidateQueries()` which properly handles the timing:
+
+```tsx
+// ✅ This works correctly
+const { mutate } = useMutation({
+  mutationFn: (text) => near.call("contract", "add_message", { text }),
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: ["messages"] })
+  },
+})
+```
+
+### Queries not refetching when args change
+
+**Problem**: You change the arguments to `useView` but it doesn't refetch.
+
+**Cause**: JavaScript object identity. If you create a new object each render, `useView` sees it as the same value (via JSON serialization), but if you're computing args from state that hasn't updated yet, you get stale data.
+
+**Solution**: Ensure args are derived from state that has actually updated, or use React Query which handles this more predictably.
