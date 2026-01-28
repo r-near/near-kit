@@ -73,6 +73,46 @@ export class NonceManager {
   }
 
   /**
+   * Update the cached nonce to a known value and return the next nonce to use.
+   *
+   * Use this when you receive an InvalidNonce error with `akNonce` -
+   * instead of invalidating and refetching, directly set the nonce
+   * to avoid thundering herd on retry.
+   *
+   * @param accountId - Account ID
+   * @param publicKey - Public key string (e.g., "ed25519:...")
+   * @param currentNonce - The current nonce on chain (akNonce from error)
+   * @returns The next nonce to use (currentNonce + 1, or higher if cache is ahead)
+   */
+  updateAndGetNext(
+    accountId: string,
+    publicKey: string,
+    currentNonce: bigint,
+  ): bigint {
+    const key = `${accountId}:${publicKey}`
+    const nextNonce = currentNonce + 1n
+
+    const cached = this.nonces.get(key)
+    if (cached !== undefined) {
+      // Update to max of current cached value and new value
+      // This handles case where another worker already advanced past this nonce
+      if (nextNonce > cached) {
+        this.nonces.set(key, nextNonce + 1n)
+        return nextNonce
+      } else {
+        // Cached value is already higher, use it
+        const result = cached
+        this.nonces.set(key, cached + 1n)
+        return result
+      }
+    }
+
+    // No entry, create one
+    this.nonces.set(key, nextNonce + 1n)
+    return nextNonce
+  }
+
+  /**
    * Clear all cached nonces
    */
   clear(): void {

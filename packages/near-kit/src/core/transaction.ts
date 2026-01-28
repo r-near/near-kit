@@ -1037,11 +1037,13 @@ export class TransactionBuilder {
 
         // Check if it's an InvalidNonceError
         if (error instanceof InvalidNonceError) {
-          // Invalidate cached nonce to force fresh fetch on retry
+          // Use akNonce from the error to update cache directly
+          // This avoids refetching and thundering herd on retry
           if (this.cachedSignedTx) {
-            TransactionBuilder.nonceManager.invalidate(
+            TransactionBuilder.nonceManager.updateAndGetNext(
               this.signerId,
               this.cachedSignedTx.signedTx.transaction.publicKey.toString(),
+              BigInt(error.akNonce),
             )
           }
 
