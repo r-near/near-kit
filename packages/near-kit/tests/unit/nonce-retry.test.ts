@@ -498,4 +498,49 @@ describe("NonceManager", () => {
     expect(aliceFetchCount).toBe(1)
     expect(bobFetchCount).toBe(1)
   })
+
+  test("should update nonce from akNonce without refetch", async () => {
+    const manager = new NonceManager()
+
+    // First call - no entry exists
+    const nonce1 = manager.updateAndGetNext("alice.near", "ed25519:abc", 100n)
+    expect(nonce1).toBe(101n) // currentNonce + 1
+
+    // Second call - entry exists, should increment
+    const nonce2 = manager.updateAndGetNext("alice.near", "ed25519:abc", 100n)
+    // Should use cached value (102) since it's higher than 101
+    expect(nonce2).toBe(102n)
+
+    // Third call with higher akNonce - should update cache
+    const nonce3 = manager.updateAndGetNext("alice.near", "ed25519:abc", 110n)
+    expect(nonce3).toBe(111n) // New currentNonce + 1
+
+    // Fourth call - should use updated cache
+    const nonce4 = await manager.getNextNonce(
+      "alice.near",
+      "ed25519:abc",
+      async () => {
+        throw new Error("Should not fetch!")
+      },
+    )
+    expect(nonce4).toBe(112n) // Incremented from cache
+  })
+
+  test("should respect higher cached value when updating", async () => {
+    const manager = new NonceManager()
+
+    // Setup: get some nonces to advance the cache
+    await manager.getNextNonce("alice.near", "ed25519:abc", async () => 100n) // Returns 101, cache has 102
+    await manager.getNextNonce("alice.near", "ed25519:abc", async () => {
+      throw new Error("no fetch")
+    }) // Returns 102, cache has 103
+    await manager.getNextNonce("alice.near", "ed25519:abc", async () => {
+      throw new Error("no fetch")
+    }) // Returns 103, cache has 104
+
+    // Now update with a LOWER akNonce - should use cached value
+    const nonce = manager.updateAndGetNext("alice.near", "ed25519:abc", 100n)
+    // Cache had 104, which is higher than 101, so use cached
+    expect(nonce).toBe(104n)
+  })
 })

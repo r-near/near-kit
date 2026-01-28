@@ -478,7 +478,8 @@ describe("Transaction InvalidNonceError Retry", () => {
 
     // Verify retry happened
     expect(sendAttemptCount).toBe(2) // Should try twice
-    expect(getAccessKeyCallCount).toBe(2) // Should fetch nonce twice
+    // With smarter retry logic, we use akNonce from error instead of refetching
+    expect(getAccessKeyCallCount).toBe(1) // Only initial fetch, retry uses akNonce
     expect(result).toBeDefined()
   }, 10000)
 
