@@ -1,5 +1,11 @@
 # near-kit
 
+## 0.11.0
+
+### Minor Changes
+
+- 9005294: Add wallet-based delegate action signing (meta-transactions via HOT Connect)
+
 ## 0.10.0
 
 ### Minor Changes
