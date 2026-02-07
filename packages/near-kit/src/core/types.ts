@@ -425,7 +425,7 @@ export interface SignedMessage {
  * Follows the near-connect batch spec: accepts an array of delegate actions
  * so wallets can sign multiple delegate actions in a single prompt.
  *
- * @see https://github.com/nickcdryan/hot-connector
+ * @see https://github.com/azbang/near-connect
  */
 export interface SignDelegateActionsParams {
   /** Optional signer ID (defaults to connected account) */
