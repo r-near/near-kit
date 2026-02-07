@@ -70,20 +70,16 @@ function convertActionToHotConnect(action: Action): HotConnectAction {
         const argsString = new TextDecoder().decode(args)
         args = JSON.parse(argsString)
       } catch {
-        // If parsing fails, keep args as raw bytes (may be binary data)
+        // Non-JSON binary args — pass through as-is, matching
+        // near-connect's own deserializeArgs behavior.
       }
     }
-
-    const argsObject: Record<string, unknown> =
-      args && typeof args === "object" && !Array.isArray(args)
-        ? (args as Record<string, unknown>)
-        : {}
 
     return {
       type: "FunctionCall",
       params: {
         methodName: fc.methodName,
-        args: argsObject,
+        args: args as Record<string, unknown>,
         gas: fc.gas.toString(),
         deposit: fc.deposit.toString(),
       },
