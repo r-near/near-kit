@@ -26,7 +26,7 @@
         "zod": "^4.3.6",
       },
       "devDependencies": {
-        "@hot-labs/near-connect": "^0.8.1",
+        "@hot-labs/near-connect": "^0.9.0",
         "@near-js/transactions": "^2.5.1",
         "@near-js/types": "^2.5.1",
         "@near-wallet-selector/core": "^10.1.1",
@@ -38,7 +38,7 @@
         "vitest": "^4.0.18",
       },
       "peerDependencies": {
-        "@hot-labs/near-connect": ">=0.6.0",
+        "@hot-labs/near-connect": ">=0.9.0",
         "@near-wallet-selector/core": ">=8.0.0",
       },
       "optionalPeers": [
@@ -208,7 +208,7 @@
 
     "@exodus/bytes": ["@exodus/bytes@1.11.0", "", { "peerDependencies": { "@noble/hashes": "^1.8.0 || ^2.0.0" }, "optionalPeers": ["@noble/hashes"] }, "sha512-wO3vd8nsEHdumsXrjGO/v4p6irbg7hy9kvIeR6i2AwylZSk4HJdWgL0FNaVquW1+AweJcdvU1IEpuIWk/WaPnA=="],
 
-    "@hot-labs/near-connect": ["@hot-labs/near-connect@0.8.2", "", {}, "sha512-cvi5q9mp7k575CIPSUEKNUwpwV04oV6i9SJBkwaaT2IS3rFaIlE0fnl8zje7Eenj7Futt+L0/mQfJgtek6E0bQ=="],
+    "@hot-labs/near-connect": ["@hot-labs/near-connect@0.9.0", "", {}, "sha512-jmb1q1eESNkGPCMp+9BxbP9KUKdm+4L5px0xVnKtPupjKs64HNpEhOLjYiQl6qrZxfmrJBNflflUXDFCvpL8nw=="],
 
     "@inquirer/external-editor": ["@inquirer/external-editor@1.0.3", "", { "dependencies": { "chardet": "^2.1.1", "iconv-lite": "^0.7.0" }, "peerDependencies": { "@types/node": ">=18" }, "optionalPeers": ["@types/node"] }, "sha512-RWbSrDiYmO4LbejWY7ttpxczuwQyZLBUyygsA9Nsv95hpzUWwnNTVQmAq3xuh7vNwCp07UTmE5i11XAEExx4RA=="],
 

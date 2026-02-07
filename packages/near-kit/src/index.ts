@@ -34,6 +34,8 @@ export type {
   PublicKey,
   SendOptions,
   Signature,
+  SignDelegateActionsParams,
+  SignDelegateActionsResult,
   SignedMessage,
   SignMessageParams,
   StatusResponse,

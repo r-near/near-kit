@@ -15,6 +15,9 @@
 import type {
   Action,
   FinalExecutionOutcome,
+  SignDelegateActionsParams,
+  SignDelegateActionsResult,
+  SignedDelegateAction,
   SignedMessage,
   WalletConnection,
 } from "../core/types.js"
@@ -44,6 +47,122 @@ type WalletSelectorWallet = {
     callbackUrl?: string
     state?: string
   }): Promise<unknown> // Many wallets type this as void | SignedMessage
+}
+
+/**
+ * Convert a near-kit Action to HOT Connect's action format.
+ * @internal
+ */
+function convertActionToHotConnect(action: Action): HotConnectAction {
+  const a = action as Record<string, unknown>
+
+  if ("functionCall" in a && a["functionCall"]) {
+    const fc = a["functionCall"] as {
+      methodName: string
+      args: unknown
+      gas: bigint
+      deposit: bigint
+    }
+
+    let args: unknown = fc.args
+    if (args instanceof Uint8Array) {
+      try {
+        const argsString = new TextDecoder().decode(args)
+        args = JSON.parse(argsString)
+      } catch {
+        // Non-JSON binary args — pass through as-is, matching
+        // near-connect's own deserializeArgs behavior.
+      }
+    }
+
+    return {
+      type: "FunctionCall",
+      params: {
+        methodName: fc.methodName,
+        args: args as Record<string, unknown>,
+        gas: fc.gas.toString(),
+        deposit: fc.deposit.toString(),
+      },
+    }
+  }
+
+  if ("transfer" in a && a["transfer"]) {
+    const t = a["transfer"] as { deposit: bigint }
+    return {
+      type: "Transfer",
+      params: { deposit: t.deposit.toString() },
+    }
+  }
+
+  if ("stake" in a && a["stake"]) {
+    const s = a["stake"] as { stake: bigint; publicKey: unknown }
+    return {
+      type: "Stake",
+      params: {
+        stake: s.stake.toString(),
+        // HOT Connect expects a base58 string; we forward whatever representation
+        // we have and rely on upstream tooling when stake is used with wallets.
+        publicKey: String(s.publicKey),
+      },
+    }
+  }
+
+  if ("addKey" in a && a["addKey"]) {
+    const ak = a["addKey"] as {
+      publicKey: unknown
+      accessKey: { nonce: bigint; permission: unknown }
+    }
+    return {
+      type: "AddKey",
+      params: {
+        publicKey: String(ak.publicKey),
+        accessKey: {
+          nonce: Number(ak.accessKey.nonce),
+          permission: ak.accessKey.permission as HotConnectAddKeyPermission,
+        },
+      },
+    }
+  }
+
+  if ("deleteKey" in a && a["deleteKey"]) {
+    const dk = a["deleteKey"] as { publicKey: unknown }
+    return {
+      type: "DeleteKey",
+      params: {
+        publicKey: String(dk.publicKey),
+      },
+    }
+  }
+
+  if ("deleteAccount" in a && a["deleteAccount"]) {
+    const da = a["deleteAccount"] as { beneficiaryId: string }
+    return {
+      type: "DeleteAccount",
+      params: {
+        beneficiaryId: da.beneficiaryId,
+      },
+    }
+  }
+
+  if ("createAccount" in a && a["createAccount"] !== undefined) {
+    return {
+      type: "CreateAccount",
+    }
+  }
+
+  if ("deployContract" in a && a["deployContract"]) {
+    const dc = a["deployContract"] as { code: Uint8Array }
+    return {
+      type: "DeployContract",
+      params: {
+        code: dc.code,
+      },
+    }
+  }
+
+  throw new Error(
+    `Unsupported action type: ${Object.keys(a).join(", ") || "unknown"}`,
+  )
 }
 
 /**
@@ -173,125 +292,7 @@ export function fromHotConnect(
 
     async signAndSendTransaction(params): Promise<FinalExecutionOutcome> {
       const wallet = await connector.wallet()
-
-      const convertAction = (action: Action): HotConnectAction => {
-        const a = action as Record<string, unknown>
-
-        if ("functionCall" in a && a["functionCall"]) {
-          const fc = a["functionCall"] as {
-            methodName: string
-            args: unknown
-            gas: bigint
-            deposit: bigint
-          }
-
-          let args: unknown = fc.args
-          if (args instanceof Uint8Array) {
-            try {
-              const argsString = new TextDecoder().decode(args)
-              args = JSON.parse(argsString)
-            } catch {
-              // If parsing fails, keep args as raw bytes (may be binary data)
-            }
-          }
-
-          const argsObject: Record<string, unknown> =
-            args && typeof args === "object" && !Array.isArray(args)
-              ? (args as Record<string, unknown>)
-              : {}
-
-          return {
-            type: "FunctionCall",
-            params: {
-              methodName: fc.methodName,
-              args: argsObject,
-              gas: fc.gas.toString(),
-              deposit: fc.deposit.toString(),
-            },
-          }
-        }
-
-        if ("transfer" in a && a["transfer"]) {
-          const t = a["transfer"] as { deposit: bigint }
-          return {
-            type: "Transfer",
-            params: { deposit: t.deposit.toString() },
-          }
-        }
-
-        if ("stake" in a && a["stake"]) {
-          const s = a["stake"] as { stake: bigint; publicKey: unknown }
-          return {
-            type: "Stake",
-            params: {
-              stake: s.stake.toString(),
-              // HOT Connect expects a base58 string; we forward whatever representation
-              // we have and rely on upstream tooling when stake is used with wallets.
-              publicKey: String(s.publicKey),
-            },
-          }
-        }
-
-        if ("addKey" in a && a["addKey"]) {
-          const ak = a["addKey"] as {
-            publicKey: unknown
-            accessKey: { nonce: bigint; permission: unknown }
-          }
-          return {
-            type: "AddKey",
-            params: {
-              publicKey: String(ak.publicKey),
-              accessKey: {
-                nonce: Number(ak.accessKey.nonce),
-                permission: ak.accessKey
-                  .permission as HotConnectAddKeyPermission,
-              },
-            },
-          }
-        }
-
-        if ("deleteKey" in a && a["deleteKey"]) {
-          const dk = a["deleteKey"] as { publicKey: unknown }
-          return {
-            type: "DeleteKey",
-            params: {
-              publicKey: String(dk.publicKey),
-            },
-          }
-        }
-
-        if ("deleteAccount" in a && a["deleteAccount"]) {
-          const da = a["deleteAccount"] as { beneficiaryId: string }
-          return {
-            type: "DeleteAccount",
-            params: {
-              beneficiaryId: da.beneficiaryId,
-            },
-          }
-        }
-
-        if ("createAccount" in a && a["createAccount"] !== undefined) {
-          return {
-            type: "CreateAccount",
-          }
-        }
-
-        if ("deployContract" in a && a["deployContract"]) {
-          const dc = a["deployContract"] as { code: Uint8Array }
-          return {
-            type: "DeployContract",
-            params: {
-              code: dc.code,
-            },
-          }
-        }
-
-        throw new Error(
-          `Unsupported action type: ${Object.keys(a).join(", ") || "unknown"}`,
-        )
-      }
-
-      const hotConnectorActions = params.actions.map(convertAction)
+      const hotConnectorActions = params.actions.map(convertActionToHotConnect)
 
       const result = await wallet.signAndSendTransaction({
         ...(params.signerId !== undefined && { signerId: params.signerId }),
@@ -310,6 +311,57 @@ export function fromHotConnect(
         nonce: params.nonce,
       })
       return result as SignedMessage
+    },
+
+    async signDelegateActions(
+      params: SignDelegateActionsParams,
+    ): Promise<SignDelegateActionsResult> {
+      const wallet = await connector.wallet()
+
+      if (
+        !wallet.signDelegateActions ||
+        wallet.manifest?.features?.signDelegateAction === false
+      ) {
+        throw new Error(
+          "Connected wallet does not support delegate action signing. " +
+            "Make sure you're using a wallet that supports meta-transactions " +
+            "and @hot-labs/near-connect v0.9.0 or later.",
+        )
+      }
+
+      // Convert each delegate action's near-kit Actions to HOT Connect format
+      const hotDelegateActions = params.delegateActions.map((da) => ({
+        actions: da.actions.map(convertActionToHotConnect),
+        receiverId: da.receiverId,
+      }))
+
+      const response = await wallet.signDelegateActions({
+        ...(params.signerId !== undefined && { signerId: params.signerId }),
+        delegateActions: hotDelegateActions,
+      })
+
+      // Bridge response shape: near-connect returns @near-js/transactions
+      // SignedDelegate (flat { delegateAction, signature }) whereas near-kit
+      // uses the borsh-schema wrapper { signedDelegate: { delegateAction, signature } }.
+      return {
+        signedDelegateActions: response.signedDelegateActions.map((result) => {
+          const walletSignedDelegate = result.signedDelegate as Record<
+            string,
+            unknown
+          >
+          const signedDelegate =
+            "signedDelegate" in walletSignedDelegate
+              ? (result.signedDelegate as SignedDelegateAction)
+              : ({
+                  signedDelegate: walletSignedDelegate,
+                } as unknown as SignedDelegateAction)
+
+          return {
+            delegateHash: result.delegateHash,
+            signedDelegate,
+          }
+        }),
+      }
     },
   }
 }

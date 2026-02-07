@@ -8,6 +8,7 @@
 
 import type {
   FinalExecutionOutcome,
+  SignedDelegateAction,
   SignedMessage,
   WalletAccount,
 } from "../../src/core/types.js"
@@ -18,12 +19,24 @@ type TransactionParams = {
   actions: unknown[]
 }
 
+type SignDelegateActionsParams = {
+  signerId?: string
+  delegateActions: Array<{
+    actions: unknown[]
+    receiverId: string
+  }>
+}
+
 type CallLogEntry =
   | { method: "getAccounts"; params: Record<string, never> }
   | { method: "signAndSendTransaction"; params: TransactionParams }
   | {
       method: "signMessage"
       params: { message: string; recipient: string; nonce: Uint8Array }
+    }
+  | {
+      method: "signDelegateActions"
+      params: SignDelegateActionsParams
     }
   | { method: "wallet"; params: Record<string, never> }
 
@@ -154,6 +167,12 @@ class MockHotConnectWallet {
   private accounts: Array<{ accountId: string; publicKey: string }>
   private callLog: CallLogEntry[] = []
 
+  manifest = {
+    features: {
+      signDelegateAction: true,
+    },
+  }
+
   constructor(accounts: WalletAccount[] = []) {
     // HOT Connect requires publicKey - ensure all accounts have it
     this.accounts = accounts.map((acc) => ({
@@ -219,6 +238,42 @@ class MockHotConnectWallet {
       accountId: this.accounts[0]?.accountId || "test.near",
       publicKey: this.accounts[0]?.publicKey || "ed25519:...",
       signature: "mock-signature",
+    }
+  }
+
+  async signDelegateActions(params: SignDelegateActionsParams): Promise<{
+    signedDelegateActions: Array<{
+      delegateHash: Uint8Array
+      signedDelegate: SignedDelegateAction
+    }>
+  }> {
+    this.callLog.push({ method: "signDelegateActions", params })
+
+    return {
+      signedDelegateActions: params.delegateActions.map((da) => ({
+        delegateHash: new Uint8Array(32),
+        signedDelegate: {
+          signedDelegate: {
+            delegateAction: {
+              senderId:
+                params.signerId || this.accounts[0]?.accountId || "test.near",
+              receiverId: da.receiverId,
+              // biome-ignore lint/suspicious/noExplicitAny: mock delegate action
+              actions: da.actions as any,
+              nonce: 1n,
+              maxBlockHeight: 1000n,
+              publicKey: {
+                keyType: 0,
+                data: new Uint8Array(32),
+              },
+            },
+            signature: {
+              keyType: 0,
+              data: new Uint8Array(64),
+            },
+          },
+        } as unknown as SignedDelegateAction,
+      })),
     }
   }
 
