@@ -7,7 +7,11 @@
  * @internal
  */
 
-import type { FinalExecutionOutcome, SignedMessage } from "../core/types.js"
+import type {
+  FinalExecutionOutcome,
+  SignDelegateActionsResult,
+  SignedMessage,
+} from "../core/types.js"
 
 /**
  * HOT Connect action types, mirroring `@hot-labs/near-connect`'s
@@ -97,7 +101,34 @@ export type HotConnectAction =
  * HOT Connect wallet + connector interfaces (structural).
  */
 
+/**
+ * HOT Connect's params for signDelegateActions (v0.9.0+).
+ * Uses HotConnectAction[] instead of our Action[].
+ * @internal
+ */
+export type HotConnectSignDelegateActionsParams = {
+  network?: string
+  signerId?: string
+  delegateActions: Array<{
+    actions: HotConnectAction[]
+    receiverId: string
+  }>
+}
+
+/**
+ * HOT Connect's response for signDelegateActions (v0.9.0+).
+ * @internal
+ */
+export type HotConnectSignDelegateActionsResponse = {
+  signedDelegateActions: SignDelegateActionsResult["signedDelegateActions"]
+}
+
 export type HotConnectWallet = {
+  manifest?: {
+    features?: {
+      signDelegateAction?: boolean
+    }
+  }
   getAccounts(data?: { network?: string }): Promise<
     Array<{
       accountId: string
@@ -116,6 +147,9 @@ export type HotConnectWallet = {
     nonce: Uint8Array
     network?: string
   }): Promise<SignedMessage>
+  signDelegateActions?(
+    params: HotConnectSignDelegateActionsParams,
+  ): Promise<HotConnectSignDelegateActionsResponse>
 }
 
 export type HotConnectConnector = {

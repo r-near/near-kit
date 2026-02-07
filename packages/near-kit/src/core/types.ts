@@ -126,8 +126,8 @@ export type {
 
 // Action type is now defined in schema.ts and derived from Borsh schema
 // Import it first so Transaction can use it
-import type { Action } from "./schema.js"
-export type { Action }
+import type { Action, SignedDelegateAction } from "./schema.js"
+export type { Action, SignedDelegateAction }
 
 /**
  * Transaction execution status levels for wait_until parameter.
@@ -420,6 +420,39 @@ export interface SignedMessage {
 }
 
 /**
+ * Parameters for signing delegate actions (meta-transactions).
+ *
+ * Follows the near-connect batch spec: accepts an array of delegate actions
+ * so wallets can sign multiple delegate actions in a single prompt.
+ *
+ * @see https://github.com/nickcdryan/hot-connector
+ */
+export interface SignDelegateActionsParams {
+  /** Optional signer ID (defaults to connected account) */
+  signerId?: string
+  /** One or more delegate actions to sign */
+  delegateActions: Array<{
+    /** Actions to be executed */
+    actions: Action[]
+    /** Receiver account ID for the actions */
+    receiverId: string
+  }>
+}
+
+/**
+ * Result of signing delegate actions
+ */
+export interface SignDelegateActionsResult {
+  /** Signed delegate actions, each ready to be submitted by a relayer */
+  signedDelegateActions: Array<{
+    /** SHA256 hash of the delegate action */
+    delegateHash: Uint8Array
+    /** The signed delegate action */
+    signedDelegate: SignedDelegateAction
+  }>
+}
+
+/**
  * Wallet connection interface
  * Compatible with both @near-wallet-selector and @hot-labs/near-connect
  */
@@ -442,4 +475,20 @@ export interface WalletConnection {
    * Sign a message using the wallet (optional)
    */
   signMessage?(params: SignMessageParams): Promise<SignedMessage>
+
+  /**
+   * Sign delegate actions for meta-transactions (optional).
+   *
+   * Follows the near-connect batch spec: accepts an array of delegate actions
+   * so wallets can sign multiple delegate actions in a single prompt.
+   * `TransactionBuilder.delegate()` wraps its single action into this batch API.
+   *
+   * The returned SignedDelegateActions can be submitted by a relayer
+   * using `near.transaction(relayer).signedDelegateAction(result.signedDelegateActions[0].signedDelegate).send()`
+   *
+   * @see https://github.com/near/NEPs/blob/master/neps/nep-0366.md
+   */
+  signDelegateActions?(
+    params: SignDelegateActionsParams,
+  ): Promise<SignDelegateActionsResult>
 }

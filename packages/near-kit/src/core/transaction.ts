@@ -621,6 +621,37 @@ export class TransactionBuilder {
       )
     }
 
+    // Use wallet if available and it supports signDelegateActions
+    if (this.wallet?.signDelegateActions) {
+      const result = await this.wallet.signDelegateActions({
+        signerId: this.signerId,
+        delegateActions: [
+          {
+            actions: this.actions,
+            receiverId,
+          },
+        ],
+      })
+
+      const first = result.signedDelegateActions[0]
+      if (!first) {
+        throw new NearError(
+          "Wallet did not return a signed delegate action",
+          "WALLET_ERROR",
+        )
+      }
+
+      const signedDelegateAction = first.signedDelegate
+      const format = (opts.payloadFormat ?? "base64") as F
+      const payload = encodeSignedDelegateAction(signedDelegateAction, format)
+
+      return {
+        signedDelegateAction,
+        payload,
+        format,
+      }
+    }
+
     const keyPair = await this.resolveKeyPair()
     let delegatePublicKey: PublicKey
     if (opts.publicKey === undefined) {
