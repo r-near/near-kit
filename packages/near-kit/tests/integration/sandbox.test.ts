@@ -149,6 +149,24 @@ describe("Sandbox - Fast Forward", () => {
     if (sandbox) await sandbox.stop()
   })
 
+  test("fast forward preserves existing state", async () => {
+    const accountId = `ff-state-${Date.now()}.${sandbox.rootAccount.id}`
+
+    await near
+      .transaction(sandbox.rootAccount.id)
+      .createAccount(accountId)
+      .transfer(accountId, "5 NEAR")
+      .send()
+
+    await sandbox.fastForward(50)
+
+    const exists = await near.accountExists(accountId)
+    expect(exists).toBe(true)
+
+    const balance = await near.getBalance(accountId)
+    expect(Number.parseFloat(balance)).toBeGreaterThan(0)
+  })
+
   test("can fast forward by blocks", async () => {
     const initialStatus = await near.getStatus()
     const initialHeight = initialStatus.sync_info.latest_block_height
@@ -250,6 +268,91 @@ describe("Sandbox - Patch State", () => {
     console.log("✓ Contract data patched successfully")
   })
 
+  test("can patch multiple records at once", async () => {
+    const account1 = `multi-patch-1-${Date.now()}.${sandbox.rootAccount.id}`
+    const account2 = `multi-patch-2-${Date.now()}.${sandbox.rootAccount.id}`
+
+    // Create both accounts
+    for (const id of [account1, account2]) {
+      await near
+        .transaction(sandbox.rootAccount.id)
+        .createAccount(id)
+        .transfer(id, "5 NEAR")
+        .send()
+    }
+
+    // Patch both balances in a single call
+    await sandbox.patchState([
+      {
+        Account: {
+          account_id: account1,
+          account: {
+            amount: "100000000000000000000000000", // 100 NEAR
+            locked: "0",
+            code_hash: EMPTY_CODE_HASH,
+            storage_usage: 100,
+          },
+        },
+      },
+      {
+        Account: {
+          account_id: account2,
+          account: {
+            amount: "200000000000000000000000000", // 200 NEAR
+            locked: "0",
+            code_hash: EMPTY_CODE_HASH,
+            storage_usage: 100,
+          },
+        },
+      },
+    ])
+
+    const balance1 = await near.getBalance(account1)
+    const balance2 = await near.getBalance(account2)
+
+    expect(Number.parseFloat(balance1)).toBeCloseTo(100, 0)
+    expect(Number.parseFloat(balance2)).toBeCloseTo(200, 0)
+  })
+
+  test("can patch access key records", async () => {
+    const accountId = `ak-patch-${Date.now()}.${sandbox.rootAccount.id}`
+
+    await near
+      .transaction(sandbox.rootAccount.id)
+      .createAccount(accountId)
+      .transfer(accountId, "5 NEAR")
+      .send()
+
+    // Patch a function-call access key onto the account
+    await sandbox.patchState([
+      {
+        AccessKey: {
+          account_id: accountId,
+          public_key: "ed25519:6E8sCci9badyRkXb3JoRpBj5p8C6Tw41ELDZoiihKEtp",
+          access_key: {
+            nonce: 0,
+            permission: {
+              FunctionCall: {
+                allowance: "250000000000000000000000", // 0.25 NEAR
+                receiver_id: accountId,
+                method_names: ["get_status"],
+              },
+            },
+          },
+        },
+      },
+    ])
+
+    // Verify via RPC that the account's access keys now include the patched one
+    const keyList = await near.getAccessKeys(accountId)
+    const functionCallKey = keyList.keys.find(
+      (k) =>
+        k.public_key === "ed25519:6E8sCci9badyRkXb3JoRpBj5p8C6Tw41ELDZoiihKEtp",
+    )
+    expect(functionCallKey).toBeDefined()
+    expect(functionCallKey?.access_key.permission).not.toBe("FullAccess")
+  })
+
   test("patched state is visible immediately after patchState returns", async () => {
     // This test specifically verifies the race condition fix:
     // patchState should wait for the next block before returning,
@@ -347,6 +450,95 @@ describe("Sandbox - State Snapshots", () => {
       `✓ State dump after transaction contains new account (${snapshot.records.length} total records)`,
     )
   })
+
+  test("dump state includes account and access key records", async () => {
+    const snapshot = await sandbox.dumpState()
+
+    const accountRecords = snapshot.records.filter((r) => r.Account)
+    const accessKeyRecords = snapshot.records.filter((r) => r.AccessKey)
+
+    // At minimum, the root accounts (near, test.near) should be present
+    expect(accountRecords.length).toBeGreaterThanOrEqual(2)
+    expect(accessKeyRecords.length).toBeGreaterThanOrEqual(1)
+
+    // Root account should have a nonzero balance
+    const rootAccount = accountRecords.find(
+      (r) => r.Account?.account_id === sandbox.rootAccount.id,
+    )
+    expect(rootAccount).toBeDefined()
+    expect(BigInt(rootAccount?.Account?.account.amount)).toBeGreaterThan(0n)
+  })
+
+  test("dump state after patch reflects patched values", async () => {
+    const near = new Near({ network: sandbox })
+    const accountId = `dump-patch-${Date.now()}.${sandbox.rootAccount.id}`
+
+    await near
+      .transaction(sandbox.rootAccount.id)
+      .createAccount(accountId)
+      .transfer(accountId, "5 NEAR")
+      .send()
+
+    const patchedAmount = "777000000000000000000000000" // 777 NEAR
+    await sandbox.patchState([
+      {
+        Account: {
+          account_id: accountId,
+          account: {
+            amount: patchedAmount,
+            locked: "0",
+            code_hash: EMPTY_CODE_HASH,
+            storage_usage: 100,
+          },
+        },
+      },
+    ])
+
+    const snapshot = await sandbox.dumpState()
+    const record = snapshot.records.find(
+      (r) => r.Account?.account_id === accountId,
+    )
+    expect(record).toBeDefined()
+    expect(record?.Account?.account.amount).toBe(patchedAmount)
+  })
+
+  test("dump, modify state, then restore brings back original", async () => {
+    const near = new Near({ network: sandbox })
+    const accountId = `restore-${Date.now()}.${sandbox.rootAccount.id}`
+
+    await near
+      .transaction(sandbox.rootAccount.id)
+      .createAccount(accountId)
+      .transfer(accountId, "10 NEAR")
+      .send()
+
+    // Snapshot the state with 10 NEAR
+    const snapshot = await sandbox.dumpState()
+
+    // Modify to 999 NEAR
+    await sandbox.patchState([
+      {
+        Account: {
+          account_id: accountId,
+          account: {
+            amount: "999000000000000000000000000",
+            locked: "0",
+            code_hash: EMPTY_CODE_HASH,
+            storage_usage: 100,
+          },
+        },
+      },
+    ])
+
+    const modifiedBalance = await near.getBalance(accountId)
+    expect(Number.parseFloat(modifiedBalance)).toBeCloseTo(999, 0)
+
+    // Restore original snapshot
+    await sandbox.restoreState(snapshot)
+
+    const restoredBalance = await near.getBalance(accountId)
+    expect(Number.parseFloat(restoredBalance)).toBeCloseTo(10, 0)
+  })
 })
 
 describe("Sandbox - Restart", () => {
@@ -393,6 +585,63 @@ describe("Sandbox - Restart", () => {
     expect(status.chain_id).toBe("localnet")
 
     console.log("✓ Sandbox restarted with snapshot successfully")
+    await sandbox.stop()
+  }, 120000)
+
+  test("restart without snapshot clears transaction-created accounts", async () => {
+    const sandbox = await Sandbox.start()
+    const near = new Near({ network: sandbox })
+
+    const accountId = `restart-clear-${Date.now()}.${sandbox.rootAccount.id}`
+
+    await near
+      .transaction(sandbox.rootAccount.id)
+      .createAccount(accountId)
+      .transfer(accountId, "5 NEAR")
+      .send()
+
+    expect(await near.accountExists(accountId)).toBe(true)
+
+    // Restart without snapshot — data dir is wiped, only genesis accounts survive
+    await sandbox.restart()
+
+    const newNear = new Near({ network: sandbox })
+    expect(await newNear.accountExists(accountId)).toBe(false)
+
+    // Root account should still exist (it's in genesis)
+    expect(await newNear.accountExists(sandbox.rootAccount.id)).toBe(true)
+
+    await sandbox.stop()
+  }, 120000)
+
+  test("restart with snapshot preserves snapshotted accounts", async () => {
+    const sandbox = await Sandbox.start()
+    const near = new Near({ network: sandbox })
+
+    const accountId = `restart-keep-${Date.now()}.${sandbox.rootAccount.id}`
+
+    await near
+      .transaction(sandbox.rootAccount.id)
+      .createAccount(accountId)
+      .transfer(accountId, "10 NEAR")
+      .send()
+
+    // Snapshot after account creation
+    const snapshot = await sandbox.dumpState()
+    const hasAccount = snapshot.records.some(
+      (r) => r.Account?.account_id === accountId,
+    )
+    expect(hasAccount).toBe(true)
+
+    // Restart with snapshot — account should survive
+    await sandbox.restart(snapshot)
+
+    const newNear = new Near({ network: sandbox })
+    expect(await newNear.accountExists(accountId)).toBe(true)
+
+    const balance = await newNear.getBalance(accountId)
+    expect(Number.parseFloat(balance)).toBeGreaterThan(0)
+
     await sandbox.stop()
   }, 120000)
 })

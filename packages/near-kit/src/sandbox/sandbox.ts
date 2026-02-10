@@ -231,27 +231,7 @@ export class Sandbox {
    */
   async stop(): Promise<void> {
     if (this.process?.pid) {
-      const pid = this.process.pid
-
-      try {
-        // Try to kill process group first (for detached processes)
-        process.kill(-pid, "SIGTERM")
-        await sleep(100)
-      } catch {
-        // Try direct kill
-        try {
-          process.kill(pid, "SIGTERM")
-          await sleep(100)
-        } catch {
-          // Try SIGKILL as last resort
-          try {
-            process.kill(pid, "SIGKILL")
-          } catch {
-            // Process already dead
-          }
-        }
-      }
-
+      await killProcess(this.process)
       this.process = undefined
     }
 
@@ -403,6 +383,10 @@ export class Sandbox {
    * ```
    */
   async dumpState(): Promise<StateSnapshot> {
+    // Wait for a new block so all pending state changes are committed to
+    // RocksDB before the dump process opens it in read-only mode.
+    await this.waitForNextBlock()
+
     await runCommand(this.binaryPath, this.homeDir, [
       "view-state",
       "dump-state",
@@ -451,6 +435,9 @@ export class Sandbox {
 
     const snapshotPath = path.join(snapshotDir, `snapshot-${Date.now()}.json`)
 
+    // Wait for a new block so all pending state changes are committed
+    await this.waitForNextBlock()
+
     await runCommand(this.binaryPath, this.homeDir, [
       "view-state",
       "dump-state",
@@ -490,22 +477,10 @@ export class Sandbox {
       throw new Error("Sandbox is not running")
     }
 
-    const pid = this.process.pid
     const port = new URL(this.rpcUrl).port
 
-    // Stop current process
-    try {
-      process.kill(-pid, "SIGTERM")
-      await sleep(500)
-    } catch {
-      try {
-        process.kill(pid, "SIGTERM")
-        await sleep(500)
-      } catch {
-        // Process already dead
-      }
-    }
-
+    // Kill the process and wait for it to fully exit before touching the data dir
+    await killProcess(this.process)
     this.process = undefined
 
     // Merge snapshot records into genesis if provided
@@ -960,4 +935,50 @@ async function waitForReady(
  */
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+/**
+ * Kill a sandbox child process and wait for it to fully exit.
+ *
+ * Sends SIGTERM to the process group first, then SIGKILL if it doesn't
+ * exit within 2 seconds. Waits for the process to actually exit before
+ * returning, ensuring file handles (e.g. RocksDB) are released.
+ * @internal
+ */
+async function killProcess(child: ChildProcess): Promise<void> {
+  const pid = child.pid
+  if (!pid) return
+
+  const exitPromise = new Promise<void>((resolve) => {
+    child.on("exit", () => resolve())
+    child.on("error", () => resolve())
+  })
+
+  // Try SIGTERM to process group first (graceful shutdown)
+  try {
+    process.kill(-pid, "SIGTERM")
+  } catch {
+    try {
+      process.kill(pid, "SIGTERM")
+    } catch {
+      // Already dead
+      return
+    }
+  }
+
+  // Wait up to 2s for graceful exit, then SIGKILL
+  const timeout = setTimeout(() => {
+    try {
+      process.kill(-pid, "SIGKILL")
+    } catch {
+      try {
+        process.kill(pid, "SIGKILL")
+      } catch {
+        // Already dead
+      }
+    }
+  }, 2000)
+
+  await exitPromise
+  clearTimeout(timeout)
 }
