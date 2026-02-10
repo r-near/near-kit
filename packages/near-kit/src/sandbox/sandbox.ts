@@ -135,6 +135,7 @@ export class Sandbox {
   private process: ChildProcess | undefined
   private homeDir: string
   private binaryPath: string
+  private detached: boolean
 
   private constructor(
     rpcUrl: string,
@@ -143,6 +144,7 @@ export class Sandbox {
     homeDir: string,
     childProcess: ChildProcess | undefined,
     binaryPath: string,
+    detached: boolean,
   ) {
     this.rpcUrl = rpcUrl
     this.networkId = networkId
@@ -150,6 +152,7 @@ export class Sandbox {
     this.homeDir = homeDir
     this.process = childProcess
     this.binaryPath = binaryPath
+    this.detached = detached
   }
 
   /**
@@ -221,6 +224,7 @@ export class Sandbox {
       homeDir,
       childProcess,
       binaryPath,
+      detached,
     )
   }
 
@@ -316,7 +320,11 @@ export class Sandbox {
    * ```
    */
   async fastForward(numBlocks: number): Promise<void> {
-    if (numBlocks <= 0) {
+    if (
+      !Number.isFinite(numBlocks) ||
+      !Number.isInteger(numBlocks) ||
+      numBlocks <= 0
+    ) {
       throw new Error("numBlocks must be a positive integer")
     }
 
@@ -556,8 +564,8 @@ export class Sandbox {
         `0.0.0.0:${networkPort}`,
       ],
       {
-        detached: true,
-        stdio: ["ignore", "ignore", "pipe"],
+        detached: this.detached,
+        stdio: this.detached ? "ignore" : "pipe",
       },
     )
 
@@ -571,7 +579,9 @@ export class Sandbox {
       stderrOutput += data.toString()
     })
 
-    childProcess.unref()
+    if (this.detached) {
+      childProcess.unref()
+    }
     this.process = childProcess
 
     try {
@@ -829,7 +839,7 @@ async function runCommand(
       stderr += data.toString()
     })
 
-    child.on("exit", (code) => {
+    child.on("close", (code) => {
       if (code === 0) {
         resolve(stdout)
       } else {
@@ -949,9 +959,14 @@ async function killProcess(child: ChildProcess): Promise<void> {
   const pid = child.pid
   if (!pid) return
 
+  // Short-circuit if the process has already exited
+  if (child.exitCode !== null || child.signalCode !== null) {
+    return
+  }
+
   const exitPromise = new Promise<void>((resolve) => {
-    child.on("exit", () => resolve())
-    child.on("error", () => resolve())
+    child.once("exit", () => resolve())
+    child.once("error", () => resolve())
   })
 
   // Try SIGTERM to process group first (graceful shutdown)
@@ -967,7 +982,7 @@ async function killProcess(child: ChildProcess): Promise<void> {
   }
 
   // Wait up to 2s for graceful exit, then SIGKILL
-  const timeout = setTimeout(() => {
+  const killTimeout = setTimeout(() => {
     try {
       process.kill(-pid, "SIGKILL")
     } catch {
@@ -979,6 +994,13 @@ async function killProcess(child: ChildProcess): Promise<void> {
     }
   }, 2000)
 
-  await exitPromise
-  clearTimeout(timeout)
+  // Hard timeout fallback to prevent hanging indefinitely
+  const hardTimeout = setTimeout(() => {}, 5000)
+
+  await Promise.race([
+    exitPromise,
+    new Promise<void>((resolve) => setTimeout(resolve, 5000)),
+  ])
+  clearTimeout(killTimeout)
+  clearTimeout(hardTimeout)
 }
