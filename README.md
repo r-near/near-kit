@@ -229,6 +229,31 @@ afterAll(async () => {
 })
 ```
 
+**State manipulation** — patch state directly, fast-forward blocks, and take snapshots:
+
+```typescript
+import { EMPTY_CODE_HASH } from "near-kit/sandbox"
+
+// Patch blockchain state without transactions
+await sandbox.patchState([{
+  Account: {
+    account_id: "alice.test.near",
+    account: { amount: "5000000000000000000000000", locked: "0", code_hash: EMPTY_CODE_HASH, storage_usage: 100 }
+  }
+}])
+
+// Fast-forward blocks for time-dependent logic
+await sandbox.fastForward(100)
+
+// Snapshot & restore state between tests
+const snapshot = await sandbox.dumpState()
+// ... run test that modifies state ...
+await sandbox.restoreState(snapshot)
+
+// Restart with clean genesis (optionally baking in a snapshot)
+await sandbox.restart(snapshot)
+```
+
 ## Key Management
 
 ```typescript
