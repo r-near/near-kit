@@ -76,7 +76,11 @@ export {
 } from "./keys/index.js"
 // Sandbox is not exported by default (requires Node.js)
 // For Node.js/Bun: import { Sandbox } from "near-kit/sandbox"
-export type { SandboxOptions } from "./sandbox/index.js"
+export type {
+  SandboxOptions,
+  StateRecord,
+  StateSnapshot,
+} from "./sandbox/index.js"
 // Utilities
 export {
   Amount,
