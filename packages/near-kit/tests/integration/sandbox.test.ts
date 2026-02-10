@@ -188,6 +188,18 @@ describe("Sandbox - Fast Forward", () => {
       "numBlocks must be a positive integer",
     )
   })
+
+  test("fast forward rejects non-integer values", async () => {
+    await expect(sandbox.fastForward(1.5)).rejects.toThrow(
+      "numBlocks must be a positive integer",
+    )
+    await expect(sandbox.fastForward(NaN)).rejects.toThrow(
+      "numBlocks must be a positive integer",
+    )
+    await expect(sandbox.fastForward(Infinity)).rejects.toThrow(
+      "numBlocks must be a positive integer",
+    )
+  })
 })
 
 describe("Sandbox - Patch State", () => {
@@ -644,4 +656,38 @@ describe("Sandbox - Restart", () => {
 
     await sandbox.stop()
   }, 120000)
+
+  test("restart without snapshot after restart with snapshot resets genesis cleanly", async () => {
+    const sandbox = await Sandbox.start()
+    const near = new Near({ network: sandbox })
+
+    const accountId = `genesis-reset-${Date.now()}.${sandbox.rootAccount.id}`
+
+    await near
+      .transaction(sandbox.rootAccount.id)
+      .createAccount(accountId)
+      .transfer(accountId, "10 NEAR")
+      .send()
+
+    // Bake the account into genesis via restart(snapshot)
+    const snapshot = await sandbox.dumpState()
+    await sandbox.restart(snapshot)
+
+    const nearAfterSnapshot = new Near({ network: sandbox })
+    expect(await nearAfterSnapshot.accountExists(accountId)).toBe(true)
+
+    // Now restart without snapshot — should restore original genesis,
+    // so the previously baked-in account should be gone
+    await sandbox.restart()
+
+    const nearAfterClean = new Near({ network: sandbox })
+    expect(await nearAfterClean.accountExists(accountId)).toBe(false)
+
+    // Root account should still exist
+    expect(await nearAfterClean.accountExists(sandbox.rootAccount.id)).toBe(
+      true,
+    )
+
+    await sandbox.stop()
+  }, 180000)
 })

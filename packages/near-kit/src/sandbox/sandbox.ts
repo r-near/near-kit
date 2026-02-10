@@ -136,6 +136,7 @@ export class Sandbox {
   private homeDir: string
   private binaryPath: string
   private detached: boolean
+  private originalGenesisPath: string
 
   private constructor(
     rpcUrl: string,
@@ -153,6 +154,7 @@ export class Sandbox {
     this.process = childProcess
     this.binaryPath = binaryPath
     this.detached = detached
+    this.originalGenesisPath = path.join(homeDir, "genesis.original.json")
   }
 
   /**
@@ -177,7 +179,12 @@ export class Sandbox {
     // 3. Initialize sandbox
     await runInit(binaryPath, homeDir)
 
-    // 4. Read validator key
+    // 4. Back up original genesis for clean restarts
+    const genesisPath = path.join(homeDir, "genesis.json")
+    const originalGenesisPath = path.join(homeDir, "genesis.original.json")
+    await copyFile(genesisPath, originalGenesisPath)
+
+    // 5. Read validator key
     const validatorKey = await loadValidatorKey(homeDir)
     const rootAccount = {
       id: validatorKey.account_id,
@@ -402,21 +409,11 @@ export class Sandbox {
 
     const outputPath = path.join(this.homeDir, "output.json")
 
-    try {
-      const data = await readFile(outputPath, "utf8")
-      const parsed = JSON.parse(data) as { records: StateRecord[] }
-      return {
-        records: parsed.records || [],
-        timestamp: Date.now(),
-      }
-    } catch (error) {
-      console.warn(
-        `Warning: Failed to read state dump from ${outputPath}: ${error instanceof Error ? error.message : error}`,
-      )
-      return {
-        records: [],
-        timestamp: Date.now(),
-      }
+    const data = await readFile(outputPath, "utf8")
+    const parsed = JSON.parse(data) as { records: StateRecord[] }
+    return {
+      records: parsed.records || [],
+      timestamp: Date.now(),
     }
   }
 
@@ -491,9 +488,13 @@ export class Sandbox {
     await killProcess(this.process)
     this.process = undefined
 
-    // Merge snapshot records into genesis if provided
+    const genesisPath = path.join(this.homeDir, "genesis.json")
+
     if (snapshot && snapshot.records.length > 0) {
-      const genesisPath = path.join(this.homeDir, "genesis.json")
+      // Restore original genesis before merging snapshot records,
+      // so previous restart(snapshot) calls don't accumulate.
+      await copyFile(this.originalGenesisPath, genesisPath)
+
       const genesisData = await readFile(genesisPath, "utf8")
       const genesis = JSON.parse(genesisData) as {
         records?: StateRecord[]
@@ -502,33 +503,23 @@ export class Sandbox {
 
       const existingRecords = genesis.records || []
 
-      // Build a map of snapshot records keyed by account_id for deduplication.
+      // Build a map of snapshot records keyed by account_id:type for deduplication.
       // Snapshot records override any existing genesis record for the same account.
       const snapshotAccountMap = new Map<string, StateRecord>()
       for (const record of snapshot.records) {
-        const accountId =
-          record.Account?.account_id ??
-          record.AccessKey?.account_id ??
-          record.Contract?.account_id ??
-          record.Data?.account_id
-        if (accountId) {
-          snapshotAccountMap.set(
-            `${accountId}:${Object.keys(record)[0]}`,
-            record,
-          )
+        const accountId = getRecordAccountId(record)
+        const recordType = getRecordType(record)
+        if (accountId && recordType) {
+          snapshotAccountMap.set(`${accountId}:${recordType}`, record)
         }
       }
 
       // Filter out existing records that would be duplicated by the snapshot
       const filteredExisting = existingRecords.filter((record) => {
-        const accountId =
-          record.Account?.account_id ??
-          record.AccessKey?.account_id ??
-          record.Contract?.account_id ??
-          record.Data?.account_id
-        if (!accountId) return true
-        const key = `${accountId}:${Object.keys(record)[0]}`
-        return !snapshotAccountMap.has(key)
+        const accountId = getRecordAccountId(record)
+        const recordType = getRecordType(record)
+        if (!accountId || !recordType) return true
+        return !snapshotAccountMap.has(`${accountId}:${recordType}`)
       })
 
       genesis.records = [...filteredExisting, ...snapshot.records]
@@ -544,6 +535,10 @@ export class Sandbox {
       genesis.total_supply = totalSupply.toString()
 
       await writeFile(genesisPath, JSON.stringify(genesis, null, 2))
+    } else {
+      // No snapshot — restore the original genesis so previous
+      // restart(snapshot) calls don't leak into this clean restart.
+      await copyFile(this.originalGenesisPath, genesisPath)
     }
 
     // Clean up data directory so the node starts fresh
@@ -945,6 +940,32 @@ async function waitForReady(
  */
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+/**
+ * Get the account_id from a state record regardless of variant.
+ * @internal
+ */
+function getRecordAccountId(record: StateRecord): string | undefined {
+  if (record.Account) return record.Account.account_id
+  if (record.AccessKey) return record.AccessKey.account_id
+  if (record.Contract) return record.Contract.account_id
+  if (record.Data) return record.Data.account_id
+  return undefined
+}
+
+/**
+ * Get the variant type name of a state record.
+ * @internal
+ */
+function getRecordType(
+  record: StateRecord,
+): "Account" | "AccessKey" | "Contract" | "Data" | undefined {
+  if (record.Account) return "Account"
+  if (record.AccessKey) return "AccessKey"
+  if (record.Contract) return "Contract"
+  if (record.Data) return "Data"
+  return undefined
 }
 
 /**
