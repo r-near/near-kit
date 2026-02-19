@@ -1,5 +1,12 @@
 # near-kit
 
+## 0.11.1
+
+### Patch Changes
+
+- 5987f39: build(deps): bump tar from 7.5.6 to 7.5.7 in the production-dependencies group
+- 5987f39: build(deps): bump tar from 7.5.6 to 7.5.7 in the production-dependencies group
+
 ## 0.11.0
 
 ### Minor Changes
