@@ -172,7 +172,8 @@ export function toGas(tgas: number): string {
  * exceeds Number.MAX_SAFE_INTEGER (~9007 TGas) or when it has more than
  * approximately 15–17 significant digits (for example, many fractional digits),
  * even if the whole part is within the safe integer range. For typical NEAR gas
- * limits (1 PGas max) without excessive decimal precision, this is not a concern.
+ * limits (~1000 Tgas, i.e. 1 PGas max) without excessive decimal precision, this
+ * is not a concern. This API still expects gas amounts to be expressed in Tgas units.
  * For applications requiring arbitrary precision, use formatGas(), which returns
  * a formatted string.
  *
