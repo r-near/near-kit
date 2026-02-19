@@ -50,7 +50,7 @@ export const Gas = {
    * Common gas amounts.
    */
   DEFAULT: "30 Tgas" as `${number} Tgas`,
-  MAX: "300 Tgas" as `${number} Tgas`,
+  MAX: "1000 Tgas" as `${number} Tgas`,
 } as const
 
 /**
@@ -172,7 +172,7 @@ export function toGas(tgas: number): string {
  * exceeds Number.MAX_SAFE_INTEGER (~9007 TGas) or when it has more than
  * approximately 15–17 significant digits (for example, many fractional digits),
  * even if the whole part is within the safe integer range. For typical NEAR gas
- * limits (300 TGas max) without excessive decimal precision, this is not a concern.
+ * limits (1 PGas max) without excessive decimal precision, this is not a concern.
  * For applications requiring arbitrary precision, use formatGas(), which returns
  * a formatted string.
  *
