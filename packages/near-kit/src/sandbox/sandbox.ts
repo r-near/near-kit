@@ -7,7 +7,14 @@
 import type { ChildProcess } from "node:child_process"
 import { spawn } from "node:child_process"
 import fs from "node:fs"
-import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises"
+import {
+  copyFile,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises"
 import { createServer } from "node:net"
 import os from "node:os"
 import path from "node:path"
@@ -34,6 +41,62 @@ interface ValidatorKey {
   public_key: string
   secret_key?: string
   private_key?: string
+}
+
+/**
+ * Default code hash for accounts without deployed contract code.
+ * This is a base58-encoded sha256 hash of an empty byte array.
+ */
+export const EMPTY_CODE_HASH = "11111111111111111111111111111111"
+
+/**
+ * State record from sandbox state dump.
+ * Used for patching state and creating snapshots.
+ */
+export interface StateRecord {
+  Account?: {
+    account_id: string
+    account: {
+      amount: string
+      locked: string
+      code_hash: string
+      storage_usage: number
+      version?: string
+    }
+  }
+  AccessKey?: {
+    account_id: string
+    public_key: string
+    access_key: {
+      nonce: number
+      permission:
+        | "FullAccess"
+        | {
+            FunctionCall: {
+              allowance: string | null
+              receiver_id: string
+              method_names: string[]
+            }
+          }
+    }
+  }
+  Contract?: {
+    account_id: string
+    code: string // base64-encoded WASM
+  }
+  Data?: {
+    account_id: string
+    data_key: string // base64-encoded key
+    value: string // base64-encoded value
+  }
+}
+
+/**
+ * State snapshot for restoring sandbox state between tests.
+ */
+export interface StateSnapshot {
+  records: StateRecord[]
+  timestamp: number
 }
 
 export interface SandboxOptions {
@@ -71,6 +134,9 @@ export class Sandbox {
 
   private process: ChildProcess | undefined
   private homeDir: string
+  private binaryPath: string
+  private detached: boolean
+  private originalGenesisPath: string
 
   private constructor(
     rpcUrl: string,
@@ -78,12 +144,17 @@ export class Sandbox {
     rootAccount: { id: string; secretKey: string },
     homeDir: string,
     childProcess: ChildProcess | undefined,
+    binaryPath: string,
+    detached: boolean,
   ) {
     this.rpcUrl = rpcUrl
     this.networkId = networkId
     this.rootAccount = rootAccount
     this.homeDir = homeDir
     this.process = childProcess
+    this.binaryPath = binaryPath
+    this.detached = detached
+    this.originalGenesisPath = path.join(homeDir, "genesis.original.json")
   }
 
   /**
@@ -108,7 +179,12 @@ export class Sandbox {
     // 3. Initialize sandbox
     await runInit(binaryPath, homeDir)
 
-    // 4. Read validator key
+    // 4. Back up original genesis for clean restarts
+    const genesisPath = path.join(homeDir, "genesis.json")
+    const originalGenesisPath = path.join(homeDir, "genesis.original.json")
+    await copyFile(genesisPath, originalGenesisPath)
+
+    // 5. Read validator key
     const validatorKey = await loadValidatorKey(homeDir)
     const rootAccount = {
       id: validatorKey.account_id,
@@ -148,7 +224,15 @@ export class Sandbox {
     // 6. Wait for RPC to be ready
     await waitForReady(rpcUrl)
 
-    return new Sandbox(rpcUrl, "localnet", rootAccount, homeDir, childProcess)
+    return new Sandbox(
+      rpcUrl,
+      "localnet",
+      rootAccount,
+      homeDir,
+      childProcess,
+      binaryPath,
+      detached,
+    )
   }
 
   /**
@@ -158,27 +242,7 @@ export class Sandbox {
    */
   async stop(): Promise<void> {
     if (this.process?.pid) {
-      const pid = this.process.pid
-
-      try {
-        // Try to kill process group first (for detached processes)
-        process.kill(-pid, "SIGTERM")
-        await sleep(100)
-      } catch {
-        // Try direct kill
-        try {
-          process.kill(pid, "SIGTERM")
-          await sleep(100)
-        } catch {
-          // Try SIGKILL as last resort
-          try {
-            process.kill(pid, "SIGKILL")
-          } catch {
-            // Process already dead
-          }
-        }
-      }
-
+      await killProcess(this.process)
       this.process = undefined
     }
 
@@ -188,6 +252,387 @@ export class Sandbox {
     } catch {
       // Ignore cleanup errors
     }
+  }
+
+  // ==================== Sandbox-specific RPC Methods ====================
+
+  /**
+   * Patch the state of accounts and contracts in the sandbox.
+   *
+   * Allows direct modification of blockchain state including account balances,
+   * access keys, contract code, and contract storage.
+   *
+   * Note: The patched state is applied during the next block's processing.
+   * This method waits for that block to be produced before returning to
+   * ensure subsequent reads see the updated state.
+   *
+   * @param records - Array of state records to patch
+   *
+   * @example
+   * ```typescript
+   * await sandbox.patchState([{
+   *   Account: {
+   *     account_id: "alice.test.near",
+   *     account: {
+   *       amount: "1000000000000000000000000000",
+   *       locked: "0",
+   *       code_hash: EMPTY_CODE_HASH,
+   *       storage_usage: 100,
+   *     }
+   *   }
+   * }])
+   * ```
+   */
+  async patchState(records: StateRecord[]): Promise<void> {
+    const response = await fetch(this.rpcUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: "patch-state",
+        method: "sandbox_patch_state",
+        params: { records },
+      }),
+    })
+
+    if (!response.ok) {
+      throw new Error(
+        `Failed to patch state: ${response.status} ${response.statusText}`,
+      )
+    }
+
+    const data = (await response.json()) as { error?: { message: string } }
+    if (data.error) {
+      throw new Error(`Failed to patch state: ${data.error.message}`)
+    }
+
+    // sandbox_patch_state returns when the patch is dequeued from memory,
+    // but before the block containing the patch is fully processed and
+    // committed to RocksDB. Wait for a new block to ensure the patched
+    // state is visible to subsequent queries.
+    await this.waitForNextBlock()
+  }
+
+  /**
+   * Fast-forward the blockchain by a number of blocks.
+   *
+   * Advances the sandbox by producing empty blocks, useful for testing
+   * time-dependent contract logic without waiting for real blocks.
+   *
+   * @param numBlocks - Number of blocks to advance (must be positive)
+   *
+   * @example
+   * ```typescript
+   * await sandbox.fastForward(100)
+   * ```
+   */
+  async fastForward(numBlocks: number): Promise<void> {
+    if (
+      !Number.isFinite(numBlocks) ||
+      !Number.isInteger(numBlocks) ||
+      numBlocks <= 0
+    ) {
+      throw new Error("numBlocks must be a positive integer")
+    }
+
+    const heightBefore = await this.getBlockHeight()
+
+    const response = await fetch(this.rpcUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: "fast-forward",
+        method: "sandbox_fast_forward",
+        params: { delta_height: numBlocks },
+      }),
+    })
+
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fast forward: ${response.status} ${response.statusText}`,
+      )
+    }
+
+    const data = (await response.json()) as { error?: { message: string } }
+    if (data.error) {
+      throw new Error(`Failed to fast forward: ${data.error.message}`)
+    }
+
+    // The RPC may return before all blocks are fully produced.
+    // Poll until the block height reaches the target.
+    const targetHeight = heightBefore + numBlocks
+    const start = Date.now()
+    const timeoutMs = Math.max(30000, numBlocks * 100)
+
+    while (Date.now() - start < timeoutMs) {
+      const height = await this.getBlockHeight()
+      if (height >= targetHeight) {
+        return
+      }
+      await sleep(200)
+    }
+
+    const finalHeight = await this.getBlockHeight()
+    if (finalHeight < targetHeight) {
+      throw new Error(
+        `Fast forward did not reach target height ${targetHeight} (currently at ${finalHeight})`,
+      )
+    }
+  }
+
+  /**
+   * Dump the current state of the sandbox to a snapshot.
+   *
+   * Runs the sandbox binary's `view-state dump-state` command which reads
+   * state from RocksDB in read-only mode. The snapshot includes all accounts,
+   * access keys, contracts, and contract data.
+   *
+   * @returns The state snapshot
+   *
+   * @example
+   * ```typescript
+   * const snapshot = await sandbox.dumpState()
+   * // ... modify state ...
+   * await sandbox.restoreState(snapshot)
+   * ```
+   */
+  async dumpState(): Promise<StateSnapshot> {
+    // Wait for a new block so all pending state changes are committed to
+    // RocksDB before the dump process opens it in read-only mode.
+    await this.waitForNextBlock()
+
+    await runCommand(this.binaryPath, this.homeDir, [
+      "view-state",
+      "dump-state",
+    ])
+
+    const outputPath = path.join(this.homeDir, "output.json")
+
+    const data = await readFile(outputPath, "utf8")
+    const parsed = JSON.parse(data) as { records: StateRecord[] }
+    return {
+      records: parsed.records || [],
+      timestamp: Date.now(),
+    }
+  }
+
+  /**
+   * Restore the sandbox state from a previously saved snapshot.
+   *
+   * Patches the blockchain state to match the snapshot. Useful for
+   * running multiple tests against the same initial state.
+   *
+   * @param snapshot - The state snapshot from `dumpState()`
+   */
+  async restoreState(snapshot: StateSnapshot): Promise<void> {
+    await this.patchState(snapshot.records)
+  }
+
+  /**
+   * Save a state snapshot to a file.
+   *
+   * @returns Path to the saved snapshot file
+   */
+  async saveSnapshot(): Promise<string> {
+    const snapshotDir = path.join(this.homeDir, "snapshots")
+    await mkdir(snapshotDir, { recursive: true })
+
+    const snapshotPath = path.join(snapshotDir, `snapshot-${Date.now()}.json`)
+
+    // Wait for a new block so all pending state changes are committed
+    await this.waitForNextBlock()
+
+    await runCommand(this.binaryPath, this.homeDir, [
+      "view-state",
+      "dump-state",
+    ])
+
+    const outputPath = path.join(this.homeDir, "output.json")
+    await copyFile(outputPath, snapshotPath)
+
+    return snapshotPath
+  }
+
+  /**
+   * Load a state snapshot from a file.
+   *
+   * @param snapshotPath - Path to the snapshot file
+   * @returns The loaded state snapshot
+   */
+  async loadSnapshot(snapshotPath: string): Promise<StateSnapshot> {
+    const data = await readFile(snapshotPath, "utf8")
+    const parsed = JSON.parse(data) as { records: StateRecord[] }
+    return {
+      records: parsed.records,
+      timestamp: Date.now(),
+    }
+  }
+
+  /**
+   * Restart the sandbox, optionally with modified genesis state.
+   *
+   * Stops the process, optionally appends snapshot records to genesis,
+   * clears the data directory, and restarts. Block height resets to 0.
+   *
+   * @param snapshot - Optional state snapshot to include in genesis
+   */
+  async restart(snapshot?: StateSnapshot): Promise<void> {
+    if (!this.process?.pid) {
+      throw new Error("Sandbox is not running")
+    }
+
+    const port = new URL(this.rpcUrl).port
+
+    // Kill the process and wait for it to fully exit before touching the data dir
+    await killProcess(this.process)
+    this.process = undefined
+
+    const genesisPath = path.join(this.homeDir, "genesis.json")
+
+    if (snapshot && snapshot.records.length > 0) {
+      // Restore original genesis before merging snapshot records,
+      // so previous restart(snapshot) calls don't accumulate.
+      await copyFile(this.originalGenesisPath, genesisPath)
+
+      const genesisData = await readFile(genesisPath, "utf8")
+      const genesis = JSON.parse(genesisData) as {
+        records?: StateRecord[]
+        total_supply?: string
+      }
+
+      const existingRecords = genesis.records || []
+
+      // Build a map of snapshot records keyed by account_id:type for deduplication.
+      // Snapshot records override any existing genesis record for the same account.
+      const snapshotAccountMap = new Map<string, StateRecord>()
+      for (const record of snapshot.records) {
+        const accountId = getRecordAccountId(record)
+        const recordType = getRecordType(record)
+        if (accountId && recordType) {
+          snapshotAccountMap.set(`${accountId}:${recordType}`, record)
+        }
+      }
+
+      // Filter out existing records that would be duplicated by the snapshot
+      const filteredExisting = existingRecords.filter((record) => {
+        const accountId = getRecordAccountId(record)
+        const recordType = getRecordType(record)
+        if (!accountId || !recordType) return true
+        return !snapshotAccountMap.has(`${accountId}:${recordType}`)
+      })
+
+      genesis.records = [...filteredExisting, ...snapshot.records]
+
+      // Recalculate total supply from all Account records
+      let totalSupply = 0n
+      for (const record of genesis.records) {
+        if (record.Account) {
+          totalSupply += BigInt(record.Account.account.amount)
+          totalSupply += BigInt(record.Account.account.locked)
+        }
+      }
+      genesis.total_supply = totalSupply.toString()
+
+      await writeFile(genesisPath, JSON.stringify(genesis, null, 2))
+    } else {
+      // No snapshot — restore the original genesis so previous
+      // restart(snapshot) calls don't leak into this clean restart.
+      await copyFile(this.originalGenesisPath, genesisPath)
+    }
+
+    // Clean up data directory so the node starts fresh
+    const dataDir = path.join(this.homeDir, "data")
+    await rm(dataDir, { recursive: true, force: true })
+
+    // Restart with the same ports
+    const networkPort = await findAvailablePort()
+    const childProcess = spawn(
+      this.binaryPath,
+      [
+        "--home",
+        this.homeDir,
+        "run",
+        "--rpc-addr",
+        `0.0.0.0:${port}`,
+        "--network-addr",
+        `0.0.0.0:${networkPort}`,
+      ],
+      {
+        detached: this.detached,
+        stdio: this.detached ? "ignore" : "pipe",
+      },
+    )
+
+    if (!childProcess.pid) {
+      throw new Error("Failed to restart sandbox: no PID")
+    }
+
+    // Capture stderr for error reporting if startup fails
+    let stderrOutput = ""
+    childProcess.stderr?.on("data", (data) => {
+      stderrOutput += data.toString()
+    })
+
+    if (this.detached) {
+      childProcess.unref()
+    }
+    this.process = childProcess
+
+    try {
+      await waitForReady(this.rpcUrl)
+    } catch (error) {
+      // Include stderr in the error message for debugging
+      if (stderrOutput) {
+        throw new Error(
+          `${error instanceof Error ? error.message : error}\nSandbox stderr:\n${stderrOutput.slice(-2000)}`,
+        )
+      }
+      throw error
+    }
+  }
+
+  /**
+   * Wait for the next block to be produced.
+   * Used internally to ensure state changes are committed to RocksDB.
+   */
+  private async waitForNextBlock(timeoutMs = 10000): Promise<void> {
+    const currentHeight = await this.getBlockHeight()
+    const start = Date.now()
+
+    while (Date.now() - start < timeoutMs) {
+      await sleep(100)
+      const height = await this.getBlockHeight()
+      if (height > currentHeight) {
+        return
+      }
+    }
+
+    throw new Error(
+      `Timed out waiting for next block after ${timeoutMs}ms (stuck at height ${currentHeight})`,
+    )
+  }
+
+  private async getBlockHeight(): Promise<number> {
+    const response = await fetch(this.rpcUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: "status",
+        method: "status",
+        params: [],
+      }),
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to get status: ${response.status}`)
+    }
+
+    const data = (await response.json()) as {
+      result?: { sync_info?: { latest_block_height?: number } }
+    }
+    return data.result?.sync_info?.latest_block_height ?? 0
   }
 }
 
@@ -366,6 +811,42 @@ async function runInit(binaryPath: string, homeDir: string): Promise<void> {
 }
 
 /**
+ * Run a sandbox CLI command (e.g. view-state dump-state).
+ * @internal
+ */
+async function runCommand(
+  binaryPath: string,
+  homeDir: string,
+  args: string[],
+): Promise<string> {
+  const fullArgs = ["--home", homeDir, ...args]
+
+  return new Promise((resolve, reject) => {
+    const child = spawn(binaryPath, fullArgs, { stdio: "pipe" })
+    let stdout = ""
+    let stderr = ""
+
+    child.stdout?.on("data", (data) => {
+      stdout += data.toString()
+    })
+
+    child.stderr?.on("data", (data) => {
+      stderr += data.toString()
+    })
+
+    child.on("close", (code) => {
+      if (code === 0) {
+        resolve(stdout)
+      } else {
+        reject(new Error(`Sandbox command failed with code ${code}: ${stderr}`))
+      }
+    })
+
+    child.on("error", reject)
+  })
+}
+
+/**
  * Load validator key from sandbox home directory.
  * @internal
  */
@@ -459,4 +940,88 @@ async function waitForReady(
  */
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+/**
+ * Get the account_id from a state record regardless of variant.
+ * @internal
+ */
+function getRecordAccountId(record: StateRecord): string | undefined {
+  if (record.Account) return record.Account.account_id
+  if (record.AccessKey) return record.AccessKey.account_id
+  if (record.Contract) return record.Contract.account_id
+  if (record.Data) return record.Data.account_id
+  return undefined
+}
+
+/**
+ * Get the variant type name of a state record.
+ * @internal
+ */
+function getRecordType(
+  record: StateRecord,
+): "Account" | "AccessKey" | "Contract" | "Data" | undefined {
+  if (record.Account) return "Account"
+  if (record.AccessKey) return "AccessKey"
+  if (record.Contract) return "Contract"
+  if (record.Data) return "Data"
+  return undefined
+}
+
+/**
+ * Kill a sandbox child process and wait for it to fully exit.
+ *
+ * Sends SIGTERM to the process group first, then SIGKILL if it doesn't
+ * exit within 2 seconds. Waits for the process to actually exit before
+ * returning, ensuring file handles (e.g. RocksDB) are released.
+ * @internal
+ */
+async function killProcess(child: ChildProcess): Promise<void> {
+  const pid = child.pid
+  if (!pid) return
+
+  // Short-circuit if the process has already exited
+  if (child.exitCode !== null || child.signalCode !== null) {
+    return
+  }
+
+  const exitPromise = new Promise<void>((resolve) => {
+    child.once("exit", () => resolve())
+    child.once("error", () => resolve())
+  })
+
+  // Try SIGTERM to process group first (graceful shutdown)
+  try {
+    process.kill(-pid, "SIGTERM")
+  } catch {
+    try {
+      process.kill(pid, "SIGTERM")
+    } catch {
+      // Already dead
+      return
+    }
+  }
+
+  // Wait up to 2s for graceful exit, then SIGKILL
+  const killTimeout = setTimeout(() => {
+    try {
+      process.kill(-pid, "SIGKILL")
+    } catch {
+      try {
+        process.kill(pid, "SIGKILL")
+      } catch {
+        // Already dead
+      }
+    }
+  }, 2000)
+
+  // Hard timeout fallback to prevent hanging indefinitely
+  const hardTimeout = setTimeout(() => {}, 5000)
+
+  await Promise.race([
+    exitPromise,
+    new Promise<void>((resolve) => setTimeout(resolve, 5000)),
+  ])
+  clearTimeout(killTimeout)
+  clearTimeout(hardTimeout)
 }

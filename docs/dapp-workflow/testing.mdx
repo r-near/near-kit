@@ -55,6 +55,115 @@ console.log(root.id) // "test.near"
 console.log(root.secretKey) // "ed25519:..."
 ```
 
+## Patching State
+
+Use `patchState()` to directly modify blockchain state without sending transactions. This is useful for setting up test scenarios quickly — for example, giving an account a specific balance or adding an access key.
+
+```typescript
+import { EMPTY_CODE_HASH } from "near-kit/sandbox"
+import type { StateRecord } from "near-kit/sandbox"
+
+// Create an account by patching state directly
+await sandbox.patchState([
+  {
+    Account: {
+      account_id: "alice.test.near",
+      account: {
+        amount: "5000000000000000000000000", // 5 NEAR in yoctoNEAR
+        locked: "0",
+        code_hash: EMPTY_CODE_HASH,
+        storage_usage: 100,
+      },
+    },
+  },
+  {
+    AccessKey: {
+      account_id: "alice.test.near",
+      public_key: "ed25519:...",
+      access_key: {
+        nonce: 0,
+        permission: "FullAccess",
+      },
+    },
+  },
+])
+```
+
+Each `StateRecord` can be one of:
+
+| Record type  | Description                            |
+| ------------ | -------------------------------------- |
+| `Account`    | Account balance, locked amount, etc.   |
+| `AccessKey`  | Full-access or function-call key       |
+| `Contract`   | Deployed WASM code (base64-encoded)    |
+| `Data`       | Contract storage key/value pairs       |
+
+## Fast-Forwarding Blocks
+
+Use `fastForward()` to advance the blockchain by producing empty blocks. This is useful for testing time-dependent contract logic (e.g., lockups, vesting schedules) without waiting for real blocks.
+
+```typescript
+// Advance 100 blocks
+await sandbox.fastForward(100)
+
+// Now check time-dependent state
+const result = await near.view("lockup.test.near", "is_unlocked")
+```
+
+## State Snapshots
+
+Take a snapshot of the entire blockchain state with `dumpState()`, then restore it later with `restoreState()`. This is great for running multiple tests against the same initial state.
+
+```typescript
+// Set up your test scenario
+await deployContracts()
+await seedTestData()
+
+// Capture it
+const snapshot = await sandbox.dumpState()
+
+test("scenario A", async () => {
+  // ... modify state ...
+})
+
+test("scenario B", async () => {
+  // Restore to the clean state before running
+  await sandbox.restoreState(snapshot)
+  // ... modify state differently ...
+})
+```
+
+### Saving Snapshots to Disk
+
+For expensive setup that you don't want to repeat across test runs, save snapshots to disk:
+
+```typescript
+// First run: save the snapshot
+const snapshotPath = await sandbox.saveSnapshot()
+console.log(snapshotPath) // "/tmp/.near-sandbox-xxx/snapshots/snapshot-1234.json"
+
+// Later: load and restore it
+const snapshot = await sandbox.loadSnapshot(snapshotPath)
+await sandbox.restoreState(snapshot)
+```
+
+## Restarting the Sandbox
+
+Use `restart()` to stop the sandbox process, clear all data, and start fresh. Block height resets to 0. Optionally pass a snapshot to bake into the genesis state — accounts from the snapshot will exist from block 0.
+
+```typescript
+// Clean restart
+await sandbox.restart()
+
+// Restart with a known state baked into genesis
+const snapshot = await sandbox.dumpState()
+await sandbox.restart(snapshot)
+```
+
+<Tip>
+  `restart()` with a snapshot is the most reliable way to reset state. Unlike `restoreState()` which patches on top of existing state, `restart()` merges snapshot records into the genesis file so the sandbox boots with exactly the state you want.
+</Tip>
+
 ## Custom Binary
 
 By default, `Sandbox.start()` downloads the near-sandbox binary from NEAR's servers. You can use a local binary instead:

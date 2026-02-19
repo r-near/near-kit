@@ -175,6 +175,10 @@ The library is built around a main `Near` class with three interaction patterns:
 - Auto-downloads correct binary for platform
 - Provides root account with full access key
 - Lifecycle management: startup, cleanup, temporary directories
+- State manipulation: `patchState()`, `fastForward()`, `dumpState()`, `restoreState()`
+- File-based snapshots: `saveSnapshot()`, `loadSnapshot()`
+- Full restart with optional genesis snapshot: `restart()`
+- Exports `StateRecord`, `StateSnapshot` types and `EMPTY_CODE_HASH` constant
 
 ### Design Patterns
 
