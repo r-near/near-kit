@@ -326,7 +326,7 @@ describe("precision tests", () => {
   })
 
   test("formatGas handles large gas values without precision loss", () => {
-    // 1000 Tgas / 1 PGas (max gas) = 1000000000000000 raw gas
+    // 1000 Tgas (max gas) = 1000000000000000 raw gas
     const maxGas = "1000000000000000"
     const result = formatGas(maxGas)
     expect(result).toBe("1000.00 Tgas")
