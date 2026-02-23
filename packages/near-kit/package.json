@@ -71,7 +71,7 @@
     }
   },
   "devDependencies": {
-    "@hot-labs/near-connect": "^0.9.0",
+    "@hot-labs/near-connect": "^0.10.0",
     "@near-js/transactions": "^2.5.1",
     "@near-js/types": "^2.5.1",
     "@near-wallet-selector/core": "^10.1.1",
