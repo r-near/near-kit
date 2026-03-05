@@ -18,7 +18,7 @@ jobs:
       - name: Check for new version
         id: check
         run: |
-          CURRENT=$(grep -oP 'DEFAULT_VERSION = "\K[^"]+' src/sandbox/sandbox.ts)
+          CURRENT=$(grep -oP 'DEFAULT_VERSION = "\K[^"]+' packages/near-kit/src/sandbox/sandbox.ts)
           LATEST=$(gh api repos/near/nearcore/releases/latest --jq '.tag_name | sub("^v"; "")')
 
           echo "current=$CURRENT" >> $GITHUB_OUTPUT
@@ -44,7 +44,7 @@ jobs:
 
           # Create branch and update version
           git checkout -b "$BRANCH"
-          sed -i 's/DEFAULT_VERSION = "[^"]*"/DEFAULT_VERSION = "${{ steps.check.outputs.latest }}"/' src/sandbox/sandbox.ts
+          sed -i 's/DEFAULT_VERSION = "[^"]*"/DEFAULT_VERSION = "${{ steps.check.outputs.latest }}"/' packages/near-kit/src/sandbox/sandbox.ts
 
           # Create changeset
           cat > .changeset/nearcore-${{ steps.check.outputs.latest }}.md << EOF
