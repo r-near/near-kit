@@ -1,5 +1,18 @@
 # near-kit
 
+## 0.12.0
+
+### Minor Changes
+
+- e75be6e: Add sandbox state manipulation methods: patchState, fastForward, dumpState, restoreState, saveSnapshot, loadSnapshot, and restart with snapshot support. Fix race conditions in dumpState and patchState, and fix restart DbVersion crash caused by stale process handles.
+
+### Patch Changes
+
+- 5987f39: build(deps): bump tar from 7.5.6 to 7.5.7 in the production-dependencies group
+- 1f33644: build(deps): bump tar from 7.5.7 to 7.5.9 in the production-dependencies group
+- d6c541e: Update sandbox to nearcore 2.10.7
+- 5987f39: build(deps): bump tar from 7.5.6 to 7.5.7 in the production-dependencies group
+
 ## 0.11.0
 
 ### Minor Changes
