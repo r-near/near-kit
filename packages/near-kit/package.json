@@ -71,11 +71,11 @@
     }
   },
   "devDependencies": {
-    "@hot-labs/near-connect": "^0.10.0",
+    "@hot-labs/near-connect": "^0.11.1",
     "@near-js/transactions": "^2.5.1",
     "@near-js/types": "^2.5.1",
     "@near-wallet-selector/core": "^10.1.1",
-    "@types/bun": "^1.3.9",
+    "@types/bun": "^1.3.10",
     "@types/tar": "^7.0.87",
     "@vitest/coverage-v8": "^4.0.18",
     "@vitest/ui": "^4.0.18",
