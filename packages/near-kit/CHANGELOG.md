@@ -1,5 +1,11 @@
 # near-kit
 
+## 0.12.1
+
+### Patch Changes
+
+- e25c855: build(deps): bump tar from 7.5.9 to 7.5.11 in the production-dependencies group
+
 ## 0.12.0
 
 ### Minor Changes
