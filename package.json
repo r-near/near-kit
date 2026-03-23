@@ -17,9 +17,9 @@
     "lefthook": "lefthook install"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.4.6",
+    "@biomejs/biome": "2.4.8",
     "@changesets/cli": "^2.30.0",
-    "lefthook": "^2.1.3",
-    "typescript": "^5.9.3"
+    "lefthook": "^2.1.4",
+    "typescript": "^6.0.2"
   }
 }
