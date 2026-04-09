@@ -10,8 +10,8 @@
 
 import { describe, expect, it } from "vitest"
 import * as actions from "../../src/core/actions.js"
-import { fromHotConnect, fromWalletSelector } from "../../src/wallets/index.js"
-import { MockHotConnect, MockWalletSelector } from "./mock-wallets.js"
+import { fromNearConnect, fromWalletSelector } from "../../src/wallets/index.js"
+import { MockNearConnect, MockWalletSelector } from "./mock-wallets.js"
 
 describe("Wallet Adapter Data Flow Verification", () => {
   describe("fromWalletSelector - Parameter Passing", () => {
@@ -158,12 +158,12 @@ describe("Wallet Adapter Data Flow Verification", () => {
     })
   })
 
-  describe("fromHotConnect - Parameter Passing", () => {
-    it("should translate Actions for HOT Connect signAndSendTransaction", async () => {
-      const mockConnector = new MockHotConnect([
+  describe("fromNearConnect - Parameter Passing", () => {
+    it("should translate Actions for NEAR Connect signAndSendTransaction", async () => {
+      const mockConnector = new MockNearConnect([
         { accountId: "alice.near", publicKey: "ed25519:abc123" },
       ])
-      const adapter = fromHotConnect(mockConnector)
+      const adapter = fromNearConnect(mockConnector)
 
       // Create actions
       const transferAction = actions.transfer(
@@ -203,10 +203,10 @@ describe("Wallet Adapter Data Flow Verification", () => {
     })
 
     it("should pass Uint8Array nonce unchanged for signMessage", async () => {
-      const mockConnector = new MockHotConnect([
+      const mockConnector = new MockNearConnect([
         { accountId: "alice.near", publicKey: "ed25519:abc123" },
       ])
-      const adapter = fromHotConnect(mockConnector)
+      const adapter = fromNearConnect(mockConnector)
 
       // Create a Uint8Array nonce (what our API uses)
       const nonce = new Uint8Array([9, 8, 7, 6, 5, 4, 3, 2, 1])
@@ -228,7 +228,7 @@ describe("Wallet Adapter Data Flow Verification", () => {
       expect(msgCall).toBeDefined()
       if (!msgCall) return
 
-      // CRITICAL: HOT Connect uses Uint8Array, should NOT be converted to Buffer
+      // CRITICAL: NEAR Connect uses Uint8Array, should NOT be converted to Buffer
       const noncePassed = msgCall.params.nonce
       expect(noncePassed).toBeInstanceOf(Uint8Array)
       expect(noncePassed).toBe(nonce) // Should be the SAME object
@@ -240,10 +240,10 @@ describe("Wallet Adapter Data Flow Verification", () => {
     })
 
     it("should handle complex action types correctly", async () => {
-      const mockConnector = new MockHotConnect([
+      const mockConnector = new MockNearConnect([
         { accountId: "alice.near", publicKey: "ed25519:abc123" },
       ])
-      const adapter = fromHotConnect(mockConnector)
+      const adapter = fromNearConnect(mockConnector)
 
       // Create various action types
       const actionsToTest = [
@@ -447,15 +447,15 @@ describe("Wallet Adapter Data Flow Verification", () => {
       expect(accounts[0]).not.toHaveProperty("publicKey")
     })
 
-    it("should always include publicKey for HOT Connect accounts", async () => {
-      const mockConnector = new MockHotConnect([
+    it("should always include publicKey for NEAR Connect accounts", async () => {
+      const mockConnector = new MockNearConnect([
         { accountId: "test.near" }, // No publicKey provided
       ])
-      const adapter = fromHotConnect(mockConnector)
+      const adapter = fromNearConnect(mockConnector)
 
       const accounts = await adapter.getAccounts()
 
-      // HOT Connect REQUIRES publicKey, mock should add default
+      // NEAR Connect REQUIRES publicKey, mock should add default
       expect(accounts).toHaveLength(1)
       const account = accounts[0]
       expect(account).toHaveProperty("publicKey")
@@ -489,10 +489,10 @@ describe("Wallet Adapter Data Flow Verification", () => {
     })
 
     it("should not modify the nonce Uint8Array", async () => {
-      const mockConnector = new MockHotConnect([
+      const mockConnector = new MockNearConnect([
         { accountId: "test.near", publicKey: "ed25519:test" },
       ])
-      const adapter = fromHotConnect(mockConnector)
+      const adapter = fromNearConnect(mockConnector)
 
       const originalNonce = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8])
       const nonceCopy = new Uint8Array(originalNonce)

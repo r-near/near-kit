@@ -2,7 +2,7 @@
  * Tests for wallet-based delegate action signing (signDelegateActions)
  *
  * Covers:
- * - fromHotConnect adapter: action conversion, batch passthrough, response normalization
+ * - fromNearConnect adapter: action conversion, batch passthrough, response normalization
  * - TransactionBuilder.delegate() wallet routing: wraps single → batch, unwraps result
  * - Feature detection and error paths
  */
@@ -17,8 +17,8 @@ import type {
   WalletConnection,
 } from "../../src/core/types.js"
 import { InMemoryKeyStore } from "../../src/keys/in-memory-keystore.js"
-import { fromHotConnect } from "../../src/wallets/index.js"
-import { MockHotConnect } from "./mock-wallets.js"
+import { fromNearConnect } from "../../src/wallets/index.js"
+import { MockNearConnect } from "./mock-wallets.js"
 
 // Minimal mock RPC for TransactionBuilder (not used in wallet path)
 function mockRpc() {
@@ -32,13 +32,13 @@ function mockRpc() {
 }
 
 describe("Wallet Delegate Action Signing", () => {
-  describe("fromHotConnect - signDelegateActions", () => {
+  describe("fromNearConnect - signDelegateActions", () => {
     it("should convert actions and pass through to wallet", async () => {
-      const mockConnector = new MockHotConnect([
+      const mockConnector = new MockNearConnect([
         { accountId: "alice.near", publicKey: "ed25519:abc123" },
       ])
 
-      const adapter = fromHotConnect(mockConnector)
+      const adapter = fromNearConnect(mockConnector)
 
       const transferAction = actions.transfer(
         BigInt("1000000000000000000000000"),
@@ -61,7 +61,7 @@ describe("Wallet Delegate Action Signing", () => {
       )
       expect(result.signedDelegateActions[0]?.signedDelegate).toBeDefined()
 
-      // Verify actions were converted to HOT Connect format
+      // Verify actions were converted to NEAR Connect format
       const log = mockConnector.getCallLog()
       const delegateCall = log.find((l) => l.method === "signDelegateActions")
       expect(delegateCall).toBeDefined()
@@ -75,11 +75,11 @@ describe("Wallet Delegate Action Signing", () => {
     })
 
     it("should convert functionCall args to JSON objects", async () => {
-      const mockConnector = new MockHotConnect([
+      const mockConnector = new MockNearConnect([
         { accountId: "alice.near", publicKey: "ed25519:abc123" },
       ])
 
-      const adapter = fromHotConnect(mockConnector)
+      const adapter = fromNearConnect(mockConnector)
 
       const args = { message: "hello" }
       const argsBytes = new TextEncoder().encode(JSON.stringify(args))
@@ -115,11 +115,11 @@ describe("Wallet Delegate Action Signing", () => {
     })
 
     it("should handle multiple delegate actions in batch", async () => {
-      const mockConnector = new MockHotConnect([
+      const mockConnector = new MockNearConnect([
         { accountId: "alice.near", publicKey: "ed25519:abc123" },
       ])
 
-      const adapter = fromHotConnect(mockConnector)
+      const adapter = fromNearConnect(mockConnector)
 
       // biome-ignore lint/style/noNonNullAssertion: adapter always provides signDelegateActions
       const result = await adapter.signDelegateActions!({
@@ -147,11 +147,11 @@ describe("Wallet Delegate Action Signing", () => {
     })
 
     it("should omit signerId when not provided", async () => {
-      const mockConnector = new MockHotConnect([
+      const mockConnector = new MockNearConnect([
         { accountId: "alice.near", publicKey: "ed25519:abc123" },
       ])
 
-      const adapter = fromHotConnect(mockConnector)
+      const adapter = fromNearConnect(mockConnector)
 
       // biome-ignore lint/style/noNonNullAssertion: adapter always provides signDelegateActions
       await adapter.signDelegateActions!({
@@ -220,7 +220,7 @@ describe("Wallet Delegate Action Signing", () => {
       }
 
       // biome-ignore lint/suspicious/noExplicitAny: intentionally flat response to test normalization
-      const adapter = fromHotConnect(connector as any)
+      const adapter = fromNearConnect(connector as any)
       // biome-ignore lint/style/noNonNullAssertion: adapter always provides signDelegateActions
       const result = await adapter.signDelegateActions!({
         delegateActions: [
@@ -239,11 +239,11 @@ describe("Wallet Delegate Action Signing", () => {
     })
 
     it("should pass through already-wrapped signedDelegate format", async () => {
-      const mockConnector = new MockHotConnect([
+      const mockConnector = new MockNearConnect([
         { accountId: "test.near", publicKey: "ed25519:abc" },
       ])
 
-      const adapter = fromHotConnect(mockConnector)
+      const adapter = fromNearConnect(mockConnector)
       // biome-ignore lint/style/noNonNullAssertion: adapter always provides signDelegateActions
       const result = await adapter.signDelegateActions!({
         delegateActions: [
@@ -254,7 +254,7 @@ describe("Wallet Delegate Action Signing", () => {
         ],
       })
 
-      // MockHotConnectWallet already returns wrapped format
+      // MockNearConnectWallet already returns wrapped format
       const signed = result.signedDelegateActions[0]?.signedDelegate
       expect(signed).toBeDefined()
       // biome-ignore lint/style/noNonNullAssertion: asserted above
@@ -283,7 +283,7 @@ describe("Wallet Delegate Action Signing", () => {
         },
       }
 
-      const adapter = fromHotConnect(connector)
+      const adapter = fromNearConnect(connector)
 
       await expect(
         // biome-ignore lint/style/noNonNullAssertion: testing error path
@@ -323,7 +323,7 @@ describe("Wallet Delegate Action Signing", () => {
         },
       }
 
-      const adapter = fromHotConnect(connector)
+      const adapter = fromNearConnect(connector)
 
       await expect(
         // biome-ignore lint/style/noNonNullAssertion: testing error path

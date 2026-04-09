@@ -4,9 +4,9 @@
 
 import { describe, expect, it } from "vitest"
 import * as actions from "../../src/core/actions.js"
-import { fromHotConnect, fromWalletSelector } from "../../src/wallets/index.js"
+import { fromNearConnect, fromWalletSelector } from "../../src/wallets/index.js"
 import {
-  MockHotConnect,
+  MockNearConnect,
   MockWalletSelector,
   MockWalletWithoutSignMessage,
 } from "./mock-wallets.js"
@@ -93,14 +93,14 @@ describe("Wallet Adapters", () => {
     })
   })
 
-  describe("fromHotConnect", () => {
-    it("should adapt HOT Connect getAccounts", async () => {
-      const mockConnector = new MockHotConnect([
+  describe("fromNearConnect", () => {
+    it("should adapt NEAR Connect getAccounts", async () => {
+      const mockConnector = new MockNearConnect([
         { accountId: "alice.near", publicKey: "ed25519:abc123" },
         { accountId: "bob.near", publicKey: "ed25519:def456" },
       ])
 
-      const adapter = fromHotConnect(mockConnector)
+      const adapter = fromNearConnect(mockConnector)
       const accounts = await adapter.getAccounts()
 
       expect(accounts).toEqual([
@@ -114,12 +114,12 @@ describe("Wallet Adapters", () => {
       expect(log.some((l) => l.method === "getAccounts")).toBe(true)
     })
 
-    it("should adapt HOT Connect signAndSendTransaction", async () => {
-      const mockConnector = new MockHotConnect([
+    it("should adapt NEAR Connect signAndSendTransaction", async () => {
+      const mockConnector = new MockNearConnect([
         { accountId: "alice.near", publicKey: "ed25519:abc123" },
       ])
 
-      const adapter = fromHotConnect(mockConnector)
+      const adapter = fromNearConnect(mockConnector)
 
       const transferAction = actions.transfer(
         BigInt("1000000000000000000000000"),
@@ -143,12 +143,12 @@ describe("Wallet Adapters", () => {
       expect(txCall?.params.receiverId).toBe("bob.near")
     })
 
-    it("should correctly parse JSON args in HOT Connect functionCall", async () => {
-      const mockConnector = new MockHotConnect([
+    it("should correctly parse JSON args in NEAR Connect functionCall", async () => {
+      const mockConnector = new MockNearConnect([
         { accountId: "alice.near", publicKey: "ed25519:abc123" },
       ])
 
-      const adapter = fromHotConnect(mockConnector)
+      const adapter = fromNearConnect(mockConnector)
 
       const args = { foo: "bar" }
       const argsBytes = new TextEncoder().encode(JSON.stringify(args))
@@ -177,12 +177,12 @@ describe("Wallet Adapters", () => {
       expect(hotAction.params.args).toEqual(args)
     })
 
-    it("should adapt HOT Connect signMessage", async () => {
-      const mockConnector = new MockHotConnect([
+    it("should adapt NEAR Connect signMessage", async () => {
+      const mockConnector = new MockNearConnect([
         { accountId: "alice.near", publicKey: "ed25519:abc123" },
       ])
 
-      const adapter = fromHotConnect(mockConnector)
+      const adapter = fromNearConnect(mockConnector)
 
       const result = await adapter.signMessage?.({
         message: "Hello, NEAR!",

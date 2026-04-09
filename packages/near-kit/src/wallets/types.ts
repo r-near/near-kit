@@ -2,7 +2,7 @@
  * Internal wallet type helpers for near-kit.
  *
  * Defines lightweight structural types for external wallet libraries
- * (e.g. HOT Connect) without taking a hard dependency on their packages.
+ * (e.g. NEAR Connect) without taking a hard dependency on their packages.
  *
  * @internal
  */
@@ -14,22 +14,22 @@ import type {
 } from "../core/types.js"
 
 /**
- * HOT Connect action types, mirroring `@hot-labs/near-connect`'s
+ * NEAR Connect action types, mirroring `@hot-labs/near-connect`'s
  * `types/transactions.ts` definitions.
  */
 
-export type HotConnectCreateAccountAction = {
+export type NearConnectCreateAccountAction = {
   type: "CreateAccount"
 }
 
-export type HotConnectDeployContractAction = {
+export type NearConnectDeployContractAction = {
   type: "DeployContract"
   params: {
     code: Uint8Array
   }
 }
 
-export type HotConnectFunctionCallAction = {
+export type NearConnectFunctionCallAction = {
   type: "FunctionCall"
   params: {
     methodName: string
@@ -39,14 +39,14 @@ export type HotConnectFunctionCallAction = {
   }
 }
 
-export type HotConnectTransferAction = {
+export type NearConnectTransferAction = {
   type: "Transfer"
   params: {
     deposit: string
   }
 }
 
-export type HotConnectStakeAction = {
+export type NearConnectStakeAction = {
   type: "Stake"
   params: {
     stake: string
@@ -54,7 +54,7 @@ export type HotConnectStakeAction = {
   }
 }
 
-export type HotConnectAddKeyPermission =
+export type NearConnectAddKeyPermission =
   | "FullAccess"
   | {
       receiverId: string
@@ -62,68 +62,68 @@ export type HotConnectAddKeyPermission =
       methodNames?: string[]
     }
 
-export type HotConnectAddKeyAction = {
+export type NearConnectAddKeyAction = {
   type: "AddKey"
   params: {
     publicKey: string
     accessKey: {
       nonce?: number
-      permission: HotConnectAddKeyPermission
+      permission: NearConnectAddKeyPermission
     }
   }
 }
 
-export type HotConnectDeleteKeyAction = {
+export type NearConnectDeleteKeyAction = {
   type: "DeleteKey"
   params: {
     publicKey: string
   }
 }
 
-export type HotConnectDeleteAccountAction = {
+export type NearConnectDeleteAccountAction = {
   type: "DeleteAccount"
   params: {
     beneficiaryId: string
   }
 }
 
-export type HotConnectAction =
-  | HotConnectCreateAccountAction
-  | HotConnectDeployContractAction
-  | HotConnectFunctionCallAction
-  | HotConnectTransferAction
-  | HotConnectStakeAction
-  | HotConnectAddKeyAction
-  | HotConnectDeleteKeyAction
-  | HotConnectDeleteAccountAction
+export type NearConnectAction =
+  | NearConnectCreateAccountAction
+  | NearConnectDeployContractAction
+  | NearConnectFunctionCallAction
+  | NearConnectTransferAction
+  | NearConnectStakeAction
+  | NearConnectAddKeyAction
+  | NearConnectDeleteKeyAction
+  | NearConnectDeleteAccountAction
 
 /**
- * HOT Connect wallet + connector interfaces (structural).
+ * NEAR Connect wallet + connector interfaces (structural).
  */
 
 /**
- * HOT Connect's params for signDelegateActions (v0.9.0+).
- * Uses HotConnectAction[] instead of our Action[].
+ * NEAR Connect's params for signDelegateActions (v0.9.0+).
+ * Uses NearConnectAction[] instead of our Action[].
  * @internal
  */
-export type HotConnectSignDelegateActionsParams = {
+export type NearConnectSignDelegateActionsParams = {
   network?: string
   signerId?: string
   delegateActions: Array<{
-    actions: HotConnectAction[]
+    actions: NearConnectAction[]
     receiverId: string
   }>
 }
 
 /**
- * HOT Connect's response for signDelegateActions (v0.9.0+).
+ * NEAR Connect's response for signDelegateActions (v0.9.0+).
  * @internal
  */
-export type HotConnectSignDelegateActionsResponse = {
+export type NearConnectSignDelegateActionsResponse = {
   signedDelegateActions: SignDelegateActionsResult["signedDelegateActions"]
 }
 
-export type HotConnectWallet = {
+export type NearConnectWallet = {
   manifest?: {
     features?: {
       signDelegateAction?: boolean
@@ -138,7 +138,7 @@ export type HotConnectWallet = {
   signAndSendTransaction(params: {
     signerId?: string
     receiverId: string
-    actions: HotConnectAction[]
+    actions: NearConnectAction[]
     network?: string
   }): Promise<FinalExecutionOutcome>
   signMessage(params: {
@@ -148,10 +148,17 @@ export type HotConnectWallet = {
     network?: string
   }): Promise<SignedMessage>
   signDelegateActions?(
-    params: HotConnectSignDelegateActionsParams,
-  ): Promise<HotConnectSignDelegateActionsResponse>
+    params: NearConnectSignDelegateActionsParams,
+  ): Promise<NearConnectSignDelegateActionsResponse>
 }
 
-export type HotConnectConnector = {
-  wallet(): Promise<HotConnectWallet>
+export type NearConnectConnector = {
+  wallet(): Promise<NearConnectWallet>
 }
+
+/** @deprecated Use {@link NearConnectAction} instead */
+export type HotConnectAction = NearConnectAction
+/** @deprecated Use {@link NearConnectAddKeyPermission} instead */
+export type HotConnectAddKeyPermission = NearConnectAddKeyPermission
+/** @deprecated Use {@link NearConnectConnector} instead */
+export type HotConnectConnector = NearConnectConnector

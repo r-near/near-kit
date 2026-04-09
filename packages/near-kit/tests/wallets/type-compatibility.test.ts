@@ -137,13 +137,13 @@ describe("Type Compatibility Verification", () => {
       expect(result).toBe("alice.near:ed25519:abc123")
     })
 
-    it("our WalletAccount matches HOT Connect Account structure", () => {
+    it("our WalletAccount matches NEAR Connect Account structure", () => {
       const ourAccount: WalletAccount = {
         accountId: "alice.near",
         publicKey: "ed25519:abc123",
       }
 
-      // Verify structure matches what HOT Connect expects (requires publicKey)
+      // Verify structure matches what NEAR Connect expects (requires publicKey)
       function processHCAccount(account: {
         accountId: string
         publicKey: string

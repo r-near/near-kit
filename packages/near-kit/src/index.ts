@@ -111,4 +111,8 @@ export {
   verifyNep413Signature,
 } from "./utils/index.js"
 // Wallet adapters
-export { fromHotConnect, fromWalletSelector } from "./wallets/index.js"
+export {
+  fromHotConnect,
+  fromNearConnect,
+  fromWalletSelector,
+} from "./wallets/index.js"

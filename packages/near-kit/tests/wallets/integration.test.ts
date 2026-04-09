@@ -5,10 +5,10 @@
 import { beforeEach, describe, expect, it } from "vitest"
 import { Near } from "../../src/core/near.js"
 import {
-  fromHotConnect,
+  fromNearConnect,
   fromWalletSelector,
 } from "../../src/wallets/adapters.js"
-import { MockHotConnect, MockWalletSelector } from "./mock-wallets.js"
+import { MockNearConnect, MockWalletSelector } from "./mock-wallets.js"
 
 describe("Near class with wallets", () => {
   describe("With wallet-selector", () => {
@@ -120,22 +120,22 @@ describe("Near class with wallets", () => {
     })
   })
 
-  describe("With HOT Connect", () => {
-    let mockConnector: MockHotConnect
+  describe("With NEAR Connect", () => {
+    let mockConnector: MockNearConnect
     let near: Near
 
     beforeEach(() => {
-      mockConnector = new MockHotConnect([
+      mockConnector = new MockNearConnect([
         { accountId: "alice.near", publicKey: "ed25519:abc123" },
       ])
 
       near = new Near({
         network: "mainnet",
-        wallet: fromHotConnect(mockConnector),
+        wallet: fromNearConnect(mockConnector),
       })
     })
 
-    it("should use HOT Connect for call()", async () => {
+    it("should use NEAR Connect for call()", async () => {
       mockConnector.clearCallLog()
 
       await near.call(
@@ -154,7 +154,7 @@ describe("Near class with wallets", () => {
       }
     })
 
-    it("should use HOT Connect for send()", async () => {
+    it("should use NEAR Connect for send()", async () => {
       mockConnector.clearCallLog()
 
       await near.send("receiver.near", "2 NEAR")

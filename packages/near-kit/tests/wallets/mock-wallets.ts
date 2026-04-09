@@ -1,7 +1,7 @@
 /**
  * Mock wallet implementations for testing
  *
- * These mocks are structurally compatible with wallet-selector and HOT Connect
+ * These mocks are structurally compatible with NEAR Connect and wallet-selector
  * wallet interfaces. We use type assertions to bridge the nominal vs structural
  * typing gap.
  */
@@ -124,17 +124,17 @@ export class MockWalletSelector {
 }
 
 /**
- * Mock wallet that simulates @hot-labs/near-connect behavior
+ * Mock wallet that simulates @hot-labs/near-connect (NEAR Connect) behavior
  */
-export class MockHotConnect {
-  private _wallet: MockHotConnectWallet
+export class MockNearConnect {
+  private _wallet: MockNearConnectWallet
   private callLog: CallLogEntry[] = []
 
   constructor(accounts: WalletAccount[] = []) {
-    this._wallet = new MockHotConnectWallet(accounts)
+    this._wallet = new MockNearConnectWallet(accounts)
   }
 
-  async wallet(): Promise<MockHotConnectWallet> {
+  async wallet(): Promise<MockNearConnectWallet> {
     this.callLog.push({ method: "wallet", params: {} })
     return this._wallet
   }
@@ -159,11 +159,14 @@ export class MockHotConnect {
   }
 }
 
+/** @deprecated Use {@link MockNearConnect} instead */
+export const MockHotConnect = MockNearConnect
+
 /**
- * Mock wallet instance returned by HOT Connect
- * HOT Connect requires publicKey to always be present
+ * Mock wallet instance returned by NEAR Connect
+ * NEAR Connect requires publicKey to always be present
  */
-class MockHotConnectWallet {
+class MockNearConnectWallet {
   private accounts: Array<{ accountId: string; publicKey: string }>
   private callLog: CallLogEntry[] = []
 
@@ -174,7 +177,7 @@ class MockHotConnectWallet {
   }
 
   constructor(accounts: WalletAccount[] = []) {
-    // HOT Connect requires publicKey - ensure all accounts have it
+    // NEAR Connect requires publicKey - ensure all accounts have it
     this.accounts = accounts.map((acc) => ({
       accountId: acc.accountId,
       publicKey: acc.publicKey || "ed25519:default",
@@ -286,7 +289,7 @@ class MockHotConnectWallet {
   }
 
   setAccounts(accounts: WalletAccount[]) {
-    // HOT Connect requires publicKey - ensure all accounts have it
+    // NEAR Connect requires publicKey - ensure all accounts have it
     this.accounts = accounts.map((acc) => ({
       accountId: acc.accountId,
       publicKey: acc.publicKey || "ed25519:default",
