@@ -156,9 +156,33 @@ export type NearConnectConnector = {
   wallet(): Promise<NearConnectWallet>
 }
 
-/** @deprecated Use {@link NearConnectAction} instead */
-export type HotConnectAction = NearConnectAction
+/** @deprecated Use {@link NearConnectCreateAccountAction} instead */
+export type HotConnectCreateAccountAction = NearConnectCreateAccountAction
+/** @deprecated Use {@link NearConnectDeployContractAction} instead */
+export type HotConnectDeployContractAction = NearConnectDeployContractAction
+/** @deprecated Use {@link NearConnectFunctionCallAction} instead */
+export type HotConnectFunctionCallAction = NearConnectFunctionCallAction
+/** @deprecated Use {@link NearConnectTransferAction} instead */
+export type HotConnectTransferAction = NearConnectTransferAction
+/** @deprecated Use {@link NearConnectStakeAction} instead */
+export type HotConnectStakeAction = NearConnectStakeAction
 /** @deprecated Use {@link NearConnectAddKeyPermission} instead */
 export type HotConnectAddKeyPermission = NearConnectAddKeyPermission
+/** @deprecated Use {@link NearConnectAddKeyAction} instead */
+export type HotConnectAddKeyAction = NearConnectAddKeyAction
+/** @deprecated Use {@link NearConnectDeleteKeyAction} instead */
+export type HotConnectDeleteKeyAction = NearConnectDeleteKeyAction
+/** @deprecated Use {@link NearConnectDeleteAccountAction} instead */
+export type HotConnectDeleteAccountAction = NearConnectDeleteAccountAction
+/** @deprecated Use {@link NearConnectAction} instead */
+export type HotConnectAction = NearConnectAction
+/** @deprecated Use {@link NearConnectSignDelegateActionsParams} instead */
+export type HotConnectSignDelegateActionsParams =
+  NearConnectSignDelegateActionsParams
+/** @deprecated Use {@link NearConnectSignDelegateActionsResponse} instead */
+export type HotConnectSignDelegateActionsResponse =
+  NearConnectSignDelegateActionsResponse
+/** @deprecated Use {@link NearConnectWallet} instead */
+export type HotConnectWallet = NearConnectWallet
 /** @deprecated Use {@link NearConnectConnector} instead */
 export type HotConnectConnector = NearConnectConnector

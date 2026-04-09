@@ -144,7 +144,7 @@ describe("Type Compatibility Verification", () => {
       }
 
       // Verify structure matches what NEAR Connect expects (requires publicKey)
-      function processHCAccount(account: {
+      function processConnectorAccount(account: {
         accountId: string
         publicKey: string
       }) {
@@ -152,7 +152,7 @@ describe("Type Compatibility Verification", () => {
       }
 
       // Works when publicKey is present
-      const result = processHCAccount(
+      const result = processConnectorAccount(
         ourAccount as { accountId: string; publicKey: string },
       )
       expect(result).toBe("alice.near:ed25519:abc123")

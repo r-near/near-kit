@@ -2,9 +2,9 @@
  * Wallet integration adapters for NEAR.
  *
  * @remarks
- * Re-exports the {@link WalletConnection} interface and concrete adapters
- * {@link fromNearConnect} and {@link fromWalletSelector} for integrating with
- * NEAR wallet libraries.
+ * Re-exports the {@link WalletConnection} interface and wallet adapters:
+ * {@link fromNearConnect} (recommended), deprecated {@link fromHotConnect} alias,
+ * and deprecated {@link fromWalletSelector}.
  */
 export type { WalletConnection } from "../core/types.js"
 export {

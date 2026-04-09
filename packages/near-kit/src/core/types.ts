@@ -454,7 +454,7 @@ export interface SignDelegateActionsResult {
 
 /**
  * Wallet connection interface
- * Compatible with @hot-labs/near-connect (NEAR Connect)
+ * Compatible with NEAR wallet adapters including @hot-labs/near-connect (NEAR Connect)
  */
 export interface WalletConnection {
   /**

@@ -160,7 +160,7 @@ export class MockNearConnect {
 }
 
 /** @deprecated Use {@link MockNearConnect} instead */
-export const MockHotConnect = MockNearConnect
+export { MockNearConnect as MockHotConnect }
 
 /**
  * Mock wallet instance returned by NEAR Connect

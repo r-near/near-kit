@@ -333,14 +333,14 @@ export function fromNearConnect(
       }
 
       // Convert each delegate action's near-kit Actions to NEAR Connect format
-      const hotDelegateActions = params.delegateActions.map((da) => ({
+      const nearConnectDelegateActions = params.delegateActions.map((da) => ({
         actions: da.actions.map(convertActionToNearConnect),
         receiverId: da.receiverId,
       }))
 
       const response = await wallet.signDelegateActions({
         ...(params.signerId !== undefined && { signerId: params.signerId }),
-        delegateActions: hotDelegateActions,
+        delegateActions: nearConnectDelegateActions,
       })
 
       // Bridge response shape: near-connect returns @near-js/transactions
