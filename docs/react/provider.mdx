@@ -182,31 +182,26 @@ For dApps where users connect their own wallets, create the Near instance dynami
 "use client"
 
 import { useState, useEffect } from "react"
-import { Near, fromWalletSelector } from "near-kit"
+import { Near, fromHotConnect } from "near-kit"
 import { NearProvider } from "@near-kit/react"
-import { setupWalletSelector } from "@near-wallet-selector/core"
+import { NearConnector } from "@hot-labs/near-connect"
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [near, setNear] = useState<Near | null>(null)
 
   useEffect(() => {
-    async function init() {
-      const selector = await setupWalletSelector({
-        network: "mainnet",
-        modules: [/* ... */],
-      })
+    const connector = new NearConnector({ network: "mainnet" })
 
-      if (selector.isSignedIn()) {
-        const wallet = await selector.wallet()
-        setNear(
-          new Near({
-            network: "mainnet",
-            wallet: fromWalletSelector(wallet),
-          })
-        )
-      }
-    }
-    init()
+    connector.on("wallet:signIn", async () => {
+      setNear(
+        new Near({
+          network: "mainnet",
+          wallet: fromHotConnect(connector),
+        })
+      )
+    })
+
+    connector.connect()
   }, [])
 
   // Show loading or connect button when not connected

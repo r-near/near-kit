@@ -88,15 +88,17 @@ Now, let's see how to initialize the `Near` object for different environments.
     In the browser, you don't have private keys. You have a Wallet Adapter.
     
     ```typescript
-    import { Near, fromWalletSelector } from "near-kit"
+    import { Near, fromHotConnect } from "near-kit"
+    import { NearConnector } from "@hot-labs/near-connect"
     import { buyItem } from "./features/buy-item"
 
-    // ... setup wallet selector ...
-    const wallet = await selector.wallet()
+    // ... setup NEAR Connect ...
+    const connector = new NearConnector({ network: "testnet" })
+    const wallet = await connector.wallet()
 
     const near = new Near({
       network: "testnet",
-      wallet: fromWalletSelector(wallet), // Adapter handles signing
+      wallet: fromHotConnect(connector), // Adapter handles signing
     })
 
     const userAccount = (await wallet.getAccounts())[0].accountId

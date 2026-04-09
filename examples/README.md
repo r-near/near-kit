@@ -13,7 +13,7 @@ bun run examples/quickstart.ts
 ```
 
 ### [`wallet-browser.ts`](./wallet-browser.ts)
-Connect to user wallets in the browser with HOT Connect or Wallet Selector.
+Connect to user wallets in the browser with NEAR Connect.
 
 ### [`meta-transactions.ts`](./meta-transactions.ts)
 Gasless transactions (NEP-366): user signs, relayer pays.

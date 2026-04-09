@@ -15,7 +15,7 @@ A simple, intuitive TypeScript library for interacting with NEAR Protocol. Desig
 - **Type safety everywhere** - Full TypeScript support with IDE autocomplete
 - **Progressive complexity** - Basic API for simple needs, advanced features when required
 - **Powerful transaction builder** - Fluent, human-readable API for transactions
-- **Wallet-ready** - Full support for [HOT Connector](https://github.com/azbang/hot-connector) and [NEAR Wallet Selector](https://github.com/near/wallet-selector), drop-in integration
+- **Wallet-ready** - Full support for [NEAR Connect](https://github.com/azbang/near-connect), drop-in integration
 
 ## Installation
 
@@ -100,11 +100,14 @@ const near = new Near({
 In the browser, connect to user wallets. The same `near.call()`, `near.send()`, and `near.transaction()` methods work seamlessly:
 
 ```typescript
-import { fromWalletSelector } from "near-kit"
+import { Near, fromHotConnect } from "near-kit"
+import { NearConnector } from "@hot-labs/near-connect"
+
+const connector = new NearConnector({ network: "testnet" })
 
 const near = new Near({
   network: "testnet",
-  wallet: fromWalletSelector(walletInstance),
+  wallet: fromHotConnect(connector),
 })
 
 // Same API as backend
@@ -281,37 +284,7 @@ const near = new Near({
 
 ## Wallet Integration
 
-near-kit integrates with Wallet Selector and HOT Connector through a signer abstraction. Wallet adapters are converted to signers via `fromWalletSelector()` and `fromHotConnect()` shims, allowing the same API to work across backend and frontend without separate client implementations.
-
-### NEAR Wallet Selector
-
-```typescript
-import { Near, fromWalletSelector } from "near-kit"
-import { setupWalletSelector } from "@near-wallet-selector/core"
-import { setupMyNearWallet } from "@near-wallet-selector/my-near-wallet"
-import { setupHereWallet } from "@near-wallet-selector/here-wallet"
-
-// Setup wallet selector
-const selector = await setupWalletSelector({
-  network: "testnet",
-  modules: [setupMyNearWallet(), setupHereWallet()],
-})
-
-// Get wallet instance (after user connects)
-const wallet = await selector.wallet()
-
-// Use with near-kit
-const near = new Near({
-  network: "testnet",
-  wallet: fromWalletSelector(wallet),
-})
-
-// All operations now use the wallet for signing
-await near.call("contract.near", "method", { arg: "value" })
-await near.send("bob.near", "10 NEAR")
-```
-
-### HOT Connector
+near-kit integrates with [NEAR Connect](https://github.com/azbang/near-connect) through a signer abstraction. The wallet adapter is converted to a signer via `fromHotConnect()`, allowing the same API to work across backend and frontend without separate client implementations.
 
 ```typescript
 import { Near, fromHotConnect } from "near-kit"
@@ -327,8 +300,9 @@ connector.on("wallet:signIn", async () => {
     wallet: fromHotConnect(connector),
   })
 
-  // Use near-kit with the connected wallet
+  // All operations now use the wallet for signing
   await near.call("contract.near", "method", { arg: "value" })
+  await near.send("bob.near", "10 NEAR")
 })
 
 // Trigger wallet connection

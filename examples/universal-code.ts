@@ -7,7 +7,6 @@
 
 import {
   fromHotConnect,
-  fromWalletSelector,
   Near,
   type PrivateKey,
   type WalletConnection,
@@ -15,9 +14,7 @@ import {
 
 // External wallet types
 // biome-ignore lint/suspicious/noExplicitAny: External library type
-type HotConnector = { wallet(): Promise<any> }
-// biome-ignore lint/suspicious/noExplicitAny: External library type
-type WalletSelectorWallet = any
+type NearConnectorType = { wallet(): Promise<any> }
 
 // ============================================================================
 // Business Logic - Works in ANY environment
@@ -61,33 +58,16 @@ async function serverExample() {
 }
 
 // ============================================================================
-// Environment 2: Browser with HOT Connect
+// Environment 2: Browser with NEAR Connect
 // ============================================================================
 
-async function browserHotConnect(connector: HotConnector) {
+async function browserNearConnect(connector: NearConnectorType) {
   const near = new Near({
     network: "mainnet",
     wallet: fromHotConnect(connector),
   })
 
   const wallet = await connector.wallet()
-  const accounts = await wallet.getAccounts()
-  const signerId = accounts[0].accountId
-
-  await addGuestbookMessage(near, signerId, "Hello from browser")
-  await batchTransfer(near, signerId)
-}
-
-// ============================================================================
-// Environment 3: Browser with Wallet Selector
-// ============================================================================
-
-async function browserWalletSelector(wallet: WalletSelectorWallet) {
-  const near = new Near({
-    network: "testnet",
-    wallet: fromWalletSelector(wallet),
-  })
-
   const accounts = await wallet.getAccounts()
   const signerId = accounts[0].accountId
 
@@ -155,7 +135,6 @@ export {
   addGuestbookMessage,
   batchTransfer,
   serverExample,
-  browserHotConnect,
-  browserWalletSelector,
+  browserNearConnect,
   universalExample,
 }

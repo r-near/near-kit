@@ -1,39 +1,28 @@
 /**
  * Browser Wallet Integration
  *
- * Connect to user wallets using HOT Connect or Wallet Selector.
+ * Connect to user wallets using NEAR Connect.
  * Same near-kit API works in browser and server.
  *
  * Setup:
  *   npm install @hot-labs/near-connect
- *   OR
- *   npm install @near-wallet-selector/core @near-wallet-selector/modal-ui
  */
 
-import { fromHotConnect, fromWalletSelector, Near } from "../src/index.js"
+import { fromHotConnect, Near } from "../src/index.js"
 
 // Type definitions for external libraries
 // biome-ignore lint/suspicious/noExplicitAny: External library type
 declare const NearConnector: any
-// biome-ignore lint/suspicious/noExplicitAny: External library type
-declare const setupWalletSelector: any
-// biome-ignore lint/suspicious/noExplicitAny: External library type
-declare const setupModal: any
-// biome-ignore lint/suspicious/noExplicitAny: External library type
-declare const setupMyNearWallet: any
 
 type WalletSignInEvent = {
   accounts: Array<{ accountId: string; publicKey: string }>
 }
-type WalletSelectorState = {
-  accounts: Array<{ accountId: string; publicKey: string }>
-}
 
 // ============================================================================
-// HOT Connect (Recommended)
+// NEAR Connect
 // ============================================================================
 
-async function hotConnectExample() {
+async function nearConnectExample() {
   // biome-ignore lint/suspicious/noExplicitAny: External library type
   const connector = new (NearConnector as any)({
     network: "mainnet",
@@ -79,49 +68,7 @@ async function hotConnectExample() {
   })
 
   // In UI: <button onClick={() => connector.show()}>Connect</button>
-  console.log("HOT Connect ready")
-}
-
-// ============================================================================
-// Wallet Selector (Alternative)
-// ============================================================================
-
-async function walletSelectorExample() {
-  const selector = await setupWalletSelector({
-    network: "testnet",
-    modules: [setupMyNearWallet()],
-  })
-
-  const modal = setupModal(selector, {
-    contractId: "guestbook.near-examples.testnet",
-  })
-
-  modal.show()
-
-  const unsubscribe = selector.store.observable.subscribe(
-    async (state: WalletSelectorState) => {
-      if (state.accounts.length > 0) {
-        const accountId = state.accounts[0]?.accountId
-        if (!accountId) return
-        const wallet = await selector.wallet()
-
-        const near = new Near({
-          network: "testnet",
-          wallet: fromWalletSelector(wallet),
-        })
-
-        await near.call(
-          "guestbook.near-examples.testnet",
-          "add_message",
-          { text: "Hello from Wallet Selector" },
-          { signerId: accountId, gas: "30 Tgas" },
-        )
-
-        console.log("Transaction sent")
-        unsubscribe()
-      }
-    },
-  )
+  console.log("NEAR Connect ready")
 }
 
 // ============================================================================
@@ -130,12 +77,11 @@ async function walletSelectorExample() {
 
 async function main() {
   console.log("Browser Wallet Integration\n")
-  console.log("HOT Connect: Modern, iframe-isolated, WalletConnect v2")
-  console.log("Wallet Selector: Traditional, wider wallet support")
+  console.log("NEAR Connect: Modern, iframe-isolated, WalletConnect v2")
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   main()
 }
 
-export { hotConnectExample, walletSelectorExample }
+export { nearConnectExample }
