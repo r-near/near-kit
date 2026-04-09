@@ -2,8 +2,8 @@
  * Wallet adapters for NEAR wallet integrations.
  *
  * Provides adapter functions to integrate with popular NEAR wallets:
- * - `@near-wallet-selector/core`
- * - `@hot-labs/near-connect`
+ * - `@hot-labs/near-connect` (NEAR Connect)
+ * - `@near-wallet-selector/core` (deprecated)
  *
  * These adapters use duck typing / structural compatibility to work with
  * wallet interfaces. While the actual wallet packages use `@near-js` types
@@ -22,12 +22,12 @@ import type {
   WalletConnection,
 } from "../core/types.js"
 import type {
-  HotConnectAction,
-  HotConnectAddKeyPermission,
-  HotConnectConnector,
+  NearConnectAction,
+  NearConnectAddKeyPermission,
+  NearConnectConnector,
 } from "./types.js"
 
-// Wallet interface types based on @near-wallet-selector/core v10.x
+// Wallet interface types based on @near-wallet-selector/core v10.x (deprecated).
 // These are duck-typed to match the actual wallet interface structure.
 // Note: Some wallet-selector implementations type signAndSendTransaction
 // as returning `void | FinalExecutionOutcome`. We normalize this to always
@@ -50,10 +50,10 @@ type WalletSelectorWallet = {
 }
 
 /**
- * Convert a near-kit Action to HOT Connect's action format.
+ * Convert a near-kit Action to NEAR Connect's action format.
  * @internal
  */
-function convertActionToHotConnect(action: Action): HotConnectAction {
+function convertActionToNearConnect(action: Action): NearConnectAction {
   const a = action as Record<string, unknown>
 
   if ("functionCall" in a && a["functionCall"]) {
@@ -100,7 +100,7 @@ function convertActionToHotConnect(action: Action): HotConnectAction {
       type: "Stake",
       params: {
         stake: s.stake.toString(),
-        // HOT Connect expects a base58 string; we forward whatever representation
+        // NEAR Connect expects a base58 string; we forward whatever representation
         // we have and rely on upstream tooling when stake is used with wallets.
         publicKey: String(s.publicKey),
       },
@@ -118,7 +118,7 @@ function convertActionToHotConnect(action: Action): HotConnectAction {
         publicKey: String(ak.publicKey),
         accessKey: {
           nonce: Number(ak.accessKey.nonce),
-          permission: ak.accessKey.permission as HotConnectAddKeyPermission,
+          permission: ak.accessKey.permission as NearConnectAddKeyPermission,
         },
       },
     }
@@ -169,6 +169,9 @@ function convertActionToHotConnect(action: Action): HotConnectAction {
  * Adapter for @near-wallet-selector/core
  *
  * Converts a wallet-selector Wallet instance to the WalletConnection interface.
+ *
+ * @deprecated NEAR Wallet Selector is deprecated. Use {@link fromNearConnect} with
+ * `@hot-labs/near-connect` (NEAR Connect) instead.
  *
  * @param wallet - Wallet instance from wallet-selector
  * @returns WalletConnection interface compatible with near-kit
@@ -242,18 +245,18 @@ export function fromWalletSelector(
 }
 
 /**
- * Adapter for @hot-labs/near-connect (HOT Connect)
+ * Adapter for @hot-labs/near-connect (NEAR Connect)
  *
- * Converts a HOT Connect NearConnector instance to the WalletConnection interface.
+ * Converts a NEAR Connect NearConnector instance to the WalletConnection interface.
  *
- * @param connector - NearConnector instance from HOT Connect
+ * @param connector - NearConnector instance from NEAR Connect
  * @returns WalletConnection interface compatible with near-kit
  *
  * @example
  * ```typescript
  * import { Near } from 'near-kit'
  * import { NearConnector } from '@hot-labs/near-connect'
- * import { fromHotConnect } from 'near-kit/wallets'
+ * import { fromNearConnect } from 'near-kit/wallets'
  *
  * const connector = new NearConnector({ network: 'mainnet' })
  *
@@ -261,7 +264,7 @@ export function fromWalletSelector(
  * connector.on('wallet:signIn', async () => {
  *   const near = new Near({
  *     network: 'mainnet',
- *     wallet: fromHotConnect(connector)
+ *     wallet: fromNearConnect(connector)
  *   })
  *
  *   // Use near-kit with the connected wallet
@@ -269,13 +272,13 @@ export function fromWalletSelector(
  * })
  * ```
  */
-export function fromHotConnect(
-  connector: HotConnectConnector,
+export function fromNearConnect(
+  connector: NearConnectConnector,
 ): WalletConnection {
   // Validate that we have a proper connector
   if (!connector || typeof connector.wallet !== "function") {
     throw new Error(
-      "Invalid HOT Connect instance. Make sure @hot-labs/near-connect is installed and you're passing a NearConnector instance.",
+      "Invalid NEAR Connect instance. Make sure @hot-labs/near-connect is installed and you're passing a NearConnector instance.",
     )
   }
 
@@ -292,12 +295,12 @@ export function fromHotConnect(
 
     async signAndSendTransaction(params): Promise<FinalExecutionOutcome> {
       const wallet = await connector.wallet()
-      const hotConnectorActions = params.actions.map(convertActionToHotConnect)
+      const nearConnectActions = params.actions.map(convertActionToNearConnect)
 
       const result = await wallet.signAndSendTransaction({
         ...(params.signerId !== undefined && { signerId: params.signerId }),
         receiverId: params.receiverId,
-        actions: hotConnectorActions,
+        actions: nearConnectActions,
       })
 
       return result as FinalExecutionOutcome
@@ -329,15 +332,15 @@ export function fromHotConnect(
         )
       }
 
-      // Convert each delegate action's near-kit Actions to HOT Connect format
-      const hotDelegateActions = params.delegateActions.map((da) => ({
-        actions: da.actions.map(convertActionToHotConnect),
+      // Convert each delegate action's near-kit Actions to NEAR Connect format
+      const nearConnectDelegateActions = params.delegateActions.map((da) => ({
+        actions: da.actions.map(convertActionToNearConnect),
         receiverId: da.receiverId,
       }))
 
       const response = await wallet.signDelegateActions({
         ...(params.signerId !== undefined && { signerId: params.signerId }),
-        delegateActions: hotDelegateActions,
+        delegateActions: nearConnectDelegateActions,
       })
 
       // Bridge response shape: near-connect returns @near-js/transactions
@@ -365,3 +368,8 @@ export function fromHotConnect(
     },
   }
 }
+
+/**
+ * @deprecated Renamed to {@link fromNearConnect}. This alias will be removed in a future major version.
+ */
+export const fromHotConnect = fromNearConnect
