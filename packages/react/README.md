@@ -321,40 +321,18 @@ const { data: balance } = useSWR(
 
 ## Wallet Integration
 
-### With Wallet Selector
+### With NEAR Connect
 
 ```tsx
-import { setupWalletSelector } from "@near-wallet-selector/core"
-import { fromWalletSelector } from "near-kit"
-
-const selector = await setupWalletSelector({
-  network: "testnet",
-  modules: [/* your wallet modules */],
-})
-const wallet = await selector.wallet()
-
-<NearProvider
-  config={{
-    network: "testnet",
-    wallet: fromWalletSelector(wallet),
-  }}
->
-  <App />
-</NearProvider>
-```
-
-### With HOT Connect
-
-```tsx
-import { setupNearConnect } from "@hot-labs/near-connect"
+import { NearConnector } from "@hot-labs/near-connect"
 import { fromHotConnect } from "near-kit"
 
-const connect = await setupNearConnect({ network: "testnet" })
+const connector = new NearConnector({ network: "testnet" })
 
 <NearProvider
   config={{
     network: "testnet",
-    wallet: fromHotConnect(connect),
+    wallet: fromHotConnect(connector),
   }}
 >
   <App />

@@ -10,7 +10,7 @@ title: "Frontend Integration"
 
 ## 🚀 Live Demo
 
-See `near-kit` running in a real React application using both Wallet Selector and HOT Connector.
+See `near-kit` running in a real React application using NEAR Connect.
 
 - **Live App:** [guestbook.near.tools](https://guestbook.near.tools/)
 - **Source Code:** [github.com/r-near/near-kit-guestbook-demo](https://github.com/r-near/near-kit-guestbook-demo)
@@ -24,53 +24,15 @@ You initialize the `Near` instance with a `wallet` object instead of a private k
 ```typescript
 const near = new Near({
   network: "testnet",
-  wallet: fromWalletSelector(wallet), // <--- The Adapter
+  wallet: fromHotConnect(connector), // <--- The Adapter
 })
 ```
 
 Once initialized, you use `near` exactly as you would in a backend script. When you call `.send()`, the library automatically triggers the wallet's popup for the user to approve the transaction.
 
-## 1. NEAR Wallet Selector
+## NEAR Connect
 
-[`@near-wallet-selector`](https://github.com/near/wallet-selector) is a popular library for connecting to the NEAR ecosystem. It supports MyNearWallet, Meteor, Sender, Here, and many others.
-
-### Setup
-
-```typescript
-import { setupWalletSelector } from "@near-wallet-selector/core"
-import { setupModal } from "@near-wallet-selector/modal-ui"
-import { Near, fromWalletSelector } from "near-kit"
-
-// 1. Initialize Wallet Selector (Standard Setup)
-const selector = await setupWalletSelector({
-  network: "testnet",
-  modules: [
-    /* ... wallet modules ... */
-  ],
-})
-
-const modal = setupModal(selector, { contractId: "guestbook.near" })
-
-// 2. Connect
-if (!selector.isSignedIn()) {
-  modal.show()
-}
-
-// 3. Create the Near Instance
-const wallet = await selector.wallet()
-
-const near = new Near({
-  network: "testnet",
-  wallet: fromWalletSelector(wallet),
-})
-
-// 4. Transact
-await near.send("bob.near", "1 NEAR")
-```
-
-## 2. HOT Connector
-
-[HOT Connector](https://github.com/azbang/hot-connector) is the new standard, and intended to replace NEAR Wallet Selector.
+[NEAR Connect](https://github.com/azbang/near-connect) is the standard wallet connection library for the NEAR ecosystem.
 
 ### Setup
 
@@ -89,7 +51,7 @@ connector.on("wallet:signIn", async (data) => {
     wallet: fromHotConnect(connector),
   })
 
-  console.log("Connected via HOT!")
+  console.log("Connected!")
 })
 
 // Trigger connection
@@ -109,7 +71,8 @@ Here is a simplified pattern from the [Guestbook Demo](https://github.com/r-near
 ```jsx
 // WalletProvider.tsx
 import { createContext, useContext, useEffect, useState } from "react"
-import { Near, fromWalletSelector } from "near-kit"
+import { Near, fromHotConnect } from "near-kit"
+import { NearConnector } from "@hot-labs/near-connect"
 
 const WalletContext = createContext<{ near: Near | null }>(null)
 
@@ -117,17 +80,18 @@ export const WalletProvider = ({ children }) => {
   const [near, setNear] = useState<Near | null>(null)
 
   useEffect(() => {
-    // ... setup selector ...
-    const wallet = await selector.wallet()
+    const connector = new NearConnector({ network: "testnet" })
 
-    if (wallet) {
+    connector.on("wallet:signIn", async () => {
       setNear(
         new Near({
           network: "testnet",
-          wallet: fromWalletSelector(wallet),
+          wallet: fromHotConnect(connector),
         })
       )
-    }
+    })
+
+    connector.connect()
   }, [])
 
   return (
