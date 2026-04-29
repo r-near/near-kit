@@ -31,7 +31,7 @@ describe("Gas", () => {
     })
 
     test("MAX", () => {
-      expect(Gas.MAX).toBe("300 Tgas")
+      expect(Gas.MAX).toBe("1000 Tgas")
     })
   })
 })
@@ -114,7 +114,7 @@ describe("parseGas", () => {
 
     test("parses Gas.MAX", () => {
       const result = parseGas(Gas.MAX)
-      expect(result).toBe("300000000000000")
+      expect(result).toBe("1000000000000000")
     })
   })
 
@@ -326,10 +326,10 @@ describe("precision tests", () => {
   })
 
   test("formatGas handles large gas values without precision loss", () => {
-    // 300 Tgas (max gas) = 300000000000000 raw gas
-    const maxGas = "300000000000000"
+    // 1000 Tgas (max gas) = 1000000000000000 raw gas
+    const maxGas = "1000000000000000"
     const result = formatGas(maxGas)
-    expect(result).toBe("300.00 Tgas")
+    expect(result).toBe("1000.00 Tgas")
   })
 
   test("formatGas handles values close to Number.MAX_SAFE_INTEGER", () => {
