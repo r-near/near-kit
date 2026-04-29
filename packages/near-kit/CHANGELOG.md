@@ -1,5 +1,18 @@
 # near-kit
 
+## 0.13.0
+
+### Minor Changes
+
+- ad3bba1: Rename `fromHotConnect` to `fromNearConnect` and deprecate old name. Deprecate `fromWalletSelector` (NEAR Wallet Selector is deprecated). Internal `HotConnect*` types renamed to `NearConnect*` with deprecated aliases.
+- 8311ffc: Update Gas.MAX from "300 Tgas" to "1 Pgas" ("1000 Tgas") to match nearcore 2.11 protocol change
+
+### Patch Changes
+
+- c084f7f: Update sandbox to nearcore 2.11.0
+- d1dfd2d: Update sandbox to nearcore 2.11.1
+- e25c855: build(deps): bump tar from 7.5.9 to 7.5.11 in the production-dependencies group
+
 ## 0.12.0
 
 ### Minor Changes
