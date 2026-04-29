@@ -134,7 +134,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 export {
   addGuestbookMessage,
   batchTransfer,
-  serverExample,
   browserNearConnect,
+  serverExample,
   universalExample,
 }

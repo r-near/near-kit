@@ -127,6 +127,7 @@ export type {
 // Action type is now defined in schema.ts and derived from Borsh schema
 // Import it first so Transaction can use it
 import type { Action, SignedDelegateAction } from "./schema.js"
+
 export type { Action, SignedDelegateAction }
 
 /**

@@ -129,7 +129,7 @@ const CreateAccountSchema = b.struct({})
  * DeployContract action with WASM code
  */
 const DeployContractSchema = b.struct({
-  code: b.vec(b.u8()),
+  code: b.bytes(),
 })
 
 /**
@@ -138,7 +138,7 @@ const DeployContractSchema = b.struct({
  */
 const FunctionCallSchema = b.struct({
   methodName: b.string(),
-  args: b.vec(b.u8()),
+  args: b.bytes(),
   gas: b.u64(),
   deposit: b.u128(),
 })
@@ -206,7 +206,7 @@ const GlobalContractIdentifierSchema = b.enum({
  * DeployGlobalContract action
  */
 const DeployGlobalContractSchema = b.struct({
-  code: b.vec(b.u8()),
+  code: b.bytes(),
   deployMode: GlobalContractDeployModeSchema,
 })
 
