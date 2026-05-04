@@ -6,9 +6,9 @@
  * typing gap.
  */
 
+import { encodeSignedDelegateAction } from "../../src/core/schema.js"
 import type {
   FinalExecutionOutcome,
-  SignedDelegateAction,
   SignedMessage,
   WalletAccount,
 } from "../../src/core/types.js"
@@ -172,7 +172,7 @@ class MockNearConnectWallet {
 
   manifest = {
     features: {
-      signDelegateAction: true,
+      signDelegateActions: true,
     },
   }
 
@@ -185,7 +185,7 @@ class MockNearConnectWallet {
   }
 
   async getAccounts(): Promise<
-    Array<{ accountId: string; publicKey: string }>
+    Array<{ accountId: string; publicKey?: string }>
   > {
     this.callLog.push({ method: "getAccounts", params: {} })
     return this.accounts
@@ -245,38 +245,31 @@ class MockNearConnectWallet {
   }
 
   async signDelegateActions(params: SignDelegateActionsParams): Promise<{
-    signedDelegateActions: Array<{
-      delegateHash: Uint8Array
-      signedDelegate: SignedDelegateAction
-    }>
+    signedDelegateActions: string[]
   }> {
     this.callLog.push({ method: "signDelegateActions", params })
 
     return {
-      signedDelegateActions: params.delegateActions.map((da) => ({
-        delegateHash: new Uint8Array(32),
-        signedDelegate: {
+      signedDelegateActions: params.delegateActions.map(() =>
+        encodeSignedDelegateAction({
           signedDelegate: {
             delegateAction: {
               senderId:
                 params.signerId || this.accounts[0]?.accountId || "test.near",
-              receiverId: da.receiverId,
-              // biome-ignore lint/suspicious/noExplicitAny: mock delegate action
-              actions: da.actions as any,
+              receiverId: "test.near",
+              actions: [{ transfer: { deposit: 0n } }],
               nonce: 1n,
               maxBlockHeight: 1000n,
               publicKey: {
-                keyType: 0,
-                data: new Uint8Array(32),
+                ed25519Key: { data: new Uint8Array(32) },
               },
             },
             signature: {
-              keyType: 0,
-              data: new Uint8Array(64),
+              ed25519Signature: { data: new Uint8Array(64) },
             },
           },
-        } as unknown as SignedDelegateAction,
-      })),
+        }),
+      ),
     }
   }
 
