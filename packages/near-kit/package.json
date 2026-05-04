@@ -27,6 +27,10 @@
     "./keys/native": {
       "import": "./dist/keys/native-keystore.js",
       "types": "./dist/keys/native-keystore.d.ts"
+    },
+    "./schemas": {
+      "import": "./dist/schemas/index.js",
+      "types": "./dist/schemas/index.d.ts"
     }
   },
   "files": [
