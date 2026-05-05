@@ -13,7 +13,7 @@
     },
     "packages/near-kit": {
       "name": "near-kit",
-      "version": "0.13.1",
+      "version": "0.14.0",
       "dependencies": {
         "@napi-rs/keyring": "^1.3.0",
         "@noble/curves": "^2.2.0",
@@ -48,7 +48,7 @@
     },
     "packages/react": {
       "name": "@near-kit/react",
-      "version": "0.13.1",
+      "version": "0.14.0",
       "dependencies": {
         "near-kit": "workspace:*",
       },
