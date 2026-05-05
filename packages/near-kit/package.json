@@ -75,16 +75,16 @@
     }
   },
   "devDependencies": {
-    "@hot-labs/near-connect": "^0.11.1",
+    "@hot-labs/near-connect": "^0.11.2",
     "@near-js/transactions": "^2.5.1",
     "@near-js/types": "^2.5.1",
     "@near-wallet-selector/core": "^10.1.1",
-    "@types/bun": "^1.3.12",
+    "@types/bun": "^1.3.13",
     "@types/tar": "^7.0.87",
-    "@vitest/coverage-v8": "^4.1.4",
-    "@vitest/ui": "^4.1.4",
+    "@vitest/coverage-v8": "^4.1.5",
+    "@vitest/ui": "^4.1.5",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.4"
+    "vitest": "^4.1.5"
   },
   "dependencies": {
     "@napi-rs/keyring": "^1.2.0",
