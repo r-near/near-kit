@@ -1,6 +1,6 @@
 {
   "name": "@near-kit/react",
-  "version": "0.13.1",
+  "version": "0.14.0",
   "description": "React bindings for near-kit - hooks and providers for NEAR Protocol",
   "type": "module",
   "main": "./dist/index.js",
