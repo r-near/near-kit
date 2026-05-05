@@ -12,12 +12,14 @@
  * for verification.
  */
 
+import { sha256 } from "@noble/hashes/sha2.js"
+import { base64 } from "@scure/base"
+import { decodeSignedDelegateAction } from "../core/schema.js"
 import type {
   Action,
   FinalExecutionOutcome,
   SignDelegateActionsParams,
   SignDelegateActionsResult,
-  SignedDelegateAction,
   SignedMessage,
   WalletConnection,
 } from "../core/types.js"
@@ -289,7 +291,7 @@ export function fromNearConnect(
 
       return accounts.map((acc) => ({
         accountId: acc.accountId,
-        publicKey: acc.publicKey,
+        ...(acc.publicKey !== undefined && { publicKey: acc.publicKey }),
       }))
     },
 
@@ -321,10 +323,7 @@ export function fromNearConnect(
     ): Promise<SignDelegateActionsResult> {
       const wallet = await connector.wallet()
 
-      if (
-        !wallet.signDelegateActions ||
-        wallet.manifest?.features?.signDelegateAction === false
-      ) {
+      if (wallet.manifest.features?.signDelegateActions === false) {
         throw new Error(
           "Connected wallet does not support delegate action signing. " +
             "Make sure you're using a wallet that supports meta-transactions " +
@@ -343,24 +342,14 @@ export function fromNearConnect(
         delegateActions: nearConnectDelegateActions,
       })
 
-      // Bridge response shape: near-connect returns @near-js/transactions
-      // SignedDelegate (flat { delegateAction, signature }) whereas near-kit
-      // uses the borsh-schema wrapper { signedDelegate: { delegateAction, signature } }.
+      // Bridge response: near-connect returns base64-encoded signed delegate
+      // actions as strings. Decode each into near-kit's structured format.
       return {
-        signedDelegateActions: response.signedDelegateActions.map((result) => {
-          const walletSignedDelegate = result.signedDelegate as Record<
-            string,
-            unknown
-          >
-          const signedDelegate =
-            "signedDelegate" in walletSignedDelegate
-              ? (result.signedDelegate as SignedDelegateAction)
-              : ({
-                  signedDelegate: walletSignedDelegate,
-                } as unknown as SignedDelegateAction)
-
+        signedDelegateActions: response.signedDelegateActions.map((encoded) => {
+          const signedDelegate = decodeSignedDelegateAction(encoded)
+          const bytes = base64.decode(encoded)
           return {
-            delegateHash: result.delegateHash,
+            delegateHash: sha256(bytes),
             signedDelegate,
           }
         }),

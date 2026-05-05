@@ -170,75 +170,7 @@ describe("Wallet Delegate Action Signing", () => {
       }
     })
 
-    it("should normalize flat signedDelegate response to wrapped format", async () => {
-      // Simulate a wallet that returns @near-js/transactions flat format:
-      // { delegateAction, signature } instead of { signedDelegate: { delegateAction, signature } }
-      const flatWallet = {
-        manifest: { features: { signDelegateAction: true } },
-        async getAccounts() {
-          return [{ accountId: "test.near", publicKey: "ed25519:abc" }]
-        },
-        async signAndSendTransaction() {
-          // biome-ignore lint/suspicious/noExplicitAny: mock
-          return {} as any
-        },
-        async signMessage() {
-          // biome-ignore lint/suspicious/noExplicitAny: mock
-          return {} as any
-        },
-        async signDelegateActions() {
-          return {
-            signedDelegateActions: [
-              {
-                delegateHash: new Uint8Array(32),
-                // Flat format from @near-js/transactions — no nested signedDelegate key
-                signedDelegate: {
-                  delegateAction: {
-                    senderId: "test.near",
-                    receiverId: "contract.near",
-                    actions: [],
-                    nonce: 1n,
-                    maxBlockHeight: 1000n,
-                    publicKey: {
-                      ed25519Key: { data: Array.from(new Uint8Array(32)) },
-                    },
-                  },
-                  signature: {
-                    ed25519Signature: { data: Array.from(new Uint8Array(64)) },
-                  },
-                },
-              },
-            ],
-          }
-        },
-      }
-
-      const connector = {
-        async wallet() {
-          return flatWallet
-        },
-      }
-
-      // biome-ignore lint/suspicious/noExplicitAny: intentionally flat response to test normalization
-      const adapter = fromNearConnect(connector as any)
-      // biome-ignore lint/style/noNonNullAssertion: adapter always provides signDelegateActions
-      const result = await adapter.signDelegateActions!({
-        delegateActions: [
-          {
-            actions: [actions.transfer(BigInt(1000))],
-            receiverId: "contract.near",
-          },
-        ],
-      })
-
-      // Should wrap flat format into { signedDelegate: { delegateAction, signature } }
-      const signed = result.signedDelegateActions[0]?.signedDelegate
-      expect(signed).toBeDefined()
-      // biome-ignore lint/style/noNonNullAssertion: asserted above
-      expect("signedDelegate" in signed!).toBe(true)
-    })
-
-    it("should pass through already-wrapped signedDelegate format", async () => {
+    it("should decode base64 signed delegate actions from wallet response", async () => {
       const mockConnector = new MockNearConnect([
         { accountId: "test.near", publicKey: "ed25519:abc" },
       ])
@@ -254,15 +186,48 @@ describe("Wallet Delegate Action Signing", () => {
         ],
       })
 
-      // MockNearConnectWallet already returns wrapped format
+      // Adapter should decode base64 strings into structured format
       const signed = result.signedDelegateActions[0]?.signedDelegate
       expect(signed).toBeDefined()
       // biome-ignore lint/style/noNonNullAssertion: asserted above
       expect("signedDelegate" in signed!).toBe(true)
+      expect(result.signedDelegateActions[0]?.delegateHash).toBeInstanceOf(
+        Uint8Array,
+      )
+    })
+
+    it("should handle multiple base64 encoded delegate actions", async () => {
+      const mockConnector = new MockNearConnect([
+        { accountId: "test.near", publicKey: "ed25519:abc" },
+      ])
+
+      const adapter = fromNearConnect(mockConnector)
+      // biome-ignore lint/style/noNonNullAssertion: adapter always provides signDelegateActions
+      const result = await adapter.signDelegateActions!({
+        delegateActions: [
+          {
+            actions: [actions.transfer(BigInt(1000))],
+            receiverId: "bob.near",
+          },
+          {
+            actions: [actions.transfer(BigInt(2000))],
+            receiverId: "carol.near",
+          },
+        ],
+      })
+
+      // Each base64 string should be decoded into a structured result
+      expect(result.signedDelegateActions).toHaveLength(2)
+      for (const item of result.signedDelegateActions) {
+        expect(item.signedDelegate).toBeDefined()
+        expect(item.delegateHash).toBeInstanceOf(Uint8Array)
+        expect("signedDelegate" in item.signedDelegate).toBe(true)
+      }
     })
 
     it("should throw when wallet does not support signDelegateActions", async () => {
       const walletWithout = {
+        manifest: { features: { signDelegateActions: false } },
         async getAccounts() {
           return [{ accountId: "test.near", publicKey: "ed25519:abc" }]
         },
@@ -274,12 +239,12 @@ describe("Wallet Delegate Action Signing", () => {
           // biome-ignore lint/suspicious/noExplicitAny: mock
           return {} as any
         },
-        // No signDelegateActions method
       }
 
       const connector = {
         async wallet() {
-          return walletWithout
+          // biome-ignore lint/suspicious/noExplicitAny: simulating non-compliant wallet at runtime
+          return walletWithout as any
         },
       }
 
@@ -300,7 +265,7 @@ describe("Wallet Delegate Action Signing", () => {
 
     it("should throw when manifest explicitly disables signDelegateActions", async () => {
       const walletDisabled = {
-        manifest: { features: { signDelegateAction: false } },
+        manifest: { features: { signDelegateActions: false } },
         async getAccounts() {
           return [{ accountId: "test.near", publicKey: "ed25519:abc" }]
         },

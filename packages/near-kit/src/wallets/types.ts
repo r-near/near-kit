@@ -7,11 +7,7 @@
  * @internal
  */
 
-import type {
-  FinalExecutionOutcome,
-  SignDelegateActionsResult,
-  SignedMessage,
-} from "../core/types.js"
+import type { FinalExecutionOutcome, SignedMessage } from "../core/types.js"
 
 /**
  * NEAR Connect action types, mirroring `@hot-labs/near-connect`'s
@@ -117,22 +113,23 @@ export type NearConnectSignDelegateActionsParams = {
 
 /**
  * NEAR Connect's response for signDelegateActions (v0.9.0+).
+ * Returns base64-encoded signed delegate actions.
  * @internal
  */
 export type NearConnectSignDelegateActionsResponse = {
-  signedDelegateActions: SignDelegateActionsResult["signedDelegateActions"]
+  signedDelegateActions: string[]
 }
 
 export type NearConnectWallet = {
-  manifest?: {
+  manifest: {
     features?: {
-      signDelegateAction?: boolean
+      signDelegateActions?: boolean
     }
   }
   getAccounts(data?: { network?: string }): Promise<
     Array<{
       accountId: string
-      publicKey: string
+      publicKey?: string
     }>
   >
   signAndSendTransaction(params: {
@@ -147,7 +144,7 @@ export type NearConnectWallet = {
     nonce: Uint8Array
     network?: string
   }): Promise<SignedMessage>
-  signDelegateActions?(
+  signDelegateActions(
     params: NearConnectSignDelegateActionsParams,
   ): Promise<NearConnectSignDelegateActionsResponse>
 }
