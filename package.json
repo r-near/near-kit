@@ -19,6 +19,7 @@
   "devDependencies": {
     "@biomejs/biome": "2.4.14",
     "@changesets/cli": "^2.31.0",
+    "@tanstack/intent": "^0.0.40",
     "lefthook": "^2.1.6",
     "typescript": "^6.0.3"
   }
