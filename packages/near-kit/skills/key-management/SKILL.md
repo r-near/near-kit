@@ -8,6 +8,7 @@ sources:
   - r-near/near-kit:docs/in-depth/key-management.mdx
   - r-near/near-kit:packages/near-kit/src/keys/
 requires: client-setup
+references: references/keys-and-testing.md
 ---
 
 # Key Management
@@ -157,6 +158,63 @@ await near
     allowance: "0.25 NEAR",
   })
   .send()
+```
+
+## Key Utilities
+
+### generateKey()
+
+Create a new random keypair:
+
+```typescript
+import { generateKey } from "near-kit"
+
+const key = generateKey()
+key.publicKey.toString() // "ed25519:..."
+key.secretKey            // "ed25519:..."
+```
+
+### generateSeedPhrase() / parseSeedPhrase()
+
+Generate a BIP39 seed phrase and recover a keypair from it:
+
+```typescript
+import { generateSeedPhrase, parseSeedPhrase } from "near-kit"
+
+const phrase = generateSeedPhrase() // "word1 word2 ... word12"
+const keyPair = parseSeedPhrase(phrase)
+keyPair.publicKey.toString() // "ed25519:..."
+keyPair.secretKey            // "ed25519:..."
+```
+
+`generateSeedPhrase` accepts an optional word count (`12 | 15 | 18 | 21 | 24`, default 12). `parseSeedPhrase` accepts an optional derivation path (default `"m/44'/397'/0'"`).
+
+### Validation helpers
+
+```typescript
+import {
+  isValidAccountId,
+  isPrivateKey,
+  isValidPublicKey,
+  validatePrivateKey,
+} from "near-kit"
+
+isValidAccountId("alice.near")      // true
+isValidAccountId("INVALID")        // false
+isPrivateKey("ed25519:...")        // true
+isValidPublicKey("ed25519:...")    // true
+validatePrivateKey("ed25519:...")  // returns the key string, throws if invalid
+```
+
+### parseKey() for KeyStore.add()
+
+`KeyStore.add()` requires a `KeyPair` object, not a string. Use `parseKey()` to convert:
+
+```typescript
+import { InMemoryKeyStore, parseKey } from "near-kit"
+
+const keyStore = new InMemoryKeyStore()
+await keyStore.add("alice.testnet", parseKey("ed25519:3D4c2v8K5x..."))
 ```
 
 ## Common Mistakes

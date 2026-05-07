@@ -11,7 +11,9 @@ sources:
 requires:
   - client-setup
   - writing-data
-references: references/actions.md
+references:
+  - references/actions.md
+  - references/transactions.md
 ---
 
 # Setup

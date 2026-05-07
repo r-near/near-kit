@@ -8,6 +8,7 @@ sources:
   - r-near/near-kit:docs/dapp-workflow/frontend-integration.mdx
   - r-near/near-kit:packages/near-kit/src/wallets/adapters.ts
 requires: client-setup
+references: references/wallets.md
 ---
 
 # Wallet Integration

@@ -14,6 +14,7 @@ requires:
   - react-provider
   - reading-data
   - writing-data
+references: references/react.md
 ---
 
 This skill builds on near-kit/react-provider and near-kit/reading-data. Read them first for foundational concepts before applying React-specific patterns.
