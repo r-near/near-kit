@@ -1,0 +1,198 @@
+# skills/_artifacts/skill_tree.yaml
+library:
+  name: 'near-kit'
+  version: '0.14.0'
+  repository: 'https://github.com/r-near/near-kit'
+  description: 'A TypeScript SDK for NEAR Protocol that makes blockchain interactions feel like fetch'
+generated_from:
+  domain_map: 'skills/_artifacts/domain_map.yaml'
+  skill_spec: 'skills/_artifacts/skill_spec.md'
+generated_at: '2026-05-06'
+
+skills:
+  - name: 'Client Setup'
+    slug: 'client-setup'
+    type: 'core'
+    domain: 'client-setup'
+    path: 'skills/client-setup/SKILL.md'
+    package: 'packages/near-kit'
+    description: 'Initialize the Near client with network presets, private keys, keystores, wallets, custom signers, or sandbox instances. Covers NearConfig, credential resolution order, and environment-specific patterns.'
+    requires: []
+    sources:
+      - 'r-near/near-kit:docs/start-here/quickstart.mdx'
+      - 'r-near/near-kit:docs/reference/configuration.mdx'
+      - 'r-near/near-kit:packages/near-kit/src/core/near.ts'
+
+  - name: 'Reading Data'
+    slug: 'reading-data'
+    type: 'core'
+    domain: 'data-access'
+    path: 'skills/reading-data/SKILL.md'
+    package: 'packages/near-kit'
+    description: 'Query contract view methods, account balances, access keys, and run parallel reads. Covers near.view<T>, getBalance, getAccount, accountExists, batch, and block references.'
+    requires: ['client-setup']
+    sources:
+      - 'r-near/near-kit:docs/essentials/reading-data.mdx'
+      - 'r-near/near-kit:packages/near-kit/src/core/near.ts'
+
+  - name: 'Writing Data'
+    slug: 'writing-data'
+    type: 'core'
+    domain: 'transactions'
+    path: 'skills/writing-data/SKILL.md'
+    package: 'packages/near-kit'
+    description: 'Send transactions using simple shortcuts — near.send(), near.call() — with CallOptions for gas, deposit, and finality. Covers Amount helper and result inspection.'
+    requires: ['client-setup']
+    sources:
+      - 'r-near/near-kit:docs/essentials/writing-data.mdx'
+      - 'r-near/near-kit:packages/near-kit/src/core/near.ts'
+
+  - name: 'Transaction Builder'
+    slug: 'transaction-builder'
+    type: 'core'
+    domain: 'transactions'
+    path: 'skills/transaction-builder/SKILL.md'
+    package: 'packages/near-kit'
+    description: 'Build complex multi-action atomic transactions using the fluent TransactionBuilder. Covers factory pattern, access key management, global contracts, NEP-616 state init, nonce management, and signWith override.'
+    requires: ['client-setup', 'writing-data']
+    sources:
+      - 'r-near/near-kit:docs/in-depth/advanced-transactions.mdx'
+      - 'r-near/near-kit:docs/reference/actions.mdx'
+      - 'r-near/near-kit:packages/near-kit/src/core/transaction.ts'
+    references:
+      - 'references/actions.md'
+
+  - name: 'Type-Safe Contracts'
+    slug: 'type-safe-contracts'
+    type: 'core'
+    domain: 'contracts'
+    path: 'skills/type-safe-contracts/SKILL.md'
+    package: 'packages/near-kit'
+    description: 'Define TypeScript interfaces for smart contracts using Contract<T> and get full autocomplete, type checking, and inline documentation. Covers view/call namespace separation and CallOptions auto-injection.'
+    requires: ['client-setup', 'reading-data', 'writing-data']
+    sources:
+      - 'r-near/near-kit:docs/essentials/type-safe-contracts.mdx'
+      - 'r-near/near-kit:packages/near-kit/src/contracts/contract.ts'
+
+  - name: 'Key Management'
+    slug: 'key-management'
+    type: 'core'
+    domain: 'key-management'
+    path: 'skills/key-management/SKILL.md'
+    package: 'packages/near-kit'
+    description: 'Choose and configure KeyStore implementations for different environments — InMemoryKeyStore for testing, FileKeyStore for dev, NativeKeyStore for production, RotatingKeyStore for high-throughput concurrency.'
+    requires: ['client-setup']
+    sources:
+      - 'r-near/near-kit:docs/in-depth/key-management.mdx'
+      - 'r-near/near-kit:packages/near-kit/src/keys/in-memory-keystore.ts'
+      - 'r-near/near-kit:packages/near-kit/src/keys/file-keystore.ts'
+      - 'r-near/near-kit:packages/near-kit/src/keys/native-keystore.ts'
+      - 'r-near/near-kit:packages/near-kit/src/keys/rotating-keystore.ts'
+    subsystems:
+      - 'InMemoryKeyStore'
+      - 'FileKeyStore'
+      - 'NativeKeyStore'
+      - 'RotatingKeyStore'
+
+  - name: 'Wallet Integration'
+    slug: 'wallet-integration'
+    type: 'core'
+    domain: 'wallets'
+    path: 'skills/wallet-integration/SKILL.md'
+    package: 'packages/near-kit'
+    description: 'Connect browser wallets to near-kit using adapter functions — fromNearConnect for @hot-labs/near-connect, fromWalletSelector for legacy @near-wallet-selector/core. Covers wallet lifecycle and signer abstraction.'
+    requires: ['client-setup']
+    sources:
+      - 'r-near/near-kit:docs/dapp-workflow/frontend-integration.mdx'
+      - 'r-near/near-kit:packages/near-kit/src/wallets/adapters.ts'
+
+  - name: 'Meta-Transactions'
+    slug: 'meta-transactions'
+    type: 'core'
+    domain: 'authentication'
+    path: 'skills/meta-transactions/SKILL.md'
+    package: 'packages/near-kit'
+    description: 'NEP-366 delegate actions for gasless transactions — user signs off-chain with .delegate(), relayer decodes and submits with .signedDelegateAction(). Covers relayer security checks and payload handling.'
+    requires: ['client-setup', 'transaction-builder']
+    sources:
+      - 'r-near/near-kit:docs/in-depth/meta-transactions.mdx'
+      - 'r-near/near-kit:packages/near-kit/src/core/transaction.ts'
+      - 'r-near/near-kit:packages/near-kit/src/core/schema.ts'
+
+  - name: 'Message Signing'
+    slug: 'message-signing'
+    type: 'core'
+    domain: 'authentication'
+    path: 'skills/message-signing/SKILL.md'
+    package: 'packages/near-kit'
+    description: 'NEP-413 off-chain message signing for gasless authentication — sign messages with near.signMessage(), verify with verifyNep413Signature(), generate nonces, and prevent replay attacks.'
+    requires: ['client-setup']
+    sources:
+      - 'r-near/near-kit:docs/in-depth/message-signing.mdx'
+      - 'r-near/near-kit:packages/near-kit/src/utils/nep413.ts'
+
+  - name: 'Error Handling'
+    slug: 'error-handling'
+    type: 'core'
+    domain: 'errors'
+    path: 'skills/error-handling/SKILL.md'
+    package: 'packages/near-kit'
+    description: 'Catch and handle typed error classes with instanceof checks — FunctionCallError with panic messages, InsufficientBalanceError with amounts, NetworkError with retryable flag, InvalidNonceError with auto-retry.'
+    requires: ['client-setup']
+    sources:
+      - 'r-near/near-kit:docs/in-depth/error-handling.mdx'
+      - 'r-near/near-kit:packages/near-kit/src/errors/index.ts'
+
+  - name: 'Testing with Sandbox'
+    slug: 'testing'
+    type: 'lifecycle'
+    domain: 'testing'
+    path: 'skills/testing/SKILL.md'
+    package: 'packages/near-kit'
+    description: 'Set up and use Sandbox for local integration testing — patch blockchain state, fast-forward blocks, save/restore snapshots, and handle test isolation with unique account names.'
+    requires: ['client-setup']
+    sources:
+      - 'r-near/near-kit:docs/dapp-workflow/testing.mdx'
+      - 'r-near/near-kit:packages/near-kit/src/sandbox/sandbox.ts'
+
+  - name: 'Migration from near-api-js'
+    slug: 'migration'
+    type: 'lifecycle'
+    domain: 'client-setup'
+    path: 'skills/migration/SKILL.md'
+    package: 'packages/near-kit'
+    description: 'Migrate from near-api-js to near-kit — no Account class, string units instead of BigInt, fluent builder instead of config objects, typed errors instead of string matching.'
+    requires: ['client-setup']
+    sources:
+      - 'r-near/near-kit:docs/start-here/migration.mdx'
+
+  - name: 'React Provider'
+    slug: 'react-provider'
+    type: 'framework'
+    domain: 'react'
+    path: 'skills/react-provider/SKILL.md'
+    package: 'packages/react'
+    description: 'Set up NearProvider in React and Next.js apps — configure Near client, handle SSR with "use client", integrate wallet-connected providers, and access the client with useNear().'
+    requires:
+      - 'client-setup'
+      - 'wallet-integration'
+    sources:
+      - 'r-near/near-kit:docs/react/provider.mdx'
+      - 'r-near/near-kit:packages/react/src/provider.tsx'
+
+  - name: 'React Hooks'
+    slug: 'react-hooks'
+    type: 'framework'
+    domain: 'react'
+    path: 'skills/react-hooks/SKILL.md'
+    package: 'packages/react'
+    description: 'Use view, mutation, and account hooks in React components — useView, useCall, useSend, useBalance, useAccount, useContract. Covers React Query and SWR integration for production data-fetching.'
+    requires:
+      - 'react-provider'
+      - 'reading-data'
+      - 'writing-data'
+    sources:
+      - 'r-near/near-kit:docs/react/hooks.mdx'
+      - 'r-near/near-kit:docs/react/data-fetching.mdx'
+      - 'r-near/near-kit:packages/react/src/hooks.tsx'
+      - 'r-near/near-kit:packages/react/src/mutations.tsx'
