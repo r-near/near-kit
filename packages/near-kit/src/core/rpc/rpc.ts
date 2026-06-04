@@ -16,6 +16,7 @@ import type {
   FinalExecutionOutcomeWithReceipts,
   FinalExecutionOutcomeWithReceiptsMap,
   GasPriceResponse,
+  ReceiptToTxResponse,
   StatusResponse,
   ViewFunctionCallResult,
 } from "../types.js"
@@ -34,6 +35,7 @@ import {
   FinalExecutionOutcomeSchema,
   FinalExecutionOutcomeWithReceiptsSchema,
   GasPriceResponseSchema,
+  ReceiptToTxResponseSchema,
   StatusResponseSchema,
   ViewFunctionCallResultSchema,
 } from "./rpc-schemas.js"
@@ -521,6 +523,30 @@ export class RpcClient {
     // Safe cast: TypeScript guarantees W is a valid key, Zod validates the structure,
     // and waitUntil determines which variant we get from the RPC
     return parsed as FinalExecutionOutcomeWithReceiptsMap[W]
+  }
+
+  /**
+   * Map a receipt back to its originating transaction via
+   * `EXPERIMENTAL_receipt_to_tx`.
+   *
+   * @remarks
+   * This is an experimental endpoint and requires nearcore >= 2.12. It looks up
+   * the transaction that produced the given receipt and returns the transaction
+   * hash and sender account ID.
+   *
+   * @param receiptId - Receipt ID (CryptoHash, base58) to look up.
+   *
+   * @returns The originating transaction's hash and sender account ID.
+   *
+   * @throws {UnknownReceiptError} If the receipt is not known to the node.
+   * @throws {NetworkError} If the network request failed.
+   */
+  async receiptToTx(receiptId: string): Promise<ReceiptToTxResponse> {
+    const result = await this.call("EXPERIMENTAL_receipt_to_tx", {
+      receipt_id: receiptId,
+    })
+
+    return ReceiptToTxResponseSchema.parse(result)
   }
 
   /**

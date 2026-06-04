@@ -202,6 +202,17 @@ export const AccessKeyListResponseSchema = z.object({
 })
 
 /**
+ * Receipt-to-transaction response schema (for EXPERIMENTAL_receipt_to_tx)
+ *
+ * Maps a receipt ID back to its originating transaction. Both fields are
+ * required by the RPC (nearcore >= 2.12).
+ */
+export const ReceiptToTxResponseSchema = z.object({
+  transaction_hash: z.string(),
+  sender_account_id: z.string(),
+})
+
+/**
  * RPC error response schema
  * Follows the NEAR RPC error structure with name, cause, code, message, and data
  */
@@ -559,6 +570,7 @@ export type BlockView = z.infer<typeof BlockViewSchema>
 export type StatusResponse = z.infer<typeof StatusResponseSchema>
 export type GasPriceResponse = z.infer<typeof GasPriceResponseSchema>
 export type AccessKeyListResponse = z.infer<typeof AccessKeyListResponseSchema>
+export type ReceiptToTxResponse = z.infer<typeof ReceiptToTxResponseSchema>
 export type RpcErrorResponse = z.infer<typeof RpcErrorResponseSchema>
 
 /**

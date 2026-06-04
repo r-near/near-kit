@@ -242,6 +242,7 @@ import type { FinalExecutionOutcome } from "./rpc/rpc-schemas.js"
  * - StatusResponse: Network status information
  * - GasPriceResponse: Gas price information
  * - AccessKeyListResponse: Access key list from view_access_key_list query
+ * - ReceiptToTxResponse: Originating transaction info from EXPERIMENTAL_receipt_to_tx
  * - RpcErrorResponse: RPC error response structure
  */
 export type {
@@ -253,6 +254,7 @@ export type {
   BlockView,
   ChunkHeaderView,
   GasPriceResponse,
+  ReceiptToTxResponse,
   RpcErrorResponse,
   StatusResponse,
   ViewFunctionCallResult,
