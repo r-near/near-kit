@@ -10,8 +10,6 @@ export { DelegateAction } from "./core/actions.js"
 export { STORAGE_AMOUNT_PER_BYTE } from "./core/constants.js"
 // Main class
 export { Near } from "./core/near.js"
-// Low-level RPC client (advanced use cases / RPC methods not wrapped by Near)
-export { RpcClient } from "./core/rpc/rpc.js"
 export {
   DELEGATE_ACTION_PREFIX,
   type DelegateActionPayloadFormat,

@@ -184,14 +184,10 @@ await near.transaction("alice.near")
 
 ## 7. Mapping a Receipt Back to its Transaction
 
-When you only have a receipt ID (for example, from a cross-contract call), you can find the transaction that originated it using the low-level `RpcClient`. This calls the experimental `EXPERIMENTAL_receipt_to_tx` endpoint and **requires nearcore >= 2.12**.
+When you only have a receipt ID (for example, from a cross-contract call), you can find the transaction that originated it via `near.rpc` — the low-level RPC client exposed for calls not wrapped by `Near`. This calls the experimental `EXPERIMENTAL_receipt_to_tx` endpoint and **requires nearcore >= 2.12**.
 
 ```typescript
-import { RpcClient } from "near-kit"
-
-const rpc = new RpcClient("https://rpc.mainnet.near.org")
-
-const { transaction_hash, sender_account_id } = await rpc.receiptToTx(
+const { transaction_hash, sender_account_id } = await near.rpc.receiptToTx(
   "9ADoP8t3kRkV6JqYy3a6mJZ1uXuJ4Z3o2bF7tQwErTy"
 )
 ```
