@@ -410,6 +410,16 @@ export const ActionSchema = z.union([
 ])
 
 /**
+ * Nonce mode (new in nearcore 2.12)
+ *
+ * Controls how the transaction nonce relates to the access key nonce:
+ * - "monotonic": any nonce strictly greater than the current access key nonce
+ *   is accepted (default behavior)
+ * - "strict": nonce must be exactly `ak_nonce + 1`, enforcing sequential ordering
+ */
+export const NonceModeSchema = z.enum(["monotonic", "strict"])
+
+/**
  * Transaction schema (as returned by RPC)
  */
 export const TransactionSchema = z.object({
@@ -421,6 +431,7 @@ export const TransactionSchema = z.object({
   signature: z.string(),
   hash: z.string(),
   priority_fee: z.number().optional(),
+  nonce_mode: NonceModeSchema.nullable().optional(),
 })
 
 /**
@@ -573,6 +584,7 @@ export type ExecutionOutcomeWithId = z.infer<
   typeof ExecutionOutcomeWithIdSchema
 >
 export type RpcAction = z.infer<typeof ActionSchema>
+export type NonceMode = z.infer<typeof NonceModeSchema>
 export type RpcTransaction = z.infer<typeof TransactionSchema>
 export type FinalExecutionOutcome = z.infer<typeof FinalExecutionOutcomeSchema>
 export type Receipt = z.infer<typeof ReceiptSchema>

@@ -219,6 +219,7 @@ export type {
   FinalExecutionOutcomeWithReceipts,
   FinalExecutionOutcomeWithReceiptsMap,
   MerklePathItem,
+  NonceMode,
   Receipt,
   RpcAction,
   RpcTransaction,
