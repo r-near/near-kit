@@ -32,6 +32,7 @@ export type {
   NearConfig,
   NetworkConfig,
   PublicKey,
+  ReceiptToTxResponse,
   SendOptions,
   Signature,
   SignDelegateActionsParams,

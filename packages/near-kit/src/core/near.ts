@@ -55,7 +55,7 @@ import type {
  * `docs/01-getting-started.md` and `docs/02-core-concepts.md`.
  */
 export class Near {
-  private rpc!: RpcClient
+  private _rpc!: RpcClient
   private keyStore!: KeyStore
   private signer?: Signer
   private wallet?: WalletConnection
@@ -79,6 +79,25 @@ export class Near {
   }
 
   /**
+   * The configured low-level JSON-RPC client.
+   *
+   * Use this as an escape hatch for advanced or low-level RPC calls that are
+   * not wrapped by convenience methods on `Near` — for example
+   * {@link RpcClient.receiptToTx}, {@link RpcClient.getBlock}, or
+   * {@link RpcClient.getGasPrice}. The returned client is already configured
+   * with this instance's network URL, headers, and retry settings.
+   *
+   * @example
+   * ```typescript
+   * const { transaction_hash, sender_account_id } =
+   *   await near.rpc.receiptToTx("9ADoP8t3kRkV6JqYy3a6mJZ1uXuJ4Z3o2bF7tQwErTy")
+   * ```
+   */
+  get rpc(): RpcClient {
+    return this._rpc
+  }
+
+  /**
    * Initialize RPC client from configuration
    * @internal
    */
@@ -87,7 +106,7 @@ export class Near {
   ): void {
     const networkConfig = resolveNetworkConfig(validatedConfig.network)
     const rpcUrl = validatedConfig.rpcUrl || networkConfig.rpcUrl
-    this.rpc = new RpcClient(
+    this._rpc = new RpcClient(
       rpcUrl,
       validatedConfig.headers,
       validatedConfig.retryConfig,
@@ -266,7 +285,7 @@ export class Near {
     args: object | Uint8Array = {},
     options?: BlockReference,
   ): Promise<T | undefined> {
-    const result = await this.rpc.viewFunction(
+    const result = await this._rpc.viewFunction(
       contractId,
       methodName,
       args,
@@ -556,7 +575,7 @@ export class Near {
     accountId: string,
     options?: BlockReference,
   ): Promise<string> {
-    const account = await this.rpc.getAccount(accountId, options)
+    const account = await this._rpc.getAccount(accountId, options)
 
     const available = this.calculateAvailableBalance(
       account.amount,
@@ -598,7 +617,7 @@ export class Near {
     accountId: string,
     options?: BlockReference,
   ): Promise<AccountState> {
-    const account = await this.rpc.getAccount(accountId, options)
+    const account = await this._rpc.getAccount(accountId, options)
 
     const available = this.calculateAvailableBalance(
       account.amount,
@@ -652,7 +671,7 @@ export class Near {
     options?: BlockReference,
   ): Promise<boolean> {
     try {
-      await this.rpc.getAccount(accountId, options)
+      await this._rpc.getAccount(accountId, options)
       return true
     } catch {
       return false
@@ -686,7 +705,7 @@ export class Near {
     options?: BlockReference,
   ): Promise<AccessKeyView | null> {
     try {
-      return await this.rpc.getAccessKey(accountId, publicKey, options)
+      return await this._rpc.getAccessKey(accountId, publicKey, options)
     } catch {
       return null
     }
@@ -716,7 +735,7 @@ export class Near {
     accountId: string,
     options?: BlockReference,
   ): Promise<AccessKeyListResponse> {
-    return this.rpc.getAccessKeys(accountId, options)
+    return this._rpc.getAccessKeys(accountId, options)
   }
 
   /**
@@ -772,7 +791,7 @@ export class Near {
       ? FinalExecutionOutcomeWithReceiptsMap[W]
       : never
   > {
-    return this.rpc.getTransactionStatus(
+    return this._rpc.getTransactionStatus(
       txHash,
       senderAccountId,
       waitUntil,
@@ -789,7 +808,7 @@ export class Near {
    * @returns The full network status response from the RPC.
    */
   async getStatus(): Promise<StatusResponse> {
-    return this.rpc.getStatus()
+    return this._rpc.getStatus()
   }
 
   /**
@@ -840,7 +859,7 @@ export class Near {
   transaction(signerId: string): TransactionBuilder {
     return new TransactionBuilder(
       signerId,
-      this.rpc,
+      this._rpc,
       this.keyStore,
       this.signer,
       this.defaultWaitUntil,
