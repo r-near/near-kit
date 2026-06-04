@@ -14,7 +14,8 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "skills"
   ],
   "scripts": {
     "build": "tsc",
@@ -30,7 +31,8 @@
     "blockchain",
     "react",
     "hooks",
-    "web3"
+    "web3",
+    "tanstack-intent"
   ],
   "license": "MIT",
   "repository": {
@@ -46,6 +48,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.14",
+    "@tanstack/intent": "^0.0.40",
     "@testing-library/react": "^16.2.0",
     "@types/react": "^19.2.14",
     "jsdom": "^29.1.1",
