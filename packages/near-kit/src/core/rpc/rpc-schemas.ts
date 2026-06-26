@@ -321,12 +321,51 @@ export const GasProfileEntrySchema = z
   .catchall(z.any())
 
 /**
- * Execution metadata
+ * The contract attached to a receiver account immediately before an action ran,
+ * as reported per-action by ExecutionMetadata V4.
+ *
+ * Externally tagged by contract kind:
+ * - `{ local }` - a contract deployed directly on the account (code hash)
+ * - `{ global_hash }` - a global contract referenced by its code hash
+ * - `{ global_account_id }` - a global contract referenced by the account that published it
+ *
+ * A `null` entry means the account had no contract (e.g. no code, or it did not
+ * yet exist) for that action.
  */
-export const ExecutionMetadataSchema = z.object({
-  version: z.number(),
+export const AccountContractSchema = z.union([
+  z.object({ local: z.string() }),
+  z.object({ global_hash: z.string() }),
+  z.object({ global_account_id: z.string() }),
+])
+
+const ExecutionMetadataBaseSchema = z.object({
   gas_profile: z.array(GasProfileEntrySchema).nullable().optional(),
 })
+
+/**
+ * Execution metadata, discriminated by `version`.
+ *
+ * V1-V3 carry only the gas profile. V4 (nearcore 2.13+) additionally exposes
+ * `contracts`: one entry per action in the receipt, recording the contract
+ * attached to the receiver account immediately before that action ran (or
+ * `null` when none). Unknown future versions fall back to the base shape so
+ * parsing never throws on a newer node.
+ */
+export const ExecutionMetadataSchema = z.union([
+  // V4: typed per-action contracts.
+  ExecutionMetadataBaseSchema.extend({
+    version: z.literal(4),
+    contracts: z.array(AccountContractSchema.nullable()).nullable().optional(),
+  }),
+  // V1-V3: gas profile only, no contracts field.
+  ExecutionMetadataBaseSchema.extend({
+    version: z.union([z.literal(1), z.literal(2), z.literal(3)]),
+  }),
+  // Forward-compatible fallback for any other version.
+  ExecutionMetadataBaseSchema.extend({
+    version: z.number(),
+  }),
+])
 
 /**
  * Execution outcome
@@ -642,6 +681,7 @@ export type RpcErrorResponse = z.infer<typeof RpcErrorResponseSchema>
 export type TxExecutionStatus = z.infer<typeof TxExecutionStatusSchema>
 export type ExecutionStatus = z.infer<typeof ExecutionStatusSchema>
 export type ExecutionMetadata = z.infer<typeof ExecutionMetadataSchema>
+export type AccountContract = z.infer<typeof AccountContractSchema>
 export type ExecutionOutcome = z.infer<typeof ExecutionOutcomeSchema>
 export type MerklePathItem = z.infer<typeof MerklePathItemSchema>
 export type ExecutionOutcomeWithId = z.infer<

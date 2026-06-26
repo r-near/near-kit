@@ -212,6 +212,7 @@ export interface SignedTransaction {
  * @see {@link https://docs.near.org/api/rpc/transactions NEAR RPC Transaction Documentation}
  */
 export type {
+  AccountContract,
   ExecutionMetadata,
   ExecutionOutcome,
   ExecutionOutcomeWithId,
