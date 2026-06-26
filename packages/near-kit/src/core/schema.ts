@@ -13,6 +13,8 @@ import type { DelegateAction } from "./actions.js"
 import type {
   Ed25519PublicKey,
   Ed25519Signature,
+  MlDsa65PublicKey,
+  MlDsa65Signature,
   PublicKey,
   Secp256k1PublicKey,
   Secp256k1Signature,
@@ -20,6 +22,7 @@ import type {
   SignedTransaction,
   Transaction,
 } from "./types.js"
+import { KeyType } from "./types.js"
 
 // ==================== NEP-461 Prefix ====================
 
@@ -50,11 +53,19 @@ const Secp256k1KeySchema = b.struct({
 })
 
 /**
- * PublicKey enum (0 = Ed25519, 1 = Secp256k1)
+ * ML-DSA-65 (FIPS 204) public key data (1952 bytes)
+ */
+const MlDsa65KeySchema = b.struct({
+  data: b.array(b.u8(), 1952),
+})
+
+/**
+ * PublicKey enum (0 = Ed25519, 1 = Secp256k1, 2 = ML-DSA-65)
  */
 export const PublicKeySchema = b.enum({
   ed25519Key: Ed25519KeySchema,
   secp256k1Key: Secp256k1KeySchema,
+  mlDsa65Key: MlDsa65KeySchema,
 })
 
 // ==================== Signature ====================
@@ -74,11 +85,19 @@ const Secp256k1SignatureSchema = b.struct({
 })
 
 /**
- * Signature enum (0 = Ed25519, 1 = Secp256k1)
+ * ML-DSA-65 (FIPS 204) signature data (3309 bytes)
+ */
+const MlDsa65SignatureSchema = b.struct({
+  data: b.array(b.u8(), 3309),
+})
+
+/**
+ * Signature enum (0 = Ed25519, 1 = Secp256k1, 2 = ML-DSA-65)
  */
 export const SignatureSchema = b.enum({
   ed25519Signature: Ed25519SignatureSchema,
   secp256k1Signature: Secp256k1SignatureSchema,
+  mlDsa65Signature: MlDsa65SignatureSchema,
 })
 
 // ==================== Access Key Permissions ====================
@@ -418,16 +437,23 @@ export function publicKeyToZorsh(pk: Ed25519PublicKey): {
 export function publicKeyToZorsh(pk: Secp256k1PublicKey): {
   secp256k1Key: { data: number[] }
 }
+export function publicKeyToZorsh(pk: MlDsa65PublicKey): {
+  mlDsa65Key: { data: number[] }
+}
 export function publicKeyToZorsh(
   pk: PublicKey,
-): { ed25519Key: { data: number[] } } | { secp256k1Key: { data: number[] } }
+):
+  | { ed25519Key: { data: number[] } }
+  | { secp256k1Key: { data: number[] } }
+  | { mlDsa65Key: { data: number[] } }
 export function publicKeyToZorsh(pk: PublicKey) {
-  if (pk.keyType === 0) {
-    // Ed25519
-    return { ed25519Key: { data: Array.from(pk.data) } }
-  } else {
-    // Secp256k1
-    return { secp256k1Key: { data: Array.from(pk.data) } }
+  switch (pk.keyType) {
+    case KeyType.ED25519:
+      return { ed25519Key: { data: Array.from(pk.data) } }
+    case KeyType.SECP256K1:
+      return { secp256k1Key: { data: Array.from(pk.data) } }
+    case KeyType.ML_DSA_65:
+      return { mlDsa65Key: { data: Array.from(pk.data) } }
   }
 }
 
@@ -442,18 +468,23 @@ export function signatureToZorsh(sig: Ed25519Signature): {
 export function signatureToZorsh(sig: Secp256k1Signature): {
   secp256k1Signature: { data: number[] }
 }
+export function signatureToZorsh(sig: MlDsa65Signature): {
+  mlDsa65Signature: { data: number[] }
+}
 export function signatureToZorsh(
   sig: Signature,
 ):
   | { ed25519Signature: { data: number[] } }
   | { secp256k1Signature: { data: number[] } }
+  | { mlDsa65Signature: { data: number[] } }
 export function signatureToZorsh(sig: Signature) {
-  if (sig.keyType === 0) {
-    // Ed25519
-    return { ed25519Signature: { data: Array.from(sig.data) } }
-  } else {
-    // Secp256k1
-    return { secp256k1Signature: { data: Array.from(sig.data) } }
+  switch (sig.keyType) {
+    case KeyType.ED25519:
+      return { ed25519Signature: { data: Array.from(sig.data) } }
+    case KeyType.SECP256K1:
+      return { secp256k1Signature: { data: Array.from(sig.data) } }
+    case KeyType.ML_DSA_65:
+      return { mlDsa65Signature: { data: Array.from(sig.data) } }
   }
 }
 
