@@ -9,8 +9,11 @@ import { Near } from "../../src/core/near.js"
 import { EMPTY_CODE_HASH, Sandbox } from "../../src/sandbox/sandbox.js"
 
 // view_state `limit`/`after_key_base64` pagination was added in nearcore 2.13
-// (protocol v85). Older nodes ignore `limit` and return every entry, so the
-// pagination assertions only run against a 2.13.x sandbox.
+// (protocol v85). Older nodes ignore `limit` and return every entry, so this
+// test pins a 2.13.x sandbox so the pagination assertions actually run rather
+// than relying on the (separately bumped) default version. The protocol guard
+// below stays as a safety net (e.g. an older NEAR_SANDBOX_BIN_PATH override).
+const VIEW_STATE_SANDBOX_VERSION = "2.13.0-rc.2"
 const VIEW_STATE_PAGINATION_PROTOCOL_VERSION = 85
 
 describe("view_state + stabilized RPC - Integration Tests", () => {
@@ -20,7 +23,7 @@ describe("view_state + stabilized RPC - Integration Tests", () => {
   let protocolVersion = 0
 
   beforeAll(async () => {
-    sandbox = await Sandbox.start()
+    sandbox = await Sandbox.start({ version: VIEW_STATE_SANDBOX_VERSION })
     near = new Near({
       network: sandbox,
       keyStore: { [sandbox.rootAccount.id]: sandbox.rootAccount.secretKey },
