@@ -69,4 +69,31 @@ describe("ExecutionMetadataSchema", () => {
     })
     expect(parsed.version).toBe(5)
   })
+
+  test("rejects a malformed V4 instead of silently falling through", () => {
+    // A V4 with a bad `contracts` entry must fail loudly, not get accepted by
+    // the forward-compat fallback (which would strip `contracts`).
+    expect(() =>
+      ExecutionMetadataSchema.parse({
+        version: 4,
+        gas_profile: [],
+        contracts: [{ bogus_variant: "x" }],
+      }),
+    ).toThrow()
+  })
+
+  test("a V4 result narrows to the typed branch (contracts is available)", () => {
+    const parsed = ExecutionMetadataSchema.parse({
+      version: 4,
+      gas_profile: [],
+      contracts: [{ local: "11111111111111111111111111111111" }],
+    })
+    if (parsed.version === 4) {
+      expect(parsed.contracts?.[0]).toEqual({
+        local: "11111111111111111111111111111111",
+      })
+    } else {
+      throw new Error("expected version 4 to narrow to the V4 branch")
+    }
+  })
 })

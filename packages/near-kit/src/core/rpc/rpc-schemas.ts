@@ -351,6 +351,8 @@ const ExecutionMetadataBaseSchema = z.object({
  * `null` when none). Unknown future versions fall back to the base shape so
  * parsing never throws on a newer node.
  */
+const KNOWN_METADATA_VERSIONS = new Set([1, 2, 3, 4])
+
 export const ExecutionMetadataSchema = z.union([
   // V4: typed per-action contracts.
   ExecutionMetadataBaseSchema.extend({
@@ -361,9 +363,15 @@ export const ExecutionMetadataSchema = z.union([
   ExecutionMetadataBaseSchema.extend({
     version: z.union([z.literal(1), z.literal(2), z.literal(3)]),
   }),
-  // Forward-compatible fallback for any other version.
+  // Forward-compatible fallback for any *unknown* future version only.
+  // Known versions are excluded so a malformed known-version payload (e.g. a V4
+  // with a bad `contracts` array) fails validation loudly here instead of being
+  // silently accepted and stripped — and so `version === 4` reliably narrows to
+  // the typed V4 branch above.
   ExecutionMetadataBaseSchema.extend({
-    version: z.number(),
+    version: z.number().refine((v) => !KNOWN_METADATA_VERSIONS.has(v), {
+      message: "expected a typed metadata version branch",
+    }),
   }),
 ])
 
