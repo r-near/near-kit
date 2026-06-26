@@ -17,13 +17,46 @@ export const FunctionCallPermissionDetailsSchema = z.object({
 })
 
 /**
- * Access key permission schema
- * Either "FullAccess" string or object with FunctionCall details
+ * Gas-key function-call permission details (nearcore 2.13).
+ *
+ * A `FunctionCall` permission that is also funded as a gas key: `balance`
+ * (yoctoNEAR string) and `num_nonces` (number of parallel nonce slots) sit
+ * alongside the usual function-call fields.
+ */
+export const GasKeyFunctionCallPermissionDetailsSchema = z.object({
+  balance: z.string(),
+  num_nonces: z.number(),
+  receiver_id: z.string(),
+  method_names: z.array(z.string()),
+  allowance: z.string().nullable().optional(),
+})
+
+/**
+ * Gas-key full-access permission details (nearcore 2.13): a funded full-access
+ * key with `balance` (yoctoNEAR string) and `num_nonces` parallel nonce slots.
+ */
+export const GasKeyFullAccessPermissionDetailsSchema = z.object({
+  balance: z.string(),
+  num_nonces: z.number(),
+})
+
+/**
+ * Access key permission schema.
+ *
+ * `"FullAccess"` (string) or one of the object variants: `FunctionCall`, or the
+ * gas-key variants added in nearcore 2.13 (`GasKeyFunctionCall` /
+ * `GasKeyFullAccess`).
  */
 export const AccessKeyPermissionSchema = z.union([
   z.literal("FullAccess"),
   z.object({
     FunctionCall: FunctionCallPermissionDetailsSchema,
+  }),
+  z.object({
+    GasKeyFunctionCall: GasKeyFunctionCallPermissionDetailsSchema,
+  }),
+  z.object({
+    GasKeyFullAccess: GasKeyFullAccessPermissionDetailsSchema,
   }),
 ])
 
@@ -418,6 +451,19 @@ export const ActionSchema = z.union([
       deposit: z.string(), // yoctoNEAR as string
     }),
   }),
+  z.object({
+    // Gas-key actions (nearcore 2.13)
+    TransferToGasKey: z.object({
+      public_key: z.string(),
+      deposit: z.string(), // yoctoNEAR as string
+    }),
+  }),
+  z.object({
+    WithdrawFromGasKey: z.object({
+      public_key: z.string(),
+      amount: z.string(), // yoctoNEAR as string
+    }),
+  }),
 ])
 
 /**
@@ -567,6 +613,12 @@ export const FinalExecutionOutcomeWithReceiptsSchema = z.intersection(
  */
 export type FunctionCallPermissionDetails = z.infer<
   typeof FunctionCallPermissionDetailsSchema
+>
+export type GasKeyFunctionCallPermissionDetails = z.infer<
+  typeof GasKeyFunctionCallPermissionDetailsSchema
+>
+export type GasKeyFullAccessPermissionDetails = z.infer<
+  typeof GasKeyFullAccessPermissionDetailsSchema
 >
 export type AccessKeyPermission = z.infer<typeof AccessKeyPermissionSchema>
 export type ViewFunctionCallResult = z.infer<
