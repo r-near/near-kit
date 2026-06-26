@@ -9,6 +9,7 @@ import type {
   AccessKeyListResponse,
   AccessKeyView,
   AccountView,
+  BlockEffectsResponse,
   BlockView,
   ExecutionOutcomeWithId,
   FinalExecutionOutcome,
@@ -16,9 +17,13 @@ import type {
   FinalExecutionOutcomeWithReceipts,
   FinalExecutionOutcomeWithReceiptsMap,
   GasPriceResponse,
+  GenesisConfigResponse,
+  MaintenanceWindowsResponse,
   ReceiptToTxResponse,
+  StateItem,
   StatusResponse,
   ViewFunctionCallResult,
+  ViewStateResult,
 } from "../types.js"
 import {
   checkOutcomeForFunctionCallError,
@@ -31,13 +36,17 @@ import {
   AccessKeyListResponseSchema,
   AccessKeyViewSchema,
   AccountViewSchema,
+  BlockEffectsResponseSchema,
   BlockViewSchema,
   FinalExecutionOutcomeSchema,
   FinalExecutionOutcomeWithReceiptsSchema,
   GasPriceResponseSchema,
+  GenesisConfigResponseSchema,
+  MaintenanceWindowsResponseSchema,
   ReceiptToTxResponseSchema,
   StatusResponseSchema,
   ViewFunctionCallResultSchema,
+  ViewStateResultSchema,
 } from "./rpc-schemas.js"
 
 export interface RpcRequest {
@@ -599,4 +608,176 @@ export class RpcClient {
     const result = await this.call("gas_price", [blockId])
     return GasPriceResponseSchema.parse(result)
   }
+
+  /**
+   * Read a single page of contract state via `view_state`.
+   *
+   * Returns key/value entries (base64-encoded) whose keys start with `prefix`.
+   * When the result has a `last_key`, more entries remain: pass it as
+   * `options.afterKey` to fetch the next page, or use {@link viewStateAll} to
+   * iterate every page automatically.
+   *
+   * @param accountId - Account whose contract state to read.
+   * @param options - Optional pagination and block reference.
+   * @param options.prefix - Base64 key prefix to filter by (default: all keys).
+   * @param options.afterKey - Base64 continuation cursor from a prior `last_key`.
+   * @param options.limit - Maximum number of entries to return.
+   * @param options.includeProof - Request Merkle inclusion proofs.
+   *
+   * @example
+   * ```typescript
+   * const page = await rpc.viewState("contract.near", { limit: 100 })
+   * for (const { key, value } of page.values) { ... }
+   * if (page.last_key) {
+   *   const next = await rpc.viewState("contract.near", { afterKey: page.last_key })
+   * }
+   * ```
+   */
+  async viewState(
+    accountId: string,
+    options?: BlockReference & {
+      prefix?: string
+      afterKey?: string
+      limit?: number
+      includeProof?: boolean
+    },
+  ): Promise<ViewStateResult> {
+    const result = await this.call("query", {
+      request_type: "view_state",
+      ...(options?.blockId
+        ? { block_id: options.blockId }
+        : { finality: options?.finality || "optimistic" }),
+      account_id: accountId,
+      prefix_base64: options?.prefix ?? "",
+      ...(options?.afterKey ? { after_key_base64: options.afterKey } : {}),
+      ...(options?.limit !== undefined ? { limit: options.limit } : {}),
+      ...(options?.includeProof ? { include_proof: true } : {}),
+    })
+
+    parseQueryError(result, { accountId })
+
+    return ViewStateResultSchema.parse(result)
+  }
+
+  /**
+   * Iterate all contract state entries via `view_state`, following the
+   * `last_key` cursor across pages until exhausted.
+   *
+   * Yields one {@link StateItem} at a time so large state can be streamed
+   * without buffering it all in memory.
+   *
+   * @param accountId - Account whose contract state to read.
+   * @param options - Optional `prefix`, per-request `limit`, and block reference.
+   *
+   * @example
+   * ```typescript
+   * for await (const { key, value } of rpc.viewStateAll("contract.near", { limit: 100 })) {
+   *   // process each entry
+   * }
+   * ```
+   */
+  async *viewStateAll(
+    accountId: string,
+    options?: BlockReference & { prefix?: string; limit?: number },
+  ): AsyncGenerator<StateItem> {
+    let afterKey: string | undefined
+    do {
+      const page = await this.viewState(accountId, {
+        ...options,
+        ...(afterKey ? { afterKey } : {}),
+      })
+      yield* page.values
+      afterKey = page.last_key
+    } while (afterKey !== undefined)
+  }
+
+  /**
+   * Get the kinds of state changes in a block via `block_effects`
+   * (stabilized in nearcore 2.13; falls back to the `EXPERIMENTAL_changes_in_block`
+   * alias on older nodes).
+   *
+   * @param options - Block reference. Defaults to the latest final block.
+   */
+  async blockEffects(options?: BlockReference): Promise<BlockEffectsResponse> {
+    const params = options?.blockId
+      ? { block_id: options.blockId }
+      : { finality: options?.finality || "final" }
+
+    const result = await this.callWithExperimentalFallback(
+      "block_effects",
+      "EXPERIMENTAL_changes_in_block",
+      params,
+    )
+    return BlockEffectsResponseSchema.parse(result)
+  }
+
+  /**
+   * Get the network genesis configuration via `genesis_config` (stabilized in
+   * nearcore 2.13; falls back to the `EXPERIMENTAL_genesis_config` alias on
+   * older nodes).
+   */
+  async genesisConfig(): Promise<GenesisConfigResponse> {
+    const result = await this.callWithExperimentalFallback(
+      "genesis_config",
+      "EXPERIMENTAL_genesis_config",
+      null,
+    )
+    return GenesisConfigResponseSchema.parse(result)
+  }
+
+  /**
+   * Get the upcoming maintenance windows (half-open block-height ranges) for a
+   * validator account via `maintenance_windows` (stabilized in nearcore 2.13;
+   * falls back to the `EXPERIMENTAL_maintenance_windows` alias on older nodes).
+   *
+   * @param accountId - Validator account ID.
+   */
+  async maintenanceWindows(
+    accountId: string,
+  ): Promise<MaintenanceWindowsResponse> {
+    const result = await this.callWithExperimentalFallback(
+      "maintenance_windows",
+      "EXPERIMENTAL_maintenance_windows",
+      { account_id: accountId },
+    )
+    return MaintenanceWindowsResponseSchema.parse(result)
+  }
+
+  /**
+   * Call a method that was stabilized (renamed without the `EXPERIMENTAL_`
+   * prefix) in a recent protocol version, retrying with the legacy
+   * `EXPERIMENTAL_` alias if the node does not recognize the new name.
+   * @internal
+   */
+  private async callWithExperimentalFallback<T = unknown>(
+    method: string,
+    experimentalMethod: string,
+    params: unknown,
+  ): Promise<T> {
+    try {
+      return await this.call<T>(method, params)
+    } catch (error) {
+      if (isMethodNotFound(error)) {
+        return await this.call<T>(experimentalMethod, params)
+      }
+      throw error
+    }
+  }
+}
+
+/**
+ * Whether an error indicates the RPC method name is not recognized by the node
+ * (JSON-RPC -32601 "Method not found"), so a legacy alias should be tried.
+ *
+ * `parseRpcError` surfaces an unknown method as a `NetworkError` whose message
+ * carries the `METHOD_NOT_FOUND` cause and whose `statusCode` holds the
+ * JSON-RPC error code (-32601).
+ * @internal
+ */
+function isMethodNotFound(error: unknown): boolean {
+  if (error instanceof NetworkError && error.statusCode === -32601) {
+    return true
+  }
+  const message = error instanceof Error ? error.message : String(error)
+  return /method[\s_]not[\s_]found|-32601/i.test(message)
 }

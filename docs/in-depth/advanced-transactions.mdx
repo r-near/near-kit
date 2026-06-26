@@ -193,3 +193,35 @@ const { transaction_hash, sender_account_id } = await near.rpc.receiptToTx(
 ```
 
 It throws an `UnknownReceiptError` if the node doesn't know the receipt.
+
+## 8. Reading Raw Contract State
+
+`near.viewState()` reads a contract's raw key/value storage (base64-encoded). Pass a `prefix` to filter and `limit` to page; the response's `last_key` is the cursor for the next page (absent on the last page). Pagination requires **nearcore >= 2.13**.
+
+```typescript
+// One page
+const page = await near.viewState("contract.near", { limit: 100 })
+for (const { key, value } of page.values) {
+  // key/value are base64 strings
+}
+
+// Iterate everything, following the cursor across pages
+for await (const { key, value } of near.viewStateAll("contract.near", { limit: 100 })) {
+  // ...
+}
+```
+
+## 9. Stabilized RPC Methods (nearcore 2.13)
+
+Several `EXPERIMENTAL_` endpoints were stabilized in nearcore 2.13. `near.rpc` exposes the stable names and falls back to the `EXPERIMENTAL_` alias automatically on older nodes.
+
+```typescript
+// State-change kinds in a block (was EXPERIMENTAL_changes_in_block)
+const effects = await near.rpc.blockEffects({ finality: "final" })
+
+// Network genesis config (was EXPERIMENTAL_genesis_config)
+const genesis = await near.rpc.genesisConfig()
+
+// A validator's upcoming maintenance windows (block-height ranges)
+const windows = await near.rpc.maintenanceWindows("validator.near")
+```
