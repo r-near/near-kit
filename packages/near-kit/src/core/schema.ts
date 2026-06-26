@@ -93,17 +93,53 @@ const FunctionCallPermissionSchema = b.struct({
 })
 
 /**
+ * FunctionCallPermission type inferred from the Borsh schema.
+ */
+export type FunctionCallPermissionBorsh = b.infer<
+  typeof FunctionCallPermissionSchema
+>
+
+/**
  * Full access permission (empty struct)
  */
 const FullAccessPermissionSchema = b.struct({})
 
 /**
- * AccessKeyPermission enum (0 = FunctionCall, 1 = FullAccess)
+ * Gas key information (protocol v85 / NEAR 2.13).
+ *
+ * Gas keys are access keys with a prepaid balance used to pay for gas. A single
+ * gas key allocates `numNonces` independent nonce slots so it can sign multiple
+ * transactions in parallel.
+ *
+ * Field order matches nearcore `GasKeyInfo { balance: u128, num_nonces: u16 }`.
  */
-const AccessKeyPermissionSchema = b.enum({
+const GasKeyInfoSchema = b.struct({
+  balance: b.u128(),
+  numNonces: b.u16(),
+})
+
+/**
+ * AccessKeyPermission enum.
+ *
+ * Variant order is the Borsh discriminant and MUST match nearcore:
+ * 0 = FunctionCall, 1 = FullAccess, 2 = GasKeyFunctionCall, 3 = GasKeyFullAccess.
+ */
+export const AccessKeyPermissionSchema = b.enum({
   functionCall: FunctionCallPermissionSchema,
   fullAccess: FullAccessPermissionSchema,
+  gasKeyFunctionCall: b.struct({
+    gasKeyInfo: GasKeyInfoSchema,
+    functionCall: FunctionCallPermissionSchema,
+  }),
+  gasKeyFullAccess: b.struct({
+    gasKeyInfo: GasKeyInfoSchema,
+  }),
 })
+
+/**
+ * GasKeyInfo type inferred from the Borsh schema.
+ */
+export type GasKeyInfoBorsh = b.infer<typeof GasKeyInfoSchema>
 
 /**
  * AccessKeyPermission type inferred from schema
@@ -178,6 +214,31 @@ const DeleteKeySchema = b.struct({
  */
 const DeleteAccountSchema = b.struct({
   beneficiaryId: b.string(),
+})
+
+// ==================== Gas Key Actions ====================
+
+/**
+ * TransferToGasKey action (protocol v85 / NEAR 2.13).
+ *
+ * Funds a gas key's prepaid balance. Mirrors nearcore
+ * `TransferToGasKeyAction { public_key: PublicKey, deposit: u128 }`.
+ */
+const TransferToGasKeySchema = b.struct({
+  publicKey: PublicKeySchema,
+  deposit: b.u128(),
+})
+
+/**
+ * WithdrawFromGasKey action (protocol v85 / NEAR 2.13).
+ *
+ * Withdraws NEAR from a gas key's balance back to the account. Mirrors nearcore
+ * `WithdrawFromGasKeyAction { public_key: PublicKey, amount: u128 }`. Note the
+ * second field is `amount`, not `deposit`.
+ */
+const WithdrawFromGasKeySchema = b.struct({
+  publicKey: PublicKeySchema,
+  amount: b.u128(),
 })
 
 // ==================== Global Contract Actions ====================
@@ -308,6 +369,8 @@ const SignedDelegateSchema = b.struct({
  * 9 = DeployGlobalContract
  * 10 = UseGlobalContract
  * 11 = DeterministicStateInit (NEP-616)
+ * 12 = TransferToGasKey (protocol v85 / NEAR 2.13)
+ * 13 = WithdrawFromGasKey (protocol v85 / NEAR 2.13)
  */
 export const ActionSchema = b.enum({
   createAccount: CreateAccountSchema,
@@ -322,6 +385,8 @@ export const ActionSchema = b.enum({
   deployGlobalContract: DeployGlobalContractSchema,
   useGlobalContract: UseGlobalContractSchema,
   deterministicStateInit: DeterministicStateInitSchema,
+  transferToGasKey: TransferToGasKeySchema,
+  withdrawFromGasKey: WithdrawFromGasKeySchema,
 })
 
 /**
@@ -358,6 +423,12 @@ export type SignedDelegateAction = {
 }
 export type DeterministicStateInitAction = {
   deterministicStateInit: b.infer<typeof DeterministicStateInitSchema>
+}
+export type TransferToGasKeyAction = {
+  transferToGasKey: b.infer<typeof TransferToGasKeySchema>
+}
+export type WithdrawFromGasKeyAction = {
+  withdrawFromGasKey: b.infer<typeof WithdrawFromGasKeySchema>
 }
 
 // Export StateInit types for NEP-616

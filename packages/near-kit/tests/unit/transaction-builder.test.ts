@@ -510,6 +510,86 @@ describe("TransactionBuilder - Edge Cases", () => {
   })
 })
 
+describe("TransactionBuilder - Gas Keys (NEAR 2.13)", () => {
+  test("should chain transferToGasKey action and default receiver to signer", () => {
+    const builder = createBuilder().transferToGasKey(
+      TEST_PUBLIC_KEY,
+      Amount.NEAR(1),
+    )
+
+    // @ts-expect-error - accessing private field for testing
+    expect(builder.actions.length).toBe(1)
+    // @ts-expect-error - accessing private field for testing
+    expect(builder.actions[0].transferToGasKey).toBeDefined()
+    // @ts-expect-error - accessing private field for testing
+    expect(builder.actions[0].transferToGasKey.deposit).toBe(
+      1000000000000000000000000n,
+    )
+    // @ts-expect-error - accessing private field for testing
+    expect(builder.receiverId).toBe("alice.near")
+  })
+
+  test("should chain withdrawFromGasKey action", () => {
+    const builder = createBuilder().withdrawFromGasKey(
+      TEST_PUBLIC_KEY,
+      "2 NEAR",
+    )
+
+    // @ts-expect-error - accessing private field for testing
+    expect(builder.actions.length).toBe(1)
+    // @ts-expect-error - accessing private field for testing
+    expect(builder.actions[0].withdrawFromGasKey).toBeDefined()
+    // @ts-expect-error - accessing private field for testing
+    expect(builder.actions[0].withdrawFromGasKey.amount).toBe(
+      2000000000000000000000000n,
+    )
+  })
+
+  test("addKey with gasKeyFullAccess permission builds disc-3 permission", () => {
+    const builder = createBuilder().addKey(TEST_PUBLIC_KEY, {
+      type: "gasKeyFullAccess",
+      numNonces: 8,
+    })
+
+    // @ts-expect-error - accessing private field for testing
+    const action = builder.actions[0].addKey
+    expect(action.accessKey.permission.gasKeyFullAccess).toBeDefined()
+    expect(
+      action.accessKey.permission.gasKeyFullAccess.gasKeyInfo.balance,
+    ).toBe(0n)
+    expect(
+      action.accessKey.permission.gasKeyFullAccess.gasKeyInfo.numNonces,
+    ).toBe(8)
+  })
+
+  test("addKey with gasKeyFunctionCall permission omits allowance", () => {
+    const builder = createBuilder().addKey(TEST_PUBLIC_KEY, {
+      type: "gasKeyFunctionCall",
+      numNonces: 3,
+      receiverId: "contract.near",
+      methodNames: ["m1", "m2"],
+    })
+
+    // @ts-expect-error - accessing private field for testing
+    const action = builder.actions[0].addKey
+    const perm = action.accessKey.permission.gasKeyFunctionCall
+    expect(perm).toBeDefined()
+    expect(perm.gasKeyInfo.numNonces).toBe(3)
+    expect(perm.functionCall.allowance).toBe(null)
+    expect(perm.functionCall.receiverId).toBe("contract.near")
+    expect(perm.functionCall.methodNames).toEqual(["m1", "m2"])
+  })
+
+  test("rejects an out-of-range gas key nonce count", () => {
+    expect(() =>
+      createBuilder().addKey(TEST_PUBLIC_KEY, {
+        type: "gasKeyFullAccess",
+        numNonces: 0,
+      }),
+    ).toThrow(/1\.\.=1024/)
+  })
+})
+
 describe("TransactionBuilder - NEP-616 StateInit", () => {
   test("should chain stateInit action with account ID reference", () => {
     const builder = createBuilder().stateInit({

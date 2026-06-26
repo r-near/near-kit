@@ -75,7 +75,13 @@ import type {
 } from "./types.js"
 
 /**
- * User-friendly access key permission format
+ * User-friendly access key permission format.
+ *
+ * The two `gasKey*` variants add a gas key (protocol v85 / NEAR 2.13): an access
+ * key with a prepaid balance for gas and `numNonces` parallel nonce slots. The
+ * key is always added with a zero balance; fund it afterwards with
+ * {@link TransactionBuilder.transferToGasKey}. A gas function-call key cannot
+ * carry an `allowance`.
  */
 export type AccessKeyPermission =
   | { type: "fullAccess" }
@@ -84,6 +90,13 @@ export type AccessKeyPermission =
       receiverId: string
       methodNames?: string[]
       allowance?: Amount
+    }
+  | { type: "gasKeyFullAccess"; numNonces: number }
+  | {
+      type: "gasKeyFunctionCall"
+      numNonces: number
+      receiverId: string
+      methodNames?: string[]
     }
 
 type DelegateSigningOptions = {
@@ -146,18 +159,28 @@ function publicKeysEqual(a: PublicKey, b: PublicKey): boolean {
 function toAccessKeyPermissionBorsh(
   permission: AccessKeyPermission,
 ): AccessKeyPermissionBorsh {
-  if (permission.type === "fullAccess") {
-    return { fullAccess: {} }
-  } else {
-    return {
-      functionCall: {
+  switch (permission.type) {
+    case "fullAccess":
+      return { fullAccess: {} }
+    case "functionCall":
+      return {
+        functionCall: {
+          receiverId: permission.receiverId,
+          methodNames: permission.methodNames || [],
+          allowance: permission.allowance
+            ? BigInt(normalizeAmount(permission.allowance))
+            : null,
+        },
+      }
+    case "gasKeyFullAccess":
+      return actions.gasKeyFullAccess(permission.numNonces)
+    case "gasKeyFunctionCall":
+      // Gas function-call keys must not set an allowance (rejected on-chain).
+      return actions.gasKeyFunctionCall(permission.numNonces, {
         receiverId: permission.receiverId,
         methodNames: permission.methodNames || [],
-        allowance: permission.allowance
-          ? BigInt(normalizeAmount(permission.allowance))
-          : null,
-      },
-    }
+        allowance: null,
+      })
   }
 }
 
@@ -571,6 +594,55 @@ export class TransactionBuilder {
 
     if (!this.receiverId) {
       this.receiverId = accountId
+    }
+
+    return this.invalidateCache()
+  }
+
+  /**
+   * Fund a gas key's prepaid balance (protocol v85 / NEAR 2.13).
+   *
+   * The target gas key must already exist on the receiver account (add it with
+   * `.addKey(pk, { type: "gasKeyFullAccess", numNonces })`). The deposit is
+   * moved from the signer's account balance into the gas key's balance, where it
+   * is reserved to pay for gas when that key signs transactions.
+   *
+   * @param publicKey - The gas key to fund (e.g. `"ed25519:..."`).
+   * @param amount - Amount to add to the gas key balance ({@link Amount}).
+   *
+   * @remarks
+   * If no receiver has been set yet, this also sets the transaction `receiverId`
+   * to `signerId` (the account that owns the gas key).
+   */
+  transferToGasKey(publicKey: string, amount: Amount): this {
+    const amountYocto = normalizeAmount(amount)
+    const pk = parsePublicKey(publicKey)
+    this.actions.push(actions.transferToGasKey(pk, BigInt(amountYocto)))
+
+    if (!this.receiverId) {
+      this.receiverId = this.signerId
+    }
+
+    return this.invalidateCache()
+  }
+
+  /**
+   * Withdraw NEAR from a gas key's balance back to the account (protocol v85 / NEAR 2.13).
+   *
+   * @param publicKey - The gas key to withdraw from (e.g. `"ed25519:..."`).
+   * @param amount - Amount to move from the gas key balance to the account ({@link Amount}).
+   *
+   * @remarks
+   * If no receiver has been set yet, this also sets the transaction `receiverId`
+   * to `signerId` (the account that owns the gas key).
+   */
+  withdrawFromGasKey(publicKey: string, amount: Amount): this {
+    const amountYocto = normalizeAmount(amount)
+    const pk = parsePublicKey(publicKey)
+    this.actions.push(actions.withdrawFromGasKey(pk, BigInt(amountYocto)))
+
+    if (!this.receiverId) {
+      this.receiverId = this.signerId
     }
 
     return this.invalidateCache()
