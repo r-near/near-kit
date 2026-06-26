@@ -18,8 +18,12 @@ import {
 } from "../../src/utils/key.js"
 
 // ML-DSA-65 (ProtocolFeature::PostQuantumSignatures) is gated at protocol v85.
-// A pre-85 node rejects key type 2 with "unknown key type '2'", so the on-chain
-// test only runs against a 2.13.x sandbox (proto 85+).
+// A pre-85 node rejects key type 2 with "unknown key type '2'", so this test
+// pins the sandbox to a version whose binary runs proto 85 WITH the PQ impl,
+// rather than relying on the (separately bumped) default version. Verified: the
+// S3 binary near-sandbox-2.13.0-rc.2 (git tag commit 315524124) genuinely has
+// ML-DSA. TODO: re-pin to a stable 2.13.x once one ships with PQ.
+const ML_DSA_SANDBOX_VERSION = "2.13.0-rc.2"
 const POST_QUANTUM_PROTOCOL_VERSION = 85
 
 describe("ML-DSA-65 - Integration Tests", () => {
@@ -28,7 +32,7 @@ describe("ML-DSA-65 - Integration Tests", () => {
   let protocolVersion = 0
 
   beforeAll(async () => {
-    sandbox = await Sandbox.start()
+    sandbox = await Sandbox.start({ version: ML_DSA_SANDBOX_VERSION })
     near = new Near({
       network: sandbox,
       keyStore: {
