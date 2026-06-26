@@ -58,7 +58,11 @@ import {
   type SignedDelegateAction,
   serializeDelegateAction,
   serializeSignedTransaction,
+  serializeSignedTransactionV1,
   serializeTransaction,
+  serializeTransactionV1,
+  type TransactionNonceBorsh,
+  type TransactionV1,
 } from "./schema.js"
 import type {
   Action,
@@ -218,7 +222,24 @@ export class TransactionBuilder {
   private cachedSignedTx?: {
     signedTx: SignedTransaction
     hash: string
+    /**
+     * Pre-serialized signed-transaction wire bytes. Set only for V1
+     * (gas-key / strict-nonce) transactions, whose custom `[0x01]`-tagged
+     * encoding is not expressible via the V0 {@link SignedTransaction} shape.
+     * When present, `serialize()` / `send()` use these bytes directly.
+     */
+    serialized?: Uint8Array
   }
+  /**
+   * Gas-key nonce index for this transaction. When set, the builder signs a V1
+   * transaction whose nonce is a `GasKeyNonce { nonce, nonceIndex }`.
+   */
+  private gasKeyNonceIndex?: number
+  /**
+   * Opt into strict nonce mode (`nonce === ak_nonce + 1`). Forces a V1
+   * transaction even for an ordinary access key.
+   */
+  private strictNonce = false
 
   constructor(
     signerId: string,
@@ -875,6 +896,67 @@ export class TransactionBuilder {
   }
 
   /**
+   * Sign this transaction with a gas key (protocol v85 / NEAR 2.13).
+   *
+   * Gas keys carry a prepaid gas balance and allocate several independent nonce
+   * slots so they can sign transactions in parallel. This selects the nonce
+   * slot (`nonceIndex`) to use and switches the builder to the versioned
+   * transaction (V1) encoding required to carry a gas-key nonce.
+   *
+   * The nonce for the chosen slot is fetched and managed independently per
+   * `(account, public key, nonce index)`, so concurrent transactions on
+   * different indexes of the same gas key do not collide.
+   *
+   * @param nonceIndex - Which gas-key nonce slot to use (`0..numNonces`).
+   *
+   * @example
+   * ```typescript
+   * await near.transaction("alice.near")
+   *   .signWith(gasKeyPrivateKey)
+   *   .useGasKey(0)
+   *   .functionCall("contract.near", "method", {})
+   *   .send()
+   * ```
+   *
+   * @remarks Combine with {@link signWith} to use the gas key's private key.
+   */
+  useGasKey(nonceIndex: number): this {
+    if (!Number.isInteger(nonceIndex) || nonceIndex < 0 || nonceIndex > 65535) {
+      throw new NearError(
+        `Gas key nonceIndex must be an integer in 0..=65535, got ${nonceIndex}`,
+        "INVALID_TRANSACTION",
+      )
+    }
+    this.gasKeyNonceIndex = nonceIndex
+    return this.invalidateCache()
+  }
+
+  /**
+   * Opt into strict nonce mode (protocol v85 / NEAR 2.13).
+   *
+   * In strict mode the transaction nonce must be exactly `ak_nonce + 1`,
+   * enforcing sequential ordering, instead of the default monotonic rule (any
+   * nonce strictly greater than the access key nonce). This switches the builder
+   * to the versioned transaction (V1) encoding.
+   *
+   * @param strict - Whether to enable strict mode (defaults to `true`).
+   */
+  strictNonceMode(strict = true): this {
+    this.strictNonce = strict
+    return this.invalidateCache()
+  }
+
+  /**
+   * Whether this transaction must be encoded as a versioned (V1) transaction.
+   * V1 is required to carry a gas-key nonce or to request strict nonce mode;
+   * an ordinary transaction stays V0 (tag-less) for backward compatibility.
+   * @internal
+   */
+  private requiresV1(): boolean {
+    return this.gasKeyNonceIndex !== undefined || this.strictNonce
+  }
+
+  /**
    * Build the unsigned transaction
    */
   async build(): Promise<Transaction> {
@@ -961,6 +1043,12 @@ export class TransactionBuilder {
       )
     }
 
+    // Gas-key or strict-nonce transactions use the versioned (V1) encoding.
+    if (this.requiresV1()) {
+      this.cachedSignedTx = await this.signV1()
+      return this
+    }
+
     // Build the transaction
     const transaction = await this.build()
 
@@ -992,6 +1080,140 @@ export class TransactionBuilder {
     }
 
     return this
+  }
+
+  /**
+   * Build and sign a versioned (V1) transaction for the gas-key / strict-nonce
+   * path. Produces the cache entry consumed by {@link sign}, including the
+   * pre-serialized `[0x01]`-tagged signed bytes.
+   * @internal
+   */
+  private async signV1(): Promise<{
+    signedTx: SignedTransaction
+    hash: string
+    serialized: Uint8Array
+  }> {
+    if (!this.receiverId) {
+      throw new NearError(
+        "No receiver ID set for transaction",
+        "INVALID_TRANSACTION",
+      )
+    }
+
+    const keyPair = await this.resolveKeyPair()
+    const publicKey = keyPair.publicKey
+    const txNonce = await this.resolveV1Nonce(publicKey)
+
+    const block = await this.rpc.getBlock({ finality: "final" })
+    const blockHash = base58.decode(block.header.hash)
+
+    const v1: TransactionV1 = {
+      signerId: this.signerId,
+      publicKey,
+      nonce: txNonce,
+      receiverId: this.receiverId,
+      blockHash,
+      actions: this.actions,
+      nonceMode: this.strictNonce ? { strict: {} } : { monotonic: {} },
+    }
+
+    const serializedTx = serializeTransactionV1(v1)
+    const messageHash = new Uint8Array(
+      await crypto.subtle.digest(
+        "SHA-256",
+        serializedTx as Uint8Array<ArrayBuffer>,
+      ),
+    )
+    const txHash = base58.encode(messageHash)
+
+    const signature = this.signer
+      ? await this.signer(messageHash)
+      : keyPair.sign(messageHash)
+
+    // Underlying u64 nonce, regardless of the V1 nonce variant.
+    const nonceValue =
+      "gasKeyNonce" in txNonce ? txNonce.gasKeyNonce.nonce : txNonce.nonce.nonce
+
+    return {
+      // A V0-shaped SignedTransaction is kept for hash/field access by callers;
+      // the wire bytes come from `serialized` (the V1 encoding can't round-trip
+      // through the V0 SignedTransaction type).
+      signedTx: {
+        transaction: {
+          signerId: this.signerId,
+          publicKey,
+          nonce: nonceValue,
+          receiverId: this.receiverId,
+          actions: this.actions,
+          blockHash,
+        },
+        signature,
+      },
+      hash: txHash,
+      serialized: serializeSignedTransactionV1(v1, signature),
+    }
+  }
+
+  /**
+   * Resolve the {@link TransactionNonceBorsh} for a V1 transaction.
+   *
+   * For a gas key the nonce comes from the chosen nonce slot (queried via
+   * `EXPERIMENTAL_view_gas_key_nonces`) and is wrapped as `GasKeyNonce`; each
+   * slot is tracked independently so parallel transactions on different slots
+   * don't collide. For a strict-nonce ordinary key it's a plain `Nonce`.
+   * @internal
+   */
+  private async resolveV1Nonce(
+    publicKey: PublicKey,
+  ): Promise<TransactionNonceBorsh> {
+    const pkString = publicKey.toString()
+
+    if (this.gasKeyNonceIndex !== undefined) {
+      const index = this.gasKeyNonceIndex
+      const nonce = await TransactionBuilder.nonceManager.getNextNonce(
+        this.signerId,
+        `${pkString}#${index}`,
+        async () => this.fetchGasKeyNonce(pkString, index),
+      )
+      return { gasKeyNonce: { nonce, nonceIndex: index } }
+    }
+
+    const nonce = await TransactionBuilder.nonceManager.getNextNonce(
+      this.signerId,
+      pkString,
+      async () => {
+        const accessKey = await this.rpc.getAccessKey(this.signerId, pkString)
+        return BigInt(accessKey.nonce)
+      },
+    )
+    return { nonce: { nonce } }
+  }
+
+  /**
+   * Fetch the current on-chain nonce for a gas key's nonce slot via
+   * `EXPERIMENTAL_view_gas_key_nonces`, which returns one nonce per slot.
+   * @internal
+   */
+  private async fetchGasKeyNonce(
+    publicKey: string,
+    nonceIndex: number,
+  ): Promise<bigint> {
+    const result = await this.rpc.call<{ nonces?: unknown }>(
+      "EXPERIMENTAL_view_gas_key_nonces",
+      {
+        finality: "optimistic",
+        account_id: this.signerId,
+        public_key: publicKey,
+      },
+    )
+    const nonces = result?.nonces
+    if (!Array.isArray(nonces) || nonceIndex >= nonces.length) {
+      throw new NearError(
+        `Gas key ${publicKey} on ${this.signerId} has no nonce slot ${nonceIndex}`,
+        "INVALID_TRANSACTION",
+      )
+    }
+    return BigInt(nonces[nonceIndex] as number | string)
   }
 
   /**
@@ -1040,7 +1262,11 @@ export class TransactionBuilder {
         "INVALID_STATE",
       )
     }
-    return serializeSignedTransaction(this.cachedSignedTx.signedTx)
+    // V1 (gas-key / strict-nonce) transactions carry pre-serialized wire bytes.
+    return (
+      this.cachedSignedTx.serialized ??
+      serializeSignedTransaction(this.cachedSignedTx.signedTx)
+    )
   }
 
   /**
@@ -1122,10 +1348,12 @@ export class TransactionBuilder {
           )
         }
 
-        const { signedTx, hash } = this.cachedSignedTx
+        const { signedTx, hash, serialized } = this.cachedSignedTx
 
-        // Serialize signed transaction using Borsh
-        const signedSerialized = serializeSignedTransaction(signedTx)
+        // Serialize signed transaction using Borsh. V1 (gas-key / strict-nonce)
+        // transactions carry pre-serialized wire bytes from signV1().
+        const signedSerialized =
+          serialized ?? serializeSignedTransaction(signedTx)
 
         // Send to network
         const result = await this.rpc.sendTransaction(

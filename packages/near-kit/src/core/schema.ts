@@ -499,6 +499,67 @@ export const SignedTransactionSchema = b.struct({
   signature: SignatureSchema,
 })
 
+// ==================== Transaction V1 (gas keys / strict nonce, NEAR 2.13) ====================
+
+/**
+ * Tag byte prepended to a V1 transaction on the wire.
+ *
+ * NEAR 2.13 makes `Transaction` a versioned enum but keeps custom borsh for
+ * backward compatibility: a V0 transaction is serialized TAG-LESS (exactly the
+ * legacy unversioned struct), while a V1 transaction is serialized as
+ * `[0x01] ++ borsh(TransactionV1)`. The deserializer distinguishes them by the
+ * second byte (the high byte of the leading AccountId length, always 0 for V0).
+ * @internal
+ */
+const TRANSACTION_V1_TAG = 1
+
+/**
+ * TransactionNonce enum (NEAR 2.13).
+ *
+ * Variant order is the Borsh discriminant and MUST match nearcore:
+ * 0 = `Nonce { nonce: u64 }` (ordinary access keys),
+ * 1 = `GasKeyNonce { nonce: u64, nonce_index: u16 }` (gas keys).
+ */
+export const TransactionNonceSchema = b.enum({
+  nonce: b.struct({ nonce: b.u64() }),
+  gasKeyNonce: b.struct({ nonce: b.u64(), nonceIndex: b.u16() }),
+})
+
+/**
+ * NonceMode enum (NEAR 2.13).
+ *
+ * Variant order is the Borsh discriminant and MUST match nearcore:
+ * 0 = `Monotonic` (default; any nonce strictly greater than the access key
+ * nonce), 1 = `Strict` (nonce must be exactly `ak_nonce + 1`).
+ */
+export const NonceModeSchema = b.enum({
+  monotonic: b.struct({}),
+  strict: b.struct({}),
+})
+
+/**
+ * TransactionV1 schema (NEAR 2.13).
+ *
+ * Same shape as V0 but the `nonce` is a {@link TransactionNonceSchema} and a
+ * trailing `nonceMode` is appended. Field order matches nearcore `TransactionV1`:
+ * signer_id, public_key, nonce, receiver_id, block_hash, actions, nonce_mode.
+ *
+ * This serializes the struct ALONE (no version tag); use
+ * {@link serializeTransactionV1} to get the tagged wire bytes.
+ */
+export const TransactionV1Schema = b.struct({
+  signerId: b.string(),
+  publicKey: PublicKeySchema,
+  nonce: TransactionNonceSchema,
+  receiverId: b.string(),
+  blockHash: b.array(b.u8(), 32),
+  actions: b.vec(ActionSchema),
+  nonceMode: NonceModeSchema,
+})
+
+export type TransactionNonceBorsh = b.infer<typeof TransactionNonceSchema>
+export type NonceModeBorsh = b.infer<typeof NonceModeSchema>
+
 // ==================== Serialization Helpers ====================
 
 /**
@@ -632,6 +693,75 @@ export function serializeSignedTransaction(
     },
     signature: signatureToZorsh(signedTx.signature),
   })
+}
+
+// ==================== Transaction V1 Serialization (NEAR 2.13) ====================
+
+/**
+ * The V1 fields of a transaction, mirroring nearcore `TransactionV1`.
+ *
+ * `nonce` is a {@link TransactionNonceBorsh} (carries a nonce index for gas
+ * keys) and `nonceMode` controls validation. The remaining fields match the
+ * ordinary {@link Transaction}.
+ */
+export interface TransactionV1 {
+  signerId: string
+  publicKey: PublicKey
+  nonce: TransactionNonceBorsh
+  receiverId: string
+  blockHash: Uint8Array
+  actions: Action[]
+  nonceMode: NonceModeBorsh
+}
+
+/**
+ * Prepend the V1 version tag to already-serialized V1 struct bytes.
+ * @internal
+ */
+function withV1Tag(structBytes: Uint8Array): Uint8Array {
+  const out = new Uint8Array(structBytes.length + 1)
+  out[0] = TRANSACTION_V1_TAG
+  out.set(structBytes, 1)
+  return out
+}
+
+/**
+ * Serialize a V1 transaction to wire bytes (`[0x01] ++ borsh(TransactionV1)`).
+ *
+ * Use this for the signing payload of a gas-key or strict-nonce transaction. A
+ * V0 transaction stays tag-less via {@link serializeTransaction}; never write a
+ * `0x00` tag for V0 (that would break backward compatibility).
+ */
+export function serializeTransactionV1(tx: TransactionV1): Uint8Array {
+  const struct = TransactionV1Schema.serialize({
+    signerId: tx.signerId,
+    publicKey: publicKeyToZorsh(tx.publicKey),
+    nonce: tx.nonce,
+    receiverId: tx.receiverId,
+    blockHash: Array.from(tx.blockHash),
+    actions: tx.actions.map(actionToZorsh),
+    nonceMode: tx.nonceMode,
+  })
+  return withV1Tag(struct)
+}
+
+/**
+ * Serialize a signed V1 transaction to wire bytes.
+ *
+ * The encoding is `[0x01] ++ borsh(TransactionV1) ++ borsh(Signature)`: the
+ * version tag belongs to the inner `Transaction`, and the signature follows the
+ * (tagged) transaction, matching nearcore's `SignedTransaction` borsh.
+ */
+export function serializeSignedTransactionV1(
+  tx: TransactionV1,
+  signature: Signature,
+): Uint8Array {
+  const txBytes = serializeTransactionV1(tx)
+  const sigBytes = SignatureSchema.serialize(signatureToZorsh(signature))
+  const out = new Uint8Array(txBytes.length + sigBytes.length)
+  out.set(txBytes, 0)
+  out.set(sigBytes, txBytes.length)
+  return out
 }
 
 // ==================== Delegate Action Serialization ====================

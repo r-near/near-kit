@@ -600,6 +600,39 @@ describe("TransactionBuilder - Gas Keys (NEAR 2.13)", () => {
   })
 })
 
+describe("TransactionBuilder - V1 nonce options (NEAR 2.13)", () => {
+  test("useGasKey records the nonce index and marks the tx V1", () => {
+    const builder = createBuilder().useGasKey(2)
+
+    // @ts-expect-error - accessing private field for testing
+    expect(builder.gasKeyNonceIndex).toBe(2)
+    // @ts-expect-error - accessing private method for testing
+    expect(builder.requiresV1()).toBe(true)
+  })
+
+  test("strictNonceMode marks the tx V1", () => {
+    const builder = createBuilder().strictNonceMode()
+
+    // @ts-expect-error - accessing private field for testing
+    expect(builder.strictNonce).toBe(true)
+    // @ts-expect-error - accessing private method for testing
+    expect(builder.requiresV1()).toBe(true)
+  })
+
+  test("an ordinary transaction stays V0", () => {
+    const builder = createBuilder().transfer("bob.near", Amount.NEAR(1))
+
+    // @ts-expect-error - accessing private method for testing
+    expect(builder.requiresV1()).toBe(false)
+  })
+
+  test("rejects an out-of-range gas key nonce index", () => {
+    expect(() => createBuilder().useGasKey(-1)).toThrow(/0\.\.=65535/)
+    expect(() => createBuilder().useGasKey(70000)).toThrow(/0\.\.=65535/)
+    expect(() => createBuilder().useGasKey(1.5)).toThrow(/0\.\.=65535/)
+  })
+})
+
 describe("TransactionBuilder - NEP-616 StateInit", () => {
   test("should chain stateInit action with account ID reference", () => {
     const builder = createBuilder().stateInit({
