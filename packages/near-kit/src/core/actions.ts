@@ -13,6 +13,7 @@ import type {
   AddKeyAction,
   ClassicAction,
   CreateAccountAction,
+  DelegateV2Action,
   DeleteAccountAction,
   DeleteKeyAction,
   DeployContractAction,
@@ -21,8 +22,10 @@ import type {
   FunctionCallAction,
   FunctionCallPermissionBorsh,
   GasKeyInfoBorsh,
+  NonDelegateActionBorsh,
   SignedDelegateAction,
   StakeAction,
+  TransactionNonceBorsh,
   TransferAction,
   TransferToGasKeyAction,
   UseGlobalContractAction,
@@ -66,6 +69,56 @@ export class DelegateAction {
     this.nonce = nonce
     this.maxBlockHeight = maxBlockHeight
     this.publicKey = publicKey
+  }
+}
+
+/**
+ * Delegate action V2 for gas-key meta-transactions (NEP-611 / NEAR 2.13).
+ *
+ * Like {@link DelegateAction} but its `nonce` is a {@link TransactionNonceBorsh}
+ * (so it can target a gas key's nonce slot), and it is signed under a DISTINCT
+ * NEP-461 domain tag — a V1 delegate signature is never valid for a V2 action.
+ * The `actions` are full (non-delegate) actions and must already be in
+ * Borsh-ready form (as returned by the action factories).
+ */
+export class DelegateActionV2 {
+  senderId: string
+  receiverId: string
+  actions: NonDelegateActionBorsh[]
+  nonce: TransactionNonceBorsh
+  maxBlockHeight: bigint
+  publicKey: PublicKey
+
+  constructor(
+    senderId: string,
+    receiverId: string,
+    actions: NonDelegateActionBorsh[],
+    nonce: TransactionNonceBorsh,
+    maxBlockHeight: bigint,
+    publicKey: PublicKey,
+  ) {
+    this.senderId = senderId
+    this.receiverId = receiverId
+    this.actions = actions
+    this.nonce = nonce
+    this.maxBlockHeight = maxBlockHeight
+    this.publicKey = publicKey
+  }
+
+  /**
+   * Convert to the Borsh-ready shape consumed by
+   * {@link serializeDelegateActionV2} and {@link signedDelegateV2}.
+   * @internal
+   */
+  toBorsh() {
+    return {
+      senderId: this.senderId,
+      receiverId: this.receiverId,
+      actions: this.actions,
+      nonce: this.nonce,
+      maxBlockHeight: this.maxBlockHeight,
+      publicKey: publicKeyToZorsh(this.publicKey),
+    }
   }
 }
 
@@ -438,6 +491,25 @@ export function signedDelegate(
         maxBlockHeight: delegateAction.maxBlockHeight,
         publicKey: publicKeyToZorsh(delegateAction.publicKey),
       },
+      signature: signatureToZorsh(signature),
+    },
+  }
+}
+
+/**
+ * Create a V2 signed delegate action (gas-key meta-transactions, NEAR 2.13).
+ *
+ * Wraps the signed V2 payload in `Action::DelegateV2` (discriminant 14). The
+ * signature must have been produced over {@link serializeDelegateActionV2} of
+ * the same delegate action.
+ */
+export function signedDelegateV2(
+  delegateAction: DelegateActionV2,
+  signature: Signature,
+): DelegateV2Action {
+  return {
+    delegateV2: {
+      delegateAction: { v2: delegateAction.toBorsh() },
       signature: signatureToZorsh(signature),
     },
   }

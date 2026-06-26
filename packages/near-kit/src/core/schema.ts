@@ -37,6 +37,16 @@ import { KeyType } from "./types.js"
  */
 export const DELEGATE_ACTION_PREFIX = 1073742190
 
+/**
+ * Prefix for V2 delegate actions (gas-key meta transactions, NEP-611).
+ * Value: 2^30 + 611 = 1073742435
+ *
+ * This is the NEP-461 domain tag for `DelegateActionV2`. It is DISTINCT from
+ * {@link DELEGATE_ACTION_PREFIX}, so a V1 delegate signature is never valid for
+ * a V2 delegate action and vice versa.
+ */
+export const DELEGATE_ACTION_V2_PREFIX = 1073742435
+
 // ==================== Public Key ====================
 
 /**
@@ -326,6 +336,35 @@ const DeterministicStateInitSchema = b.struct({
   deposit: b.u128(),
 })
 
+// ==================== Transaction Nonce / Mode (NEAR 2.13) ====================
+//
+// Defined here (ahead of the action/delegate schemas) because DelegateActionV2
+// uses TransactionNonce, and they are leaf enums with no forward dependencies.
+
+/**
+ * TransactionNonce enum (NEAR 2.13).
+ *
+ * Variant order is the Borsh discriminant and MUST match nearcore:
+ * 0 = `Nonce { nonce: u64 }` (ordinary access keys),
+ * 1 = `GasKeyNonce { nonce: u64, nonce_index: u16 }` (gas keys).
+ */
+export const TransactionNonceSchema = b.enum({
+  nonce: b.struct({ nonce: b.u64() }),
+  gasKeyNonce: b.struct({ nonce: b.u64(), nonceIndex: b.u16() }),
+})
+
+/**
+ * NonceMode enum (NEAR 2.13).
+ *
+ * Variant order is the Borsh discriminant and MUST match nearcore:
+ * 0 = `Monotonic` (default; any nonce strictly greater than the access key
+ * nonce), 1 = `Strict` (nonce must be exactly `ak_nonce + 1`).
+ */
+export const NonceModeSchema = b.enum({
+  monotonic: b.struct({}),
+  strict: b.struct({}),
+})
+
 // ==================== Delegate Actions ====================
 
 /**
@@ -391,6 +430,85 @@ const SignedDelegateSchema = b.struct({
   signature: SignatureSchema,
 })
 
+// ==================== DelegateV2 (gas-key meta-transactions, NEAR 2.13) ====================
+//
+// `DelegateActionV2` is like the NEP-366 `DelegateAction` but its `nonce` is a
+// `TransactionNonce` (gas-key capable). It is carried by `Action::DelegateV2`
+// (discriminant 14) inside a versioned payload, and is signed under a DISTINCT
+// NEP-461 domain tag (NEP-611), so V1 delegate signatures are NOT valid for V2.
+
+/**
+ * Actions allowed inside a DelegateActionV2, mirroring nearcore's
+ * `NonDelegateAction` (which wraps the full `Action` enum and rejects nested
+ * delegates at runtime).
+ *
+ * The Borsh discriminants MUST match `Action` exactly (0..=13). A zorsh enum
+ * assigns discriminants positionally, so slot 8 (`Action::Delegate`) is kept as
+ * a placeholder to keep slots 9..=13 aligned with the protocol; it is never
+ * emitted because delegate actions cannot be nested. This deliberately differs
+ * from the V1 `ClassicActionsSchema`, whose discriminants drift past index 8.
+ */
+const NonDelegateActionSchema = b.enum({
+  createAccount: CreateAccountSchema,
+  deployContract: DeployContractSchema,
+  functionCall: FunctionCallSchema,
+  transfer: TransferSchema,
+  stake: StakeSchema,
+  addKey: AddKeySchema,
+  deleteKey: DeleteKeySchema,
+  deleteAccount: DeleteAccountSchema,
+  // Slot 8 = Action::Delegate. Placeholder for discriminant alignment only;
+  // nested delegate actions are forbidden, so this is never serialized.
+  signedDelegate: SignedDelegateSchema,
+  deployGlobalContract: DeployGlobalContractSchema,
+  useGlobalContract: UseGlobalContractSchema,
+  deterministicStateInit: DeterministicStateInitSchema,
+  transferToGasKey: TransferToGasKeySchema,
+  withdrawFromGasKey: WithdrawFromGasKeySchema,
+})
+
+/**
+ * DelegateActionV2 struct (NEAR 2.13).
+ *
+ * Field order matches nearcore `DelegateActionV2`: sender_id, receiver_id,
+ * actions, nonce (a {@link TransactionNonceSchema}), max_block_height, public_key.
+ */
+const DelegateActionV2Schema = b.struct({
+  senderId: b.string(),
+  receiverId: b.string(),
+  actions: b.vec(NonDelegateActionSchema),
+  nonce: TransactionNonceSchema,
+  maxBlockHeight: b.u64(),
+  publicKey: PublicKeySchema,
+})
+
+/**
+ * VersionedDelegateActionPayload enum (NEAR 2.13).
+ *
+ * Borsh discriminant 0 = `V2(DelegateActionV2)`. The variant is part of the
+ * signed payload, so a signature can't be ambiguous across versions.
+ */
+const VersionedDelegateActionPayloadSchema = b.enum({
+  v2: DelegateActionV2Schema,
+})
+
+/**
+ * VersionedSignedDelegateAction struct (NEAR 2.13).
+ *
+ * The payload carried by `Action::DelegateV2`: a versioned delegate-action
+ * payload plus its signature.
+ */
+const VersionedSignedDelegateActionSchema = b.struct({
+  delegateAction: VersionedDelegateActionPayloadSchema,
+  signature: SignatureSchema,
+})
+
+export type NonDelegateActionBorsh = b.infer<typeof NonDelegateActionSchema>
+export type DelegateActionV2Borsh = b.infer<typeof DelegateActionV2Schema>
+export type VersionedSignedDelegateActionBorsh = b.infer<
+  typeof VersionedSignedDelegateActionSchema
+>
+
 /**
  * Action enum matching NEAR protocol action discriminants
  * Order matters! Each position corresponds to the action type index:
@@ -408,6 +526,7 @@ const SignedDelegateSchema = b.struct({
  * 11 = DeterministicStateInit (NEP-616)
  * 12 = TransferToGasKey (protocol v85 / NEAR 2.13)
  * 13 = WithdrawFromGasKey (protocol v85 / NEAR 2.13)
+ * 14 = DelegateV2 (protocol v85 / NEAR 2.13)
  */
 export const ActionSchema = b.enum({
   createAccount: CreateAccountSchema,
@@ -424,6 +543,7 @@ export const ActionSchema = b.enum({
   deterministicStateInit: DeterministicStateInitSchema,
   transferToGasKey: TransferToGasKeySchema,
   withdrawFromGasKey: WithdrawFromGasKeySchema,
+  delegateV2: VersionedSignedDelegateActionSchema,
 })
 
 /**
@@ -466,6 +586,9 @@ export type TransferToGasKeyAction = {
 }
 export type WithdrawFromGasKeyAction = {
   withdrawFromGasKey: b.infer<typeof WithdrawFromGasKeySchema>
+}
+export type DelegateV2Action = {
+  delegateV2: b.infer<typeof VersionedSignedDelegateActionSchema>
 }
 
 // Export StateInit types for NEP-616
@@ -512,30 +635,6 @@ export const SignedTransactionSchema = b.struct({
  * @internal
  */
 const TRANSACTION_V1_TAG = 1
-
-/**
- * TransactionNonce enum (NEAR 2.13).
- *
- * Variant order is the Borsh discriminant and MUST match nearcore:
- * 0 = `Nonce { nonce: u64 }` (ordinary access keys),
- * 1 = `GasKeyNonce { nonce: u64, nonce_index: u16 }` (gas keys).
- */
-export const TransactionNonceSchema = b.enum({
-  nonce: b.struct({ nonce: b.u64() }),
-  gasKeyNonce: b.struct({ nonce: b.u64(), nonceIndex: b.u16() }),
-})
-
-/**
- * NonceMode enum (NEAR 2.13).
- *
- * Variant order is the Borsh discriminant and MUST match nearcore:
- * 0 = `Monotonic` (default; any nonce strictly greater than the access key
- * nonce), 1 = `Strict` (nonce must be exactly `ak_nonce + 1`).
- */
-export const NonceModeSchema = b.enum({
-  monotonic: b.struct({}),
-  strict: b.struct({}),
-})
 
 /**
  * TransactionV1 schema (NEAR 2.13).
@@ -801,6 +900,34 @@ export function serializeDelegateAction(
   return result
 }
 
+/**
+ * Serialize a V2 delegate action for signing (NEP-611 / NEAR 2.13).
+ *
+ * Prepends the DISTINCT V2 domain tag ({@link DELEGATE_ACTION_V2_PREFIX}) and
+ * wraps the action in the versioned payload enum (`V2` => `[0x00]`), exactly as
+ * nearcore's `VersionedDelegateActionPayload::get_nep461_hash` does. The result
+ * is hashed (SHA-256) and signed.
+ *
+ * @param delegateAction - The V2 delegate action in Borsh-ready form (its
+ *   `publicKey` already converted via {@link publicKeyToZorsh}).
+ */
+export function serializeDelegateActionV2(
+  delegateAction: DelegateActionV2Borsh,
+): Uint8Array {
+  const prefixBytes = b.u32().serialize(DELEGATE_ACTION_V2_PREFIX)
+  // The signed payload is the *versioned payload enum*, so the V2 variant tag
+  // (0x00) is part of the bytes.
+  const payloadBytes = VersionedDelegateActionPayloadSchema.serialize({
+    v2: delegateAction,
+  })
+
+  const result = new Uint8Array(prefixBytes.length + payloadBytes.length)
+  result.set(prefixBytes, 0)
+  result.set(payloadBytes, prefixBytes.length)
+
+  return result
+}
+
 export type DelegateActionPayloadFormat = "base64" | "bytes"
 
 type DelegatePayloadReturn<F extends DelegateActionPayloadFormat> =
@@ -842,5 +969,40 @@ export function decodeSignedDelegateAction(
   const bytes = typeof payload === "string" ? base64.decode(payload) : payload
   return {
     signedDelegate: SignedDelegateSchema.deserialize(bytes),
+  }
+}
+
+/**
+ * Encode a V2 signed delegate action ({@link DelegateV2Action}) for transport.
+ *
+ * - Default output is a base64 string that can be sent via JSON/HTTP.
+ * - Pass `"bytes"` to receive a raw Uint8Array.
+ */
+export function encodeSignedDelegateActionV2(
+  signedDelegate: DelegateV2Action,
+): string
+export function encodeSignedDelegateActionV2<
+  F extends DelegateActionPayloadFormat,
+>(signedDelegate: DelegateV2Action, format: F): DelegatePayloadReturn<F>
+export function encodeSignedDelegateActionV2(
+  signedDelegate: DelegateV2Action,
+  format: DelegateActionPayloadFormat = "base64",
+): string | Uint8Array {
+  const serialized = VersionedSignedDelegateActionSchema.serialize(
+    signedDelegate.delegateV2,
+  )
+  return format === "base64" ? base64.encode(serialized) : serialized
+}
+
+/**
+ * Decode an encoded V2 payload (base64 string or bytes) back into a
+ * {@link DelegateV2Action}.
+ */
+export function decodeSignedDelegateActionV2(
+  payload: string | Uint8Array,
+): DelegateV2Action {
+  const bytes = typeof payload === "string" ? base64.decode(payload) : payload
+  return {
+    delegateV2: VersionedSignedDelegateActionSchema.deserialize(bytes),
   }
 }

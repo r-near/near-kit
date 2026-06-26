@@ -54,9 +54,13 @@ import {
   type AccessKeyPermissionBorsh,
   type ClassicAction,
   type DelegateActionPayloadFormat,
+  type DelegateV2Action,
   encodeSignedDelegateAction,
+  encodeSignedDelegateActionV2,
+  type NonDelegateActionBorsh,
   type SignedDelegateAction,
   serializeDelegateAction,
+  serializeDelegateActionV2,
   serializeSignedTransaction,
   serializeSignedTransactionV1,
   serializeTransaction,
@@ -134,6 +138,25 @@ export type DelegateActionResult<
   F extends DelegateActionPayloadFormat = "base64",
 > = {
   signedDelegateAction: SignedDelegateAction
+  payload: F extends "bytes" ? Uint8Array : string
+  format: F
+}
+
+type DelegateV2Options<F extends DelegateActionPayloadFormat = "base64"> =
+  DelegateSigningOptions & {
+    payloadFormat?: F
+    /**
+     * Gas-key nonce slot to sign against. When set, the delegate action's nonce
+     * is a `GasKeyNonce { nonce, nonceIndex }` and the per-slot nonce is fetched
+     * via `EXPERIMENTAL_view_gas_key_nonces` (unless `nonce` is also given).
+     */
+    nonceIndex?: number
+  }
+
+export type DelegateV2ActionResult<
+  F extends DelegateActionPayloadFormat = "base64",
+> = {
+  signedDelegateAction: DelegateV2Action
   payload: F extends "bytes" ? Uint8Array : string
   format: F
 }
@@ -694,6 +717,19 @@ export class TransactionBuilder {
   }
 
   /**
+   * Add a V2 signed delegate action to this transaction, for relayers
+   * (gas-key meta-transactions, NEAR 2.13).
+   *
+   * The receiver is set to the V2 delegate action's sender (the account whose
+   * actions are being relayed).
+   */
+  signedDelegateActionV2(signedDelegate: DelegateV2Action): this {
+    this.actions.push(signedDelegate)
+    this.receiverId = signedDelegate.delegateV2.delegateAction.v2.senderId
+    return this.invalidateCache()
+  }
+
+  /**
    * Build and sign a delegate action from the queued actions.
    *
    * @returns Structured delegate action plus an encoded payload (`base64` by default)
@@ -812,6 +848,121 @@ export class TransactionBuilder {
     )
     const format = (opts.payloadFormat ?? "base64") as F
     const payload = encodeSignedDelegateAction(signedDelegateAction, format)
+
+    return {
+      signedDelegateAction,
+      payload,
+      format,
+    }
+  }
+
+  /**
+   * Build and sign a V2 delegate action (gas-key meta-transactions, NEAR 2.13).
+   *
+   * Like {@link delegate} but produces a `DelegateActionV2`, signed under the
+   * DISTINCT V2 NEP-461 domain tag. Pass `nonceIndex` to sign against a gas
+   * key's nonce slot (the nonce then carries that index); otherwise an ordinary
+   * key nonce is used. A relayer wraps the returned payload in a transaction via
+   * {@link signedDelegateActionV2}.
+   *
+   * @returns The structured V2 signed delegate action plus an encoded payload
+   *   (`base64` by default).
+   */
+  async delegateV2<F extends DelegateActionPayloadFormat = "base64">(
+    options?: DelegateV2Options<F>,
+  ): Promise<DelegateV2ActionResult<F>> {
+    const opts = options ?? ({} as DelegateV2Options<F>)
+    if (this.actions.length === 0) {
+      throw new NearError(
+        "Delegate action requires at least one action to perform",
+        "INVALID_TRANSACTION",
+      )
+    }
+
+    if (
+      this.actions.some(
+        (action) => "signedDelegate" in action || "delegateV2" in action,
+      )
+    ) {
+      throw new NearError(
+        "Delegate actions cannot contain nested delegate actions",
+        "INVALID_TRANSACTION",
+      )
+    }
+
+    const receiverId = opts.receiverId ?? this.receiverId
+    if (!receiverId) {
+      throw new NearError(
+        "Delegate action requires a receiver. Set receiverId via the first action or provide it explicitly.",
+        "INVALID_TRANSACTION",
+      )
+    }
+
+    const keyPair = await this.resolveKeyPair()
+    let delegatePublicKey: PublicKey
+    if (opts.publicKey === undefined) {
+      delegatePublicKey = keyPair.publicKey
+    } else if (typeof opts.publicKey === "string") {
+      delegatePublicKey = parsePublicKey(opts.publicKey)
+    } else {
+      delegatePublicKey = opts.publicKey
+    }
+
+    if (!publicKeysEqual(delegatePublicKey, keyPair.publicKey)) {
+      throw new InvalidKeyError(
+        "Delegate action public key must match the signer key. Use signWith() when you need a different key.",
+      )
+    }
+
+    // Resolve the underlying u64 nonce, then wrap it as a TransactionNonce
+    // (GasKeyNonce when a slot index is given, plain Nonce otherwise).
+    let nonceValue: bigint
+    if (opts.nonce !== undefined) {
+      nonceValue = opts.nonce
+    } else if (opts.nonceIndex !== undefined) {
+      nonceValue =
+        (await this.fetchGasKeyNonce(
+          delegatePublicKey.toString(),
+          opts.nonceIndex,
+        )) + 1n
+    } else {
+      const accessKey = await this.rpc.getAccessKey(
+        this.signerId,
+        delegatePublicKey.toString(),
+      )
+      nonceValue = BigInt(accessKey.nonce) + 1n
+    }
+    const txNonce: TransactionNonceBorsh =
+      opts.nonceIndex !== undefined
+        ? { gasKeyNonce: { nonce: nonceValue, nonceIndex: opts.nonceIndex } }
+        : { nonce: { nonce: nonceValue } }
+
+    let maxBlockHeight: bigint
+    if (opts.maxBlockHeight !== undefined) {
+      maxBlockHeight = opts.maxBlockHeight
+    } else {
+      const status = await this.rpc.getStatus()
+      const offset = BigInt(opts.blockHeightOffset ?? 200)
+      maxBlockHeight = BigInt(status.sync_info.latest_block_height) + offset
+    }
+
+    const delegateAction = new actions.DelegateActionV2(
+      this.signerId,
+      receiverId,
+      this.actions as NonDelegateActionBorsh[],
+      txNonce,
+      maxBlockHeight,
+      delegatePublicKey,
+    )
+
+    const hash = sha256(serializeDelegateActionV2(delegateAction.toBorsh()))
+    const signature = keyPair.sign(hash)
+    const signedDelegateAction = actions.signedDelegateV2(
+      delegateAction,
+      signature,
+    )
+    const format = (opts.payloadFormat ?? "base64") as F
+    const payload = encodeSignedDelegateActionV2(signedDelegateAction, format)
 
     return {
       signedDelegateAction,

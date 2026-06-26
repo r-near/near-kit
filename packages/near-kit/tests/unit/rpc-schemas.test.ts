@@ -152,4 +152,46 @@ describe("Gas key RPC views (NEAR 2.13)", () => {
     })
     expect(parsed.actions).toHaveLength(2)
   })
+
+  describe("response ActionSchema — DelegateV2 (NEAR 2.13)", () => {
+    test("parses a DelegateV2 action view with a GasKeyNonce", () => {
+      const view = {
+        DelegateV2: {
+          delegate_action: {
+            V2: {
+              sender_id: "alice.near",
+              receiver_id: "bob.near",
+              actions: [{ Transfer: { deposit: "1" } }],
+              nonce: { GasKeyNonce: { nonce: 5, nonce_index: 2 } },
+              max_block_height: 1000,
+              public_key:
+                "ed25519:8nFkHgRePSGD9UsK3Hx6nWKXGQ7Kd7k3k7k3k7k3k7k3",
+            },
+          },
+          signature: "ed25519:sig",
+        },
+      }
+      expect(ActionSchema.parse(view)).toEqual(view)
+    })
+
+    test("parses a DelegateV2 action view with a plain Nonce", () => {
+      const view = {
+        DelegateV2: {
+          delegate_action: {
+            V2: {
+              sender_id: "alice.near",
+              receiver_id: "bob.near",
+              actions: [],
+              nonce: { Nonce: { nonce: 9 } },
+              max_block_height: 500,
+              public_key:
+                "ed25519:8nFkHgRePSGD9UsK3Hx6nWKXGQ7Kd7k3k7k3k7k3k7k3",
+            },
+          },
+          signature: "ed25519:sig",
+        },
+      }
+      expect(ActionSchema.parse(view)).toEqual(view)
+    })
+  })
 })
