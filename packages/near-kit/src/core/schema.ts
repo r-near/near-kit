@@ -309,9 +309,14 @@ const DeterministicStateInitSchema = b.struct({
 // ==================== Delegate Actions ====================
 
 /**
- * ClassicActions enum - same as Action but without SignedDelegate
- * Used within DelegateAction to prevent infinite recursion
- * Note: The discriminant values must match the NEAR protocol spec
+ * ClassicActions enum - the actions allowed inside a DelegateAction (NEP-366),
+ * mirroring nearcore's `NonDelegateAction` which wraps the full `Action` enum.
+ *
+ * The Borsh discriminants MUST match `Action` exactly. A zorsh enum assigns
+ * discriminants positionally, so slot 8 (`Action::Delegate`) is kept as a
+ * placeholder to keep slots 9..=13 aligned with the protocol; it is never
+ * emitted because delegate actions cannot be nested. The gas-key actions
+ * therefore land at their true discriminants 12 and 13.
  */
 const ClassicActionsSchema = b.enum({
   createAccount: CreateAccountSchema,
@@ -322,16 +327,28 @@ const ClassicActionsSchema = b.enum({
   addKey: AddKeySchema,
   deleteKey: DeleteKeySchema,
   deleteAccount: DeleteAccountSchema,
+  // Slot 8 = Action::Delegate. Placeholder for discriminant alignment only;
+  // nested delegate actions are forbidden, so this is never serialized. (An
+  // empty-struct schema is reused so this enum has no forward dependency on
+  // the delegate schemas defined below.)
+  delegatePlaceholder: CreateAccountSchema,
   deployGlobalContract: DeployGlobalContractSchema,
   useGlobalContract: UseGlobalContractSchema,
   deterministicStateInit: DeterministicStateInitSchema,
+  transferToGasKey: TransferToGasKeySchema,
+  withdrawFromGasKey: WithdrawFromGasKeySchema,
 })
 
 /**
- * ClassicAction type - actions that can be used within a DelegateAction
- * This excludes SignedDelegate to prevent infinite nesting
+ * ClassicAction type - actions that can be used within a DelegateAction.
+ *
+ * Excludes the `delegatePlaceholder` (discriminant-alignment-only) variant so
+ * callers cannot construct a nested delegate action, which the protocol forbids.
  */
-export type ClassicAction = b.infer<typeof ClassicActionsSchema>
+export type ClassicAction = Exclude<
+  b.infer<typeof ClassicActionsSchema>,
+  { delegatePlaceholder: unknown }
+>
 
 /**
  * DelegateAction for meta-transactions
@@ -534,27 +551,10 @@ export function signatureToZorsh(sig: Signature) {
  * of delegate actions (which contain nested action arrays)
  */
 function actionToZorsh(action: Action): Action {
-  // Only need to recursively process delegate actions
-  if ("signedDelegate" in action) {
-    return {
-      signedDelegate: {
-        delegateAction: {
-          senderId: action.signedDelegate.delegateAction.senderId,
-          receiverId: action.signedDelegate.delegateAction.receiverId,
-          // Recursively convert nested actions
-          actions: action.signedDelegate.delegateAction.actions.map(
-            (a: Action) => actionToZorsh(a as Action),
-          ) as ClassicAction[],
-          nonce: action.signedDelegate.delegateAction.nonce,
-          maxBlockHeight: action.signedDelegate.delegateAction.maxBlockHeight,
-          publicKey: action.signedDelegate.delegateAction.publicKey,
-        },
-        signature: action.signedDelegate.signature,
-      },
-    }
-  }
-
-  // All other actions are already in zorsh-compatible format from helpers
+  // A signed delegate's nested actions are already in zorsh-compatible form (the
+  // action factories produce them) and cannot themselves be delegate actions, so
+  // they pass through unchanged. Returning the action as-is keeps the outer
+  // delegate intact without re-walking the (differently-typed) ClassicAction set.
   return action
 }
 

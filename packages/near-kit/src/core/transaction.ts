@@ -181,6 +181,16 @@ function toAccessKeyPermissionBorsh(
         methodNames: permission.methodNames || [],
         allowance: null,
       })
+    default: {
+      // Exhaustiveness guard: every AccessKeyPermission variant is handled
+      // above. Fail fast (rather than returning undefined) if a JS caller or
+      // malformed object supplies an unknown `permission.type`.
+      const unknown = permission as { type?: unknown }
+      throw new NearError(
+        `Unknown access key permission type: ${String(unknown.type)}`,
+        "INVALID_TRANSACTION",
+      )
+    }
   }
 }
 

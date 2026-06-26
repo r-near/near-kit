@@ -117,6 +117,16 @@ describe("Gas key permissions", () => {
     expect(bytes[0]).toBe(2)
   })
 
+  test("gasKeyFunctionCall rejects a non-null allowance", () => {
+    expect(() =>
+      gasKeyFunctionCall(2, {
+        receiverId: "contract.near",
+        methodNames: [],
+        allowance: 100n,
+      }),
+    ).toThrow(/allowance/)
+  })
+
   test("gas key permissions round-trip through AccessKeyPermissionSchema", () => {
     for (const permission of [
       gasKeyFullAccess(1),

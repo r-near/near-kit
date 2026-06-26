@@ -282,17 +282,28 @@ export function gasKeyFullAccess(numNonces: number): AccessKeyPermissionBorsh {
  * contract (and optionally a set of methods), the same way a regular function
  * call access key is restricted.
  *
+ * A gas function-call key must NOT carry an allowance — the protocol rejects an
+ * `AddKey` with one. The `allowance` field is therefore forced to `null`, and a
+ * non-null value (e.g. from a JS caller) is rejected with a clear error rather
+ * than silently producing an invalid permission.
+ *
  * @param numNonces - Number of independent nonce slots to allocate (1..=1024).
- * @param functionCall - The function call restriction (receiver, methods, allowance).
+ * @param functionCall - The function call restriction (receiver, methods). Any
+ *   `allowance` must be `null`/omitted.
  */
 export function gasKeyFunctionCall(
   numNonces: number,
   functionCall: FunctionCallPermissionBorsh,
 ): AccessKeyPermissionBorsh {
+  if (functionCall.allowance != null) {
+    throw new Error(
+      "Gas function-call keys must not set an allowance (rejected on-chain); pass allowance: null",
+    )
+  }
   return {
     gasKeyFunctionCall: {
       gasKeyInfo: gasKeyInfo(numNonces),
-      functionCall,
+      functionCall: { ...functionCall, allowance: null },
     },
   }
 }

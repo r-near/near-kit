@@ -588,6 +588,16 @@ describe("TransactionBuilder - Gas Keys (NEAR 2.13)", () => {
       }),
     ).toThrow(/1\.\.=1024/)
   })
+
+  test("rejects an unknown access key permission type (JS callers)", () => {
+    expect(() =>
+      createBuilder().addKey(TEST_PUBLIC_KEY, {
+        // Simulate a malformed permission from an untyped JS caller.
+        type: "bogusPermission",
+        // biome-ignore lint/suspicious/noExplicitAny: testing runtime guard
+      } as any),
+    ).toThrow(/Unknown access key permission type/)
+  })
 })
 
 describe("TransactionBuilder - NEP-616 StateInit", () => {

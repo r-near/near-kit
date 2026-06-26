@@ -1,18 +1,16 @@
 /**
  * Integration tests for gas-key actions and permissions (protocol v85 / NEAR 2.13).
  *
- * Proves the borsh wire format is correct by having a real 2.13 node decode and
- * admit the new actions:
+ * Proves the borsh wire format AND the RPC view schemas are correct by having a
+ * real 2.13 node execute the new actions and parsing the (status-bearing)
+ * default `.send()` response, which echoes the gas-key actions back:
  * - AddKey with a GasKeyFullAccess / GasKeyFunctionCall permission
  * - TransferToGasKey (fund the gas key) and WithdrawFromGasKey
  *
- * `send_tx` validates the borsh and runs action validation before responding, so
- * an invalid encoding is rejected synchronously (the test would throw). We send
- * with `waitUntil: "NONE"` deliberately: the status-bearing response modes echo
- * the executed actions back, and parsing the gas-key *view* representations
- * requires the RPC response/permission view schemas (owned by the keys+rpc
- * track) which are added separately. Admission alone is the wire-format proof
- * TS-2 needs; signing *with* a gas key requires TransactionV1 (TS-3).
+ * The default EXECUTED_OPTIMISTIC wait parses the response through
+ * FinalExecutionOutcomeSchema; this confirms the gas-key action/permission view
+ * schemas added in this PR parse a successful 2.13 response (the default public
+ * API path) rather than throwing.
  *
  * The sandbox version is pinned to a 2.13 release explicitly so this test does
  * not depend on the default-version bump landing first.
@@ -24,7 +22,9 @@ import { Sandbox } from "../../src/sandbox/sandbox.js"
 import { generateKey } from "../../src/utils/key.js"
 
 // Newest published 2.13 sandbox binary (stable 2.13.0 not yet released).
-const SANDBOX_VERSION = "2.13.0-rc.2"
+// Overridable via NEAR_SANDBOX_VERSION so CI can move off a renamed/GC'd RC or
+// to a stable 2.13.0 without a code change.
+const SANDBOX_VERSION = process.env.NEAR_SANDBOX_VERSION ?? "2.13.0-rc.2"
 
 describe("Gas Key Actions - Integration Tests (NEAR 2.13)", () => {
   let sandbox: Sandbox
@@ -67,9 +67,9 @@ describe("Gas Key Actions - Integration Tests (NEAR 2.13)", () => {
       keyStore: { [accountId]: accountKey.secretKey },
     })
 
-    // Add a gas key (full access, 4 parallel nonces) then fund it. The node
-    // decodes and validates both actions before responding; a bad encoding
-    // would throw here. See file header for why `waitUntil: "NONE"`.
+    // Add a gas key (full access, 4 parallel nonces) then fund it. Default
+    // (status-bearing) send: the response echoes both gas-key actions, so this
+    // also exercises the gas-key permission/action view schemas.
     const result = await accountNear
       .transaction(accountId)
       .addKey(gasKey.publicKey.toString(), {
@@ -77,9 +77,10 @@ describe("Gas Key Actions - Integration Tests (NEAR 2.13)", () => {
         numNonces: 4,
       })
       .transferToGasKey(gasKey.publicKey.toString(), "2 NEAR")
-      .send({ waitUntil: "NONE" })
+      .send()
 
-    expect(result.transaction?.hash).toBeTruthy()
+    expect("Failure" in (result.status as object)).toBe(false)
+    expect("SuccessValue" in (result.status as object)).toBe(true)
     console.log(`✓ Added + funded gas full-access key on ${accountId}`)
   }, 60000)
 
@@ -108,13 +109,14 @@ describe("Gas Key Actions - Integration Tests (NEAR 2.13)", () => {
         receiverId: "contract.near",
         methodNames: ["do_thing"],
       })
-      .send({ waitUntil: "NONE" })
+      .send()
 
-    expect(result.transaction?.hash).toBeTruthy()
+    expect("Failure" in (result.status as object)).toBe(false)
+    expect("SuccessValue" in (result.status as object)).toBe(true)
     console.log(`✓ Added gas function-call key on ${accountId}`)
   }, 60000)
 
-  test("admits add + fund + withdraw gas key actions atomically", async () => {
+  test("executes add + fund + withdraw gas key actions atomically", async () => {
     const accountId = `gaskeyw-${Date.now()}.${sandbox.rootAccount.id}`
     const accountKey = generateKey()
     const gasKey = generateKey()
@@ -133,7 +135,8 @@ describe("Gas Key Actions - Integration Tests (NEAR 2.13)", () => {
 
     // Add the gas key, fund it, then withdraw from it — all in one atomic
     // transaction so the actions execute in order without cross-tx races. This
-    // exercises the borsh encoding of all three gas-key actions in one go.
+    // exercises the borsh encoding of all three gas-key actions plus parsing
+    // their view representations in the (status-bearing) response.
     const result = await accountNear
       .transaction(accountId)
       .addKey(gasKey.publicKey.toString(), {
@@ -142,11 +145,12 @@ describe("Gas Key Actions - Integration Tests (NEAR 2.13)", () => {
       })
       .transferToGasKey(gasKey.publicKey.toString(), "2 NEAR")
       .withdrawFromGasKey(gasKey.publicKey.toString(), "1 NEAR")
-      .send({ waitUntil: "NONE" })
+      .send()
 
-    expect(result.transaction?.hash).toBeTruthy()
+    expect("Failure" in (result.status as object)).toBe(false)
+    expect("SuccessValue" in (result.status as object)).toBe(true)
     console.log(
-      `✓ Admitted add + fund + withdraw gas key actions on ${accountId}`,
+      `✓ Executed add + fund + withdraw gas key actions on ${accountId}`,
     )
   }, 60000)
 })
