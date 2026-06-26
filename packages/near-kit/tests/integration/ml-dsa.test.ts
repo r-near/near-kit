@@ -20,9 +20,15 @@ import {
 // ML-DSA-65 (ProtocolFeature::PostQuantumSignatures) is gated at protocol v85.
 // A pre-85 node rejects key type 2 with "unknown key type '2'", so this test
 // pins the sandbox to a version whose binary runs proto 85 WITH the PQ impl,
-// rather than relying on the (separately bumped) default version. Verified: the
-// S3 binary near-sandbox-2.13.0-rc.2 (git tag commit 315524124) genuinely has
-// ML-DSA. TODO: re-pin to a stable 2.13.x once one ships with PQ.
+// rather than relying on the (separately bumped) default version.
+//
+// NOTE (binary vs image): the near-sandbox S3 *binary* this downloader fetches
+// for "2.13.0-rc.2" (git tag commit 315524124) genuinely contains the ML-DSA
+// impl — verified on-chain here (AddKey + ML-DSA-signed transfer both reach
+// FINAL/SuccessValue). This differs from the `nearprotocol/sandbox:2.13.0-rc.2`
+// Docker *image* (used by near-kit-rs), which was built before the PQ merge and
+// rejects key type 2; that side has to use a `pre-release` image instead.
+// TODO: re-pin to a stable 2.13.x once one ships with PQ.
 const ML_DSA_SANDBOX_VERSION = "2.13.0-rc.2"
 const POST_QUANTUM_PROTOCOL_VERSION = 85
 
