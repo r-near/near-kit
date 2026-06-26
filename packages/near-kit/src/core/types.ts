@@ -120,6 +120,8 @@ export type Signer = (message: Uint8Array) => Promise<Signature>
 export type {
   AccessKeyPermission,
   FunctionCallPermissionDetails,
+  GasKeyFullAccessPermissionDetails,
+  GasKeyFunctionCallPermissionDetails,
 } from "./rpc/rpc-schemas.js"
 
 // ==================== Transaction Types ====================
