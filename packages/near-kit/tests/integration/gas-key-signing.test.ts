@@ -113,4 +113,39 @@ describe("Gas Key Signing - Integration Test (NEAR 2.13)", () => {
       `✓ Gas-key-signed transfer executed: ${result.transaction?.hash}`,
     )
   }, 120000)
+
+  test("strict nonce mode sends a transfer accepted by the node", async () => {
+    // Strict mode requires nonce === ak_nonce + 1; the builder bypasses the
+    // monotonic nonce cache and fetches the chain nonce directly. This proves
+    // the resulting V1 (strict) transaction is accepted on-chain.
+    const accountId = `strict-${Date.now()}.${sandbox.rootAccount.id}`
+    const accountKey = generateKey()
+    const recipientId = `strict-recv-${Date.now()}.${sandbox.rootAccount.id}`
+
+    await near
+      .transaction(sandbox.rootAccount.id)
+      .createAccount(accountId)
+      .transfer(accountId, "10 NEAR")
+      .addKey(accountKey.publicKey.toString(), { type: "fullAccess" })
+      .send()
+    await near
+      .transaction(sandbox.rootAccount.id)
+      .createAccount(recipientId)
+      .transfer(recipientId, "1 NEAR")
+      .send()
+
+    const accountNear = new Near({
+      network: sandbox,
+      keyStore: { [accountId]: accountKey.secretKey },
+    })
+
+    const result = await accountNear
+      .transaction(accountId)
+      .strictNonceMode()
+      .transfer(recipientId, "1 NEAR")
+      .send()
+
+    expect("SuccessValue" in (result.status as object)).toBe(true)
+    console.log(`✓ Strict-nonce transfer executed: ${result.transaction?.hash}`)
+  }, 120000)
 })

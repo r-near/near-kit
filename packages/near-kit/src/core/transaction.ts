@@ -907,7 +907,9 @@ export class TransactionBuilder {
    * `(account, public key, nonce index)`, so concurrent transactions on
    * different indexes of the same gas key do not collide.
    *
-   * @param nonceIndex - Which gas-key nonce slot to use (`0..numNonces`).
+   * @param nonceIndex - Which gas-key nonce slot to use. Slots are 0-based, so
+   *   valid values are `0` to `numNonces - 1` (the slot count the key was added
+   *   with). An out-of-range slot is rejected when the nonce is fetched.
    *
    * @example
    * ```typescript
@@ -1170,12 +1172,27 @@ export class TransactionBuilder {
 
     if (this.gasKeyNonceIndex !== undefined) {
       const index = this.gasKeyNonceIndex
+      // Strict mode bypasses the monotonic cache (see below); otherwise reserve
+      // the per-slot nonce through the shared manager so parallel transactions
+      // on the same slot don't collide.
+      if (this.strictNonce) {
+        const nonce = (await this.fetchGasKeyNonce(pkString, index)) + 1n
+        return { gasKeyNonce: { nonce, nonceIndex: index } }
+      }
       const nonce = await TransactionBuilder.nonceManager.getNextNonce(
         this.signerId,
         `${pkString}#${index}`,
         async () => this.fetchGasKeyNonce(pkString, index),
       )
       return { gasKeyNonce: { nonce, nonceIndex: index } }
+    }
+
+    // Strict mode requires the nonce to be EXACTLY ak_nonce + 1, so it must not
+    // go through the monotonic NonceManager (whose cache can be ahead of chain
+    // and hand out ak_nonce + 2+). Fetch the chain nonce directly instead.
+    if (this.strictNonce) {
+      const accessKey = await this.rpc.getAccessKey(this.signerId, pkString)
+      return { nonce: { nonce: BigInt(accessKey.nonce) + 1n } }
     }
 
     const nonce = await TransactionBuilder.nonceManager.getNextNonce(
@@ -1207,13 +1224,36 @@ export class TransactionBuilder {
       },
     )
     const nonces = result?.nonces
-    if (!Array.isArray(nonces) || nonceIndex >= nonces.length) {
+    if (
+      !Array.isArray(nonces) ||
+      !Number.isInteger(nonceIndex) ||
+      nonceIndex < 0 ||
+      nonceIndex >= nonces.length
+    ) {
       throw new NearError(
         `Gas key ${publicKey} on ${this.signerId} has no nonce slot ${nonceIndex}`,
         "INVALID_TRANSACTION",
       )
     }
-    return BigInt(nonces[nonceIndex] as number | string)
+    const raw = nonces[nonceIndex]
+    // The RPC returns nonces as JSON numbers; guard against precision loss
+    // before widening to bigint, and accept a string form defensively.
+    if (typeof raw === "number") {
+      if (!Number.isSafeInteger(raw)) {
+        throw new NearError(
+          `Gas key nonce slot ${nonceIndex} is not a safe integer: ${raw}`,
+          "INVALID_TRANSACTION",
+        )
+      }
+      return BigInt(raw)
+    }
+    if (typeof raw === "string") {
+      return BigInt(raw)
+    }
+    throw new NearError(
+      `Gas key nonce slot ${nonceIndex} has an unexpected type: ${typeof raw}`,
+      "INVALID_TRANSACTION",
+    )
   }
 
   /**
@@ -1381,11 +1421,24 @@ export class TransactionBuilder {
           // Use akNonce from the error to update cache directly
           // This avoids refetching and thundering herd on retry
           if (this.cachedSignedTx) {
-            TransactionBuilder.nonceManager.updateAndGetNext(
-              this.signerId,
-              this.cachedSignedTx.signedTx.transaction.publicKey.toString(),
-              BigInt(error.akNonce),
-            )
+            const pk =
+              this.cachedSignedTx.signedTx.transaction.publicKey.toString()
+            // Gas-key transactions reserve nonces under a per-slot key
+            // (`pk#index`), so the retry must update that same key — not the
+            // bare `pk` — or it would keep signing with the stale slot nonce.
+            // Strict-nonce transactions bypass the cache entirely (they refetch
+            // ak_nonce + 1 each attempt), so no cache update is needed there.
+            if (!this.strictNonce) {
+              const cacheKey =
+                this.gasKeyNonceIndex !== undefined
+                  ? `${pk}#${this.gasKeyNonceIndex}`
+                  : pk
+              TransactionBuilder.nonceManager.updateAndGetNext(
+                this.signerId,
+                cacheKey,
+                BigInt(error.akNonce),
+              )
+            }
           }
 
           // If we have retries left, continue the loop to rebuild with fresh nonce
