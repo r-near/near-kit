@@ -9,6 +9,7 @@
 
 import { base64 } from "@scure/base"
 import { b } from "@zorsh/zorsh"
+import { InvalidKeyError } from "../errors/index.js"
 import type { DelegateAction } from "./actions.js"
 import type {
   Ed25519PublicKey,
@@ -454,6 +455,10 @@ export function publicKeyToZorsh(pk: PublicKey) {
       return { secp256k1Key: { data: Array.from(pk.data) } }
     case KeyType.ML_DSA_65:
       return { mlDsa65Key: { data: Array.from(pk.data) } }
+    default:
+      throw new InvalidKeyError(
+        `Unsupported key type: ${(pk as PublicKey).keyType}`,
+      )
   }
 }
 
@@ -485,6 +490,10 @@ export function signatureToZorsh(sig: Signature) {
       return { secp256k1Signature: { data: Array.from(sig.data) } }
     case KeyType.ML_DSA_65:
       return { mlDsa65Signature: { data: Array.from(sig.data) } }
+    default:
+      throw new InvalidKeyError(
+        `Unsupported key type: ${(sig as Signature).keyType}`,
+      )
   }
 }
 
