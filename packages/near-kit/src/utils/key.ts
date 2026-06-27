@@ -451,6 +451,13 @@ export function parsePublicKey(publicKeyString: string): PublicKey {
     }
   }
 
+  if (publicKeyString.startsWith(ML_DSA_65_HASH_PREFIX)) {
+    throw new InvalidKeyError(
+      "'ml-dsa-65-hash:' is an on-chain view handle (a 32-byte hash), not a " +
+        "full public key; parse it with parseMlDsa65Handle() instead",
+    )
+  }
+
   throw new InvalidKeyError(`Unsupported public key type: ${publicKeyString}`)
 }
 

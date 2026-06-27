@@ -170,9 +170,10 @@ describe("parseKey / parsePublicKey for ML-DSA-65", () => {
     expect(() => parsePublicKey(tooShort)).toThrow(InvalidKeyError)
   })
 
-  test("parsePublicKey does not accept the hash handle form", () => {
+  test("parsePublicKey rejects the hash handle form with a message pointing to parseMlDsa65Handle", () => {
     const handle = `ml-dsa-65-hash:${base58.encode(new Uint8Array(32).fill(9))}`
     expect(() => parsePublicKey(handle)).toThrow(InvalidKeyError)
+    expect(() => parsePublicKey(handle)).toThrow(/parseMlDsa65Handle/)
   })
 })
 
