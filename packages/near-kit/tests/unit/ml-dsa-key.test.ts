@@ -120,6 +120,21 @@ describe("MlDsa65KeyPair", () => {
     const handle = `ml-dsa-65-hash:${base58.encode(new Uint8Array(32).fill(9))}`
     expect(() => MlDsa65KeyPair.fromString(handle)).toThrow(InvalidKeyError)
   })
+
+  test("fromString throws InvalidKeyError when the ml-dsa-65: prefix is missing", () => {
+    const seedB58 = base58.encode(new Uint8Array(32).fill(4))
+    expect(() => MlDsa65KeyPair.fromString(`ed25519:${seedB58}`)).toThrow(
+      InvalidKeyError,
+    )
+    expect(() => MlDsa65KeyPair.fromString(seedB58)).toThrow(InvalidKeyError)
+  })
+
+  test("fromString throws InvalidKeyError (not a raw base58 error) on invalid base58", () => {
+    // '0' and 'O' are not in the base58 alphabet.
+    expect(() => MlDsa65KeyPair.fromString("ml-dsa-65:0OIl")).toThrow(
+      InvalidKeyError,
+    )
+  })
 })
 
 describe("parseKey / parsePublicKey for ML-DSA-65", () => {

@@ -309,10 +309,12 @@ export class MlDsa65KeyPair implements KeyPair {
   }
 
   /**
-   * Parse an `ml-dsa-65:<base58-seed>` secret key string.
+   * Parse an `ml-dsa-65:<base58>` secret key string (a 32-byte seed or a
+   * 4032-byte raw secret key).
    *
    * @throws {@link InvalidKeyError} if the string is a `ml-dsa-65-hash:` view
-   * handle (a 32-byte hash) rather than a full key - handles cannot sign.
+   * handle (a 32-byte hash, which cannot sign), is missing the `ml-dsa-65:`
+   * prefix, or is not valid base58.
    */
   static fromString(keyString: string): MlDsa65KeyPair {
     if (keyString.startsWith(ML_DSA_65_HASH_PREFIX)) {
@@ -321,8 +323,18 @@ export class MlDsa65KeyPair implements KeyPair {
           "it is a 32-byte hash, not a signing key",
       )
     }
-    const key = keyString.replace(ML_DSA_65_KEY_PREFIX, "")
-    const decoded = base58.decode(key)
+    if (!keyString.startsWith(ML_DSA_65_KEY_PREFIX)) {
+      throw new InvalidKeyError(
+        `ML-DSA-65 key must start with '${ML_DSA_65_KEY_PREFIX}': ${keyString}`,
+      )
+    }
+    const key = keyString.slice(ML_DSA_65_KEY_PREFIX.length)
+    let decoded: Uint8Array
+    try {
+      decoded = base58.decode(key)
+    } catch {
+      throw new InvalidKeyError(`Invalid base58 in ML-DSA-65 key: ${keyString}`)
+    }
     return new MlDsa65KeyPair(decoded)
   }
 }
