@@ -722,7 +722,7 @@ export class RpcClient {
     const result = await this.callWithExperimentalFallback(
       "genesis_config",
       "EXPERIMENTAL_genesis_config",
-      null,
+      [],
     )
     return GenesisConfigResponseSchema.parse(result)
   }
