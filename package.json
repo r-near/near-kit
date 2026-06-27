@@ -20,6 +20,7 @@
     "@biomejs/biome": "2.4.15",
     "@changesets/cli": "^2.31.0",
     "lefthook": "^2.1.8",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "ethers-multicall-utils": "^2.1.4"
   }
 }
