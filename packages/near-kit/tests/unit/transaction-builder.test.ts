@@ -631,6 +631,20 @@ describe("TransactionBuilder - V1 nonce options (NEAR 2.13)", () => {
     expect(() => createBuilder().useGasKey(70000)).toThrow(/0\.\.=65535/)
     expect(() => createBuilder().useGasKey(1.5)).toThrow(/0\.\.=65535/)
   })
+
+  test("delegateV2 rejects an out-of-range gas key nonce index", async () => {
+    // The index is validated before any RPC call (after the local key is
+    // resolved via signWith), so this rejects without network access.
+    const builder = createBuilder()
+      .signWith(
+        "ed25519:3D4YudUahN1nawWogh8pAKSj92sUNMdbZGjn7kERKzYoTy8oryFtvLGoBnu1J6N4qVWY9jXwfLiNWnaTzKkHNfqG",
+      )
+      .transfer("bob.near", Amount.NEAR(1))
+
+    await expect(builder.delegateV2({ nonceIndex: -1 })).rejects.toThrow(
+      /0\.\.=65535/,
+    )
+  })
 })
 
 describe("TransactionBuilder - NEP-616 StateInit", () => {

@@ -442,11 +442,13 @@ const SignedDelegateSchema = b.struct({
  * `NonDelegateAction` (which wraps the full `Action` enum and rejects nested
  * delegates at runtime).
  *
- * The Borsh discriminants MUST match `Action` exactly (0..=13). A zorsh enum
- * assigns discriminants positionally, so slot 8 (`Action::Delegate`) is kept as
- * a placeholder to keep slots 9..=13 aligned with the protocol; it is never
- * emitted because delegate actions cannot be nested. This deliberately differs
- * from the V1 `ClassicActionsSchema`, whose discriminants drift past index 8.
+ * The Borsh discriminants MUST match the corresponding `Action` variants. A
+ * zorsh enum assigns discriminants positionally, so slot 8 (`Action::Delegate`)
+ * is kept as a placeholder to keep slots 9..=13 aligned with the protocol; it is
+ * never emitted because delegate actions cannot be nested. Both delegate
+ * variants are intentionally absent: slot 8 (`Delegate`) is a placeholder and
+ * slot 14 (`DelegateV2`) is simply not listed, since a delegate action cannot
+ * contain another delegate action.
  */
 const NonDelegateActionSchema = b.enum({
   createAccount: CreateAccountSchema,

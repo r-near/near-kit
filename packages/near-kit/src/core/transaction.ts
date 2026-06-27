@@ -914,22 +914,28 @@ export class TransactionBuilder {
       )
     }
 
+    if (opts.nonceIndex !== undefined) {
+      TransactionBuilder.validateNonceIndex(opts.nonceIndex)
+    }
+
     // Resolve the underlying u64 nonce, then wrap it as a TransactionNonce
     // (GasKeyNonce when a slot index is given, plain Nonce otherwise).
+    const pkString = delegatePublicKey.toString()
     let nonceValue: bigint
     if (opts.nonce !== undefined) {
       nonceValue = opts.nonce
     } else if (opts.nonceIndex !== undefined) {
-      nonceValue =
-        (await this.fetchGasKeyNonce(
-          delegatePublicKey.toString(),
-          opts.nonceIndex,
-        )) + 1n
-    } else {
-      const accessKey = await this.rpc.getAccessKey(
+      // Reserve the per-slot nonce through the shared NonceManager (keyed by
+      // `pk#index`), so concurrent gas-key delegate signings on the same slot
+      // get distinct nonces instead of all fetching the same chain value.
+      const index = opts.nonceIndex
+      nonceValue = await TransactionBuilder.nonceManager.getNextNonce(
         this.signerId,
-        delegatePublicKey.toString(),
+        `${pkString}#${index}`,
+        async () => this.fetchGasKeyNonce(pkString, index),
       )
+    } else {
+      const accessKey = await this.rpc.getAccessKey(this.signerId, pkString)
       nonceValue = BigInt(accessKey.nonce) + 1n
     }
     const txNonce: TransactionNonceBorsh =
@@ -1074,14 +1080,24 @@ export class TransactionBuilder {
    * @remarks Combine with {@link signWith} to use the gas key's private key.
    */
   useGasKey(nonceIndex: number): this {
+    TransactionBuilder.validateNonceIndex(nonceIndex)
+    this.gasKeyNonceIndex = nonceIndex
+    return this.invalidateCache()
+  }
+
+  /**
+   * Validate a gas-key nonce index: an integer in the u16 range (`0..=65535`).
+   * The slot must also be within the key's allocated slots, which is checked
+   * when the nonce is fetched.
+   * @internal
+   */
+  private static validateNonceIndex(nonceIndex: number): void {
     if (!Number.isInteger(nonceIndex) || nonceIndex < 0 || nonceIndex > 65535) {
       throw new NearError(
         `Gas key nonceIndex must be an integer in 0..=65535, got ${nonceIndex}`,
         "INVALID_TRANSACTION",
       )
     }
-    this.gasKeyNonceIndex = nonceIndex
-    return this.invalidateCache()
   }
 
   /**
