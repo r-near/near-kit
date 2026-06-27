@@ -147,20 +147,23 @@ await near
 ML-DSA-65 keys let an account sign with a quantum-resistant scheme. Generate one with `MlDsa65KeyPair`, then add it like any other key:
 
 ```typescript
-import { MlDsa65KeyPair } from "near-kit"
+import { MlDsa65KeyPair, Near } from "near-kit"
 
 const pqKey = MlDsa65KeyPair.fromRandom()
 
+// Add the post-quantum key with an existing full-access key.
 await near
   .transaction("alice.near")
   .addKey(pqKey.publicKey.toString(), { type: "fullAccess" })
   .send()
 
-// Sign transactions with it
-const near = new Near({
+// Then sign transactions with the post-quantum key.
+const pqNear = new Near({
   network: "mainnet",
   keyStore: { "alice.near": pqKey.secretKey }, // "ml-dsa-65:<seed>"
 })
+
+await pqNear.transaction("alice.near").transfer("bob.near", "1 NEAR").send()
 ```
 
 The serialized secret key is the 32-byte seed (`ml-dsa-65:<base58 seed>`); the public key is 1952 bytes and signatures are 3309 bytes.
