@@ -71,6 +71,12 @@ export const ML_DSA_65_HASH_PREFIX = "ml-dsa-65-hash:"
 export const ML_DSA_65_PUBLIC_KEY_LENGTH = 1952
 /** ML-DSA-65 deterministic key-generation seed length in bytes. */
 export const ML_DSA_65_SEED_LENGTH = 32
+/**
+ * Expanded ML-DSA-65 secret (private) key length in bytes. nearcore / near-cli
+ * `ml-dsa-65:` credentials carry this raw expanded secret key, not the 32-byte
+ * seed, so {@link MlDsa65KeyPair} accepts both forms.
+ */
+export const ML_DSA_65_SECRET_KEY_LENGTH = 4032
 /** ML-DSA-65 signature length in bytes. */
 export const ML_DSA_65_SIGNATURE_LENGTH = 3309
 /** ML-DSA-65 on-trie handle (hash) length in bytes. */

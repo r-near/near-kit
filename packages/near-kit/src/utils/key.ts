@@ -12,6 +12,7 @@ import {
   ML_DSA_65_HASH_PREFIX,
   ML_DSA_65_KEY_PREFIX,
   ML_DSA_65_PUBLIC_KEY_LENGTH,
+  ML_DSA_65_SECRET_KEY_LENGTH,
   ML_DSA_65_SEED_LENGTH,
   SECP256K1_KEY_PREFIX,
 } from "../core/constants.js"
@@ -240,9 +241,16 @@ export class Secp256k1KeyPair implements KeyPair {
  * what goes in `AddKey` actions and in a signed transaction's `public_key`.
  *
  * @remarks
- * The serialized `secretKey` string holds the 32-byte seed (`ml-dsa-65:<seed>`),
- * not the expanded private key - the seed fully determines the key pair and is
- * what callers store. Signatures are 3309 bytes.
+ * The constructor accepts either form of ML-DSA-65 private-key material:
+ * - a 32-byte seed (`ml-dsa-65:<seed>`), which is what this library serializes
+ *   for a key it generated; the seed is expanded via `ml_dsa65.keygen(seed)`.
+ * - the 4032-byte raw expanded secret key, which is what nearcore / near-cli
+ *   `ml-dsa-65:` credentials store; the public key is derived with
+ *   `ml_dsa65.getPublicKey(secretKey)` and the key is used directly (no keygen).
+ *
+ * `secretKey` round-trips whichever form it was constructed from: the 32-byte
+ * seed stays `ml-dsa-65:<seed>`, the 4032-byte raw key stays
+ * `ml-dsa-65:<raw key>`. Signatures are 3309 bytes.
  *
  * On-chain, an ML-DSA access key is stored as a 32-byte hash, so view RPCs
  * return an {@link MlDsa65PublicKeyHandle} (`ml-dsa-65-hash:`) that cannot be
@@ -253,14 +261,28 @@ export class MlDsa65KeyPair implements KeyPair {
   secretKey: string
   private privateKey: Uint8Array
 
-  constructor(seed: Uint8Array) {
-    if (seed.length !== ML_DSA_65_SEED_LENGTH) {
+  /**
+   * @param key - Either a 32-byte ML-DSA-65 seed or the 4032-byte raw expanded
+   * secret key. Any other length throws {@link InvalidKeyError}.
+   */
+  constructor(key: Uint8Array) {
+    let publicKey: Uint8Array
+    if (key.length === ML_DSA_65_SEED_LENGTH) {
+      // Seed form: expand to the full key pair.
+      const expanded = ml_dsa65.keygen(key)
+      publicKey = expanded.publicKey
+      this.privateKey = expanded.secretKey
+    } else if (key.length === ML_DSA_65_SECRET_KEY_LENGTH) {
+      // Raw expanded secret key (nearcore / near-cli credential form): the
+      // public key is derivable from the secret key, no keygen needed.
+      this.privateKey = key
+      publicKey = ml_dsa65.getPublicKey(key)
+    } else {
       throw new InvalidKeyError(
-        `ML-DSA-65 seed must be ${ML_DSA_65_SEED_LENGTH} bytes, got ${seed.length}`,
+        `ML-DSA-65 key must be a ${ML_DSA_65_SEED_LENGTH}-byte seed or a ` +
+          `${ML_DSA_65_SECRET_KEY_LENGTH}-byte raw secret key, got ${key.length}`,
       )
     }
-    const { publicKey, secretKey } = ml_dsa65.keygen(seed)
-    this.privateKey = secretKey
 
     this.publicKey = {
       keyType: KeyType.ML_DSA_65,
@@ -268,7 +290,8 @@ export class MlDsa65KeyPair implements KeyPair {
       toString: () => ML_DSA_65_KEY_PREFIX + base58.encode(publicKey),
     }
 
-    this.secretKey = ML_DSA_65_KEY_PREFIX + base58.encode(seed)
+    // Round-trip whichever private-key material we were given.
+    this.secretKey = ML_DSA_65_KEY_PREFIX + base58.encode(key)
   }
 
   sign(message: Uint8Array): Signature {

@@ -42,13 +42,54 @@ describe("MlDsa65KeyPair", () => {
     expect(a.secretKey).toBe(b.secretKey)
   })
 
-  test("rejects a seed of the wrong length", () => {
+  test("rejects key material that is neither a 32-byte seed nor a 4032-byte secret key", () => {
     expect(() => new MlDsa65KeyPair(new Uint8Array(31))).toThrow(
       InvalidKeyError,
     )
     expect(() => new MlDsa65KeyPair(new Uint8Array(33))).toThrow(
       InvalidKeyError,
     )
+    // A 1952-byte public key is not valid private-key material.
+    expect(() => new MlDsa65KeyPair(new Uint8Array(1952))).toThrow(
+      InvalidKeyError,
+    )
+    expect(() => new MlDsa65KeyPair(new Uint8Array(4031))).toThrow(
+      InvalidKeyError,
+    )
+  })
+
+  test("accepts a 4032-byte raw expanded secret key and derives the matching public key", () => {
+    const seed = new Uint8Array(32).fill(11)
+    const seedPair = new MlDsa65KeyPair(seed)
+
+    // The raw expanded secret key nearcore / near-cli credentials carry.
+    const rawSecretKey = ml_dsa65.keygen(seed).secretKey
+    expect(rawSecretKey.length).toBe(4032)
+
+    const rawPair = new MlDsa65KeyPair(rawSecretKey)
+    // Same key material -> identical public key as the seed-derived pair.
+    expect(rawPair.publicKey.toString()).toBe(seedPair.publicKey.toString())
+    expect(Array.from(rawPair.publicKey.data)).toEqual(
+      Array.from(seedPair.publicKey.data),
+    )
+
+    // A signature from the raw-key pair verifies under that public key.
+    const msg = new Uint8Array(32).fill(1)
+    const sig = rawPair.sign(msg)
+    expect(ml_dsa65.verify(sig.data, msg, rawPair.publicKey.data)).toBe(true)
+  })
+
+  test("fromString round-trips a raw 4032-byte secret key", () => {
+    const rawSecretKey = ml_dsa65.keygen(new Uint8Array(32).fill(13)).secretKey
+    const original = new MlDsa65KeyPair(rawSecretKey)
+    // Serialized form carries the raw key, not a seed.
+    expect(
+      base58.decode(original.secretKey.replace("ml-dsa-65:", "")).length,
+    ).toBe(4032)
+
+    const restored = MlDsa65KeyPair.fromString(original.secretKey)
+    expect(restored.publicKey.toString()).toBe(original.publicKey.toString())
+    expect(restored.secretKey).toBe(original.secretKey)
   })
 
   test("signs a 32-byte message; signature is 3309 bytes and self-verifies", () => {
@@ -87,6 +128,18 @@ describe("parseKey / parsePublicKey for ML-DSA-65", () => {
     const parsed = parseKey(original.secretKey)
     expect(parsed.publicKey.keyType).toBe(KeyType.ML_DSA_65)
     expect(parsed.publicKey.toString()).toBe(original.publicKey.toString())
+  })
+
+  test("parseKey parses a raw 4032-byte ml-dsa-65: secret key to the same public key as its seed", () => {
+    const seed = new Uint8Array(32).fill(17)
+    const seedPub = new MlDsa65KeyPair(seed).publicKey.toString()
+
+    const rawSecretKey = ml_dsa65.keygen(seed).secretKey
+    const rawKeyString = `ml-dsa-65:${base58.encode(rawSecretKey)}`
+    const parsed = parseKey(rawKeyString)
+
+    expect(parsed.publicKey.keyType).toBe(KeyType.ML_DSA_65)
+    expect(parsed.publicKey.toString()).toBe(seedPub)
   })
 
   test("parsePublicKey parses an ml-dsa-65: public key", () => {
