@@ -649,7 +649,9 @@ export class RpcClient {
         : { finality: options?.finality || "optimistic" }),
       account_id: accountId,
       prefix_base64: options?.prefix ?? "",
-      ...(options?.afterKey ? { after_key_base64: options.afterKey } : {}),
+      ...(options?.afterKey !== undefined
+        ? { after_key_base64: options.afterKey }
+        : {}),
       ...(options?.limit !== undefined ? { limit: options.limit } : {}),
       ...(options?.includeProof ? { include_proof: true } : {}),
     })
@@ -684,7 +686,7 @@ export class RpcClient {
     do {
       const page = await this.viewState(accountId, {
         ...options,
-        ...(afterKey ? { afterKey } : {}),
+        ...(afterKey !== undefined ? { afterKey } : {}),
       })
       yield* page.values
       afterKey = page.last_key
