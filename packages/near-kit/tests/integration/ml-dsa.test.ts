@@ -106,7 +106,7 @@ describe("ML-DSA-65 - Integration Tests", () => {
     )
   }, 60000)
 
-  test("seed round-trips: parsed key produces identical public key", () => {
+  test("parsePublicKey round-trips an ml-dsa-65 public key string", () => {
     const original = MlDsa65KeyPair.fromRandom()
     const restored = parsePublicKey(original.publicKey.toString())
     expect(restored.keyType).toBe(KeyType.ML_DSA_65)
