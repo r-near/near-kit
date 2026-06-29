@@ -1,11 +1,15 @@
 /**
- * Integration tests for RPC view methods against real NEAR RPC endpoints
+ * Integration tests for RPC view methods.
  *
- * These tests make actual network calls to NEAR mainnet and testnet RPCs.
- * They test read-only operations that don't require signing or gas.
+ * These tests run against a local Sandbox (deterministic) rather than live
+ * public RPC. They exercise read-only operations that don't require signing or
+ * gas, plus a couple of error paths.
  */
 
-import { describe, expect, test } from "vitest"
+import { readFileSync } from "node:fs"
+import { resolve } from "node:path"
+import { afterAll, beforeAll, describe, expect, test } from "vitest"
+import { Near } from "../../src/core/near.js"
 import { RpcClient } from "../../src/core/rpc/rpc.js"
 import type {
   AccountView,
@@ -14,27 +18,57 @@ import type {
   ViewFunctionCallResult,
 } from "../../src/core/types.js"
 import { AccountDoesNotExistError } from "../../src/errors/index.js"
+import { Sandbox } from "../../src/sandbox/sandbox.js"
+import { generateKey } from "../../src/utils/key.js"
 
-// Use the new FastNEAR endpoints
-const MAINNET_RPC = "https://free.rpc.fastnear.com"
-const TESTNET_RPC = "https://rpc.testnet.fastnear.com"
+let sandbox: Sandbox
+let rpc: RpcClient
+let contractId: string
 
-// Well-known accounts that should exist
-const MAINNET_ACCOUNT = "near"
-const TESTNET_ACCOUNT = "testnet"
+beforeAll(async () => {
+  sandbox = await Sandbox.start()
+  const near = new Near({
+    network: sandbox,
+    keyStore: {
+      [sandbox.rootAccount.id]: sandbox.rootAccount.secretKey,
+    },
+  })
 
-// Well-known contract for testing view calls
-const WRAP_NEAR_CONTRACT = "wrap.near" // Wrapped NEAR contract on mainnet
+  // Deploy guestbook contract for view-call coverage.
+  contractId = `contract-${Date.now()}.${sandbox.rootAccount.id}`
+  const contractWasm = readFileSync(
+    resolve(__dirname, "../contracts/guestbook.wasm"),
+  )
+  const contractKey = generateKey()
+  await near
+    .transaction(sandbox.rootAccount.id)
+    .createAccount(contractId)
+    .transfer(contractId, "10 NEAR")
+    .addKey(contractKey.publicKey.toString(), { type: "fullAccess" })
+    .deployContract(contractId, contractWasm)
+    .send({ waitUntil: "FINAL" })
 
-describe("RPC View Methods - Mainnet", () => {
-  const rpc = new RpcClient(MAINNET_RPC)
+  rpc = new RpcClient(sandbox.rpcUrl)
 
+  console.log(`✓ Sandbox started: ${sandbox.rpcUrl}`)
+  console.log(`✓ Contract deployed: ${contractId}`)
+}, 120000)
+
+afterAll(async () => {
+  if (sandbox) {
+    await sandbox.stop()
+    console.log("✓ Sandbox stopped")
+  }
+})
+
+describe("RPC View Methods (sandbox)", () => {
   test("getStatus should return network status", async () => {
     const status: StatusResponse = await rpc.getStatus()
 
     // Verify response structure
     expect(status).toBeDefined()
-    expect(status.chain_id).toBe("mainnet")
+    expect(typeof status.chain_id).toBe("string")
+    expect(status.chain_id).toBe(sandbox.networkId)
     expect(status.genesis_hash).toBeDefined()
     expect(status.version).toBeDefined()
     expect(status.version.version).toBeDefined()
@@ -62,7 +96,7 @@ describe("RPC View Methods - Mainnet", () => {
     expect(typeof status.sync_info.syncing).toBe("boolean")
 
     console.log(
-      `✓ Mainnet status: chain=${status.chain_id}, height=${status.sync_info.latest_block_height}, validators=${status.validators.length}`,
+      `✓ Status: chain=${status.chain_id}, height=${status.sync_info.latest_block_height}, validators=${status.validators.length}`,
     )
   })
 
@@ -92,9 +126,10 @@ describe("RPC View Methods - Mainnet", () => {
   })
 
   test("getBlock should accept blockId parameter", async () => {
-    // First get the current final block to get a valid height
+    // First get the current final block to get a valid height. Guard against
+    // underflow on a very fresh sandbox by clamping to height 1.
     const finalBlock = await rpc.getBlock({ finality: "final" })
-    const targetHeight = finalBlock.header.height - 5 // Get a block 5 behind
+    const targetHeight = Math.max(1, finalBlock.header.height - 1)
 
     const block = await rpc.getBlock({ blockId: targetHeight })
 
@@ -107,14 +142,14 @@ describe("RPC View Methods - Mainnet", () => {
   })
 
   test("getAccount should return account info for known account", async () => {
-    const account: AccountView = await rpc.getAccount(MAINNET_ACCOUNT)
+    const account: AccountView = await rpc.getAccount(sandbox.rootAccount.id)
 
     // Verify response structure
     expect(account).toBeDefined()
     expect(account.amount).toBeDefined()
     expect(account.locked).toBeDefined()
     expect(account.code_hash).toBeDefined()
-    expect(account.storage_usage).toBeGreaterThan(0)
+    expect(account.storage_usage).toBeGreaterThanOrEqual(0)
     expect(account.block_height).toBeGreaterThan(0)
     expect(account.block_hash).toBeDefined()
 
@@ -123,7 +158,7 @@ describe("RPC View Methods - Mainnet", () => {
     expect(BigInt(account.locked)).toBeGreaterThanOrEqual(0n)
 
     console.log(
-      `✓ Account '${MAINNET_ACCOUNT}': balance=${account.amount} yoctoNEAR, storage=${account.storage_usage} bytes`,
+      `✓ Account '${sandbox.rootAccount.id}': balance=${account.amount} yoctoNEAR, storage=${account.storage_usage} bytes`,
     )
   })
 
@@ -143,8 +178,8 @@ describe("RPC View Methods - Mainnet", () => {
 
   test("viewFunction should call contract view method", async () => {
     const result: ViewFunctionCallResult = await rpc.viewFunction(
-      WRAP_NEAR_CONTRACT,
-      "ft_metadata",
+      contractId,
+      "total_messages",
       {},
     )
 
@@ -157,75 +192,19 @@ describe("RPC View Methods - Mainnet", () => {
     expect(result.block_height).toBeGreaterThan(0)
     expect(result.block_hash).toBeDefined()
 
-    // Decode the result to verify it's valid JSON
+    // Decode the result - total_messages() returns a number.
     const decoded = JSON.parse(
       new TextDecoder().decode(new Uint8Array(result.result)),
     )
-    expect(decoded).toBeDefined()
-    expect(decoded.name).toBeDefined() // FT metadata should have name field
+    expect(typeof decoded).toBe("number")
 
-    console.log(
-      `✓ View call to ${WRAP_NEAR_CONTRACT}.ft_metadata(): ${decoded.name}`,
-    )
-  })
-})
-
-describe("RPC View Methods - Testnet", () => {
-  const rpc = new RpcClient(TESTNET_RPC)
-
-  test("getStatus should return network status", async () => {
-    const status: StatusResponse = await rpc.getStatus()
-
-    // Verify response structure
-    expect(status).toBeDefined()
-    expect(status.chain_id).toBe("testnet")
-    expect(status.version).toBeDefined()
-    expect(status.protocol_version).toBeGreaterThan(0)
-
-    // Verify sync info
-    expect(status.sync_info).toBeDefined()
-    expect(status.sync_info.latest_block_hash).toBeDefined()
-    expect(status.sync_info.latest_block_height).toBeGreaterThan(0)
-
-    console.log(
-      `✓ Testnet status: chain=${status.chain_id}, height=${status.sync_info.latest_block_height}`,
-    )
-  })
-
-  test("getAccount should return account info for known account", async () => {
-    const account: AccountView = await rpc.getAccount(TESTNET_ACCOUNT)
-
-    // Verify response structure
-    expect(account).toBeDefined()
-    expect(account.amount).toBeDefined()
-    expect(account.storage_usage).toBeGreaterThan(0)
-    expect(account.block_height).toBeGreaterThan(0)
-
-    console.log(
-      `✓ Testnet account '${TESTNET_ACCOUNT}': balance=${account.amount} yoctoNEAR`,
-    )
-  })
-
-  test("getGasPrice should return current gas price", async () => {
-    const gasPrice: GasPriceResponse = await rpc.getGasPrice()
-
-    // Verify response structure
-    expect(gasPrice).toBeDefined()
-    expect(gasPrice.gas_price).toBeDefined()
-
-    const price = BigInt(gasPrice.gas_price)
-    expect(price).toBeGreaterThan(0n)
-
-    console.log(`✓ Testnet gas price: ${gasPrice.gas_price} yoctoNEAR`)
+    console.log(`✓ View call to ${contractId}.total_messages(): ${decoded}`)
   })
 })
 
 describe("RPC Error Handling", () => {
-  const rpc = new RpcClient(MAINNET_RPC)
-
   test("should handle non-existent account", async () => {
-    const nonExistentAccount =
-      "this-account-definitely-does-not-exist-12345.near"
+    const nonExistentAccount = `nope-${Date.now()}.${sandbox.rootAccount.id}`
 
     try {
       await rpc.getAccount(nonExistentAccount)
@@ -246,15 +225,11 @@ describe("RPC Error Handling", () => {
 
   test("should handle invalid contract method call", async () => {
     try {
-      await rpc.viewFunction(
-        MAINNET_ACCOUNT,
-        "this_method_does_not_exist_12345",
-        {},
-      )
+      await rpc.viewFunction(contractId, "this_method_does_not_exist_12345", {})
       // Should not reach here
       expect(false).toBe(true)
     } catch (error) {
-      // Should throw a NetworkError
+      // Should throw an error (FunctionCallError for a missing method)
       expect(error).toBeDefined()
       console.log(`✓ Correctly handled invalid method call error`)
     }
