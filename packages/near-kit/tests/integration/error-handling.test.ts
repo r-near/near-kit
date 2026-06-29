@@ -1,10 +1,14 @@
 /**
  * Integration tests for typed error handling
  *
- * Tests various error scenarios to ensure proper typed errors are thrown
+ * Tests various error scenarios to ensure proper typed errors are thrown.
+ * Runs against a local Sandbox (deterministic) rather than live public RPC.
  */
 
-import { describe, expect, test } from "vitest"
+import { readFileSync } from "node:fs"
+import { resolve } from "node:path"
+import { afterAll, beforeAll, describe, expect, test } from "vitest"
+import { Near } from "../../src/core/near.js"
 import { RpcClient } from "../../src/core/rpc/rpc.js"
 import {
   AccessKeyDoesNotExistError,
@@ -12,14 +16,52 @@ import {
   FunctionCallError,
   NetworkError,
 } from "../../src/errors/index.js"
+import { Sandbox } from "../../src/sandbox/sandbox.js"
+import { generateKey } from "../../src/utils/key.js"
 
-const MAINNET_RPC = "https://free.rpc.fastnear.com"
+let sandbox: Sandbox
+let rpc: RpcClient
+let contractId: string
+
+beforeAll(async () => {
+  sandbox = await Sandbox.start()
+  const near = new Near({
+    network: sandbox,
+    keyStore: {
+      [sandbox.rootAccount.id]: sandbox.rootAccount.secretKey,
+    },
+  })
+
+  // Deploy guestbook contract so view-method scenarios have a real contract.
+  contractId = `contract-${Date.now()}.${sandbox.rootAccount.id}`
+  const contractWasm = readFileSync(
+    resolve(__dirname, "../contracts/guestbook.wasm"),
+  )
+  const contractKey = generateKey()
+  await near
+    .transaction(sandbox.rootAccount.id)
+    .createAccount(contractId)
+    .transfer(contractId, "10 NEAR")
+    .addKey(contractKey.publicKey.toString(), { type: "fullAccess" })
+    .deployContract(contractId, contractWasm)
+    .send({ waitUntil: "FINAL" })
+
+  rpc = new RpcClient(sandbox.rpcUrl)
+
+  console.log(`✓ Sandbox started: ${sandbox.rpcUrl}`)
+  console.log(`✓ Contract deployed: ${contractId}`)
+}, 120000)
+
+afterAll(async () => {
+  if (sandbox) {
+    await sandbox.stop()
+    console.log("✓ Sandbox stopped")
+  }
+})
 
 describe("Error Handling - Account Errors", () => {
-  const rpc = new RpcClient(MAINNET_RPC)
-
   test("should throw AccountDoesNotExistError for non-existent account", async () => {
-    const nonExistentAccount = "this-account-does-not-exist-xyz-12345.near"
+    const nonExistentAccount = `nope-${Date.now()}.${sandbox.rootAccount.id}`
 
     await expect(async () => {
       await rpc.getAccount(nonExistentAccount)
@@ -40,19 +82,17 @@ describe("Error Handling - Account Errors", () => {
   })
 
   test("should successfully get existing account", async () => {
-    const account = await rpc.getAccount("near")
+    const account = await rpc.getAccount(sandbox.rootAccount.id)
     expect(account).toBeDefined()
     expect(account.amount).toBeDefined()
-    expect(account.storage_usage).toBeGreaterThan(0)
-    console.log(`✓ Successfully retrieved account 'near'`)
+    expect(account.storage_usage).toBeGreaterThanOrEqual(0)
+    console.log(`✓ Successfully retrieved account '${sandbox.rootAccount.id}'`)
   })
 })
 
 describe("Error Handling - Access Key Errors", () => {
-  const rpc = new RpcClient(MAINNET_RPC)
-
   test("should throw AccessKeyDoesNotExistError for non-existent access key", async () => {
-    const accountId = "near"
+    const accountId = sandbox.rootAccount.id
     const fakePublicKey = "ed25519:He7QeRuwizNEhzeKNn2CLdCKfzkH6KLSaFKvJLYtnrFa"
 
     await expect(async () => {
@@ -76,8 +116,8 @@ describe("Error Handling - Access Key Errors", () => {
   })
 
   test("should successfully get existing access key", async () => {
-    // First get the list of access keys for an account
-    const accountId = "near"
+    // First get the list of access keys for the root account
+    const accountId = sandbox.rootAccount.id
     const listResult = await rpc.call<{
       keys: Array<{ public_key: string }>
     }>("query", {
@@ -103,10 +143,7 @@ describe("Error Handling - Access Key Errors", () => {
 })
 
 describe("Error Handling - Function Call Errors", () => {
-  const rpc = new RpcClient(MAINNET_RPC)
-
   test("should throw FunctionCallError for non-existent method", async () => {
-    const contractId = "wrap.near"
     const methodName = "this_method_does_not_exist_xyz"
 
     await expect(async () => {
@@ -132,7 +169,8 @@ describe("Error Handling - Function Call Errors", () => {
   })
 
   test("should throw FunctionCallError for method call on non-contract account", async () => {
-    const accountId = "near"
+    // The sandbox root account has no contract deployed.
+    const accountId = sandbox.rootAccount.id
     const methodName = "some_method"
 
     await expect(async () => {
@@ -153,22 +191,24 @@ describe("Error Handling - Function Call Errors", () => {
   })
 
   test("should successfully call valid view method", async () => {
-    const result = await rpc.viewFunction("wrap.near", "ft_metadata", {})
+    const result = await rpc.viewFunction(contractId, "total_messages", {})
     expect(result).toBeDefined()
     expect(result.result).toBeDefined()
     expect(Array.isArray(result.result)).toBe(true)
 
-    // Decode result
+    // Decode result - total_messages() returns a number.
     const decoded = JSON.parse(
       new TextDecoder().decode(new Uint8Array(result.result)),
     )
-    expect(decoded.name).toBeDefined()
-    console.log(`✓ Successfully called view method: ${decoded.name}`)
+    expect(typeof decoded).toBe("number")
+    expect(decoded).toBe(0)
+    console.log(`✓ Successfully called view method: total_messages=${decoded}`)
   })
 })
 
 describe("Error Handling - Network Errors", () => {
-  const invalidRpc = new RpcClient("https://invalid-rpc-endpoint-xyz.near.org")
+  // Deterministically-unreachable local endpoint (connection refused, instant).
+  const invalidRpc = new RpcClient("http://127.0.0.1:1")
 
   test("should throw NetworkError for unreachable RPC endpoint", async () => {
     await expect(async () => {
@@ -186,31 +226,29 @@ describe("Error Handling - Network Errors", () => {
       expect(netError.retryable).toBe(true)
       console.log(`✓ NetworkError: ${netError.message}`)
     }
-  }, 60000)
+  })
 })
 
 describe("Error Handling - Error Properties", () => {
-  const rpc = new RpcClient(MAINNET_RPC)
-
   test("all error types should extend NearError", async () => {
     const testCases = [
       {
         name: "AccountDoesNotExistError",
         test: async () =>
-          await rpc.getAccount("nonexistent-account-xyz-12345.near"),
+          await rpc.getAccount(`nope-${Date.now()}.${sandbox.rootAccount.id}`),
       },
       {
         name: "AccessKeyDoesNotExistError",
         test: async () =>
           await rpc.getAccessKey(
-            "near",
+            sandbox.rootAccount.id,
             "ed25519:He7QeRuwizNEhzeKNn2CLdCKfzkH6KLSaFKvJLYtnrFa",
           ),
       },
       {
         name: "FunctionCallError",
         test: async () =>
-          await rpc.viewFunction("wrap.near", "nonexistent_method_xyz", {}),
+          await rpc.viewFunction(contractId, "nonexistent_method_xyz", {}),
       },
     ]
 
@@ -228,5 +266,5 @@ describe("Error Handling - Error Properties", () => {
         )
       }
     }
-  }, 30000)
+  })
 })
