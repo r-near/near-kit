@@ -5,20 +5,28 @@
 // Contract types
 export type { Contract, ContractMethods } from "./contracts/contract.js"
 // Delegate actions
-export { DelegateAction } from "./core/actions.js"
+export { DelegateAction, DelegateActionV2 } from "./core/actions.js"
 // Constants
 export { STORAGE_AMOUNT_PER_BYTE } from "./core/constants.js"
 // Main class
 export { Near } from "./core/near.js"
 export {
   DELEGATE_ACTION_PREFIX,
+  DELEGATE_ACTION_V2_PREFIX,
   type DelegateActionPayloadFormat,
+  type DelegateV2Action,
   decodeSignedDelegateAction,
+  decodeSignedDelegateActionV2,
   encodeSignedDelegateAction,
+  encodeSignedDelegateActionV2,
   type SignedDelegateAction,
   serializeDelegateAction,
+  serializeDelegateActionV2,
 } from "./core/schema.js"
-export type { DelegateActionResult } from "./core/transaction.js"
+export type {
+  DelegateActionResult,
+  DelegateV2ActionResult,
+} from "./core/transaction.js"
 export { TransactionBuilder } from "./core/transaction.js"
 // Types
 export type {

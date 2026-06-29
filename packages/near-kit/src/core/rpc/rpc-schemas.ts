@@ -511,6 +511,32 @@ export const ActionSchema = z.union([
       amount: z.string(), // yoctoNEAR as string
     }),
   }),
+  // DelegateV2 (NEAR 2.13). The node echoes the versioned payload externally
+  // tagged as { V2: {...} }; the nonce is a TransactionNonce view
+  // ({ Nonce: { nonce } } | { GasKeyNonce: { nonce, nonce_index } }).
+  z.object({
+    DelegateV2: z.object({
+      delegate_action: z.object({
+        V2: z.object({
+          sender_id: z.string(),
+          receiver_id: z.string(),
+          actions: z.array(z.any()),
+          nonce: z.union([
+            z.object({ Nonce: z.object({ nonce: z.number() }) }),
+            z.object({
+              GasKeyNonce: z.object({
+                nonce: z.number(),
+                nonce_index: z.number(),
+              }),
+            }),
+          ]),
+          max_block_height: z.number(),
+          public_key: z.string(),
+        }),
+      }),
+      signature: z.string(),
+    }),
+  }),
 ])
 
 /**
