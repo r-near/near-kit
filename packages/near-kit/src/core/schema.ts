@@ -546,9 +546,12 @@ export function signatureToZorsh(sig: Signature) {
 }
 
 /**
- * Convert an action to zorsh-compatible format
- * Since action helpers now do conversion, this only handles recursive processing
- * of delegate actions (which contain nested action arrays)
+ * Identity passthrough for a transaction action.
+ *
+ * Action helpers already return zorsh-compatible shapes, and a signed delegate's
+ * nested actions cannot themselves be delegate actions, so no conversion is
+ * needed here. Retained as the `tx.actions.map(...)` hook in case per-action
+ * normalization is ever required again.
  */
 function actionToZorsh(action: Action): Action {
   // A signed delegate's nested actions are already in zorsh-compatible form (the
