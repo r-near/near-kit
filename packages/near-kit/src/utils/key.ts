@@ -2,13 +2,24 @@ import { ed25519 } from "@noble/curves/ed25519.js"
 import { secp256k1 } from "@noble/curves/secp256k1.js"
 import { hmac } from "@noble/hashes/hmac.js"
 import { sha512 } from "@noble/hashes/sha2.js"
+import { ml_dsa65 } from "@noble/post-quantum/ml-dsa.js"
 import { base58, base64 } from "@scure/base"
 import * as bip39 from "@scure/bip39"
 import { wordlist } from "@scure/bip39/wordlists/english.js"
-import { ED25519_KEY_PREFIX, SECP256K1_KEY_PREFIX } from "../core/constants.js"
+import {
+  ED25519_KEY_PREFIX,
+  ML_DSA_65_HASH_LENGTH,
+  ML_DSA_65_HASH_PREFIX,
+  ML_DSA_65_KEY_PREFIX,
+  ML_DSA_65_PUBLIC_KEY_LENGTH,
+  ML_DSA_65_SECRET_KEY_LENGTH,
+  ML_DSA_65_SEED_LENGTH,
+  SECP256K1_KEY_PREFIX,
+} from "../core/constants.js"
 import {
   type KeyPair,
   KeyType,
+  type MlDsa65PublicKey,
   type PublicKey,
   type Signature,
   type SignedMessage,
@@ -222,6 +233,154 @@ export class Secp256k1KeyPair implements KeyPair {
 }
 
 /**
+ * ML-DSA-65 (FIPS 204) post-quantum key pair implementation.
+ *
+ * Keys are generated deterministically from a 32-byte seed via
+ * {@link https://github.com/paulmillr/noble-post-quantum | @noble/post-quantum},
+ * matching the FIPS 204 KeyGen used by nearcore. The 1952-byte public key is
+ * what goes in `AddKey` actions and in a signed transaction's `public_key`.
+ *
+ * @remarks
+ * The constructor accepts either form of ML-DSA-65 private-key material:
+ * - a 32-byte seed (`ml-dsa-65:<seed>`), which is what this library serializes
+ *   for a key it generated; the seed is expanded via `ml_dsa65.keygen(seed)`.
+ * - the 4032-byte raw expanded secret key, which is what nearcore / near-cli
+ *   `ml-dsa-65:` credentials store; the public key is derived with
+ *   `ml_dsa65.getPublicKey(secretKey)` and the key is used directly (no keygen).
+ *
+ * `secretKey` round-trips whichever form it was constructed from: the 32-byte
+ * seed stays `ml-dsa-65:<seed>`, the 4032-byte raw key stays
+ * `ml-dsa-65:<raw key>`. Signatures are 3309 bytes.
+ *
+ * On-chain, an ML-DSA access key is stored as a 32-byte hash, so view RPCs
+ * return an {@link MlDsa65PublicKeyHandle} (`ml-dsa-65-hash:`) that cannot be
+ * turned back into a signing key.
+ */
+export class MlDsa65KeyPair implements KeyPair {
+  publicKey: MlDsa65PublicKey
+  secretKey: string
+  private privateKey: Uint8Array
+
+  /**
+   * @param key - Either a 32-byte ML-DSA-65 seed or the 4032-byte raw expanded
+   * secret key. Any other length throws {@link InvalidKeyError}.
+   */
+  constructor(key: Uint8Array) {
+    let publicKey: Uint8Array
+    if (key.length === ML_DSA_65_SEED_LENGTH) {
+      // Seed form: expand to the full key pair.
+      const expanded = ml_dsa65.keygen(key)
+      publicKey = expanded.publicKey
+      this.privateKey = expanded.secretKey
+    } else if (key.length === ML_DSA_65_SECRET_KEY_LENGTH) {
+      // Raw expanded secret key (nearcore / near-cli credential form): the
+      // public key is derivable from the secret key, no keygen needed. Copy the
+      // caller's buffer so later external mutation can't change signing.
+      this.privateKey = key.slice()
+      publicKey = ml_dsa65.getPublicKey(key)
+    } else {
+      throw new InvalidKeyError(
+        `ML-DSA-65 key must be a ${ML_DSA_65_SEED_LENGTH}-byte seed or a ` +
+          `${ML_DSA_65_SECRET_KEY_LENGTH}-byte raw secret key, got ${key.length}`,
+      )
+    }
+
+    this.publicKey = {
+      keyType: KeyType.ML_DSA_65,
+      data: publicKey,
+      toString: () => ML_DSA_65_KEY_PREFIX + base58.encode(publicKey),
+    }
+
+    // Round-trip whichever private-key material we were given.
+    this.secretKey = ML_DSA_65_KEY_PREFIX + base58.encode(key)
+  }
+
+  sign(message: Uint8Array): Signature {
+    const signature = ml_dsa65.sign(message, this.privateKey)
+    return {
+      keyType: KeyType.ML_DSA_65,
+      data: signature,
+    }
+  }
+
+  static fromRandom(): MlDsa65KeyPair {
+    const seed = new Uint8Array(ML_DSA_65_SEED_LENGTH)
+    crypto.getRandomValues(seed)
+    return new MlDsa65KeyPair(seed)
+  }
+
+  /**
+   * Parse an `ml-dsa-65:<base58>` secret key string (a 32-byte seed or a
+   * 4032-byte raw secret key).
+   *
+   * @throws {@link InvalidKeyError} if the string is a `ml-dsa-65-hash:` view
+   * handle (a 32-byte hash, which cannot sign), is missing the `ml-dsa-65:`
+   * prefix, or is not valid base58.
+   */
+  static fromString(keyString: string): MlDsa65KeyPair {
+    if (keyString.startsWith(ML_DSA_65_HASH_PREFIX)) {
+      throw new InvalidKeyError(
+        "Cannot create an ML-DSA-65 key pair from an 'ml-dsa-65-hash:' view handle; " +
+          "it is a 32-byte hash, not a signing key",
+      )
+    }
+    if (!keyString.startsWith(ML_DSA_65_KEY_PREFIX)) {
+      throw new InvalidKeyError(
+        `ML-DSA-65 key must start with '${ML_DSA_65_KEY_PREFIX}': ${keyString}`,
+      )
+    }
+    const key = keyString.slice(ML_DSA_65_KEY_PREFIX.length)
+    let decoded: Uint8Array
+    try {
+      decoded = base58.decode(key)
+    } catch {
+      throw new InvalidKeyError(`Invalid base58 in ML-DSA-65 key: ${keyString}`)
+    }
+    return new MlDsa65KeyPair(decoded)
+  }
+}
+
+/**
+ * Read-only handle for an on-trie ML-DSA-65 access key (`ml-dsa-65-hash:`).
+ *
+ * View RPCs (`view_access_key_list`) return ML-DSA keys as a 32-byte hash, not
+ * the full 1952-byte public key. This handle round-trips for display and
+ * equality but is NOT usable for signing or as an `AddKey` public key - the
+ * full key is not recoverable from it.
+ */
+export interface MlDsa65PublicKeyHandle {
+  keyType: KeyType.ML_DSA_65
+  /** The 32-byte on-trie hash. */
+  hash: Uint8Array
+  toString(): string
+}
+
+/**
+ * Parse an `ml-dsa-65-hash:<base58-hash>` view handle into a read-only
+ * {@link MlDsa65PublicKeyHandle}. The result cannot sign or be used in actions.
+ */
+export function parseMlDsa65Handle(
+  handleString: string,
+): MlDsa65PublicKeyHandle {
+  if (!handleString.startsWith(ML_DSA_65_HASH_PREFIX)) {
+    throw new InvalidKeyError(`Not an ML-DSA-65 view handle: ${handleString}`)
+  }
+  const decoded = base58.decode(
+    handleString.slice(ML_DSA_65_HASH_PREFIX.length),
+  )
+  if (decoded.length !== ML_DSA_65_HASH_LENGTH) {
+    throw new InvalidKeyError(
+      `ML-DSA-65 handle must be ${ML_DSA_65_HASH_LENGTH} bytes, got ${decoded.length}`,
+    )
+  }
+  return {
+    keyType: KeyType.ML_DSA_65,
+    hash: decoded,
+    toString: () => handleString,
+  }
+}
+
+/**
  * Generate a new random Ed25519 key pair.
  * @returns A new {@link KeyPair} instance.
  */
@@ -242,6 +401,10 @@ export function parseKey(keyString: string): KeyPair {
 
   if (keyString.startsWith(SECP256K1_KEY_PREFIX)) {
     return Secp256k1KeyPair.fromString(keyString)
+  }
+
+  if (keyString.startsWith(ML_DSA_65_KEY_PREFIX)) {
+    return MlDsa65KeyPair.fromString(keyString)
   }
 
   throw new InvalidKeyError(`Unsupported key type: ${keyString}`)
@@ -272,6 +435,28 @@ export function parsePublicKey(publicKeyString: string): PublicKey {
       data: decoded,
       toString: () => publicKeyString,
     }
+  }
+
+  if (publicKeyString.startsWith(ML_DSA_65_KEY_PREFIX)) {
+    const key = publicKeyString.replace(ML_DSA_65_KEY_PREFIX, "")
+    const decoded = base58.decode(key)
+    if (decoded.length !== ML_DSA_65_PUBLIC_KEY_LENGTH) {
+      throw new InvalidKeyError(
+        `ML-DSA-65 public key must be ${ML_DSA_65_PUBLIC_KEY_LENGTH} bytes, got ${decoded.length}`,
+      )
+    }
+    return {
+      keyType: KeyType.ML_DSA_65,
+      data: decoded,
+      toString: () => publicKeyString,
+    }
+  }
+
+  if (publicKeyString.startsWith(ML_DSA_65_HASH_PREFIX)) {
+    throw new InvalidKeyError(
+      "'ml-dsa-65-hash:' is an on-chain view handle (a 32-byte hash), not a " +
+        "full public key; parse it with parseMlDsa65Handle() instead",
+    )
   }
 
   throw new InvalidKeyError(`Unsupported public key type: ${publicKeyString}`)

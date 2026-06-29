@@ -38,6 +38,7 @@ export interface KeyPair {
 export enum KeyType {
   ED25519 = 0,
   SECP256K1 = 1,
+  ML_DSA_65 = 2,
 }
 
 export interface PublicKey {
@@ -54,6 +55,18 @@ export interface Secp256k1PublicKey extends PublicKey {
   keyType: KeyType.SECP256K1
 }
 
+/**
+ * Full ML-DSA-65 (FIPS 204) public key (1952 bytes).
+ *
+ * This is the post-quantum key usable for signing and in `AddKey` actions.
+ * Note: on-chain, an ML-DSA access key is stored as a 32-byte hash, so view
+ * RPCs return an {@link MlDsa65PublicKeyHandle} (`ml-dsa-65-hash:`) instead -
+ * the full key is not recoverable from a view response.
+ */
+export interface MlDsa65PublicKey extends PublicKey {
+  keyType: KeyType.ML_DSA_65
+}
+
 export interface Signature {
   keyType: KeyType
   data: Uint8Array
@@ -65,6 +78,10 @@ export interface Ed25519Signature extends Signature {
 
 export interface Secp256k1Signature extends Signature {
   keyType: KeyType.SECP256K1
+}
+
+export interface MlDsa65Signature extends Signature {
+  keyType: KeyType.ML_DSA_65
 }
 
 /**

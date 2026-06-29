@@ -12,6 +12,8 @@ import {
   ED25519_KEY_PREFIX,
   MAX_ACCOUNT_ID_LENGTH,
   MIN_ACCOUNT_ID_LENGTH,
+  ML_DSA_65_HASH_PREFIX,
+  ML_DSA_65_KEY_PREFIX,
   SECP256K1_KEY_PREFIX,
 } from "../core/constants.js"
 import { type AmountInput, parseAmount } from "./amount.js"
@@ -59,25 +61,37 @@ export type AccountId = z.infer<typeof AccountIdSchema>
 // ==================== Public Key Schema ====================
 
 /**
+ * Public key string prefixes accepted by {@link PublicKeySchema}.
+ *
+ * Includes the `ml-dsa-65-hash:` view-handle form so access-key listings
+ * containing post-quantum keys validate without throwing. Ordered longest-first
+ * so `ml-dsa-65-hash:` matches before any shorter prefix.
+ */
+const PUBLIC_KEY_PREFIXES = [
+  ML_DSA_65_HASH_PREFIX,
+  ML_DSA_65_KEY_PREFIX,
+  ED25519_KEY_PREFIX,
+  SECP256K1_KEY_PREFIX,
+]
+
+/**
  * Schema for validating NEAR public keys.
  *
  * Supports:
  * - Ed25519: "ed25519:..." (base58 encoded)
  * - Secp256k1: "secp256k1:..." (base58 encoded)
+ * - ML-DSA-65: "ml-dsa-65:..." (full key) and "ml-dsa-65-hash:..." (view handle)
  */
 export const PublicKeySchema = z
   .string()
   .refine(
-    (key) =>
-      key.startsWith(ED25519_KEY_PREFIX) ||
-      key.startsWith(SECP256K1_KEY_PREFIX),
-    "Public key must start with 'ed25519:' or 'secp256k1:'",
+    (key) => PUBLIC_KEY_PREFIXES.some((prefix) => key.startsWith(prefix)),
+    "Public key must start with 'ed25519:', 'secp256k1:', 'ml-dsa-65:', or 'ml-dsa-65-hash:'",
   )
   .refine((key) => {
-    const keyData = key.startsWith(ED25519_KEY_PREFIX)
-      ? key.slice(ED25519_KEY_PREFIX.length)
-      : key.slice(SECP256K1_KEY_PREFIX.length)
-    return isValidBase58(keyData)
+    const prefix = PUBLIC_KEY_PREFIXES.find((p) => key.startsWith(p))
+    if (!prefix) return false
+    return isValidBase58(key.slice(prefix.length))
   }, "Public key must be valid base58 encoding")
 
 export type PublicKeyString = z.infer<typeof PublicKeySchema>
@@ -88,22 +102,38 @@ export type PublicKeyString = z.infer<typeof PublicKeySchema>
  * Type-safe private key string using template literal types.
  *
  * Provides compile-time type safety for private keys.
- * Supports both ed25519 and secp256k1 keys.
+ * Supports ed25519, secp256k1, and ml-dsa-65 (post-quantum) keys.
  *
  * @example
  * ```typescript
  * const key: PrivateKey = 'ed25519:...'     // ✅ Valid
  * const key: PrivateKey = 'secp256k1:...'   // ✅ Valid
+ * const key: PrivateKey = 'ml-dsa-65:...'   // ✅ Valid (post-quantum)
  * const key: PrivateKey = 'alice.near'      // ❌ Type error at compile time
  *
  * // Function signature ensures type safety
  * function signWith(key: PrivateKey) { ... }
  * signWith('ed25519:abc')      // ✅ Valid
  * signWith('secp256k1:abc')    // ✅ Valid
+ * signWith('ml-dsa-65:abc')    // ✅ Valid
  * signWith('alice.near')       // ❌ Type error
  * ```
  */
-export type PrivateKey = `ed25519:${string}` | `secp256k1:${string}`
+export type PrivateKey =
+  | `ed25519:${string}`
+  | `secp256k1:${string}`
+  | `ml-dsa-65:${string}`
+
+/**
+ * Private key string prefixes accepted by {@link PrivateKeySchema}.
+ *
+ * Ordered longest-first so `ml-dsa-65:` matches before any shorter prefix.
+ */
+const PRIVATE_KEY_PREFIXES = [
+  ML_DSA_65_KEY_PREFIX,
+  ED25519_KEY_PREFIX,
+  SECP256K1_KEY_PREFIX,
+]
 
 /**
  * Schema for validating NEAR private keys.
@@ -111,19 +141,20 @@ export type PrivateKey = `ed25519:${string}` | `secp256k1:${string}`
  * Supports:
  * - Ed25519: "ed25519:..." (base58 encoded, 64 bytes)
  * - Secp256k1: "secp256k1:..." (base58 encoded, 96 bytes)
+ * - ML-DSA-65: "ml-dsa-65:..." (base58 encoded; either a 32-byte seed, as this
+ *   library serializes generated keys, or the 4032-byte raw expanded secret key
+ *   as written by nearcore / near-cli credentials)
  */
 export const PrivateKeySchema = z
   .string()
   .refine(
-    (key) =>
-      key.startsWith(ED25519_KEY_PREFIX) ||
-      key.startsWith(SECP256K1_KEY_PREFIX),
-    "Private key must start with 'ed25519:' or 'secp256k1:'",
+    (key) => PRIVATE_KEY_PREFIXES.some((prefix) => key.startsWith(prefix)),
+    "Private key must start with 'ed25519:', 'secp256k1:', or 'ml-dsa-65:'",
   )
   .refine((key) => {
-    const keyData = key.startsWith(ED25519_KEY_PREFIX)
-      ? key.slice(ED25519_KEY_PREFIX.length)
-      : key.slice(SECP256K1_KEY_PREFIX.length)
+    const prefix = PRIVATE_KEY_PREFIXES.find((p) => key.startsWith(p))
+    if (!prefix) return false
+    const keyData = key.slice(prefix.length)
     return keyData.length > 0 && isValidBase58(keyData)
   }, "Private key must be valid base58 encoding")
 

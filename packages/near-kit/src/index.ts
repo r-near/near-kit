@@ -29,6 +29,7 @@ export type {
   KeyConfig,
   KeyPair,
   KeyStore,
+  MlDsa65PublicKey,
   NearConfig,
   NetworkConfig,
   PublicKey,
@@ -45,6 +46,8 @@ export type {
   WalletConnection,
   WalletSignInOptions,
 } from "./core/types.js"
+// KeyType enum is a runtime value (used to discriminate PublicKey/Signature)
+export { KeyType } from "./core/types.js"
 // Errors
 export {
   AccessKeyDoesNotExistError,
@@ -98,10 +101,14 @@ export {
   isPrivateKey,
   isValidAccountId,
   isValidPublicKey,
+  MlDsa65KeyPair,
+  type MlDsa65PublicKeyHandle,
   type PrivateKey,
   parseAmount,
   parseGas,
   parseKey,
+  parseMlDsa65Handle,
+  parsePublicKey,
   parseSeedPhrase,
   type StateInit,
   type StateInitOptions,

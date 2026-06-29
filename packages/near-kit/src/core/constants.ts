@@ -56,6 +56,31 @@ export const MAX_ACCOUNT_ID_LENGTH = 64
 
 export const ED25519_KEY_PREFIX = "ed25519:"
 export const SECP256K1_KEY_PREFIX = "secp256k1:"
+/** Prefix for full ML-DSA-65 (FIPS 204) keys (1952-byte public key). */
+export const ML_DSA_65_KEY_PREFIX = "ml-dsa-65:"
+/**
+ * Prefix for the 32-byte on-trie handle of an ML-DSA-65 access key, as returned
+ * by view RPCs. This is a hash, not a usable public key: it cannot sign or be
+ * used as an `AddKey` public key.
+ */
+export const ML_DSA_65_HASH_PREFIX = "ml-dsa-65-hash:"
+
+// ==================== ML-DSA-65 (FIPS 204) byte lengths ====================
+
+/** Full ML-DSA-65 public key length in bytes. */
+export const ML_DSA_65_PUBLIC_KEY_LENGTH = 1952
+/** ML-DSA-65 deterministic key-generation seed length in bytes. */
+export const ML_DSA_65_SEED_LENGTH = 32
+/**
+ * Expanded ML-DSA-65 secret (private) key length in bytes. nearcore / near-cli
+ * `ml-dsa-65:` credentials carry this raw expanded secret key, not the 32-byte
+ * seed, so {@link MlDsa65KeyPair} accepts both forms.
+ */
+export const ML_DSA_65_SECRET_KEY_LENGTH = 4032
+/** ML-DSA-65 signature length in bytes. */
+export const ML_DSA_65_SIGNATURE_LENGTH = 3309
+/** ML-DSA-65 on-trie handle (hash) length in bytes. */
+export const ML_DSA_65_HASH_LENGTH = 32
 
 // ==================== RPC Methods ====================
 
