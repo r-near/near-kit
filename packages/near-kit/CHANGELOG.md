@@ -1,5 +1,60 @@
 # near-kit
 
+## 0.15.0
+
+### Minor Changes
+
+- 36aab93: Add DelegateV2 meta-transactions (NEAR 2.13 / protocol v85)
+
+  - `Action::DelegateV2` (borsh discriminant 14) with `VersionedDelegateActionPayload` / `DelegateActionV2`, whose nonce is a `TransactionNonce` so it can target a gas key's nonce slot.
+  - Signed under a DISTINCT NEP-461 domain tag (NEP-611, `2^30 + 611`), so a V1 delegate signature is never valid for a V2 action.
+  - Builder `.delegateV2({ nonceIndex? })` to sign a V2 delegate action and `.signedDelegateActionV2()` for relayers, plus `encodeSignedDelegateActionV2` / `decodeSignedDelegateActionV2` for transport.
+  - RPC view schema for the `DelegateV2` action, so a relay transaction's default `.send()` path parses the echoed response.
+
+- 259a1ad: Type ExecutionMetadata V4 per-action `contracts` (nearcore 2.13)
+
+  `ExecutionMetadataSchema` is now a union discriminated on `version`. V4 metadata exposes a typed `contracts` array — one entry per action recording the contract attached to the receiver account before that action ran (`{ local } | { global_hash } | { global_account_id } | null`). V1-V3 parsing is unchanged, and unknown future versions still parse via a fallback.
+
+- 581b961: Add gas-key actions and permissions (NEAR 2.13 / protocol v85)
+
+  - `TransferToGasKey` (borsh discriminant 12) and `WithdrawFromGasKey` (13) actions, with `.transferToGasKey()` / `.withdrawFromGasKey()` builder methods.
+  - `GasKeyFullAccess` and `GasKeyFunctionCall` access-key permissions (discriminants 3 and 2) plus `GasKeyInfo`, usable via `.addKey(pk, { type: "gasKeyFullAccess", numNonces })` and `{ type: "gasKeyFunctionCall", numNonces, receiverId, methodNames }`.
+
+  Together with the gas-key RPC view schemas, the default `.send()` path parses a successful 2.13 response (and `getAccessKey` accepts gas keys) without errors.
+
+- db06bac: Parse gas-key variants in RPC view responses (nearcore 2.13)
+
+  The RPC response schemas now accept the gas-key shapes, so reading a gas key or a transaction that touched one no longer throws:
+
+  - `AccessKeyPermission` view accepts `GasKeyFunctionCall` and `GasKeyFullAccess` (each with `balance` + `num_nonces`), so `getAccessKey`/`getAccessKeys` work on gas keys.
+  - The RPC action view accepts `TransferToGasKey` and `WithdrawFromGasKey`, so status-bearing transaction reads that echo those actions parse.
+
+- c714e62: Add gas-key transacting and strict nonce mode (NEAR 2.13 / protocol v85)
+
+  - Versioned transaction (V1) borsh encoding: `TransactionNonce` (`Nonce` / `GasKeyNonce`), `NonceMode` (`Monotonic` / `Strict`), and the custom `[0x01]`-tag scheme. V0 transactions stay tag-less and remain the default, so existing transactions are unchanged.
+  - `.useGasKey(nonceIndex)` on the transaction builder signs with a gas key, carrying a `GasKeyNonce` and fetching the per-slot nonce via `EXPERIMENTAL_view_gas_key_nonces`.
+  - `.strictNonceMode()` opts into strict (`ak_nonce + 1`) nonce validation.
+
+- 0f736d5: Add ML-DSA-65 (FIPS 204) post-quantum signing support (nearcore 2.13 / protocol v85)
+
+  - New `KeyType.ML_DSA_65` and `MlDsa65KeyPair` (deterministic keygen from a 32-byte seed via `@noble/post-quantum`, sign, `ml-dsa-65:` parse/format).
+  - `parseKey`/`parsePublicKey` and `signWith`/`addKey`/transaction signing accept `ml-dsa-65:` keys; Borsh `PublicKey` and `Signature` gain the `[2]` variant (1952-byte key, 3309-byte signature).
+  - View handles: `ml-dsa-65-hash:` (the 32-byte on-trie form returned by `view_access_key_list`) validates and parses via the read-only `parseMlDsa65Handle` helper, and is rejected as a signing key.
+
+- 6cd17be: Expose `nonce_mode` on transaction views (new in nearcore 2.12)
+- 4b5ef41: Add `receiptToTx()` to the RPC client for the new `EXPERIMENTAL_receipt_to_tx` endpoint (nearcore 2.12), accessible via `near.rpc.receiptToTx()`. The configured low-level RPC client is now exposed through the `near.rpc` getter for advanced calls not wrapped by `Near`.
+- f8e8254: Add `view_state` with pagination and wrappers for RPC methods stabilized in nearcore 2.13
+
+  - `near.viewState(accountId, { prefix, afterKey, limit, includeProof, ... })` reads a page of contract state; `near.viewStateAll(accountId, { prefix, limit })` is an async iterator that follows the `last_key` cursor across pages. Both are also on the low-level `near.rpc` client. `prefix` and `afterKey` are base64-encoded strings (sent as `prefix_base64`/`after_key_base64`); the returned `last_key` cursor is already base64, so pass it straight back as `afterKey`.
+  - `near.rpc.blockEffects()`, `near.rpc.genesisConfig()`, and `near.rpc.maintenanceWindows(accountId)` wrap the stabilized methods, falling back to the `EXPERIMENTAL_*` aliases on pre-2.13 nodes.
+
+### Patch Changes
+
+- e9480f3: Make RPC error-handling and view-method integration tests deterministic by running them against the local sandbox instead of live public RPC.
+- 7a96bd8: Harden flaky tests: make RPC-init unit tests assert configured URL without live network, raise tight 10s integration-test timeouts to the 60s global, and make the CI codecov upload non-fatal and conditional.
+- adaa4a3: Update sandbox to nearcore 2.12.0
+- 3c5e28a: Update sandbox default to nearcore 2.13.0-rc.2
+
 ## 0.14.0
 
 ### Minor Changes
