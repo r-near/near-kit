@@ -7,6 +7,7 @@ import { base64 } from "@scure/base"
 import { afterAll, beforeAll, describe, expect, test } from "vitest"
 import { Near } from "../../src/core/near.js"
 import { EMPTY_CODE_HASH, Sandbox } from "../../src/sandbox/sandbox.js"
+import { generateKey } from "../../src/utils/key.js"
 
 // view_state `limit`/`after_key_base64` pagination was added in nearcore 2.13
 // (protocol v85). Older nodes ignore `limit` and return every entry, so this
@@ -111,9 +112,36 @@ describe("view_state + stabilized RPC - Integration Tests", () => {
   })
 
   test("block_effects returns state-change kinds for a block", async () => {
-    const effects = await near.rpc.blockEffects({ finality: "final" })
+    // Query a block that actually touched state (account creation) so the
+    // non-empty `changes` path is exercised — an idle block's `changes` is empty
+    // and would pass even against a wrong schema. block_effects returns a list
+    // of state-change KINDS ({ type, account_id }), not full changes-with-value.
+    const touched = `be-${Date.now()}.${sandbox.rootAccount.id}`
+    const key = generateKey()
+    const result = await near
+      .transaction(sandbox.rootAccount.id)
+      .createAccount(touched)
+      .transfer(touched, "1 NEAR")
+      .addKey(key.publicKey.toString(), { type: "fullAccess" })
+      .send({ waitUntil: "FINAL" })
+    // The new account's state change lands in the receipt's block, not the
+    // transaction's block, so query the receipt block.
+    const blockHash = result.receipts_outcome[0].block_hash
+
+    const effects = await near.rpc.blockEffects({ blockId: blockHash })
     expect(typeof effects.block_hash).toBe("string")
-    expect(Array.isArray(effects.changes)).toBe(true)
+    expect(effects.changes.length).toBeGreaterThan(0)
+    for (const change of effects.changes) {
+      expect([
+        "account_touched",
+        "access_key_touched",
+        "data_touched",
+        "contract_code_touched",
+      ]).toContain(change.type)
+      expect(typeof change.account_id).toBe("string")
+    }
+    // The created account must appear among the touched accounts.
+    expect(effects.changes.some((c) => c.account_id === touched)).toBe(true)
   })
 
   test("maintenance_windows returns ranges for the validator", async () => {
