@@ -459,9 +459,11 @@ const NonDelegateActionSchema = b.enum({
   addKey: AddKeySchema,
   deleteKey: DeleteKeySchema,
   deleteAccount: DeleteAccountSchema,
-  // Slot 8 = Action::Delegate. Placeholder for discriminant alignment only;
-  // nested delegate actions are forbidden, so this is never serialized.
-  signedDelegate: SignedDelegateSchema,
+  // Slot 8 = Action::Delegate. Placeholder for discriminant alignment only.
+  // An empty-struct schema is used (not SignedDelegateSchema) so a caller can't
+  // construct a nested V1 delegate inside a DelegateV2 payload; nested delegate
+  // actions are forbidden by the protocol and this is never serialized.
+  delegatePlaceholder: CreateAccountSchema,
   deployGlobalContract: DeployGlobalContractSchema,
   useGlobalContract: UseGlobalContractSchema,
   deterministicStateInit: DeterministicStateInitSchema,
@@ -505,7 +507,15 @@ const VersionedSignedDelegateActionSchema = b.struct({
   signature: SignatureSchema,
 })
 
-export type NonDelegateActionBorsh = b.infer<typeof NonDelegateActionSchema>
+/**
+ * Actions allowed inside a DelegateActionV2. Excludes the
+ * `delegatePlaceholder` (discriminant-alignment-only) variant so callers cannot
+ * construct a nested delegate action.
+ */
+export type NonDelegateActionBorsh = Exclude<
+  b.infer<typeof NonDelegateActionSchema>,
+  { delegatePlaceholder: unknown }
+>
 export type DelegateActionV2Borsh = b.infer<typeof DelegateActionV2Schema>
 export type VersionedSignedDelegateActionBorsh = b.infer<
   typeof VersionedSignedDelegateActionSchema
