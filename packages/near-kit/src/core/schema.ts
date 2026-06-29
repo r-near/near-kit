@@ -113,17 +113,53 @@ const FunctionCallPermissionSchema = b.struct({
 })
 
 /**
+ * FunctionCallPermission type inferred from the Borsh schema.
+ */
+export type FunctionCallPermissionBorsh = b.infer<
+  typeof FunctionCallPermissionSchema
+>
+
+/**
  * Full access permission (empty struct)
  */
 const FullAccessPermissionSchema = b.struct({})
 
 /**
- * AccessKeyPermission enum (0 = FunctionCall, 1 = FullAccess)
+ * Gas key information (protocol v85 / NEAR 2.13).
+ *
+ * Gas keys are access keys with a prepaid balance used to pay for gas. A single
+ * gas key allocates `numNonces` independent nonce slots so it can sign multiple
+ * transactions in parallel.
+ *
+ * Field order matches nearcore `GasKeyInfo { balance: u128, num_nonces: u16 }`.
  */
-const AccessKeyPermissionSchema = b.enum({
+const GasKeyInfoSchema = b.struct({
+  balance: b.u128(),
+  numNonces: b.u16(),
+})
+
+/**
+ * AccessKeyPermission enum.
+ *
+ * Variant order is the Borsh discriminant and MUST match nearcore:
+ * 0 = FunctionCall, 1 = FullAccess, 2 = GasKeyFunctionCall, 3 = GasKeyFullAccess.
+ */
+export const AccessKeyPermissionSchema = b.enum({
   functionCall: FunctionCallPermissionSchema,
   fullAccess: FullAccessPermissionSchema,
+  gasKeyFunctionCall: b.struct({
+    gasKeyInfo: GasKeyInfoSchema,
+    functionCall: FunctionCallPermissionSchema,
+  }),
+  gasKeyFullAccess: b.struct({
+    gasKeyInfo: GasKeyInfoSchema,
+  }),
 })
+
+/**
+ * GasKeyInfo type inferred from the Borsh schema.
+ */
+export type GasKeyInfoBorsh = b.infer<typeof GasKeyInfoSchema>
 
 /**
  * AccessKeyPermission type inferred from schema
@@ -200,6 +236,31 @@ const DeleteAccountSchema = b.struct({
   beneficiaryId: b.string(),
 })
 
+// ==================== Gas Key Actions ====================
+
+/**
+ * TransferToGasKey action (protocol v85 / NEAR 2.13).
+ *
+ * Funds a gas key's prepaid balance. Mirrors nearcore
+ * `TransferToGasKeyAction { public_key: PublicKey, deposit: u128 }`.
+ */
+const TransferToGasKeySchema = b.struct({
+  publicKey: PublicKeySchema,
+  deposit: b.u128(),
+})
+
+/**
+ * WithdrawFromGasKey action (protocol v85 / NEAR 2.13).
+ *
+ * Withdraws NEAR from a gas key's balance back to the account. Mirrors nearcore
+ * `WithdrawFromGasKeyAction { public_key: PublicKey, amount: u128 }`. Note the
+ * second field is `amount`, not `deposit`.
+ */
+const WithdrawFromGasKeySchema = b.struct({
+  publicKey: PublicKeySchema,
+  amount: b.u128(),
+})
+
 // ==================== Global Contract Actions ====================
 
 /**
@@ -268,9 +329,14 @@ const DeterministicStateInitSchema = b.struct({
 // ==================== Delegate Actions ====================
 
 /**
- * ClassicActions enum - same as Action but without SignedDelegate
- * Used within DelegateAction to prevent infinite recursion
- * Note: The discriminant values must match the NEAR protocol spec
+ * ClassicActions enum - the actions allowed inside a DelegateAction (NEP-366),
+ * mirroring nearcore's `NonDelegateAction` which wraps the full `Action` enum.
+ *
+ * The Borsh discriminants MUST match `Action` exactly. A zorsh enum assigns
+ * discriminants positionally, so slot 8 (`Action::Delegate`) is kept as a
+ * placeholder to keep slots 9..=13 aligned with the protocol; it is never
+ * emitted because delegate actions cannot be nested. The gas-key actions
+ * therefore land at their true discriminants 12 and 13.
  */
 const ClassicActionsSchema = b.enum({
   createAccount: CreateAccountSchema,
@@ -281,16 +347,28 @@ const ClassicActionsSchema = b.enum({
   addKey: AddKeySchema,
   deleteKey: DeleteKeySchema,
   deleteAccount: DeleteAccountSchema,
+  // Slot 8 = Action::Delegate. Placeholder for discriminant alignment only;
+  // nested delegate actions are forbidden, so this is never serialized. (An
+  // empty-struct schema is reused so this enum has no forward dependency on
+  // the delegate schemas defined below.)
+  delegatePlaceholder: CreateAccountSchema,
   deployGlobalContract: DeployGlobalContractSchema,
   useGlobalContract: UseGlobalContractSchema,
   deterministicStateInit: DeterministicStateInitSchema,
+  transferToGasKey: TransferToGasKeySchema,
+  withdrawFromGasKey: WithdrawFromGasKeySchema,
 })
 
 /**
- * ClassicAction type - actions that can be used within a DelegateAction
- * This excludes SignedDelegate to prevent infinite nesting
+ * ClassicAction type - actions that can be used within a DelegateAction.
+ *
+ * Excludes the `delegatePlaceholder` (discriminant-alignment-only) variant so
+ * callers cannot construct a nested delegate action, which the protocol forbids.
  */
-export type ClassicAction = b.infer<typeof ClassicActionsSchema>
+export type ClassicAction = Exclude<
+  b.infer<typeof ClassicActionsSchema>,
+  { delegatePlaceholder: unknown }
+>
 
 /**
  * DelegateAction for meta-transactions
@@ -328,6 +406,8 @@ const SignedDelegateSchema = b.struct({
  * 9 = DeployGlobalContract
  * 10 = UseGlobalContract
  * 11 = DeterministicStateInit (NEP-616)
+ * 12 = TransferToGasKey (protocol v85 / NEAR 2.13)
+ * 13 = WithdrawFromGasKey (protocol v85 / NEAR 2.13)
  */
 export const ActionSchema = b.enum({
   createAccount: CreateAccountSchema,
@@ -342,6 +422,8 @@ export const ActionSchema = b.enum({
   deployGlobalContract: DeployGlobalContractSchema,
   useGlobalContract: UseGlobalContractSchema,
   deterministicStateInit: DeterministicStateInitSchema,
+  transferToGasKey: TransferToGasKeySchema,
+  withdrawFromGasKey: WithdrawFromGasKeySchema,
 })
 
 /**
@@ -378,6 +460,12 @@ export type SignedDelegateAction = {
 }
 export type DeterministicStateInitAction = {
   deterministicStateInit: b.infer<typeof DeterministicStateInitSchema>
+}
+export type TransferToGasKeyAction = {
+  transferToGasKey: b.infer<typeof TransferToGasKeySchema>
+}
+export type WithdrawFromGasKeyAction = {
+  withdrawFromGasKey: b.infer<typeof WithdrawFromGasKeySchema>
 }
 
 // Export StateInit types for NEP-616
@@ -498,32 +586,18 @@ export function signatureToZorsh(sig: Signature) {
 }
 
 /**
- * Convert an action to zorsh-compatible format
- * Since action helpers now do conversion, this only handles recursive processing
- * of delegate actions (which contain nested action arrays)
+ * Identity passthrough for a transaction action.
+ *
+ * Action helpers already return zorsh-compatible shapes, and a signed delegate's
+ * nested actions cannot themselves be delegate actions, so no conversion is
+ * needed here. Retained as the `tx.actions.map(...)` hook in case per-action
+ * normalization is ever required again.
  */
 function actionToZorsh(action: Action): Action {
-  // Only need to recursively process delegate actions
-  if ("signedDelegate" in action) {
-    return {
-      signedDelegate: {
-        delegateAction: {
-          senderId: action.signedDelegate.delegateAction.senderId,
-          receiverId: action.signedDelegate.delegateAction.receiverId,
-          // Recursively convert nested actions
-          actions: action.signedDelegate.delegateAction.actions.map(
-            (a: Action) => actionToZorsh(a as Action),
-          ) as ClassicAction[],
-          nonce: action.signedDelegate.delegateAction.nonce,
-          maxBlockHeight: action.signedDelegate.delegateAction.maxBlockHeight,
-          publicKey: action.signedDelegate.delegateAction.publicKey,
-        },
-        signature: action.signedDelegate.signature,
-      },
-    }
-  }
-
-  // All other actions are already in zorsh-compatible format from helpers
+  // A signed delegate's nested actions are already in zorsh-compatible form (the
+  // action factories produce them) and cannot themselves be delegate actions, so
+  // they pass through unchanged. Returning the action as-is keeps the outer
+  // delegate intact without re-walking the (differently-typed) ClassicAction set.
   return action
 }
 

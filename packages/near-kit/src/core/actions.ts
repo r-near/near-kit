@@ -19,10 +19,14 @@ import type {
   DeployGlobalContractAction,
   DeterministicStateInitAction,
   FunctionCallAction,
+  FunctionCallPermissionBorsh,
+  GasKeyInfoBorsh,
   SignedDelegateAction,
   StakeAction,
   TransferAction,
+  TransferToGasKeyAction,
   UseGlobalContractAction,
+  WithdrawFromGasKeyAction,
 } from "./schema.js"
 import { publicKeyToZorsh, signatureToZorsh } from "./schema.js"
 import type {
@@ -208,6 +212,116 @@ export function deleteKey(publicKey: PublicKey): DeleteKeyAction {
       publicKey: publicKeyToZorsh(publicKey),
     },
   }
+}
+
+// ==================== Gas Key Actions (protocol v85 / NEAR 2.13) ====================
+
+/**
+ * Fund a gas key's prepaid balance.
+ *
+ * Gas keys are access keys that carry a prepaid balance used to pay for gas, so
+ * the account's main balance is not touched when the key signs transactions.
+ *
+ * @param publicKey - The gas key to fund.
+ * @param deposit - Amount in yoctoNEAR to add to the gas key balance.
+ */
+export function transferToGasKey(
+  publicKey: PublicKey,
+  deposit: bigint,
+): TransferToGasKeyAction {
+  return {
+    transferToGasKey: {
+      publicKey: publicKeyToZorsh(publicKey),
+      deposit,
+    },
+  }
+}
+
+/**
+ * Withdraw NEAR from a gas key's balance back to the account.
+ *
+ * @param publicKey - The gas key to withdraw from.
+ * @param amount - Amount in yoctoNEAR to move from the gas key balance to the account.
+ */
+export function withdrawFromGasKey(
+  publicKey: PublicKey,
+  amount: bigint,
+): WithdrawFromGasKeyAction {
+  return {
+    withdrawFromGasKey: {
+      publicKey: publicKeyToZorsh(publicKey),
+      amount,
+    },
+  }
+}
+
+// ==================== Gas Key Permissions (protocol v85 / NEAR 2.13) ====================
+
+/**
+ * Build a `GasKeyFullAccess` permission in Borsh format.
+ *
+ * A gas key with full access can sign any action, paying for gas from its
+ * prepaid balance. The key is added with `balance: 0`; fund it afterwards with
+ * {@link transferToGasKey}.
+ *
+ * @param numNonces - Number of independent nonce slots to allocate (1..=1024),
+ *   enabling that many transactions to be signed in parallel by this key.
+ */
+export function gasKeyFullAccess(numNonces: number): AccessKeyPermissionBorsh {
+  return {
+    gasKeyFullAccess: {
+      gasKeyInfo: gasKeyInfo(numNonces),
+    },
+  }
+}
+
+/**
+ * Build a `GasKeyFunctionCall` permission in Borsh format.
+ *
+ * Like {@link gasKeyFullAccess} but restricted to function calls on a single
+ * contract (and optionally a set of methods), the same way a regular function
+ * call access key is restricted.
+ *
+ * A gas function-call key must NOT carry an allowance — the protocol rejects an
+ * `AddKey` with one. The `allowance` field is therefore forced to `null`, and a
+ * non-null value (e.g. from a JS caller) is rejected with a clear error rather
+ * than silently producing an invalid permission.
+ *
+ * @param numNonces - Number of independent nonce slots to allocate (1..=1024).
+ * @param functionCall - The function call restriction (receiver, methods). Any
+ *   `allowance` must be `null`/omitted.
+ */
+export function gasKeyFunctionCall(
+  numNonces: number,
+  functionCall: FunctionCallPermissionBorsh,
+): AccessKeyPermissionBorsh {
+  if (functionCall.allowance != null) {
+    throw new Error(
+      "Gas function-call keys must not set an allowance (rejected on-chain); pass allowance: null",
+    )
+  }
+  return {
+    gasKeyFunctionCall: {
+      gasKeyInfo: gasKeyInfo(numNonces),
+      functionCall: { ...functionCall, allowance: null },
+    },
+  }
+}
+
+/**
+ * Construct a {@link GasKeyInfoBorsh} with a zero balance and validated nonce count.
+ *
+ * The on-chain balance starts at zero regardless of what is requested here
+ * (it is funded via {@link transferToGasKey}), so only `numNonces` is taken.
+ * @internal
+ */
+function gasKeyInfo(numNonces: number): GasKeyInfoBorsh {
+  if (!Number.isInteger(numNonces) || numNonces < 1 || numNonces > 1024) {
+    throw new Error(
+      `Gas key numNonces must be an integer in 1..=1024, got ${numNonces}`,
+    )
+  }
+  return { balance: 0n, numNonces }
 }
 
 /**
