@@ -37,7 +37,7 @@ describe("Error Handling - Account Errors", () => {
       expect(accountError.message).toContain(nonExistentAccount)
       console.log(`✓ AccountDoesNotExistError: ${accountError.message}`)
     }
-  }, 10000)
+  })
 
   test("should successfully get existing account", async () => {
     const account = await rpc.getAccount("near")
@@ -45,7 +45,7 @@ describe("Error Handling - Account Errors", () => {
     expect(account.amount).toBeDefined()
     expect(account.storage_usage).toBeGreaterThan(0)
     console.log(`✓ Successfully retrieved account 'near'`)
-  }, 10000)
+  })
 })
 
 describe("Error Handling - Access Key Errors", () => {
@@ -73,7 +73,7 @@ describe("Error Handling - Access Key Errors", () => {
       expect(keyError.message).toContain(accountId)
       console.log(`✓ AccessKeyDoesNotExistError: ${keyError.message}`)
     }
-  }, 10000)
+  })
 
   test("should successfully get existing access key", async () => {
     // First get the list of access keys for an account
@@ -99,7 +99,7 @@ describe("Error Handling - Access Key Errors", () => {
     expect(accessKey.nonce).toBeDefined()
     expect(accessKey.permission).toBeDefined()
     console.log(`✓ Successfully retrieved access key for '${accountId}'`)
-  }, 10000)
+  })
 })
 
 describe("Error Handling - Function Call Errors", () => {
@@ -129,7 +129,7 @@ describe("Error Handling - Function Call Errors", () => {
       expect(funcError.panic).toContain("MethodNotFound")
       console.log(`✓ FunctionCallError: ${funcError.message}`)
     }
-  }, 10000)
+  })
 
   test("should throw FunctionCallError for method call on non-contract account", async () => {
     const accountId = "near"
@@ -150,7 +150,7 @@ describe("Error Handling - Function Call Errors", () => {
       expect(funcError.methodName).toBe(methodName)
       console.log(`✓ FunctionCallError for non-contract: ${funcError.message}`)
     }
-  }, 10000)
+  })
 
   test("should successfully call valid view method", async () => {
     const result = await rpc.viewFunction("wrap.near", "ft_metadata", {})
@@ -164,7 +164,7 @@ describe("Error Handling - Function Call Errors", () => {
     )
     expect(decoded.name).toBeDefined()
     console.log(`✓ Successfully called view method: ${decoded.name}`)
-  }, 10000)
+  })
 })
 
 describe("Error Handling - Network Errors", () => {
