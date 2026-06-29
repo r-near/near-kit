@@ -56,7 +56,10 @@ jobs:
         run: bun run test
 
       - name: Upload coverage to Codecov
+        if: hashFiles('packages/near-kit/coverage/lcov.info') != ''
+        continue-on-error: true
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./packages/near-kit/coverage/lcov.info
+          fail_ci_if_error: false

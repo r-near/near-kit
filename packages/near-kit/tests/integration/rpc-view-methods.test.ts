@@ -64,7 +64,7 @@ describe("RPC View Methods - Mainnet", () => {
     console.log(
       `✓ Mainnet status: chain=${status.chain_id}, height=${status.sync_info.latest_block_height}, validators=${status.validators.length}`,
     )
-  }, 10000) // 10 second timeout
+  })
 
   test("getBlock should return block with default finality", async () => {
     const block = await rpc.getBlock()
@@ -79,7 +79,7 @@ describe("RPC View Methods - Mainnet", () => {
     console.log(
       `✓ Block (final): height=${block.header.height}, hash=${block.header.hash.slice(0, 8)}...`,
     )
-  }, 10000)
+  })
 
   test("getBlock should accept finality parameter", async () => {
     const block = await rpc.getBlock({ finality: "optimistic" })
@@ -89,7 +89,7 @@ describe("RPC View Methods - Mainnet", () => {
     expect(block.header.height).toBeGreaterThan(0)
 
     console.log(`✓ Block (optimistic): height=${block.header.height}`)
-  }, 10000)
+  })
 
   test("getBlock should accept blockId parameter", async () => {
     // First get the current final block to get a valid height
@@ -104,7 +104,7 @@ describe("RPC View Methods - Mainnet", () => {
     console.log(
       `✓ Block (by height ${targetHeight}): hash=${block.header.hash.slice(0, 8)}...`,
     )
-  }, 10000)
+  })
 
   test("getAccount should return account info for known account", async () => {
     const account: AccountView = await rpc.getAccount(MAINNET_ACCOUNT)
@@ -125,7 +125,7 @@ describe("RPC View Methods - Mainnet", () => {
     console.log(
       `✓ Account '${MAINNET_ACCOUNT}': balance=${account.amount} yoctoNEAR, storage=${account.storage_usage} bytes`,
     )
-  }, 10000)
+  })
 
   test("getGasPrice should return current gas price", async () => {
     const gasPrice: GasPriceResponse = await rpc.getGasPrice()
@@ -139,7 +139,7 @@ describe("RPC View Methods - Mainnet", () => {
     expect(price).toBeGreaterThan(0n)
 
     console.log(`✓ Gas price: ${gasPrice.gas_price} yoctoNEAR`)
-  }, 10000)
+  })
 
   test("viewFunction should call contract view method", async () => {
     const result: ViewFunctionCallResult = await rpc.viewFunction(
@@ -167,7 +167,7 @@ describe("RPC View Methods - Mainnet", () => {
     console.log(
       `✓ View call to ${WRAP_NEAR_CONTRACT}.ft_metadata(): ${decoded.name}`,
     )
-  }, 10000)
+  })
 })
 
 describe("RPC View Methods - Testnet", () => {
@@ -190,7 +190,7 @@ describe("RPC View Methods - Testnet", () => {
     console.log(
       `✓ Testnet status: chain=${status.chain_id}, height=${status.sync_info.latest_block_height}`,
     )
-  }, 10000)
+  })
 
   test("getAccount should return account info for known account", async () => {
     const account: AccountView = await rpc.getAccount(TESTNET_ACCOUNT)
@@ -204,7 +204,7 @@ describe("RPC View Methods - Testnet", () => {
     console.log(
       `✓ Testnet account '${TESTNET_ACCOUNT}': balance=${account.amount} yoctoNEAR`,
     )
-  }, 10000)
+  })
 
   test("getGasPrice should return current gas price", async () => {
     const gasPrice: GasPriceResponse = await rpc.getGasPrice()
@@ -217,7 +217,7 @@ describe("RPC View Methods - Testnet", () => {
     expect(price).toBeGreaterThan(0n)
 
     console.log(`✓ Testnet gas price: ${gasPrice.gas_price} yoctoNEAR`)
-  }, 10000)
+  })
 })
 
 describe("RPC Error Handling", () => {
@@ -242,7 +242,7 @@ describe("RPC Error Handling", () => {
         `✓ Correctly handled non-existent account error: ${accountError.message}`,
       )
     }
-  }, 10000)
+  })
 
   test("should handle invalid contract method call", async () => {
     try {
@@ -258,5 +258,5 @@ describe("RPC Error Handling", () => {
       expect(error).toBeDefined()
       console.log(`✓ Correctly handled invalid method call error`)
     }
-  }, 10000)
+  })
 })

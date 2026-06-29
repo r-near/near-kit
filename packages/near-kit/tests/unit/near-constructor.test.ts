@@ -6,6 +6,7 @@
  */
 
 import { describe, expect, test } from "vitest"
+import { NETWORK_PRESETS } from "../../src/core/constants.js"
 import { Near } from "../../src/core/near.js"
 import type { Signer } from "../../src/core/types.js"
 import { KeyType } from "../../src/core/types.js"
@@ -13,25 +14,22 @@ import { InMemoryKeyStore } from "../../src/keys/index.js"
 import { generateKey } from "../../src/utils/key.js"
 
 describe("Near Constructor - RPC Initialization", () => {
-  test("_initializeRpc: uses default mainnet RPC URL", async () => {
+  test("_initializeRpc: uses default mainnet RPC URL", () => {
     const near = new Near({ network: "mainnet" })
-    const status = await near.getStatus()
-    expect(status.chain_id).toBe("mainnet")
+    expect(near.rpc["url"]).toBe(NETWORK_PRESETS.mainnet.rpcUrl)
   })
 
-  test("_initializeRpc: uses custom RPC URL", async () => {
+  test("_initializeRpc: uses custom RPC URL", () => {
     const near = new Near({
       network: "mainnet",
       rpcUrl: "https://rpc.mainnet.near.org",
     })
-    const status = await near.getStatus()
-    expect(status.chain_id).toBe("mainnet")
+    expect(near.rpc["url"]).toBe("https://rpc.mainnet.near.org")
   })
 
-  test("_initializeRpc: uses testnet RPC URL", async () => {
+  test("_initializeRpc: uses testnet RPC URL", () => {
     const near = new Near({ network: "testnet" })
-    const status = await near.getStatus()
-    expect(status.chain_id).toBe("testnet")
+    expect(near.rpc["url"]).toBe(NETWORK_PRESETS.testnet.rpcUrl)
   })
 
   test("_initializeRpc: accepts custom headers and retry config", () => {
