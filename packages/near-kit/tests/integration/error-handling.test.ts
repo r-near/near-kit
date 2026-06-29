@@ -207,8 +207,14 @@ describe("Error Handling - Function Call Errors", () => {
 })
 
 describe("Error Handling - Network Errors", () => {
-  // Deterministically-unreachable local endpoint (connection refused, instant).
-  const invalidRpc = new RpcClient("http://127.0.0.1:1")
+  // Deterministically-unreachable local endpoint: the connection is refused on
+  // every attempt. ECONNREFUSED maps to a *retryable* NetworkError, so retries
+  // are disabled here (maxRetries: 0) — otherwise each getStatus() burns the
+  // full backoff budget (~15s) and this suite would take ~30s. With retries off
+  // it fails in milliseconds while still exercising the NetworkError path.
+  const invalidRpc = new RpcClient("http://127.0.0.1:1", undefined, {
+    maxRetries: 0,
+  })
 
   test("should throw NetworkError for unreachable RPC endpoint", async () => {
     await expect(async () => {
