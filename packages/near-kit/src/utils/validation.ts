@@ -141,7 +141,9 @@ const PRIVATE_KEY_PREFIXES = [
  * Supports:
  * - Ed25519: "ed25519:..." (base58 encoded, 64 bytes)
  * - Secp256k1: "secp256k1:..." (base58 encoded, 96 bytes)
- * - ML-DSA-65: "ml-dsa-65:..." (base58 encoded 32-byte seed)
+ * - ML-DSA-65: "ml-dsa-65:..." (base58 encoded; either a 32-byte seed, as this
+ *   library serializes generated keys, or the 4032-byte raw expanded secret key
+ *   as written by nearcore / near-cli credentials)
  */
 export const PrivateKeySchema = z
   .string()
