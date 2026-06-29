@@ -157,6 +157,19 @@ describe("parseQueryError", () => {
     }
   })
 
+  test("should throw NetworkError (not AccessKeyDoesNotExistError) for 'does not exist' without access-key context", () => {
+    // This is the view_state case: a missing account/contract must surface as a
+    // generic query error, not be misclassified as an access-key error.
+    const result = {
+      error: "account some.near does not exist while viewing",
+    }
+
+    expect(() => parseQueryError(result)).toThrow(NetworkError)
+    expect(() => parseQueryError(result)).not.toThrow(
+      AccessKeyDoesNotExistError,
+    )
+  })
+
   test("should throw NetworkError when access key error lacks 'does not exist' substring", () => {
     const result = {
       error: "Permission denied for access key",

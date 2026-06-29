@@ -28,7 +28,9 @@ import type {
   AccessKeyView,
   FinalExecutionOutcome,
   FinalExecutionOutcomeWithReceiptsMap,
+  StateItem,
   StatusResponse,
+  ViewStateResult,
 } from "./rpc/rpc-schemas.js"
 import { TransactionBuilder } from "./transaction.js"
 import type {
@@ -809,6 +811,49 @@ export class Near {
    */
   async getStatus(): Promise<StatusResponse> {
     return this._rpc.getStatus()
+  }
+
+  /**
+   * Read a single page of a contract's state via `view_state`.
+   *
+   * Returns base64-encoded key/value entries. Use `options.afterKey` (the
+   * `last_key` from a previous page) to paginate, or {@link viewStateAll} to
+   * iterate everything.
+   *
+   * @param accountId - Account whose contract state to read.
+   * @param options - Optional `prefix`, `afterKey`, `limit`, `includeProof`, and block reference.
+   */
+  async viewState(
+    accountId: string,
+    options?: BlockReference & {
+      prefix?: string
+      afterKey?: string
+      limit?: number
+      includeProof?: boolean
+    },
+  ): Promise<ViewStateResult> {
+    return this._rpc.viewState(accountId, options)
+  }
+
+  /**
+   * Iterate every entry of a contract's state via `view_state`, following the
+   * pagination cursor across pages.
+   *
+   * @param accountId - Account whose contract state to read.
+   * @param options - Optional `prefix`, per-request `limit`, and block reference.
+   *
+   * @example
+   * ```typescript
+   * for await (const { key, value } of near.viewStateAll("contract.near")) {
+   *   // process each entry
+   * }
+   * ```
+   */
+  viewStateAll(
+    accountId: string,
+    options?: BlockReference & { prefix?: string; limit?: number },
+  ): AsyncGenerator<StateItem> {
+    return this._rpc.viewStateAll(accountId, options)
   }
 
   /**

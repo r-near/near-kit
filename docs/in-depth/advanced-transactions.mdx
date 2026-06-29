@@ -193,3 +193,49 @@ const { transaction_hash, sender_account_id } = await near.rpc.receiptToTx(
 ```
 
 It throws an `UnknownReceiptError` if the node doesn't know the receipt.
+
+## 8. Reading Raw Contract State
+
+`near.viewState()` reads a contract's raw key/value storage (base64-encoded). Pass a `prefix` to filter and `limit` to page; the response's `last_key` is the cursor for the next page (absent on the last page). Pagination requires **nearcore >= 2.13**.
+
+`prefix` and `afterKey` are **base64-encoded strings** — they're sent to the node as `prefix_base64` and `after_key_base64`. Likewise, the `last_key` cursor in the response is already base64, so pass it straight back as `afterKey` to fetch the next page. Returned `key`/`value` are also base64.
+
+```typescript
+// One page (filter by a base64-encoded key prefix)
+const page = await near.viewState("contract.near", {
+  prefix: btoa("STATE"), // base64-encoded prefix
+  limit: 100,
+})
+for (const { key, value } of page.values) {
+  // key/value are base64 strings
+}
+
+// Manually fetch the next page using the base64 cursor
+if (page.last_key) {
+  const next = await near.viewState("contract.near", {
+    prefix: btoa("STATE"),
+    afterKey: page.last_key, // base64 cursor from the previous page
+    limit: 100,
+  })
+}
+
+// Or iterate everything, following the cursor across pages automatically
+for await (const { key, value } of near.viewStateAll("contract.near", { limit: 100 })) {
+  // ...
+}
+```
+
+## 9. Stabilized RPC Methods (nearcore 2.13)
+
+Several `EXPERIMENTAL_` endpoints were stabilized in nearcore 2.13. `near.rpc` exposes the stable names and falls back to the `EXPERIMENTAL_` alias automatically on older nodes.
+
+```typescript
+// State-change kinds in a block (was EXPERIMENTAL_changes_in_block)
+const effects = await near.rpc.blockEffects({ finality: "final" })
+
+// Network genesis config (was EXPERIMENTAL_genesis_config)
+const genesis = await near.rpc.genesisConfig()
+
+// A validator's upcoming maintenance windows (block-height ranges)
+const windows = await near.rpc.maintenanceWindows("validator.near")
+```

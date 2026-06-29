@@ -254,14 +254,21 @@ export type {
   AccessKeyListResponse,
   AccessKeyView,
   AccountView,
+  BlockEffectsResponse,
   BlockHeaderView,
   BlockView,
   ChunkHeaderView,
   GasPriceResponse,
+  GenesisConfigResponse,
+  MaintenanceWindow,
+  MaintenanceWindowsResponse,
   ReceiptToTxResponse,
   RpcErrorResponse,
+  StateChangeKind,
+  StateItem,
   StatusResponse,
   ViewFunctionCallResult,
+  ViewStateResult,
 } from "./rpc/rpc-schemas.js"
 
 // ==================== Client Configuration ====================

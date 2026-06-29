@@ -653,6 +653,95 @@ export const FinalExecutionOutcomeWithReceiptsSchema = z.intersection(
   }),
 )
 
+// ==================== view_state ====================
+
+/**
+ * A single key/value entry from a `view_state` query.
+ * `key` and `value` are base64-encoded byte strings.
+ */
+export const StateItemSchema = z.object({
+  key: z.string(),
+  value: z.string(),
+})
+
+/**
+ * Result of a `view_state` query.
+ *
+ * `last_key` is a base64 continuation cursor: pass it as `after_key_base64` on
+ * the next request to fetch the following page. It is absent on the last page.
+ * `proof` is present only when the query requested inclusion proofs.
+ */
+export const ViewStateResultSchema = z.object({
+  values: z.array(StateItemSchema),
+  proof: z.array(z.string()).optional(),
+  last_key: z.string().optional(),
+  block_height: z.number().optional(),
+  block_hash: z.string().optional(),
+})
+
+// ==================== block_effects / changes_in_block ====================
+
+/**
+ * A single state-change kind from `block_effects`
+ * (`EXPERIMENTAL_changes_in_block`), internally tagged by `type`.
+ */
+export const StateChangeKindSchema = z.object({
+  type: z.enum([
+    "account_touched",
+    "access_key_touched",
+    "data_touched",
+    "contract_code_touched",
+  ]),
+  account_id: z.string(),
+})
+
+/**
+ * Response of `block_effects` / `EXPERIMENTAL_changes_in_block`: the kinds of
+ * state changes that occurred in a block (without the changed values).
+ */
+export const BlockEffectsResponseSchema = z.object({
+  block_hash: z.string(),
+  changes: z.array(StateChangeKindSchema),
+})
+
+// ==================== maintenance_windows ====================
+
+/**
+ * A maintenance window as a half-open block-height range `[start, end)` during
+ * which the given validator is not expected to produce or validate.
+ */
+export const MaintenanceWindowSchema = z.object({
+  start: z.number(),
+  end: z.number(),
+})
+
+/**
+ * Response of `maintenance_windows`: the upcoming maintenance windows for a
+ * validator account, ordered by block height.
+ */
+export const MaintenanceWindowsResponseSchema = z.array(MaintenanceWindowSchema)
+
+// ==================== genesis_config ====================
+
+/**
+ * Response of `genesis_config` / `EXPERIMENTAL_genesis_config`.
+ *
+ * The genesis config is a large, version-dependent object; only the most
+ * commonly used fields are typed. Unknown fields are preserved via passthrough
+ * so callers can read everything the node returns.
+ */
+export const GenesisConfigResponseSchema = z
+  .object({
+    protocol_version: z.number(),
+    chain_id: z.string(),
+    genesis_height: z.number(),
+    genesis_time: z.string().optional(),
+    epoch_length: z.number().optional(),
+    num_block_producer_seats: z.number().optional(),
+    total_supply: z.string().optional(),
+  })
+  .catchall(z.any()) // Preserve all other genesis fields
+
 // ==================== Type Inference ====================
 
 /**
@@ -681,6 +770,15 @@ export type StatusResponse = z.infer<typeof StatusResponseSchema>
 export type GasPriceResponse = z.infer<typeof GasPriceResponseSchema>
 export type AccessKeyListResponse = z.infer<typeof AccessKeyListResponseSchema>
 export type ReceiptToTxResponse = z.infer<typeof ReceiptToTxResponseSchema>
+export type StateItem = z.infer<typeof StateItemSchema>
+export type ViewStateResult = z.infer<typeof ViewStateResultSchema>
+export type StateChangeKind = z.infer<typeof StateChangeKindSchema>
+export type BlockEffectsResponse = z.infer<typeof BlockEffectsResponseSchema>
+export type MaintenanceWindow = z.infer<typeof MaintenanceWindowSchema>
+export type MaintenanceWindowsResponse = z.infer<
+  typeof MaintenanceWindowsResponseSchema
+>
+export type GenesisConfigResponse = z.infer<typeof GenesisConfigResponseSchema>
 export type RpcErrorResponse = z.infer<typeof RpcErrorResponseSchema>
 
 /**
