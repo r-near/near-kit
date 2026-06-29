@@ -656,7 +656,11 @@ export class RpcClient {
       ...(options?.includeProof ? { include_proof: true } : {}),
     })
 
-    parseQueryError(result, { accountId })
+    // No access-key context: parseQueryError would otherwise misread a
+    // "does not exist" error (missing account/contract) as an
+    // AccessKeyDoesNotExistError. A view_state failure surfaces as a generic
+    // query error instead.
+    parseQueryError(result)
 
     return ViewStateResultSchema.parse(result)
   }
