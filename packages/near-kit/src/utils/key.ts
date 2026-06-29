@@ -274,8 +274,9 @@ export class MlDsa65KeyPair implements KeyPair {
       this.privateKey = expanded.secretKey
     } else if (key.length === ML_DSA_65_SECRET_KEY_LENGTH) {
       // Raw expanded secret key (nearcore / near-cli credential form): the
-      // public key is derivable from the secret key, no keygen needed.
-      this.privateKey = key
+      // public key is derivable from the secret key, no keygen needed. Copy the
+      // caller's buffer so later external mutation can't change signing.
+      this.privateKey = key.slice()
       publicKey = ml_dsa65.getPublicKey(key)
     } else {
       throw new InvalidKeyError(
