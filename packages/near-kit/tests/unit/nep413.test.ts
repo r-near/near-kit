@@ -417,6 +417,27 @@ describe("NEP-413 Nonce Validation", () => {
     expect(isValid).toBe(false)
   })
 
+  test("should keep timestamp validation for unexpected nonceValidation values", async () => {
+    const keyPair = Ed25519KeyPair.fromRandom()
+    const accountId = "test.near"
+
+    const params: SignMessageParams = {
+      message: "Login to MyApp",
+      recipient: "myapp.near",
+      nonce: customNonce,
+    }
+
+    const signedMessage = keyPair.signNep413Message(accountId, params)
+
+    // Fail closed: an invalid option value (possible from plain JS callers)
+    // must not silently disable the timestamp/expiry protection
+    const isValid = await verifyNep413Signature(signedMessage, params, {
+      // @ts-expect-error - deliberately passing an invalid value
+      nonceValidation: "off",
+    })
+    expect(isValid).toBe(false)
+  })
+
   test("should verify custom nonce with nonceValidation: none", async () => {
     const keyPair = Ed25519KeyPair.fromRandom()
     const accountId = "test.near"

@@ -196,9 +196,10 @@ export async function verifyNep413Signature(
     } = options // Default: 5 minutes
 
     // Check timestamp expiration if the nonce follows the near-kit timestamp
-    // convention and maxAge is finite
+    // convention and maxAge is finite. Fail closed: only an explicit "none"
+    // opts out, so unexpected values keep the default replay/expiry protection.
     if (
-      nonceValidation === "timestamp" &&
+      nonceValidation !== "none" &&
       maxAge !== Infinity &&
       params.nonce.length === 32
     ) {
