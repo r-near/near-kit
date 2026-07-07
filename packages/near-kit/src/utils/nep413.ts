@@ -208,6 +208,8 @@ export async function verifyNep413Signature(
     // Check timestamp expiration if the nonce follows the near-kit timestamp
     // convention and maxAge is finite. Fail closed: only an explicit "none"
     // opts out, so unexpected values keep the default replay/expiry protection.
+    // Non-32-byte nonces skip this check but never verify: they are rejected
+    // by serializeNep413Message below.
     if (
       nonceValidation !== "none" &&
       maxAge !== Infinity &&

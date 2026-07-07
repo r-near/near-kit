@@ -419,6 +419,35 @@ describe("NEP-413 Nonce Validation", () => {
     expect(isValid).toBe(false)
   })
 
+  test("should reject non-32-byte nonces in any mode", async () => {
+    const keyPair = Ed25519KeyPair.fromRandom()
+    const accountId = "test.near"
+
+    const params: SignMessageParams = {
+      message: "Login to MyApp",
+      recipient: "myapp.near",
+      nonce: customNonce,
+    }
+
+    const signedMessage = keyPair.signNep413Message(accountId, params)
+
+    // A short nonce skips the timestamp check but is rejected during
+    // serialization, so verification still fails in both modes
+    const shortNonceParams: SignMessageParams = {
+      ...params,
+      nonce: new Uint8Array(16),
+    }
+
+    expect(await verifyNep413Signature(signedMessage, shortNonceParams)).toBe(
+      false,
+    )
+    expect(
+      await verifyNep413Signature(signedMessage, shortNonceParams, {
+        nonceValidation: "none",
+      }),
+    ).toBe(false)
+  })
+
   test("should not disable expiry check when maxAge is NaN", async () => {
     const keyPair = Ed25519KeyPair.fromRandom()
     const accountId = "test.near"
