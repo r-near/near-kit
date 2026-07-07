@@ -471,6 +471,18 @@ describe("NEP-413 Nonce Validation", () => {
       maxAge: Number.NaN,
     })
     expect(isValid).toBe(false)
+
+    // Same for non-number values from untyped callers, which would
+    // otherwise coerce to NaN in the age comparison
+    const isValidWithString = await verifyNep413Signature(
+      signedMessage,
+      params,
+      {
+        // @ts-expect-error - deliberately passing an invalid value
+        maxAge: "not a number",
+      },
+    )
+    expect(isValidWithString).toBe(false)
   })
 
   test("should keep timestamp validation for unexpected nonceValidation values", async () => {

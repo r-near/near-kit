@@ -101,7 +101,8 @@ export interface VerifyNep413Options {
    * Passing `Infinity` is a legacy escape hatch that skips timestamp
    * validation entirely, including the future-timestamp rejection — the same
    * effect as `nonceValidation: "none"`, which is the preferred way to opt
-   * out. `NaN` falls back to the default.
+   * out. Invalid values (non-numbers, `NaN`, negatives) fall back to the
+   * default.
    *
    * @default 300000 (5 minutes)
    */
@@ -201,9 +202,16 @@ export async function verifyNep413Signature(
       near,
     } = options // Default: 5 minutes
 
-    // NaN would make the age comparison below always false and silently
-    // disable the expiry check; fail closed by falling back to the default
-    const maxAge = Number.isNaN(rawMaxAge) ? 5 * 60 * 1000 : rawMaxAge
+    // Invalid runtime values (non-numbers, NaN, negatives — possible from
+    // plain JS callers) would silently disable or distort the expiry check;
+    // fail closed by falling back to the default. Infinity remains a valid
+    // opt-out.
+    const maxAge =
+      typeof rawMaxAge === "number" &&
+      !Number.isNaN(rawMaxAge) &&
+      rawMaxAge >= 0
+        ? rawMaxAge
+        : 5 * 60 * 1000
 
     // Check timestamp expiration if the nonce follows the near-kit timestamp
     // convention and maxAge is finite. Fail closed: only an explicit "none"
