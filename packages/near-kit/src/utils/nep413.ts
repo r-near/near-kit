@@ -98,6 +98,11 @@ export interface VerifyNep413Options {
    * assumes the nonce embeds a timestamp in its first 8 bytes as produced by
    * `generateNonce()`. Ignored when `nonceValidation` is `"none"`.
    *
+   * Passing `Infinity` is a legacy escape hatch that skips timestamp
+   * validation entirely, including the future-timestamp rejection — the same
+   * effect as `nonceValidation: "none"`, which is the preferred way to opt
+   * out. `NaN` falls back to the default.
+   *
    * @default 300000 (5 minutes)
    */
   maxAge?: number
@@ -112,7 +117,8 @@ export interface VerifyNep413Options {
    *
    * - `"timestamp"` (default) - Interpret the first 8 bytes of the nonce as a
    *   big-endian millisecond timestamp and reject signatures older than
-   *   `maxAge` or with future timestamps. Use this for nonces created with
+   *   `maxAge` or with future timestamps (both checks are skipped when
+   *   `maxAge` is `Infinity`). Use this for nonces created with
    *   `generateNonce()`.
    * - `"none"` - Treat the nonce as opaque bytes per the NEP-413 spec. No
    *   timestamp or expiry check is performed and `maxAge` is ignored. Use this
