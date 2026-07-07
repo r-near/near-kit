@@ -419,6 +419,31 @@ describe("NEP-413 Nonce Validation", () => {
     expect(isValid).toBe(false)
   })
 
+  test("should not disable expiry check when maxAge is NaN", async () => {
+    const keyPair = Ed25519KeyPair.fromRandom()
+    const accountId = "test.near"
+
+    // Nonce with an expired timestamp (1 hour old)
+    const expiredNonce = new Uint8Array(32)
+    const view = new DataView(expiredNonce.buffer)
+    view.setBigUint64(0, BigInt(Date.now() - 60 * 60 * 1000), false)
+
+    const params: SignMessageParams = {
+      message: "Login to MyApp",
+      recipient: "myapp.near",
+      nonce: expiredNonce,
+    }
+
+    const signedMessage = keyPair.signNep413Message(accountId, params)
+
+    // NaN comparisons are always false; the default maxAge must apply
+    // instead of silently accepting the expired signature
+    const isValid = await verifyNep413Signature(signedMessage, params, {
+      maxAge: Number.NaN,
+    })
+    expect(isValid).toBe(false)
+  })
+
   test("should keep timestamp validation for unexpected nonceValidation values", async () => {
     const keyPair = Ed25519KeyPair.fromRandom()
     const accountId = "test.near"

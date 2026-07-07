@@ -190,10 +190,14 @@ export async function verifyNep413Signature(
 ): Promise<boolean> {
   try {
     const {
-      maxAge = 5 * 60 * 1000,
+      maxAge: rawMaxAge = 5 * 60 * 1000,
       nonceValidation = "timestamp",
       near,
     } = options // Default: 5 minutes
+
+    // NaN would make the age comparison below always false and silently
+    // disable the expiry check; fail closed by falling back to the default
+    const maxAge = Number.isNaN(rawMaxAge) ? 5 * 60 * 1000 : rawMaxAge
 
     // Check timestamp expiration if the nonce follows the near-kit timestamp
     // convention and maxAge is finite. Fail closed: only an explicit "none"
