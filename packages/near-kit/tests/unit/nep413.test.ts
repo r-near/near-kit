@@ -394,6 +394,144 @@ describe("NEP-413 Message Signing", () => {
   })
 })
 
+describe("NEP-413 Nonce Validation", () => {
+  // A custom nonce that does NOT follow the near-kit timestamp convention:
+  // the first 8 bytes decode to a garbage/ancient timestamp
+  const customNonce = new Uint8Array(32).fill(7)
+
+  test("should reject custom (non-timestamp) nonce with default validation", async () => {
+    const keyPair = Ed25519KeyPair.fromRandom()
+    const accountId = "test.near"
+
+    const params: SignMessageParams = {
+      message: "Login to MyApp",
+      recipient: "myapp.near",
+      nonce: customNonce,
+    }
+
+    const signedMessage = keyPair.signNep413Message(accountId, params)
+
+    // Default validation interprets the first 8 bytes as a timestamp,
+    // which is ancient here, so the signature is rejected
+    const isValid = await verifyNep413Signature(signedMessage, params)
+    expect(isValid).toBe(false)
+  })
+
+  test("should verify custom nonce with nonceValidation: none", async () => {
+    const keyPair = Ed25519KeyPair.fromRandom()
+    const accountId = "test.near"
+
+    const params: SignMessageParams = {
+      message: "Login to MyApp",
+      recipient: "myapp.near",
+      nonce: customNonce,
+    }
+
+    const signedMessage = keyPair.signNep413Message(accountId, params)
+
+    // With nonceValidation: "none" the nonce is treated as opaque bytes
+    const isValid = await verifyNep413Signature(signedMessage, params, {
+      nonceValidation: "none",
+    })
+    expect(isValid).toBe(true)
+  })
+
+  test("should ignore maxAge when nonceValidation is none", async () => {
+    const keyPair = Ed25519KeyPair.fromRandom()
+    const accountId = "test.near"
+
+    // Nonce with an expired timestamp (1 hour old)
+    const expiredNonce = new Uint8Array(32)
+    const view = new DataView(expiredNonce.buffer)
+    view.setBigUint64(0, BigInt(Date.now() - 60 * 60 * 1000), false)
+
+    const params: SignMessageParams = {
+      message: "Login to MyApp",
+      recipient: "myapp.near",
+      nonce: expiredNonce,
+    }
+
+    const signedMessage = keyPair.signNep413Message(accountId, params)
+
+    // Rejected by the default timestamp validation (older than maxAge)
+    expect(await verifyNep413Signature(signedMessage, params)).toBe(false)
+
+    // Accepted when the timestamp check is skipped, even with a tiny maxAge
+    const isValid = await verifyNep413Signature(signedMessage, params, {
+      nonceValidation: "none",
+      maxAge: 1,
+    })
+    expect(isValid).toBe(true)
+  })
+
+  test("should still reject invalid signatures with nonceValidation: none", async () => {
+    const keyPair = Ed25519KeyPair.fromRandom()
+    const accountId = "test.near"
+
+    const params: SignMessageParams = {
+      message: "Login to MyApp",
+      recipient: "myapp.near",
+      nonce: customNonce,
+    }
+
+    const signedMessage = keyPair.signNep413Message(accountId, params)
+
+    // Verify against different params: the signature check must still fail
+    const differentParams: SignMessageParams = {
+      message: "Different message",
+      recipient: "myapp.near",
+      nonce: customNonce,
+    }
+
+    const isValid = await verifyNep413Signature(
+      signedMessage,
+      differentParams,
+      { nonceValidation: "none" },
+    )
+    expect(isValid).toBe(false)
+  })
+
+  test("should verify timestamp nonce with explicit nonceValidation: timestamp", async () => {
+    const keyPair = Ed25519KeyPair.fromRandom()
+    const accountId = "test.near"
+    const nonce = generateNonce()
+
+    const params: SignMessageParams = {
+      message: "Login to MyApp",
+      recipient: "myapp.near",
+      nonce,
+    }
+
+    const signedMessage = keyPair.signNep413Message(accountId, params)
+
+    const isValid = await verifyNep413Signature(signedMessage, params, {
+      nonceValidation: "timestamp",
+    })
+    expect(isValid).toBe(true)
+  })
+
+  test("should reject future timestamps with default validation", async () => {
+    const keyPair = Ed25519KeyPair.fromRandom()
+    const accountId = "test.near"
+
+    // Nonce with a timestamp 1 hour in the future (clock skew or tampering)
+    const futureNonce = new Uint8Array(32)
+    const view = new DataView(futureNonce.buffer)
+    view.setBigUint64(0, BigInt(Date.now() + 60 * 60 * 1000), false)
+
+    const params: SignMessageParams = {
+      message: "Login to MyApp",
+      recipient: "myapp.near",
+      nonce: futureNonce,
+    }
+
+    const signedMessage = keyPair.signNep413Message(accountId, params)
+
+    const isValid = await verifyNep413Signature(signedMessage, params)
+    expect(isValid).toBe(false)
+  })
+})
+
 describe("NEP-413 Near Client Validation", () => {
   test("should return false when key does not belong to account", async () => {
     const keyPair = Ed25519KeyPair.fromRandom()

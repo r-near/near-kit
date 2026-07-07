@@ -22,7 +22,7 @@ You **must** generate a random nonce. This ensures that a captured signature can
 import { Near, generateNonce } from "near-kit"
 import { hex } from "@scure/base"
 
-// 1. Generate a random 32-byte nonce with embedded timestamp
+// 1. Generate a random 32-byte nonce (with embedded timestamp, a near-kit convention)
 const nonce = generateNonce()
 
 // 2. Request Signature
@@ -49,7 +49,7 @@ The `signature` field is base64 encoded per the NEP-413 specification. Send it u
 
 ## 2. The Server (Backend)
 
-**Automatic Expiration:** Nonces include an embedded timestamp. Signatures older than 5 minutes are automatically rejected, limiting the replay attack window.
+**Automatic Expiration:** Nonces created with `generateNonce()` embed a timestamp in their first 8 bytes. This is a near-kit convention (NEP-413 itself treats the nonce as arbitrary bytes) that lets `verifyNep413Signature` automatically reject signatures older than 5 minutes, limiting the replay attack window.
 
 ```typescript
 import { Near, verifyNep413Signature } from "near-kit"
@@ -105,6 +105,22 @@ Cryptographic verification alone is not enough! If you do not check if the `nonc
 
 **Always store used nonces in your database (with an expiration time) and reject duplicates.**
 </Warning>
+
+## Custom Nonce Schemes
+
+NEP-413 defines the nonce as an opaque 32-byte value — the timestamp-in-the-first-8-bytes layout is just near-kit's convention. Some apps define their own nonce structure instead (for example, [intents.near](https://github.com/near/intents) uses a versioned, salted, expirable nonce).
+
+By default, `verifyNep413Signature` interprets the first 8 bytes of the nonce as a timestamp, so it will reject valid signatures that use a different scheme. Pass `nonceValidation: "none"` to treat the nonce as opaque bytes per the spec:
+
+```typescript
+const isValid = await verifyNep413Signature(signedMessage, params, {
+  near,
+  nonceValidation: "none", // skip the timestamp check; maxAge is ignored
+})
+
+// You are now responsible for nonce validation and replay protection,
+// e.g. decode the nonce per your scheme and check expiry/uniqueness yourself
+```
 
 ## Type Definition
 
