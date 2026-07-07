@@ -395,9 +395,11 @@ describe("NEP-413 Message Signing", () => {
 })
 
 describe("NEP-413 Nonce Validation", () => {
-  // A custom nonce that does NOT follow the near-kit timestamp convention:
-  // the first 8 bytes decode to a garbage/ancient timestamp
+  // A custom nonce that does NOT follow the near-kit timestamp convention.
+  // Deterministic bytes whose first 8 bytes decode to 1 (ms since epoch,
+  // i.e. 1970), so the default timestamp validation rejects it as expired.
   const customNonce = new Uint8Array(32).fill(7)
+  customNonce.set([0, 0, 0, 0, 0, 0, 0, 1])
 
   test("should reject custom (non-timestamp) nonce with default validation", async () => {
     const keyPair = Ed25519KeyPair.fromRandom()
