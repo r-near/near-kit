@@ -93,9 +93,42 @@ export function serializeNep413Message(params: SignMessageParams): Uint8Array {
 export interface VerifyNep413Options {
   /**
    * Maximum age in milliseconds for the signature to be considered valid.
+   *
+   * Only applies when `nonceValidation` is `"timestamp"` (the default), which
+   * assumes the nonce embeds a timestamp in its first 8 bytes as produced by
+   * `generateNonce()`. Ignored when `nonceValidation` is `"none"`.
+   *
+   * Passing `Infinity` is a legacy escape hatch that skips timestamp
+   * validation entirely, including the future-timestamp rejection — the same
+   * effect as `nonceValidation: "none"`, which is the preferred way to opt
+   * out. Invalid values (non-numbers, `NaN`, negatives) fall back to the
+   * default.
+   *
    * @default 300000 (5 minutes)
    */
   maxAge?: number
+
+  /**
+   * How to validate the nonce.
+   *
+   * NEP-413 defines the nonce as an arbitrary 32-byte value with no inherent
+   * structure. Embedding a timestamp in the first 8 bytes is a near-kit
+   * convention (used by `generateNonce()`) for automatic expiration checking,
+   * not part of the spec.
+   *
+   * - `"timestamp"` (default) - Interpret the first 8 bytes of the nonce as a
+   *   big-endian millisecond timestamp and reject signatures older than
+   *   `maxAge` or with future timestamps (both checks are skipped when
+   *   `maxAge` is `Infinity`). Use this for nonces created with
+   *   `generateNonce()`.
+   * - `"none"` - Treat the nonce as opaque bytes per the NEP-413 spec. No
+   *   timestamp or expiry check is performed and `maxAge` is ignored. Use this
+   *   for messages signed with a custom nonce scheme. You are then responsible
+   *   for validating the nonce and preventing replay attacks yourself.
+   *
+   * @default "timestamp"
+   */
+  nonceValidation?: "timestamp" | "none"
 
   /**
    * Near client instance for verifying that the public key belongs to the account ID
@@ -121,7 +154,11 @@ export interface VerifyNep413Options {
 /**
  * Verify a NEP-413 signed message
  *
- * Automatically checks timestamp expiration (default: 5 minutes).
+ * By default, assumes the nonce follows the near-kit convention used by
+ * `generateNonce()` (first 8 bytes are a big-endian ms timestamp) and checks
+ * timestamp expiration (default: 5 minutes). NEP-413 itself treats the nonce
+ * as arbitrary 32 bytes, so for messages signed with a custom nonce scheme
+ * pass `nonceValidation: "none"` and validate the nonce yourself.
  * You must still track used nonces to prevent replay attacks.
  *
  * When `options.near` is provided, this function also verifies that the public key
@@ -146,6 +183,11 @@ export interface VerifyNep413Options {
  * // With blockchain verification to ensure key belongs to account
  * const near = new Near({ network: "mainnet" })
  * const isValid = await verifyNep413Signature(signedMessage, params, { near })
+ *
+ * // Custom nonce scheme (e.g. app-defined structure) - skip the timestamp check
+ * const isValid = await verifyNep413Signature(signedMessage, params, {
+ *   nonceValidation: "none", // caller is responsible for nonce/replay checks
+ * })
  * ```
  */
 export async function verifyNep413Signature(
@@ -154,10 +196,33 @@ export async function verifyNep413Signature(
   options: VerifyNep413Options = {},
 ): Promise<boolean> {
   try {
-    const { maxAge = 5 * 60 * 1000, near } = options // Default: 5 minutes
+    const {
+      maxAge: rawMaxAge = 5 * 60 * 1000,
+      nonceValidation = "timestamp",
+      near,
+    } = options // Default: 5 minutes
 
-    // Check timestamp expiration if maxAge is finite
-    if (maxAge !== Infinity && params.nonce.length === 32) {
+    // Invalid runtime values (non-numbers, NaN, negatives — possible from
+    // plain JS callers) would silently disable or distort the expiry check;
+    // fail closed by falling back to the default. Infinity remains a valid
+    // opt-out.
+    const maxAge =
+      typeof rawMaxAge === "number" &&
+      !Number.isNaN(rawMaxAge) &&
+      rawMaxAge >= 0
+        ? rawMaxAge
+        : 5 * 60 * 1000
+
+    // Check timestamp expiration if the nonce follows the near-kit timestamp
+    // convention and maxAge is finite. Fail closed: only an explicit "none"
+    // opts out, so unexpected values keep the default replay/expiry protection.
+    // Non-32-byte nonces skip this check but never verify: they are rejected
+    // by serializeNep413Message below.
+    if (
+      nonceValidation !== "none" &&
+      maxAge !== Infinity &&
+      params.nonce.length === 32
+    ) {
       // Extract timestamp from first 8 bytes (big-endian uint64)
       const view = new DataView(
         params.nonce.buffer,
@@ -242,9 +307,12 @@ function decodeSignature(signature: string): Uint8Array | null {
 /**
  * Generate a nonce for NEP-413 message signing
  *
- * Embeds a timestamp for automatic expiration checking.
+ * NEP-413 nonces are arbitrary 32-byte values; embedding a timestamp in the
+ * first 8 bytes is a near-kit convention that lets `verifyNep413Signature`
+ * check expiration automatically. Apps are free to use their own nonce scheme
+ * instead - verify those with `nonceValidation: "none"`.
  *
- * @returns 32-byte nonce (8 bytes timestamp + 24 bytes random)
+ * @returns 32-byte nonce (8 bytes big-endian ms timestamp + 24 bytes random)
  *
  * @example
  * ```typescript
