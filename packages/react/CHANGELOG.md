@@ -1,5 +1,13 @@
 # @near-kit/react
 
+## 0.17.0
+
+### Patch Changes
+
+- Updated dependencies [7009693]
+- Updated dependencies [9bd0a81]
+  - near-kit@0.17.0
+
 ## 0.16.0
 
 ### Patch Changes
