@@ -34,6 +34,7 @@ export type {
   AccountState,
   CallOptions,
   FinalExecutionOutcome,
+  GasKeyNoncesResponse,
   KeyConfig,
   KeyPair,
   KeyStore,

@@ -363,6 +363,36 @@ describe("parseRpcError", () => {
       }
     })
 
+    test("should throw AccessKeyDoesNotExistError for UNKNOWN_GAS_KEY", () => {
+      // Captured from a 2.13 sandbox: view_gas_key_nonces on a non-gas key.
+      const error = {
+        name: "HANDLER_ERROR",
+        code: -32000,
+        message: "Server error",
+        data: "Gas key for public key ed25519:DQbqznEcti9RZZtjociwmoLUHDu2sAewsfowWBmXv3s5 does not exist while viewing",
+        cause: {
+          name: "UNKNOWN_GAS_KEY",
+          info: {
+            block_hash: "GoWEodM1by6QoEJfV9NMacT8qidM8haHGP8eCL4dZ4kv",
+            block_height: 3,
+            public_key: "ed25519:DQbqznEcti9RZZtjociwmoLUHDu2sAewsfowWBmXv3s5",
+          },
+        },
+      }
+
+      expect(() => parseRpcError(error)).toThrow(AccessKeyDoesNotExistError)
+
+      try {
+        parseRpcError(error)
+      } catch (e) {
+        expect(e).toBeInstanceOf(AccessKeyDoesNotExistError)
+        const err = e as AccessKeyDoesNotExistError
+        expect(err.publicKey).toBe(
+          "ed25519:DQbqznEcti9RZZtjociwmoLUHDu2sAewsfowWBmXv3s5",
+        )
+      }
+    })
+
     test("should throw ShardUnavailableError for UNAVAILABLE_SHARD", () => {
       const error = {
         name: "HANDLER_ERROR",
