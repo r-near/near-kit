@@ -19,7 +19,7 @@
   "devDependencies": {
     "@biomejs/biome": "2.5.2",
     "@changesets/cli": "^2.31.0",
-    "lefthook": "^2.1.9",
+    "lefthook": "^2.1.10",
     "typescript": "^6.0.3"
   }
 }
