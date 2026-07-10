@@ -23,7 +23,7 @@ import { pipeline } from "node:stream/promises"
 import type { ReadableStream as WebReadableStream } from "node:stream/web"
 import * as tar from "tar"
 
-const DEFAULT_VERSION = "2.13.0-rc.2"
+const DEFAULT_VERSION = "2.13.0"
 const BINARY_NAME = "near-sandbox"
 const ARCHIVE_NAME = "near-sandbox.tar.gz"
 const DOWNLOAD_BASE =
