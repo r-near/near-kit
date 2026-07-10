@@ -235,6 +235,21 @@ export const AccessKeyListResponseSchema = z.object({
 })
 
 /**
+ * Gas-key nonces response schema (nearcore 2.13).
+ *
+ * Response of a `view_gas_key_nonces` query: `nonces` is the gas key's parallel
+ * per-lane nonces (one `u64` per nonce slot, indexed by lane), alongside the
+ * usual `block_height` / `block_hash` the query was answered against. Nonces are
+ * typed as `z.number()` to match how `AccessKeyViewSchema` types the `u64` key
+ * nonce.
+ */
+export const GasKeyNoncesResponseSchema = z.object({
+  nonces: z.array(z.number()),
+  block_height: z.number(),
+  block_hash: z.string(),
+})
+
+/**
  * Receipt-to-transaction response schema (for EXPERIMENTAL_receipt_to_tx)
  *
  * Maps a receipt ID back to its originating transaction. Both fields are
@@ -795,6 +810,7 @@ export type BlockView = z.infer<typeof BlockViewSchema>
 export type StatusResponse = z.infer<typeof StatusResponseSchema>
 export type GasPriceResponse = z.infer<typeof GasPriceResponseSchema>
 export type AccessKeyListResponse = z.infer<typeof AccessKeyListResponseSchema>
+export type GasKeyNoncesResponse = z.infer<typeof GasKeyNoncesResponseSchema>
 export type ReceiptToTxResponse = z.infer<typeof ReceiptToTxResponseSchema>
 export type StateItem = z.infer<typeof StateItemSchema>
 export type ViewStateResult = z.infer<typeof ViewStateResultSchema>

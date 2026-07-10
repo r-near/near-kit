@@ -6,6 +6,7 @@
 import { describe, expect, test } from "vitest"
 import {
   AccessKeyPermissionSchema,
+  GasKeyNoncesResponseSchema,
   ActionSchema as RpcActionSchema,
 } from "../../src/core/rpc/rpc-schemas.js"
 
@@ -77,5 +78,33 @@ describe("RpcActionSchema (gas-key actions)", () => {
   test("still parses a classic action (Transfer)", () => {
     const parsed = RpcActionSchema.parse({ Transfer: { deposit: "1" } })
     expect(parsed).toEqual({ Transfer: { deposit: "1" } })
+  })
+})
+
+describe("GasKeyNoncesResponseSchema", () => {
+  test("parses a multi-lane gas-key nonces response", () => {
+    const parsed = GasKeyNoncesResponseSchema.parse({
+      nonces: [12, 0, 5, 0],
+      block_height: 42,
+      block_hash: "11111111111111111111111111111111",
+    })
+    expect(parsed.nonces).toEqual([12, 0, 5, 0])
+    expect(parsed.block_height).toBe(42)
+    expect(parsed.block_hash).toBe("11111111111111111111111111111111")
+  })
+
+  test("parses a freshly funded gas key (all lanes at zero)", () => {
+    const parsed = GasKeyNoncesResponseSchema.parse({
+      nonces: [0, 0],
+      block_height: 1,
+      block_hash: "abc",
+    })
+    expect(parsed.nonces).toEqual([0, 0])
+  })
+
+  test("rejects a response missing the nonces array", () => {
+    expect(() =>
+      GasKeyNoncesResponseSchema.parse({ block_height: 1, block_hash: "abc" }),
+    ).toThrow()
   })
 })

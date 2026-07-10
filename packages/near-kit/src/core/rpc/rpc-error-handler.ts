@@ -337,6 +337,18 @@ export function parseRpcError(
       throw new AccountDoesNotExistError(accountId)
     }
 
+    // A `view_gas_key_nonces` query for a key that is not a (funded) gas key.
+    // nearcore only echoes the public key here, not the account, so callers
+    // that know the account re-key this with full context (see getGasKeyNonces).
+    if (causeName === "UNKNOWN_GAS_KEY") {
+      const publicKey = (causeInfo["public_key"] as string) || "unknown"
+      const accountId =
+        (causeInfo["account_id"] as string) ||
+        (causeInfo.requested_account_id as string) ||
+        "unknown"
+      throw new AccessKeyDoesNotExistError(accountId, publicKey)
+    }
+
     if (causeName === "UNAVAILABLE_SHARD") {
       throw new ShardUnavailableError(parsedError.message)
     }

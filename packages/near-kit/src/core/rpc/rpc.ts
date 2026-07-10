@@ -1,5 +1,6 @@
 import { base64 } from "@scure/base"
 import {
+  AccessKeyDoesNotExistError,
   InvalidTransactionError,
   NearError,
   NetworkError,
@@ -16,6 +17,7 @@ import type {
   FinalExecutionOutcomeMap,
   FinalExecutionOutcomeWithReceipts,
   FinalExecutionOutcomeWithReceiptsMap,
+  GasKeyNoncesResponse,
   GasPriceResponse,
   GenesisConfigResponse,
   MaintenanceWindowsResponse,
@@ -40,6 +42,7 @@ import {
   BlockViewSchema,
   FinalExecutionOutcomeSchema,
   FinalExecutionOutcomeWithReceiptsSchema,
+  GasKeyNoncesResponseSchema,
   GasPriceResponseSchema,
   GenesisConfigResponseSchema,
   MaintenanceWindowsResponseSchema,
@@ -349,6 +352,46 @@ export class RpcClient {
     })
 
     return AccessKeyListResponseSchema.parse(result)
+  }
+
+  /**
+   * Get a gas key's per-lane nonces via `view_gas_key_nonces` (nearcore 2.13).
+   *
+   * A gas key funds several parallel nonce lanes (`num_nonces` slots) so it can
+   * sign multiple transactions concurrently; this returns the current `u64`
+   * nonce of each lane, indexed by lane, plus the block the query was answered
+   * against. Throws {@link AccessKeyDoesNotExistError} if `publicKey` is not a
+   * gas key on `accountId`.
+   *
+   * @param accountId - Account ID that owns the gas key.
+   * @param publicKey - Gas key public key string (e.g. `"ed25519:..."`).
+   * @param options - Optional {@link BlockReference} to control finality or block.
+   */
+  async getGasKeyNonces(
+    accountId: string,
+    publicKey: string,
+    options?: BlockReference,
+  ): Promise<GasKeyNoncesResponse> {
+    // Unlike view_access_key (whose "does not exist" arrives in `result.error`),
+    // view_gas_key_nonces reports a missing gas key as a typed UNKNOWN_GAS_KEY
+    // JSON-RPC error. parseRpcError already maps that to AccessKeyDoesNotExistError
+    // but nearcore only echoes the public key, so we re-key it with the queried
+    // account for a complete error.
+    const result = await this.call("query", {
+      request_type: "view_gas_key_nonces",
+      ...(options?.blockId
+        ? { block_id: options.blockId }
+        : { finality: options?.finality || "optimistic" }),
+      account_id: accountId,
+      public_key: publicKey,
+    }).catch((error) => {
+      if (error instanceof AccessKeyDoesNotExistError) {
+        throw new AccessKeyDoesNotExistError(accountId, publicKey)
+      }
+      throw error
+    })
+
+    return GasKeyNoncesResponseSchema.parse(result)
   }
 
   /**
