@@ -125,6 +125,53 @@ describe("getTransactionStatus - EXPERIMENTAL_tx_status RPC Method", () => {
     console.log("✓ getTransactionStatus works with multiple wait_until levels")
   })
 
+  test("should surface receipts at an early wait level", async () => {
+    const recipientKey = generateKey()
+    const recipientId = `recipient-early-${Date.now()}.${sandbox.rootAccount.id}`
+
+    const result = await near
+      .transaction(sandbox.rootAccount.id)
+      .createAccount(recipientId)
+      .transfer(recipientId, "4 NEAR")
+      .addKey(recipientKey.publicKey.toString(), {
+        type: "fullAccess",
+      })
+      .send({ waitUntil: "EXECUTED_OPTIMISTIC" })
+
+    const txHash = result.transaction.hash
+
+    // Query with an early wait level ("NONE"). wait_until only controls how long
+    // the node blocks, not what it returns: EXPERIMENTAL_tx_status hands back the
+    // full receipts/receipts_outcome regardless. Previously the schema dropped
+    // receipts_outcome for the early-level branches; it must survive now.
+    const status = await near.getTransactionStatus(
+      txHash,
+      sandbox.rootAccount.id,
+      "NONE",
+    )
+
+    expect(status.receipts).toBeDefined()
+    expect(Array.isArray(status.receipts)).toBe(true)
+    expect(status.receipts.length).toBeGreaterThan(0)
+
+    // receipts_outcome is optional at early levels but must not be stripped when
+    // the node returns it.
+    expect(status.receipts_outcome).toBeDefined()
+    expect(Array.isArray(status.receipts_outcome)).toBe(true)
+    expect((status.receipts_outcome ?? []).length).toBeGreaterThan(0)
+
+    // The receiver_id -> stage mapping the frontend relies on is present.
+    for (const r of status.receipts) {
+      expect(typeof r.receiver_id).toBe("string")
+    }
+
+    console.log(
+      `✓ early wait level surfaced ${status.receipts.length} receipts / ${
+        (status.receipts_outcome ?? []).length
+      } receipt outcomes`,
+    )
+  })
+
   test("should handle transaction failures correctly", async () => {
     const recipientKey = generateKey()
     const recipientId = `recipient-fail-${Date.now()}.${sandbox.rootAccount.id}`
