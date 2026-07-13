@@ -606,26 +606,44 @@ export const MinimalTransactionSchema = z.object({
  * - INCLUDED: Transaction included in block (minimal response with transaction hash)
  * - EXECUTED_OPTIMISTIC/EXECUTED/FINAL: Transaction executed (full response)
  *
- * Note: For NONE/INCLUDED/INCLUDED_FINAL, the RPC doesn't return transaction details,
- * but the client library injects a minimal transaction object to ensure hash tracking.
+ * Note: For NONE/INCLUDED/INCLUDED_FINAL, `send_tx` doesn't return transaction
+ * details, but the client library injects a minimal transaction object to ensure
+ * hash tracking. `EXPERIMENTAL_tx_status`, however, returns the full execution
+ * status, transaction outcome, and receipt outcomes at these early levels too
+ * (wait_until only controls how long the node blocks, not what it returns). Those
+ * fields are therefore declared here as optional so partial execution data
+ * survives parsing on the tx-status path while the send_tx path still validates.
  */
 export const FinalExecutionOutcomeSchema = z.discriminatedUnion(
   "final_execution_status",
   [
-    // NONE: Transaction submitted, no execution yet (transaction is injected client-side)
+    // NONE: Transaction submitted, no execution yet on send_tx (transaction is
+    // injected client-side). EXPERIMENTAL_tx_status may still return execution
+    // data here, so status/outcomes are optional.
     z.object({
       final_execution_status: z.literal("NONE"),
       transaction: MinimalTransactionSchema.optional(),
+      status: ExecutionStatusSchema.optional(),
+      transaction_outcome: ExecutionOutcomeWithIdSchema.optional(),
+      receipts_outcome: z.array(ExecutionOutcomeWithIdSchema).optional(),
     }),
-    // INCLUDED: Transaction in block (transaction is injected client-side)
+    // INCLUDED: Transaction in block (transaction is injected client-side).
+    // EXPERIMENTAL_tx_status may still return execution data here.
     z.object({
       final_execution_status: z.literal("INCLUDED"),
       transaction: MinimalTransactionSchema.optional(),
+      status: ExecutionStatusSchema.optional(),
+      transaction_outcome: ExecutionOutcomeWithIdSchema.optional(),
+      receipts_outcome: z.array(ExecutionOutcomeWithIdSchema).optional(),
     }),
-    // INCLUDED_FINAL: Alternative name for INCLUDED with finality (transaction is injected client-side)
+    // INCLUDED_FINAL: Alternative name for INCLUDED with finality (transaction is
+    // injected client-side). EXPERIMENTAL_tx_status may still return execution data here.
     z.object({
       final_execution_status: z.literal("INCLUDED_FINAL"),
       transaction: MinimalTransactionSchema.optional(),
+      status: ExecutionStatusSchema.optional(),
+      transaction_outcome: ExecutionOutcomeWithIdSchema.optional(),
+      receipts_outcome: z.array(ExecutionOutcomeWithIdSchema).optional(),
     }),
     // EXECUTED_OPTIMISTIC: Executed but not finalized
     z.object({
