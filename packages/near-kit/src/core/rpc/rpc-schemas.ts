@@ -856,6 +856,7 @@ export type ExecutionOutcomeWithId = z.infer<
 export type RpcAction = z.infer<typeof ActionSchema>
 export type NonceMode = z.infer<typeof NonceModeSchema>
 export type RpcTransaction = z.infer<typeof TransactionSchema>
+export type RpcMinimalTransaction = z.infer<typeof MinimalTransactionSchema>
 export type FinalExecutionOutcome = z.infer<typeof FinalExecutionOutcomeSchema>
 export type Receipt = z.infer<typeof ReceiptSchema>
 export type FinalExecutionOutcomeWithReceipts = z.infer<

@@ -242,6 +242,7 @@ export type {
   NonceMode,
   Receipt,
   RpcAction,
+  RpcMinimalTransaction,
   RpcTransaction,
 } from "./rpc/rpc-schemas.js"
 

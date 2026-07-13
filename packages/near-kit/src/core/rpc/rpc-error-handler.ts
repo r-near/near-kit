@@ -29,6 +29,7 @@ import {
 import type {
   ExecutionOutcomeWithId,
   RpcAction,
+  RpcMinimalTransaction,
   RpcTransaction,
 } from "../types.js"
 import { RpcErrorResponseSchema } from "./rpc-schemas.js"
@@ -121,9 +122,10 @@ function extractPanicMessage(failure: ExecutionFailure): string | undefined {
  * Extract method name from transaction actions
  */
 function extractMethodName(
-  transaction: RpcTransaction | undefined,
+  transaction: RpcTransaction | RpcMinimalTransaction | undefined,
 ): string | undefined {
-  if (!transaction) return undefined
+  // Minimal transactions (early wait levels) carry no actions to inspect.
+  if (!transaction || !("actions" in transaction)) return undefined
 
   const functionCallAction = transaction.actions.find(
     (action: RpcAction) =>
@@ -193,7 +195,7 @@ export function extractErrorMessage(failure: Record<string, unknown>): string {
  */
 export function checkOutcomeForFunctionCallError(
   outcome: ExecutionOutcomeWithId,
-  transaction: RpcTransaction | undefined,
+  transaction: RpcTransaction | RpcMinimalTransaction | undefined,
 ): void {
   if (
     typeof outcome.outcome.status === "object" &&

@@ -511,65 +511,61 @@ export class RpcClient {
     const parsed: FinalExecutionOutcomeWithReceipts =
       FinalExecutionOutcomeWithReceiptsSchema.parse(result)
 
-    // Check for execution failures (only in modes that return execution status)
-    // NONE, INCLUDED, and INCLUDED_FINAL don't have status/transaction/outcome fields
+    // Check for execution failures. EXPERIMENTAL_tx_status can return a terminal
+    // Failure status even when final_execution_status is an early wait level
+    // (NONE/INCLUDED/INCLUDED_FINAL), so gate on the presence of a Failure status
+    // rather than the wait-level label to honor the documented throw-on-failure
+    // contract. Execution fields are optional at early levels and guarded below.
     if (
-      parsed.final_execution_status !== "NONE" &&
-      parsed.final_execution_status !== "INCLUDED" &&
-      parsed.final_execution_status !== "INCLUDED_FINAL"
+      parsed.status &&
+      typeof parsed.status === "object" &&
+      "Failure" in parsed.status
     ) {
-      // TypeScript now knows parsed has status, transaction, transaction_outcome, receipts_outcome
-      if (
-        parsed.status &&
-        typeof parsed.status === "object" &&
-        "Failure" in parsed.status
-      ) {
-        // Check transaction_outcome for direct failures
-        if (parsed.transaction_outcome) {
-          checkOutcomeForFunctionCallError(
-            parsed.transaction_outcome,
-            parsed.transaction,
-          )
-        }
-
-        // Check receipts_outcome for cross-contract failures
-        const failedReceipt = parsed.receipts_outcome?.find(
-          (receipt) =>
-            typeof receipt.outcome.status === "object" &&
-            "Failure" in receipt.outcome.status,
+      // Check transaction_outcome for direct failures
+      if (parsed.transaction_outcome) {
+        checkOutcomeForFunctionCallError(
+          parsed.transaction_outcome,
+          parsed.transaction,
         )
-
-        if (failedReceipt) {
-          checkOutcomeForFunctionCallError(failedReceipt, parsed.transaction)
-        }
-
-        // Generic transaction failure (non-function-call errors)
-        // Extract error message from the actual failure in transaction_outcome or receipts
-        let errorMessage = "Transaction execution failed"
-        let failureDetails = parsed.status.Failure
-
-        if (
-          parsed.transaction_outcome &&
-          typeof parsed.transaction_outcome.outcome.status === "object" &&
-          "Failure" in parsed.transaction_outcome.outcome.status
-        ) {
-          failureDetails = parsed.transaction_outcome.outcome.status.Failure
-          errorMessage = extractErrorMessage(
-            failureDetails as Record<string, unknown>,
-          )
-        } else if (
-          failedReceipt &&
-          typeof failedReceipt.outcome.status === "object" &&
-          "Failure" in failedReceipt.outcome.status
-        ) {
-          failureDetails = failedReceipt.outcome.status.Failure
-          errorMessage = extractErrorMessage(
-            failureDetails as Record<string, unknown>,
-          )
-        }
-
-        throw new InvalidTransactionError(errorMessage, failureDetails)
       }
+
+      // Check receipts_outcome for cross-contract failures
+      const failedReceipt = parsed.receipts_outcome?.find(
+        (receipt) =>
+          typeof receipt.outcome.status === "object" &&
+          "Failure" in receipt.outcome.status,
+      )
+
+      if (failedReceipt) {
+        checkOutcomeForFunctionCallError(failedReceipt, parsed.transaction)
+      }
+
+      // Generic transaction failure (non-function-call errors)
+      // Extract error message from the actual failure in transaction_outcome or receipts
+      let errorMessage = "Transaction execution failed"
+      let failureDetails = parsed.status.Failure
+
+      if (
+        parsed.transaction_outcome &&
+        typeof parsed.transaction_outcome.outcome.status === "object" &&
+        "Failure" in parsed.transaction_outcome.outcome.status
+      ) {
+        failureDetails = parsed.transaction_outcome.outcome.status.Failure
+        errorMessage = extractErrorMessage(
+          failureDetails as Record<string, unknown>,
+        )
+      } else if (
+        failedReceipt &&
+        typeof failedReceipt.outcome.status === "object" &&
+        "Failure" in failedReceipt.outcome.status
+      ) {
+        failureDetails = failedReceipt.outcome.status.Failure
+        errorMessage = extractErrorMessage(
+          failureDetails as Record<string, unknown>,
+        )
+      }
+
+      throw new InvalidTransactionError(errorMessage, failureDetails)
     }
 
     // Safe cast: TypeScript guarantees W is a valid key, Zod validates the structure,
