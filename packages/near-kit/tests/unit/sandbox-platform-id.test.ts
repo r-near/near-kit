@@ -6,6 +6,7 @@
  * published under "aarch64" while Darwin ARM builds use "arm64".
  */
 
+import os from "node:os"
 import { describe, expect, test } from "vitest"
 import { getPlatformId } from "../../src/sandbox/sandbox.js"
 
@@ -50,10 +51,13 @@ describe("getPlatformId", () => {
     )
   })
 
-  test("defaults to the current process platform", () => {
-    // On any supported dev/CI machine this should resolve without throwing
-    const { system, arch } = getPlatformId()
-    expect(["Linux", "Darwin"]).toContain(system)
-    expect(["x86_64", "aarch64", "arm64"]).toContain(arch)
-  })
+  // Only meaningful on hosts the sandbox supports; would throw on e.g. Windows
+  test.runIf(["linux", "darwin"].includes(os.platform()))(
+    "defaults to the current process platform",
+    () => {
+      const { system, arch } = getPlatformId()
+      expect(["Linux", "Darwin"]).toContain(system)
+      expect(["x86_64", "aarch64", "arm64"]).toContain(arch)
+    },
+  )
 })
