@@ -1,5 +1,16 @@
 # near-kit
 
+## 0.19.0
+
+### Minor Changes
+
+- 8e008b9: Add global contract code queries: `near.getGlobalContract()` and `near.globalContractExists()` accept the same `{ codeHash } | { accountId }` reference as `deployFromPublished` and return the published WASM with its current SHA-256 hash. Also adds `near.getContractCode()` (the previously missing `view_code` wrapper for regular accounts), low-level `rpc.viewCode()` / `rpc.viewGlobalContractCode()`, and a typed `GlobalContractNotFoundError` (with compatibility for the pre-2.12 error identifier shape).
+
+### Patch Changes
+
+- 3815d21: Fix sandbox binary download on Linux ARM: map Node's `arm64` arch to the `Linux-aarch64` S3 path (previously produced a `Linux-arm64` URL that returned 403)
+- 7073aff: Update sandbox to nearcore 2.13.1
+
 ## 0.18.0
 
 ### Minor Changes
