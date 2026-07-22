@@ -1,6 +1,7 @@
-import { base64 } from "@scure/base"
+import { base58, base64 } from "@scure/base"
 import {
   AccessKeyDoesNotExistError,
+  GlobalContractNotFoundError,
   InvalidTransactionError,
   NearError,
   NetworkError,
@@ -12,6 +13,7 @@ import type {
   AccountView,
   BlockEffectsResponse,
   BlockView,
+  ContractCodeView,
   ExecutionOutcomeWithId,
   FinalExecutionOutcome,
   FinalExecutionOutcomeMap,
@@ -20,6 +22,7 @@ import type {
   GasKeyNoncesResponse,
   GasPriceResponse,
   GenesisConfigResponse,
+  GlobalContractReference,
   MaintenanceWindowsResponse,
   ReceiptToTxResponse,
   StateItem,
@@ -40,6 +43,7 @@ import {
   AccountViewSchema,
   BlockEffectsResponseSchema,
   BlockViewSchema,
+  ContractCodeViewSchema,
   FinalExecutionOutcomeSchema,
   FinalExecutionOutcomeWithReceiptsSchema,
   GasKeyNoncesResponseSchema,
@@ -304,6 +308,81 @@ export class RpcClient {
     })
 
     return AccountViewSchema.parse(result)
+  }
+
+  /**
+   * Get the WASM code deployed on an account via `view_code`.
+   *
+   * @param accountId - Account whose contract code to fetch.
+   * @param options - Optional {@link BlockReference} to control finality or block.
+   *
+   * @returns The base64-encoded code and its base58 SHA-256 hash.
+   *
+   * @throws {ContractNotDeployedError} If the account has no contract deployed.
+   * @throws {AccountDoesNotExistError} If the account does not exist.
+   */
+  async viewCode(
+    accountId: string,
+    options?: BlockReference,
+  ): Promise<ContractCodeView> {
+    const result = await this.call("query", {
+      request_type: "view_code",
+      ...(options?.blockId
+        ? { block_id: options.blockId }
+        : { finality: options?.finality || "optimistic" }),
+      account_id: accountId,
+    })
+
+    return ContractCodeViewSchema.parse(result)
+  }
+
+  /**
+   * Get a published global contract's code via `view_global_contract_code`
+   * (by code hash) or `view_global_contract_code_by_account_id` (by
+   * publishing account). Requires nearcore >= 2.7.
+   *
+   * @param contract - {@link GlobalContractReference}: `{ codeHash }` or `{ accountId }`.
+   * @param options - Optional {@link BlockReference} to control finality or block.
+   *
+   * @returns The base64-encoded code and its base58 SHA-256 hash.
+   *
+   * @throws {GlobalContractNotFoundError} If no code is published under the identifier.
+   */
+  async viewGlobalContractCode(
+    contract: GlobalContractReference,
+    options?: BlockReference,
+  ): Promise<ContractCodeView> {
+    const request =
+      "accountId" in contract
+        ? {
+            request_type: "view_global_contract_code_by_account_id",
+            account_id: contract.accountId,
+          }
+        : {
+            request_type: "view_global_contract_code",
+            code_hash: normalizeCodeHash(contract.codeHash),
+          }
+
+    const result = await this.call("query", {
+      ...request,
+      ...(options?.blockId
+        ? { block_id: options.blockId }
+        : { finality: options?.finality || "optimistic" }),
+    }).catch((error) => {
+      // nearcore echoes the identifier in the error payload, but its shape
+      // varies across node versions — re-key with the caller-known reference
+      // so the error is always complete.
+      if (error instanceof GlobalContractNotFoundError) {
+        throw new GlobalContractNotFoundError(
+          "accountId" in contract
+            ? { accountId: contract.accountId }
+            : { codeHash: normalizeCodeHash(contract.codeHash) },
+        )
+      }
+      throw error
+    })
+
+    return ContractCodeViewSchema.parse(result)
   }
 
   /**
@@ -808,6 +887,25 @@ export class RpcClient {
       throw error
     }
   }
+}
+
+/**
+ * Normalize a code hash to its base58 string form, validating that it decodes
+ * to exactly 32 bytes (matching `deployFromPublished`'s validation).
+ * @internal
+ */
+function normalizeCodeHash(codeHash: string | Uint8Array): string {
+  if (typeof codeHash === "string") {
+    const decoded = base58.decode(codeHash)
+    if (decoded.length !== 32) {
+      throw new Error(`Code hash must be 32 bytes, got ${decoded.length} bytes`)
+    }
+    return codeHash
+  }
+  if (codeHash.length !== 32) {
+    throw new Error(`Code hash must be 32 bytes, got ${codeHash.length} bytes`)
+  }
+  return base58.encode(codeHash)
 }
 
 /**

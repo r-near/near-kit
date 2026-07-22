@@ -2,9 +2,14 @@
  * Main NEAR client class
  */
 
+import { base64 } from "@scure/base"
 import type { ContractMethods } from "../contracts/contract.js"
 import { createContract } from "../contracts/contract.js"
-import { NearError } from "../errors/index.js"
+import {
+  AccountDoesNotExistError,
+  GlobalContractNotFoundError,
+  NearError,
+} from "../errors/index.js"
 import { InMemoryKeyStore } from "../keys/index.js"
 import { formatAmount } from "../utils/amount.js"
 import { parseKey } from "../utils/key.js"
@@ -36,6 +41,8 @@ import { TransactionBuilder } from "./transaction.js"
 import type {
   AccountState,
   CallOptions,
+  ContractCodeResult,
+  GlobalContractReference,
   KeyStore,
   SignedMessage,
   Signer,
@@ -738,6 +745,117 @@ export class Near {
     options?: BlockReference,
   ): Promise<AccessKeyListResponse> {
     return this._rpc.getAccessKeys(accountId, options)
+  }
+
+  /**
+   * Get the WASM code deployed on a contract account.
+   *
+   * @param accountId - Account whose contract code to fetch.
+   * @param options - Optional {@link BlockReference} to control finality or block.
+   *
+   * @returns The contract's WASM bytecode and its base58-encoded SHA-256 hash.
+   *
+   * @throws {ContractNotDeployedError} If the account has no contract deployed.
+   * @throws {AccountDoesNotExistError} If the account does not exist.
+   * @throws {NetworkError} If the RPC request fails.
+   *
+   * @remarks
+   * If you only need the code hash, {@link getAccount} returns it without
+   * downloading the code itself.
+   *
+   * @example
+   * ```typescript
+   * const { code, hash } = await near.getContractCode("contract.near")
+   * console.log(`${code.length} bytes, hash ${hash}`)
+   * ```
+   */
+  async getContractCode(
+    accountId: string,
+    options?: BlockReference,
+  ): Promise<ContractCodeResult> {
+    const view = await this._rpc.viewCode(accountId, options)
+    return { code: base64.decode(view.code_base64), hash: view.hash }
+  }
+
+  /**
+   * Get a contract published in the global contract registry.
+   *
+   * Accepts the same reference shape as
+   * {@link TransactionBuilder.deployFromPublished}: `{ codeHash }` for
+   * immutable contracts or `{ accountId }` for updatable ones.
+   *
+   * @param contract - {@link GlobalContractReference} identifying the published contract.
+   * @param options - Optional {@link BlockReference} to control finality or block.
+   *
+   * @returns The published WASM bytecode and its base58-encoded SHA-256 hash.
+   *
+   * @throws {GlobalContractNotFoundError} If no code is published under the identifier.
+   * @throws {NetworkError} If the RPC request fails.
+   *
+   * @remarks
+   * Requires a nearcore >= 2.7 node. For updatable contracts (`{ accountId }`),
+   * the returned `hash` is the current version's code hash — compare it against
+   * a locally computed hash to detect upstream updates.
+   *
+   * @example
+   * ```typescript
+   * // Current code published by a factory (updatable)
+   * const { code, hash } = await near.getGlobalContract({
+   *   accountId: "factory.near",
+   * })
+   *
+   * // Immutable contract by its code hash
+   * const published = await near.getGlobalContract({ codeHash: "9wa3..." })
+   * ```
+   */
+  async getGlobalContract(
+    contract: GlobalContractReference,
+    options?: BlockReference,
+  ): Promise<ContractCodeResult> {
+    const view = await this._rpc.viewGlobalContractCode(contract, options)
+    return { code: base64.decode(view.code_base64), hash: view.hash }
+  }
+
+  /**
+   * Check whether a contract is published in the global contract registry.
+   *
+   * @param contract - {@link GlobalContractReference} identifying the published contract.
+   * @param options - Optional {@link BlockReference} to control finality or block.
+   *
+   * @returns `true` if code is published under the identifier, `false` otherwise.
+   *
+   * @remarks
+   * Only "not found" results map to `false`; other failures (network errors,
+   * unsupported node version) are re-thrown. The underlying RPC returns the
+   * full WASM code — there is no lighter hash-only query — so prefer caching
+   * the result over calling this in a hot path.
+   *
+   * @example
+   * ```typescript
+   * if (await near.globalContractExists({ accountId: "factory.near" })) {
+   *   // safe to deployFromPublished
+   * }
+   * ```
+   */
+  async globalContractExists(
+    contract: GlobalContractReference,
+    options?: BlockReference,
+  ): Promise<boolean> {
+    try {
+      await this._rpc.viewGlobalContractCode(contract, options)
+      return true
+    } catch (error) {
+      // Current nodes answer a global-contract query for a nonexistent
+      // account with NO_GLOBAL_CONTRACT_CODE (the lookup is by identifier,
+      // not account), but treat UNKNOWN_ACCOUNT as "not published" too.
+      if (
+        error instanceof GlobalContractNotFoundError ||
+        error instanceof AccountDoesNotExistError
+      ) {
+        return false
+      }
+      throw error
+    }
   }
 
   /**

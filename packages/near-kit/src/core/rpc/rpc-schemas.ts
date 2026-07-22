@@ -86,6 +86,18 @@ export const AccountViewSchema = z.object({
 })
 
 /**
+ * Contract code view schema (from `view_code` and
+ * `view_global_contract_code` / `view_global_contract_code_by_account_id`
+ * queries). `hash` is the base58-encoded SHA-256 of the code.
+ */
+export const ContractCodeViewSchema = z.object({
+  code_base64: z.string(),
+  hash: z.string(),
+  block_height: z.number(),
+  block_hash: z.string(),
+})
+
+/**
  * Access key view schema
  */
 export const AccessKeyViewSchema = z.object({
@@ -820,6 +832,7 @@ export type ViewFunctionCallResult = z.infer<
   typeof ViewFunctionCallResultSchema
 >
 export type AccountView = z.infer<typeof AccountViewSchema>
+export type ContractCodeView = z.infer<typeof ContractCodeViewSchema>
 export type AccessKeyView = z.infer<typeof AccessKeyViewSchema>
 export type AccessKeyInfoView = z.infer<typeof AccessKeyInfoViewSchema>
 export type BlockHeaderView = z.infer<typeof BlockHeaderViewSchema>

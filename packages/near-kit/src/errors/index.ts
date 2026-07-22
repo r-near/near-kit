@@ -296,6 +296,30 @@ export class ContractNotDeployedError extends NearError {
 }
 
 /**
+ * Thrown when a global contract is not found in the on-chain registry.
+ *
+ * The `identifier` mirrors how the contract was looked up: by immutable code
+ * hash (base58) or by the publishing account ID.
+ */
+export class GlobalContractNotFoundError extends NearError {
+  identifier: { codeHash: string } | { accountId: string }
+
+  constructor(identifier: { codeHash: string } | { accountId: string }) {
+    const label =
+      "codeHash" in identifier
+        ? `code hash ${identifier.codeHash}`
+        : `account ${identifier.accountId}`
+    super(
+      `No global contract published for ${label}`,
+      "NO_GLOBAL_CONTRACT_CODE",
+    )
+    this.name = "GlobalContractNotFoundError"
+    this.identifier = identifier
+    Object.setPrototypeOf(this, GlobalContractNotFoundError.prototype)
+  }
+}
+
+/**
  * Thrown when contract state is too large to return
  */
 export class ContractStateTooLargeError extends NearError {

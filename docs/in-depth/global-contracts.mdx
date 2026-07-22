@@ -94,7 +94,48 @@ await near
   .send()
 ```
 
-## 3. Deterministic Account IDs (NEP-616)
+## 3. Querying Published Code
+
+You can check what's in the global registry without deploying anything. `getGlobalContract` accepts the same reference shape as `deployFromPublished` and returns the published WASM together with its current SHA-256 hash:
+
+```typescript
+// Current code published by a factory (updatable)
+const { code, hash } = await near.getGlobalContract({
+  accountId: "factory.near",
+})
+console.log(`factory.near publishes ${code.length} bytes, hash ${hash}`)
+
+// Immutable contract by its code hash
+const published = await near.getGlobalContract({ codeHash: "5FzD8..." })
+```
+
+For updatable contracts, the returned `hash` is the hash of the **current** version — compare it against a locally computed hash to detect when the publisher has updated the code.
+
+To just check existence (for example before `deployFromPublished`):
+
+```typescript
+if (await near.globalContractExists({ accountId: "factory.near" })) {
+  // safe to deploy by reference
+}
+```
+
+If the identifier has no published code, `getGlobalContract` throws a `GlobalContractNotFoundError`:
+
+```typescript
+import { GlobalContractNotFoundError } from "near-kit"
+
+try {
+  await near.getGlobalContract({ accountId: "not-a-publisher.near" })
+} catch (error) {
+  if (error instanceof GlobalContractNotFoundError) {
+    console.log("Nothing published under", error.identifier)
+  }
+}
+```
+
+There's also a matching `near.getContractCode("contract.near")` for reading the code deployed on a regular account. Note that all of these queries download the full WASM — if you only need a regular contract's code hash, `near.getAccount()` is cheaper.
+
+## 4. Deterministic Account IDs (NEP-616)
 
 **NEP-616** enables deploying contracts to deterministic addresses (starting with `0s`) derived from their initialization state. Perfect for sharded contract designs where you deploy many instances of the same contract.
 

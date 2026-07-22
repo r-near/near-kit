@@ -10,6 +10,7 @@ import {
   ContractNotDeployedError,
   ContractStateTooLargeError,
   FunctionCallError,
+  GlobalContractNotFoundError,
   InternalServerError,
   InvalidAccountError,
   InvalidNonceError,
@@ -215,6 +216,33 @@ export function checkOutcomeForFunctionCallError(
 }
 
 /**
+ * Parse the `identifier` from a NO_GLOBAL_CONTRACT_CODE error's info payload.
+ *
+ * nearcore >= 2.12 serializes it as `{"hash": "..."}` / `{"account_id": "..."}`;
+ * older nodes used `{"CodeHash": "..."}` / `{"AccountId": "..."}` (renamed in
+ * nearcore#15539). The cause name is authoritative, so an unrecognized payload
+ * falls back to a placeholder identifier rather than a generic error — callers
+ * that know the queried identifier re-key the error with it (see
+ * `RpcClient.viewGlobalContractCode`).
+ */
+function parseGlobalContractIdentifier(
+  identifier: unknown,
+): { codeHash: string } | { accountId: string } {
+  if (identifier && typeof identifier === "object") {
+    const obj = identifier as Record<string, unknown>
+    const hash = obj["hash"] ?? obj["CodeHash"]
+    if (typeof hash === "string") {
+      return { codeHash: hash }
+    }
+    const accountId = obj["account_id"] ?? obj["AccountId"]
+    if (typeof accountId === "string") {
+      return { accountId }
+    }
+  }
+  return { accountId: "unknown" }
+}
+
+/**
  * Determine if an HTTP status code indicates a retryable error.
  *
  * @internal
@@ -368,6 +396,14 @@ export function parseRpcError(
         (causeInfo["contract_id"] as string) ||
         "unknown"
       throw new ContractNotDeployedError(accountId)
+    }
+
+    // A view_global_contract_code[_by_account_id] query for an identifier
+    // that has no published code in the global contract registry.
+    if (causeName === "NO_GLOBAL_CONTRACT_CODE") {
+      throw new GlobalContractNotFoundError(
+        parseGlobalContractIdentifier(causeInfo["identifier"]),
+      )
     }
 
     if (causeName === "TOO_LARGE_CONTRACT_STATE") {

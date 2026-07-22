@@ -277,6 +277,7 @@ export type {
   BlockHeaderView,
   BlockView,
   ChunkHeaderView,
+  ContractCodeView,
   GasKeyNoncesResponse,
   GasPriceResponse,
   GenesisConfigResponse,
@@ -290,6 +291,33 @@ export type {
   ViewFunctionCallResult,
   ViewStateResult,
 } from "./rpc/rpc-schemas.js"
+
+// ==================== Global Contracts ====================
+
+/**
+ * Reference to a contract published in the global contract registry.
+ *
+ * - `{ codeHash }` - By SHA-256 code hash (immutable contracts). Accepts a
+ *   base58 string or raw 32-byte hash.
+ * - `{ accountId }` - By the account that published it (updatable contracts).
+ *
+ * This is the same reference shape accepted by
+ * {@link TransactionBuilder.deployFromPublished}.
+ */
+export type GlobalContractReference =
+  | { codeHash: string | Uint8Array }
+  | { accountId: string }
+
+/**
+ * Deployed contract code with its hash, as returned by the friendly
+ * {@link Near.getContractCode} / {@link Near.getGlobalContract} helpers.
+ */
+export interface ContractCodeResult {
+  /** The contract's WASM bytecode. */
+  code: Uint8Array
+  /** SHA-256 hash of the code, base58-encoded. */
+  hash: string
+}
 
 // ==================== Client Configuration ====================
 // Re-exported from config-schemas.ts for backward compatibility

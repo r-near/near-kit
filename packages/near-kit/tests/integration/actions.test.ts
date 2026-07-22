@@ -10,10 +10,16 @@
  * - delegate actions (meta-transactions)
  */
 
+import { createHash } from "node:crypto"
 import { readFileSync } from "node:fs"
+import { base58 } from "@scure/base"
 import { afterAll, beforeAll, describe, expect, test } from "vitest"
 import { Near } from "../../src/core/near.js"
 import { decodeSignedDelegateAction } from "../../src/core/schema.js"
+import {
+  ContractNotDeployedError,
+  GlobalContractNotFoundError,
+} from "../../src/errors/index.js"
 import { Sandbox } from "../../src/sandbox/sandbox.js"
 import { generateKey } from "../../src/utils/key.js"
 
@@ -494,6 +500,145 @@ describe("Transaction Actions - Integration Tests", () => {
       expect(Array.isArray(messages)).toBe(true)
       console.log(`✓ Deployed contract is functional`)
     }, 30000)
+  })
+
+  describe("global contract code queries", () => {
+    test("should query published code by account and by hash", async () => {
+      const publisherKey = generateKey()
+      const publisherId = `pub-query-${Date.now()}.${sandbox.rootAccount.id}`
+
+      await near
+        .transaction(sandbox.rootAccount.id)
+        .createAccount(publisherId)
+        // Publishing costs ~1 NEAR per 100KB of code, and this test publishes
+        // the same contract twice (once per identifier mode).
+        .transfer(publisherId, "40 NEAR")
+        .addKey(publisherKey.publicKey.toString(), { type: "fullAccess" })
+        .send()
+
+      const contractPath = `${import.meta.dirname}/../contracts/guestbook.wasm`
+      const contractCode = readFileSync(contractPath)
+      const expectedHash = base58.encode(
+        createHash("sha256").update(contractCode).digest(),
+      )
+
+      const publisherNear = new Near({
+        network: sandbox,
+        keyStore: { [publisherId]: publisherKey.secretKey },
+      })
+
+      // Publish both variants: updatable (by account) and immutable (by hash)
+      await publisherNear
+        .transaction(publisherId)
+        .publishContract(contractCode, { identifiedBy: "account" })
+        .send({ waitUntil: "FINAL" })
+      await publisherNear
+        .transaction(publisherId)
+        .publishContract(contractCode, { identifiedBy: "hash" })
+        .send({ waitUntil: "FINAL" })
+
+      // Query by publishing account (updatable)
+      const byAccount = await near.getGlobalContract({
+        accountId: publisherId,
+      })
+      expect(byAccount.hash).toBe(expectedHash)
+      expect(Buffer.from(byAccount.code).equals(contractCode)).toBe(true)
+      expect(await near.globalContractExists({ accountId: publisherId })).toBe(
+        true,
+      )
+
+      // Query by code hash (immutable), as base58 string and raw bytes
+      const byHash = await near.getGlobalContract({ codeHash: expectedHash })
+      expect(byHash.hash).toBe(expectedHash)
+      expect(Buffer.from(byHash.code).equals(contractCode)).toBe(true)
+
+      const byRawHash = await near.getGlobalContract({
+        codeHash: createHash("sha256").update(contractCode).digest(),
+      })
+      expect(byRawHash.hash).toBe(expectedHash)
+      expect(await near.globalContractExists({ codeHash: expectedHash })).toBe(
+        true,
+      )
+
+      console.log(`✓ Published code queried by account and hash`)
+    }, 60000)
+
+    test("should report missing global contracts as not found", async () => {
+      const missingAccount = `nobody-${Date.now()}.${sandbox.rootAccount.id}`
+      const missingHash = base58.encode(
+        createHash("sha256").update(`missing-${Date.now()}`).digest(),
+      )
+
+      await expect(
+        near.getGlobalContract({ accountId: missingAccount }),
+      ).rejects.toThrow(GlobalContractNotFoundError)
+
+      // The error carries the identifier that was queried
+      const error = await near
+        .getGlobalContract({ accountId: missingAccount })
+        .catch((e) => e)
+      expect(error).toBeInstanceOf(GlobalContractNotFoundError)
+      expect((error as GlobalContractNotFoundError).identifier).toEqual({
+        accountId: missingAccount,
+      })
+
+      expect(
+        await near.globalContractExists({ accountId: missingAccount }),
+      ).toBe(false)
+      expect(await near.globalContractExists({ codeHash: missingHash })).toBe(
+        false,
+      )
+
+      // Malformed hashes are rejected client-side, before any RPC call
+      await expect(
+        near.getGlobalContract({
+          codeHash: base58.encode(new Uint8Array(31)),
+        }),
+      ).rejects.toThrow("Code hash must be 32 bytes, got 31 bytes")
+      await expect(
+        near.getGlobalContract({ codeHash: new Uint8Array(31) }),
+      ).rejects.toThrow("Code hash must be 32 bytes, got 31 bytes")
+
+      console.log(`✓ Missing global contracts reported as not found`)
+    }, 30000)
+
+    test("should read deployed contract code via getContractCode", async () => {
+      const accountKey = generateKey()
+      const accountId = `code-query-${Date.now()}.${sandbox.rootAccount.id}`
+
+      await near
+        .transaction(sandbox.rootAccount.id)
+        .createAccount(accountId)
+        .transfer(accountId, "10 NEAR")
+        .addKey(accountKey.publicKey.toString(), { type: "fullAccess" })
+        .send()
+
+      // No contract deployed yet
+      await expect(near.getContractCode(accountId)).rejects.toThrow(
+        ContractNotDeployedError,
+      )
+
+      const contractPath = `${import.meta.dirname}/../contracts/guestbook.wasm`
+      const contractCode = readFileSync(contractPath)
+
+      const accountNear = new Near({
+        network: sandbox,
+        keyStore: { [accountId]: accountKey.secretKey },
+      })
+      await accountNear
+        .transaction(accountId)
+        .deployContract(accountId, contractCode)
+        .send({ waitUntil: "FINAL" })
+
+      const deployed = await near.getContractCode(accountId)
+      expect(Buffer.from(deployed.code).equals(contractCode)).toBe(true)
+
+      // Hash matches what view_account reports for the same account
+      const account = await near.getAccount(accountId)
+      expect(deployed.hash).toBe(account.codeHash)
+
+      console.log(`✓ Deployed contract code read back`)
+    }, 60000)
   })
 
   describe("delegate actions (meta-transactions)", () => {
