@@ -890,12 +890,16 @@ export class RpcClient {
 }
 
 /**
- * Normalize a code hash to its base58 string form, validating raw hashes are
- * 32 bytes (matching `deployFromPublished`'s validation).
+ * Normalize a code hash to its base58 string form, validating that it decodes
+ * to exactly 32 bytes (matching `deployFromPublished`'s validation).
  * @internal
  */
 function normalizeCodeHash(codeHash: string | Uint8Array): string {
   if (typeof codeHash === "string") {
+    const decoded = base58.decode(codeHash)
+    if (decoded.length !== 32) {
+      throw new Error(`Code hash must be 32 bytes, got ${decoded.length} bytes`)
+    }
     return codeHash
   }
   if (codeHash.length !== 32) {

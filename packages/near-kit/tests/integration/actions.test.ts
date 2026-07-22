@@ -589,6 +589,16 @@ describe("Transaction Actions - Integration Tests", () => {
         false,
       )
 
+      // Malformed hashes are rejected client-side, before any RPC call
+      await expect(
+        near.getGlobalContract({
+          codeHash: base58.encode(new Uint8Array(31)),
+        }),
+      ).rejects.toThrow("Code hash must be 32 bytes, got 31 bytes")
+      await expect(
+        near.getGlobalContract({ codeHash: new Uint8Array(31) }),
+      ).rejects.toThrow("Code hash must be 32 bytes, got 31 bytes")
+
       console.log(`✓ Missing global contracts reported as not found`)
     }, 30000)
 
