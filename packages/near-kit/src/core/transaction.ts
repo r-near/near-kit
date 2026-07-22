@@ -71,6 +71,7 @@ import {
 import type {
   Action,
   FinalExecutionOutcomeMap,
+  GlobalContractReference,
   KeyPair,
   KeyStore,
   PublicKey,
@@ -526,9 +527,7 @@ export class TransactionBuilder {
    *   .send()
    * ```
    */
-  deployFromPublished(
-    reference: { codeHash: string | Uint8Array } | { accountId: string },
-  ): this {
+  deployFromPublished(reference: GlobalContractReference): this {
     this.actions.push(actions.deployFromPublished(reference))
 
     if (!this.receiverId) {

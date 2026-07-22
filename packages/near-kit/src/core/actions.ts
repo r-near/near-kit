@@ -34,6 +34,7 @@ import type {
 import { publicKeyToZorsh, signatureToZorsh } from "./schema.js"
 import type {
   Ed25519PublicKey,
+  GlobalContractReference,
   PublicKey,
   Secp256k1PublicKey,
   Signature,
@@ -444,7 +445,7 @@ export function publishContract(
  * ```
  */
 export function deployFromPublished(
-  reference: { codeHash: string | Uint8Array } | { accountId: string },
+  reference: GlobalContractReference,
 ): UseGlobalContractAction {
   let contractIdentifier: { CodeHash: number[] } | { AccountId: string }
 

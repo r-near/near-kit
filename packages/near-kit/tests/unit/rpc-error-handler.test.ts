@@ -4,10 +4,14 @@
  */
 
 import { describe, expect, test } from "vitest"
-import { parseQueryError } from "../../src/core/rpc/rpc-error-handler.js"
+import {
+  parseQueryError,
+  parseRpcError,
+} from "../../src/core/rpc/rpc-error-handler.js"
 import {
   AccessKeyDoesNotExistError,
   FunctionCallError,
+  GlobalContractNotFoundError,
   NetworkError,
 } from "../../src/errors/index.js"
 
@@ -257,5 +261,83 @@ describe("parseQueryError", () => {
         methodName: "missing_method",
       }),
     ).not.toThrow(AccessKeyDoesNotExistError)
+  })
+})
+
+describe("parseRpcError - NO_GLOBAL_CONTRACT_CODE", () => {
+  const noGlobalContractError = (identifier?: unknown) => ({
+    name: "HANDLER_ERROR",
+    code: -32000,
+    message: "The global contract code is not available",
+    cause: {
+      name: "NO_GLOBAL_CONTRACT_CODE",
+      ...(identifier !== undefined ? { info: { identifier } } : {}),
+    },
+  })
+
+  test("should parse the current (nearcore >= 2.12) identifier shapes", () => {
+    try {
+      parseRpcError(noGlobalContractError({ hash: "9wa3Pn2XSFkQ4nWpq" }))
+      expect.unreachable()
+    } catch (error) {
+      expect(error).toBeInstanceOf(GlobalContractNotFoundError)
+      expect((error as GlobalContractNotFoundError).identifier).toEqual({
+        codeHash: "9wa3Pn2XSFkQ4nWpq",
+      })
+      expect((error as GlobalContractNotFoundError).code).toBe(
+        "NO_GLOBAL_CONTRACT_CODE",
+      )
+    }
+
+    try {
+      parseRpcError(noGlobalContractError({ account_id: "publisher.near" }))
+      expect.unreachable()
+    } catch (error) {
+      expect(error).toBeInstanceOf(GlobalContractNotFoundError)
+      expect((error as GlobalContractNotFoundError).identifier).toEqual({
+        accountId: "publisher.near",
+      })
+    }
+  })
+
+  test("should parse the legacy (pre-2.12) identifier shapes", () => {
+    // nearcore < 2.12 serialized GlobalContractIdentifier with PascalCase
+    // variant names (renamed in nearcore#15539).
+    try {
+      parseRpcError(noGlobalContractError({ CodeHash: "9wa3Pn2XSFkQ4nWpq" }))
+      expect.unreachable()
+    } catch (error) {
+      expect(error).toBeInstanceOf(GlobalContractNotFoundError)
+      expect((error as GlobalContractNotFoundError).identifier).toEqual({
+        codeHash: "9wa3Pn2XSFkQ4nWpq",
+      })
+    }
+
+    try {
+      parseRpcError(noGlobalContractError({ AccountId: "publisher.near" }))
+      expect.unreachable()
+    } catch (error) {
+      expect(error).toBeInstanceOf(GlobalContractNotFoundError)
+      expect((error as GlobalContractNotFoundError).identifier).toEqual({
+        accountId: "publisher.near",
+      })
+    }
+  })
+
+  test("should stay typed when the identifier payload is unparseable", () => {
+    // The cause name is authoritative: an unknown identifier shape (or none at
+    // all) must not demote the error to a generic NetworkError, or exists()
+    // helpers would misreport genuine "not found" answers as failures.
+    for (const identifier of [undefined, null, 42, { something: "else" }]) {
+      try {
+        parseRpcError(noGlobalContractError(identifier))
+        expect.unreachable()
+      } catch (error) {
+        expect(error).toBeInstanceOf(GlobalContractNotFoundError)
+        expect((error as GlobalContractNotFoundError).identifier).toEqual({
+          accountId: "unknown",
+        })
+      }
+    }
   })
 })
