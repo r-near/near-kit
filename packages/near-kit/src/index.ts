@@ -117,6 +117,7 @@ export {
   isValidPublicKey,
   MlDsa65KeyPair,
   type MlDsa65PublicKeyHandle,
+  type ParseSeedPhraseOptions,
   type PrivateKey,
   parseAmount,
   parseGas,

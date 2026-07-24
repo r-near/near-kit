@@ -1,7 +1,5 @@
 import { ed25519 } from "@noble/curves/ed25519.js"
 import { secp256k1 } from "@noble/curves/secp256k1.js"
-import { hmac } from "@noble/hashes/hmac.js"
-import { sha512 } from "@noble/hashes/sha2.js"
 import { ml_dsa65 } from "@noble/post-quantum/ml-dsa.js"
 import { base58, base64 } from "@scure/base"
 import * as bip39 from "@scure/bip39"
@@ -26,6 +24,11 @@ import {
   type SignMessageParams,
 } from "../core/types.js"
 import { InvalidKeyError } from "../errors/index.js"
+import {
+  ED25519_CURVE_SALT,
+  ML_DSA_65_CURVE_SALT,
+  slip10DerivePath,
+} from "./hd.js"
 import { serializeNep413Message } from "./nep413.js"
 
 /**
@@ -484,98 +487,58 @@ export function generateSeedPhrase(
 }
 
 /**
- * SLIP-0010 master key derivation for ed25519
- * Uses 'ed25519 seed' as the HMAC key per SLIP-0010 specification
- * @internal
+ * Options for {@link parseSeedPhrase}.
  */
-function getMasterKeyFromSeed(seed: Uint8Array): {
-  key: Uint8Array
-  chainCode: Uint8Array
-} {
-  const ED25519_SEED = new TextEncoder().encode("ed25519 seed")
-  const I = hmac(sha512, ED25519_SEED, seed)
-  return {
-    key: I.slice(0, 32),
-    chainCode: I.slice(32),
-  }
+export interface ParseSeedPhraseOptions {
+  /**
+   * BIP-32 derivation path. Every segment must be hardened.
+   * Defaults to `"m/44'/397'/0'"` (NEAR's coin type).
+   */
+  path?: string
+  /**
+   * Signature scheme of the derived key. Defaults to `"ed25519"`.
+   *
+   * `"ml-dsa-65"` derives a post-quantum ML-DSA-65 (FIPS 204) key using the
+   * SLIP-0010 construction from satoshilabs/slips#1968: the master node is
+   * `HMAC-SHA512(key = "ML-DSA-65 seed", data = BIP-39 seed)` and the derived
+   * 32-byte node secret is the FIPS 204 seed ξ fed to ML-DSA key generation.
+   */
+  keyType?: "ed25519" | "ml-dsa-65"
 }
 
 /**
- * SLIP-0010 child key derivation for ed25519
- * Only supports hardened derivation (index >= 0x80000000)
- * @internal
- */
-function deriveChild(
-  parentKey: Uint8Array,
-  parentChainCode: Uint8Array,
-  index: number,
-): { key: Uint8Array; chainCode: Uint8Array } {
-  // Build data: 0x00 || parent_key || index (big-endian)
-  const data = new Uint8Array(37)
-  data[0] = 0
-  data.set(parentKey, 1)
-  const view = new DataView(data.buffer)
-  view.setUint32(33, index, false) // big-endian
-
-  const I = hmac(sha512, parentChainCode, data)
-  return {
-    key: I.slice(0, 32),
-    chainCode: I.slice(32),
-  }
-}
-
-/**
- * Parse derivation path and derive key using SLIP-0010 for ed25519
- * @internal
- */
-function derivePath(path: string, seed: Uint8Array): Uint8Array {
-  const HARDENED_OFFSET = 0x80000000
-
-  // Validate path format
-  if (!/^m(\/\d+')+$/.test(path)) {
-    throw new InvalidKeyError(
-      `Invalid derivation path: ${path}. Must be hardened (e.g., m/44'/397'/0')`,
-    )
-  }
-
-  // Get master key
-  let { key, chainCode } = getMasterKeyFromSeed(seed)
-
-  // Parse and apply each path segment
-  const segments = path
-    .split("/")
-    .slice(1) // Remove 'm'
-    .map((s) => Number.parseInt(s.replace("'", ""), 10))
-
-  for (const segment of segments) {
-    const result = deriveChild(key, chainCode, segment + HARDENED_OFFSET)
-    key = result.key
-    chainCode = result.chainCode
-  }
-
-  return key
-}
-
-/**
- * Parse a BIP39 seed phrase to derive a key pair using SLIP-0010 for ed25519.
+ * Parse a BIP39 seed phrase to derive a key pair using SLIP-0010.
  *
- * This uses the correct 'ed25519 seed' HMAC key per SLIP-0010 specification,
- * which is compatible with NEAR CLI and wallet-generated seed phrases.
+ * For ed25519 this uses the 'ed25519 seed' HMAC key per SLIP-0010
+ * specification, which is compatible with NEAR CLI and wallet-generated seed
+ * phrases. For ML-DSA-65 it uses the 'ML-DSA-65 seed' HMAC key per
+ * satoshilabs/slips#1968, and the derived 32-byte node secret is the FIPS 204
+ * seed ξ. The same phrase yields unrelated ed25519 and ML-DSA-65 keys.
  *
  * @param phrase - BIP39 seed phrase (12-24 words)
- * @param path - Derivation path (defaults to "m/44'/397'/0'" for NEAR)
+ * @param pathOrOptions - Derivation path string (defaults to "m/44'/397'/0'"
+ * for NEAR), or a {@link ParseSeedPhraseOptions} object to also pick the key
+ * type
  * @returns KeyPair instance
  *
  * @example
  * ```typescript
  * const keyPair = parseSeedPhrase("word1 word2 ... word12")
  * console.log(keyPair.publicKey.toString()) // ed25519:...
+ *
+ * const pqKeyPair = parseSeedPhrase("word1 word2 ... word12", {
+ *   keyType: "ml-dsa-65",
+ * })
+ * console.log(pqKeyPair.publicKey.toString()) // ml-dsa-65:...
  * ```
  */
 export function parseSeedPhrase(
   phrase: string,
-  path: string = "m/44'/397'/0'",
+  pathOrOptions: string | ParseSeedPhraseOptions = {},
 ): KeyPair {
+  const { path = "m/44'/397'/0'", keyType = "ed25519" } =
+    typeof pathOrOptions === "string" ? { path: pathOrOptions } : pathOrOptions
+
   // Normalize the seed phrase (trim, lowercase, single spaces)
   const normalizedPhrase = phrase
     .trim()
@@ -591,8 +554,17 @@ export function parseSeedPhrase(
   // Convert mnemonic to seed (64 bytes)
   const seed = bip39.mnemonicToSeedSync(normalizedPhrase)
 
-  // Derive key using SLIP-0010 for ed25519
-  const privateKey = derivePath(path, seed)
+  if (keyType === "ml-dsa-65") {
+    // The derived node secret is the FIPS 204 seed ξ; MlDsa65KeyPair expands
+    // it via ML-DSA.KeyGen.
+    const { key } = slip10DerivePath(ML_DSA_65_CURVE_SALT, seed, path)
+    return new MlDsa65KeyPair(key)
+  }
+  if (keyType !== "ed25519") {
+    throw new InvalidKeyError(`Unsupported key type: ${keyType}`)
+  }
+
+  const { key: privateKey } = slip10DerivePath(ED25519_CURVE_SALT, seed, path)
 
   // Get the ed25519 public key from private key
   const publicKey = ed25519.getPublicKey(privateKey)
