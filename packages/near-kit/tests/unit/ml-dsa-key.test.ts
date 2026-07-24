@@ -14,10 +14,12 @@ import { PublicKeySchema, SignatureSchema } from "../../src/core/schema.js"
 import { KeyType } from "../../src/core/types.js"
 import { InvalidKeyError } from "../../src/errors/index.js"
 import {
+  generateSeedPhrase,
   MlDsa65KeyPair,
   parseKey,
   parseMlDsa65Handle,
   parsePublicKey,
+  parseSeedPhrase,
 } from "../../src/utils/key.js"
 import {
   isValidPublicKey,
@@ -235,5 +237,80 @@ describe("ML-DSA-65 validation schemas", () => {
     expect(PrivateKeySchema.parse(sk)).toBe(sk)
     const handle = `ml-dsa-65-hash:${base58.encode(new Uint8Array(32))}`
     expect(() => PrivateKeySchema.parse(handle)).toThrow()
+  })
+})
+
+describe("parseSeedPhrase for ML-DSA-65", () => {
+  // BIP-39 canonical test phrase; the expected value locks the slips#1968
+  // derivation (HMAC-SHA512 "ML-DSA-65 seed" master + SLIP-0010 hardened
+  // steps) at the default path m/44'/397'/0'.
+  const TEST_PHRASE =
+    "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about"
+
+  test("derives the known FIPS 204 seed at the default path", () => {
+    const key = parseSeedPhrase(TEST_PHRASE, { keyType: "ml-dsa-65" })
+    expect(key.secretKey).toBe(
+      "ml-dsa-65:7t9yn5gKtyA9EwqwGCHe6WeDdDhDQkRDVhASM7ZvRoum",
+    )
+    expect(key.publicKey.keyType).toBe(KeyType.ML_DSA_65)
+    expect(key.publicKey.data.length).toBe(1952)
+  })
+
+  test("is deterministic and path-sensitive", () => {
+    const phrase = generateSeedPhrase(12)
+    const a = parseSeedPhrase(phrase, { keyType: "ml-dsa-65" })
+    const b = parseSeedPhrase(phrase, {
+      keyType: "ml-dsa-65",
+      path: "m/44'/397'/0'",
+    })
+    const c = parseSeedPhrase(phrase, {
+      keyType: "ml-dsa-65",
+      path: "m/44'/397'/1'",
+    })
+    expect(a.publicKey.toString()).toBe(b.publicKey.toString())
+    expect(a.publicKey.toString()).not.toBe(c.publicKey.toString())
+  })
+
+  test("yields a key unrelated to the ed25519 key from the same phrase", () => {
+    const phrase = generateSeedPhrase(12)
+    const pq = parseSeedPhrase(phrase, { keyType: "ml-dsa-65" })
+    const ed = parseSeedPhrase(phrase)
+    expect(pq.publicKey.keyType).toBe(KeyType.ML_DSA_65)
+    expect(ed.publicKey.keyType).toBe(KeyType.ED25519)
+  })
+
+  test("derived key round-trips through parseKey and signs", () => {
+    const key = parseSeedPhrase(generateSeedPhrase(12), {
+      keyType: "ml-dsa-65",
+    })
+    const reparsed = parseKey(key.secretKey)
+    expect(reparsed.publicKey.toString()).toBe(key.publicKey.toString())
+
+    const message = new TextEncoder().encode("hello post-quantum")
+    const signature = key.sign(message)
+    expect(ml_dsa65.verify(signature.data, message, key.publicKey.data)).toBe(
+      true,
+    )
+  })
+
+  test("options object with explicit ed25519 matches the default", () => {
+    const phrase = generateSeedPhrase(12)
+    const viaOptions = parseSeedPhrase(phrase, { keyType: "ed25519" })
+    const viaDefault = parseSeedPhrase(phrase)
+    expect(viaOptions.publicKey.toString()).toBe(
+      viaDefault.publicKey.toString(),
+    )
+  })
+
+  test("rejects an invalid phrase and an unknown key type", () => {
+    expect(() =>
+      parseSeedPhrase("not a valid mnemonic", { keyType: "ml-dsa-65" }),
+    ).toThrow(InvalidKeyError)
+    expect(() =>
+      parseSeedPhrase(TEST_PHRASE, {
+        // @ts-expect-error runtime validation of unknown key types
+        keyType: "sphincs+",
+      }),
+    ).toThrow(InvalidKeyError)
   })
 })
