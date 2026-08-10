@@ -88,14 +88,14 @@
   },
   "dependencies": {
     "@napi-rs/keyring": "^1.3.0",
-    "@noble/curves": "^2.2.0",
+    "@noble/curves": "^2.3.0",
     "@noble/hashes": "^2.0.1",
     "@noble/post-quantum": "^0.6.1",
     "@scure/base": "^2.2.0",
     "@scure/bip32": "^2.2.0",
     "@scure/bip39": "^2.2.0",
     "@zorsh/zorsh": "^0.5.0",
-    "tar": "^7.5.20",
+    "tar": "^7.5.22",
     "zod": "^4.4.3"
   }
 }
