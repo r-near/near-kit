@@ -465,17 +465,80 @@ export function parsePublicKey(publicKeyString: string): PublicKey {
   throw new InvalidKeyError(`Unsupported public key type: ${publicKeyString}`)
 }
 
+/** Valid BIP-39 mnemonic lengths. */
+export type SeedPhraseWordCount = 12 | 15 | 18 | 21 | 24
+
 /**
- * Generate a BIP39 seed phrase (12 words by default)
- * Uses proper BIP39 implementation with cryptographically secure randomness
- * @param wordCount - Number of words (12, 15, 18, 21, or 24). Defaults to 12
+ * Options for {@link generateSeedPhrase}.
+ */
+export interface GenerateSeedPhraseOptions {
+  /**
+   * Number of words. Defaults to 12 for `"ed25519"` and 24 for
+   * `"ml-dsa-65"`.
+   */
+  wordCount?: SeedPhraseWordCount
+  /**
+   * Signature scheme the phrase will be used for. Defaults to `"ed25519"`.
+   *
+   * `"ml-dsa-65"` applies the NEP-649 rule for newly generated phrases: at
+   * least 18 words.
+   */
+  keyType?: "ed25519" | "ml-dsa-65"
+}
+
+/**
+ * Fewest words NEP-649 allows for a phrase newly generated for ML-DSA-65: a
+ * 12-word phrase carries 128 bits of entropy, below ML-DSA-65's NIST Category 3
+ * security level.
+ */
+const ML_DSA_65_MIN_WORD_COUNT = 18
+
+/**
+ * Generate a BIP39 seed phrase using cryptographically secure randomness.
+ *
+ * Takes either a word count directly or a {@link GenerateSeedPhraseOptions}
+ * object that also picks the signature scheme the phrase is generated for:
+ *
+ * - `"ed25519"` (the default) generates 12 words unless `wordCount` says
+ *   otherwise; any of 12, 15, 18, 21, 24 is allowed.
+ * - `"ml-dsa-65"` generates 24 words by default and requires at least 18, per
+ *   {@link https://github.com/near/NEPs/pull/649 | NEP-649} - a 12-word phrase
+ *   carries 128 bits of entropy, below ML-DSA-65's NIST Category 3 security
+ *   level. A `wordCount` of 12 or 15 throws {@link InvalidKeyError}. (This is a
+ *   rule for *generating* phrases; {@link parseSeedPhrase} still recovers a key
+ *   from any valid 12-24 word phrase.)
+ *
+ * @param wordCountOrOptions - Number of words (12, 15, 18, 21, or 24), or a
+ * {@link GenerateSeedPhraseOptions} object
  * @returns A BIP39 seed phrase string
+ *
+ * @example
+ * ```typescript
+ * generateSeedPhrase() // 12 words, for an ed25519 key
+ * generateSeedPhrase(24) // 24 words
+ * generateSeedPhrase({ keyType: "ml-dsa-65" }) // 24 words, NEP-649 compliant
+ * ```
  */
 export function generateSeedPhrase(
-  wordCount: 12 | 15 | 18 | 21 | 24 = 12,
+  wordCountOrOptions: SeedPhraseWordCount | GenerateSeedPhraseOptions = {},
 ): string {
+  const { wordCount, keyType = "ed25519" } =
+    typeof wordCountOrOptions === "number"
+      ? { wordCount: wordCountOrOptions }
+      : wordCountOrOptions
+
+  const resolvedWordCount = wordCount ?? (keyType === "ml-dsa-65" ? 24 : 12)
+
+  if (keyType === "ml-dsa-65" && resolvedWordCount < ML_DSA_65_MIN_WORD_COUNT) {
+    throw new InvalidKeyError(
+      `A seed phrase generated for ML-DSA-65 must be at least ` +
+        `${ML_DSA_65_MIN_WORD_COUNT} words per NEP-649, got ${resolvedWordCount}; ` +
+        `fewer words carry less entropy than ML-DSA-65's security level`,
+    )
+  }
+
   // Map word count to entropy bits (as per BIP39 spec)
-  const entropyBits = wordCount * 11 - wordCount / 3
+  const entropyBits = resolvedWordCount * 11 - resolvedWordCount / 3
   const entropyBytes = entropyBits / 8
 
   // Generate cryptographically secure random entropy
@@ -499,9 +562,15 @@ export interface ParseSeedPhraseOptions {
    * Signature scheme of the derived key. Defaults to `"ed25519"`.
    *
    * `"ml-dsa-65"` derives a post-quantum ML-DSA-65 (FIPS 204) key using the
-   * SLIP-0010 construction from satoshilabs/slips#1968: the master node is
-   * `HMAC-SHA512(key = "ML-DSA-65 seed", data = BIP-39 seed)` and the derived
-   * 32-byte node secret is the FIPS 204 seed ξ fed to ML-DSA key generation.
+   * SLIP-0010 construction from satoshilabs/slips#1968, standardized for NEAR
+   * in {@link https://github.com/near/NEPs/pull/649 | NEP-649}: the master node
+   * is `HMAC-SHA512(key = "ML-DSA-65 seed", data = BIP-39 seed)` and the
+   * derived 32-byte node secret is the FIPS 204 seed ξ fed to ML-DSA key
+   * generation.
+   *
+   * Recovery accepts any valid BIP-39 phrase of 12-24 words. The NEP-649
+   * minimum of 18 words applies only to *generating* a new phrase - see
+   * {@link generateSeedPhrase}.
    */
   keyType?: "ed25519" | "ml-dsa-65"
 }
@@ -512,8 +581,13 @@ export interface ParseSeedPhraseOptions {
  * For ed25519 this uses the 'ed25519 seed' HMAC key per SLIP-0010
  * specification, which is compatible with NEAR CLI and wallet-generated seed
  * phrases. For ML-DSA-65 it uses the 'ML-DSA-65 seed' HMAC key per
- * satoshilabs/slips#1968, and the derived 32-byte node secret is the FIPS 204
- * seed ξ. The same phrase yields unrelated ed25519 and ML-DSA-65 keys.
+ * satoshilabs/slips#1968 and {@link https://github.com/near/NEPs/pull/649 |
+ * NEP-649}, and the derived 32-byte node secret is the FIPS 204 seed ξ. The
+ * same phrase yields unrelated ed25519 and ML-DSA-65 keys.
+ *
+ * Any valid BIP-39 phrase of 12-24 words is accepted for recovery, whatever the
+ * key type. NEP-649's 18-word minimum applies only when generating a new phrase
+ * for ML-DSA-65 - see {@link generateSeedPhrase}.
  *
  * @param phrase - BIP39 seed phrase (12-24 words)
  * @param pathOrOptions - Derivation path string (defaults to "m/44'/397'/0'"
