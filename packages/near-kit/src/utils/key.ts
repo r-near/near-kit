@@ -527,6 +527,10 @@ export function generateSeedPhrase(
       ? { wordCount: wordCountOrOptions }
       : wordCountOrOptions
 
+  if (keyType !== "ed25519" && keyType !== "ml-dsa-65") {
+    throw new InvalidKeyError(`Unsupported key type: ${keyType}`)
+  }
+
   const resolvedWordCount = wordCount ?? (keyType === "ml-dsa-65" ? 24 : 12)
 
   if (keyType === "ml-dsa-65" && resolvedWordCount < ML_DSA_65_MIN_WORD_COUNT) {

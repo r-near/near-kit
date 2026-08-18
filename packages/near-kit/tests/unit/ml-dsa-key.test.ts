@@ -340,6 +340,14 @@ describe("generateSeedPhrase for ML-DSA-65", () => {
     }
   })
 
+  test("rejects an unknown key type instead of falling back to 12 words", () => {
+    // A JS caller (or JSON-loaded options) with a typo must not silently get a
+    // 12-word phrase; mirror parseSeedPhrase's behavior.
+    expect(() =>
+      generateSeedPhrase({ keyType: "ml-dsa65" as "ml-dsa-65" }),
+    ).toThrow(InvalidKeyError)
+  })
+
   test("accepts 18, 21 and 24 words", () => {
     for (const wordCount of [18, 21, 24] as const) {
       const phrase = generateSeedPhrase({ keyType: "ml-dsa-65", wordCount })
