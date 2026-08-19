@@ -161,6 +161,21 @@ describe("Seed Phrase Generation", () => {
       expect(isValid).toBe(true)
     }
   })
+
+  test("generateSeedPhrase() should default to 12 words for explicit ed25519", () => {
+    const phrase = generateSeedPhrase({ keyType: "ed25519" })
+    const words = phrase.split(" ")
+
+    expect(words.length).toBe(12)
+    expect(bip39.validateMnemonic(phrase, wordlist)).toBe(true)
+  })
+
+  test("generateSeedPhrase() should accept a word count in the options object", () => {
+    const phrase = generateSeedPhrase({ wordCount: 24 })
+    const words = phrase.split(" ")
+
+    expect(words.length).toBe(24)
+  })
 })
 
 describe("Seed Phrase Parsing", () => {

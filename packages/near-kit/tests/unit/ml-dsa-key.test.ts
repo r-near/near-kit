@@ -313,4 +313,54 @@ describe("parseSeedPhrase for ML-DSA-65", () => {
       }),
     ).toThrow(InvalidKeyError)
   })
+
+  test("recovers a key from a 12-word phrase", () => {
+    // NEP-649 caps only generation; recovery accepts any valid 12-24 word phrase.
+    const key = parseSeedPhrase(generateSeedPhrase(12), {
+      keyType: "ml-dsa-65",
+    })
+    expect(key.publicKey.toString()).toMatch(/^ml-dsa-65:/)
+  })
+})
+
+describe("generateSeedPhrase for ML-DSA-65", () => {
+  test("defaults to 24 words", () => {
+    const phrase = generateSeedPhrase({ keyType: "ml-dsa-65" })
+    expect(phrase.split(" ").length).toBe(24)
+  })
+
+  test("rejects word counts below the NEP-649 minimum", () => {
+    for (const wordCount of [12, 15] as const) {
+      expect(() =>
+        generateSeedPhrase({ keyType: "ml-dsa-65", wordCount }),
+      ).toThrow(InvalidKeyError)
+      expect(() =>
+        generateSeedPhrase({ keyType: "ml-dsa-65", wordCount }),
+      ).toThrow(/NEP-649/)
+    }
+  })
+
+  test("rejects an unknown key type instead of falling back to 12 words", () => {
+    // A JS caller (or JSON-loaded options) with a typo must not silently get a
+    // 12-word phrase; mirror parseSeedPhrase's behavior.
+    expect(() =>
+      generateSeedPhrase({ keyType: "ml-dsa65" as "ml-dsa-65" }),
+    ).toThrow(InvalidKeyError)
+  })
+
+  test("accepts 18, 21 and 24 words", () => {
+    for (const wordCount of [18, 21, 24] as const) {
+      const phrase = generateSeedPhrase({ keyType: "ml-dsa-65", wordCount })
+      expect(phrase.split(" ").length).toBe(wordCount)
+    }
+  })
+
+  test("generated phrase derives an ML-DSA-65 key", () => {
+    const phrase = generateSeedPhrase({ keyType: "ml-dsa-65" })
+    const key = parseSeedPhrase(phrase, { keyType: "ml-dsa-65" })
+
+    expect(key.publicKey.toString()).toMatch(/^ml-dsa-65:/)
+    expect(key.publicKey.keyType).toBe(KeyType.ML_DSA_65)
+    expect(key.publicKey.data.length).toBe(1952)
+  })
 })
