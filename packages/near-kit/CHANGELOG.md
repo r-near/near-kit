@@ -1,5 +1,16 @@
 # near-kit
 
+## 0.20.0
+
+### Minor Changes
+
+- 1bfb46e: Add ML-DSA-65 key derivation from BIP-39 seed phrases. `parseSeedPhrase` now accepts an options object with a `keyType` of `"ed25519"` (default) or `"ml-dsa-65"`, deriving post-quantum keys via the SLIP-0010 construction from satoshilabs/slips#1968 (master node `HMAC-SHA512(key = "ML-DSA-65 seed", data = BIP-39 seed)`, hardened-only children, node secret used as the FIPS 204 seed ξ). Validated against the slips#1968 test vectors.
+- 1ddce4b: `generateSeedPhrase` accepts an options object with `keyType`: for `"ml-dsa-65"` it generates 24 words by default and rejects fewer than 18, per NEP-649
+
+### Patch Changes
+
+- d2fed66: Support publishing and using global contracts through NEAR Connect, and recognize global references when checking whether an account has a contract. Honor requested transaction confirmation levels for wallet-backed calls and transfers, querying the submitted transaction when further confirmation is needed.
+
 ## 0.19.0
 
 ### Minor Changes
