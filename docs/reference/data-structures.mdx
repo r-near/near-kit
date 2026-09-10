@@ -65,13 +65,15 @@ type ExecutionOutcomeWithId = {
 
 ## Account Details (`AccountView`)
 
-Returned by `near.getAccountDetails(accountId)`.
+Returned by `near.rpc.getAccount(accountId)`.
 
 ```typescript
 type AccountView = {
   amount: string; // Balance in yoctoNEAR
   locked: string; // Staked balance in yoctoNEAR
   code_hash: string; // Hash of the contract code (111111... if none)
+  global_contract_hash?: string | null; // Global contract referenced by code hash
+  global_contract_account_id?: string | null; // Global contract referenced by publisher
   storage_usage: number; // Storage used in bytes
   storage_paid_at: number;
   block_height: number;

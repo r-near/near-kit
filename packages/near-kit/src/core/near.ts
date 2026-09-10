@@ -609,7 +609,10 @@ export class Near {
         includeSuffix: false,
       }),
       storageBytes: account.storage_usage,
-      hasContract: account.code_hash !== emptyCodeHash,
+      hasContract:
+        account.code_hash !== emptyCodeHash ||
+        account.global_contract_hash != null ||
+        account.global_contract_account_id != null,
       codeHash: account.code_hash,
     }
   }
