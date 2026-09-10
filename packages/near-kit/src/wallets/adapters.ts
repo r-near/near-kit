@@ -13,7 +13,7 @@
  */
 
 import { sha256 } from "@noble/hashes/sha2.js"
-import { base64 } from "@scure/base"
+import { base58, base64 } from "@scure/base"
 import { decodeSignedDelegateAction } from "../core/schema.js"
 import type {
   Action,
@@ -158,6 +158,34 @@ function convertActionToNearConnect(action: Action): NearConnectAction {
       type: "DeployContract",
       params: {
         code: dc.code,
+      },
+    }
+  }
+
+  if ("useGlobalContract" in action) {
+    const { contractIdentifier } = action.useGlobalContract
+    return {
+      type: "UseGlobalContract",
+      params: {
+        contractIdentifier:
+          "AccountId" in contractIdentifier
+            ? { accountId: contractIdentifier.AccountId }
+            : {
+                codeHash: base58.encode(
+                  new Uint8Array(contractIdentifier.CodeHash),
+                ),
+              },
+      },
+    }
+  }
+
+  if ("deployGlobalContract" in action) {
+    const { code, deployMode } = action.deployGlobalContract
+    return {
+      type: "DeployGlobalContract",
+      params: {
+        code,
+        deployMode: "AccountId" in deployMode ? "AccountId" : "CodeHash",
       },
     }
   }
