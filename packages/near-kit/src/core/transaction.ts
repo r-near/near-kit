@@ -1519,20 +1519,58 @@ export class TransactionBuilder {
       )
     }
 
-    // Use wallet if available
+    const waitUntil = (options?.waitUntil ?? this.defaultWaitUntil) as W
+
     if (this.wallet) {
       const result = await this.wallet.signAndSendTransaction({
         signerId: this.signerId,
         receiverId: this.receiverId,
         actions: this.actions,
       })
-      // Wallet doesn't support waitUntil parameter, always returns executed result
-      // Cast to the expected type (this is safe because wallet always waits for execution)
-      return result as FinalExecutionOutcomeMap[W]
+      // Inclusion finality and optimistic execution are independent milestones.
+      const reached: Record<TxExecutionStatus, readonly TxExecutionStatus[]> = {
+        NONE: ["NONE"],
+        INCLUDED: ["NONE", "INCLUDED"],
+        INCLUDED_FINAL: ["NONE", "INCLUDED", "INCLUDED_FINAL"],
+        EXECUTED_OPTIMISTIC: ["NONE", "INCLUDED", "EXECUTED_OPTIMISTIC"],
+        EXECUTED: [
+          "NONE",
+          "INCLUDED",
+          "INCLUDED_FINAL",
+          "EXECUTED_OPTIMISTIC",
+          "EXECUTED",
+        ],
+        FINAL: [
+          "NONE",
+          "INCLUDED",
+          "INCLUDED_FINAL",
+          "EXECUTED_OPTIMISTIC",
+          "EXECUTED",
+          "FINAL",
+        ],
+      }
+      const failed =
+        typeof result.status === "object" && "Failure" in result.status
+      if (
+        !failed &&
+        reached[result.final_execution_status]?.includes(waitUntil)
+      ) {
+        return result as FinalExecutionOutcomeMap[W]
+      }
+      if (!result.transaction?.hash) {
+        throw new NearError(
+          "Wallet did not return a transaction hash for status lookup",
+          "INVALID_TRANSACTION",
+        )
+      }
+      // Reconcile the submitted hash; never prompt for another signature on error.
+      // RPC status parsing also provides the usual typed execution errors.
+      return (await this.rpc.getTransactionStatus(
+        result.transaction.hash,
+        result.transaction.signer_id,
+        waitUntil,
+      )) as FinalExecutionOutcomeMap[W]
     }
-
-    // Determine waitUntil - use option if provided, otherwise use default
-    const waitUntil = (options?.waitUntil ?? this.defaultWaitUntil) as W
 
     // Retry loop for InvalidNonceError
     const MAX_NONCE_RETRIES = 3

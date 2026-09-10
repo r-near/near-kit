@@ -83,6 +83,21 @@ export type NearConnectDeleteAccountAction = {
   }
 }
 
+export type NearConnectUseGlobalContractAction = {
+  type: "UseGlobalContract"
+  params: {
+    contractIdentifier: { accountId: string } | { codeHash: string }
+  }
+}
+
+export type NearConnectDeployGlobalContractAction = {
+  type: "DeployGlobalContract"
+  params: {
+    code: Uint8Array
+    deployMode: "CodeHash" | "AccountId"
+  }
+}
+
 export type NearConnectAction =
   | NearConnectCreateAccountAction
   | NearConnectDeployContractAction
@@ -92,6 +107,8 @@ export type NearConnectAction =
   | NearConnectAddKeyAction
   | NearConnectDeleteKeyAction
   | NearConnectDeleteAccountAction
+  | NearConnectUseGlobalContractAction
+  | NearConnectDeployGlobalContractAction
 
 /**
  * NEAR Connect wallet + connector interfaces (structural).

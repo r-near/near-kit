@@ -15,18 +15,13 @@ import { formatAmount } from "../utils/amount.js"
 import { parseKey } from "../utils/key.js"
 import { generateNonce } from "../utils/nep413.js"
 import type { Amount, Gas } from "../utils/validation.js"
-import { normalizeAmount, normalizeGas } from "../utils/validation.js"
-import * as actions from "./actions.js"
 import {
   type BlockReference,
   type NearConfig,
   NearConfigSchema,
   resolveNetworkConfig,
 } from "./config-schemas.js"
-import {
-  DEFAULT_FUNCTION_CALL_GAS,
-  STORAGE_AMOUNT_PER_BYTE,
-} from "./constants.js"
+import { STORAGE_AMOUNT_PER_BYTE } from "./constants.js"
 import { RpcClient } from "./rpc/rpc.js"
 import type {
   AccessKeyListResponse,
@@ -352,38 +347,6 @@ export class Near {
   ): Promise<T> {
     const signerId = await this.getSignerId(options.signerId)
 
-    // Use wallet if available
-    if (this.wallet) {
-      const argsBytes =
-        args instanceof Uint8Array
-          ? args
-          : new TextEncoder().encode(JSON.stringify(args))
-
-      const gas = options.gas
-        ? normalizeGas(options.gas)
-        : DEFAULT_FUNCTION_CALL_GAS
-
-      const deposit = options.attachedDeposit
-        ? normalizeAmount(options.attachedDeposit)
-        : "0"
-
-      const result = await this.wallet.signAndSendTransaction({
-        signerId,
-        receiverId: contractId,
-        actions: [
-          actions.functionCall(
-            methodName,
-            argsBytes,
-            BigInt(gas),
-            BigInt(deposit),
-          ),
-        ],
-      })
-
-      return result as T
-    }
-
-    // Use private key/signer approach
     const functionCallOptions: {
       gas?: Gas
       attachedDeposit?: Amount
@@ -428,18 +391,6 @@ export class Near {
   ): Promise<FinalExecutionOutcome> {
     const signerId = await this.getSignerId()
 
-    // Use wallet if available
-    if (this.wallet) {
-      const amountYocto = normalizeAmount(amount)
-
-      return await this.wallet.signAndSendTransaction({
-        signerId,
-        receiverId,
-        actions: [actions.transfer(BigInt(amountYocto))],
-      })
-    }
-
-    // Use private key/signer approach
     return await this.transaction(signerId).transfer(receiverId, amount).send()
   }
 
@@ -658,7 +609,10 @@ export class Near {
         includeSuffix: false,
       }),
       storageBytes: account.storage_usage,
-      hasContract: account.code_hash !== emptyCodeHash,
+      hasContract:
+        account.code_hash !== emptyCodeHash ||
+        account.global_contract_hash != null ||
+        account.global_contract_account_id != null,
       codeHash: account.code_hash,
     }
   }

@@ -79,6 +79,8 @@ export const AccountViewSchema = z.object({
   amount: z.string(),
   locked: z.string(),
   code_hash: z.string(),
+  global_contract_hash: z.string().nullable().optional(),
+  global_contract_account_id: z.string().nullable().optional(),
   storage_usage: z.number(),
   storage_paid_at: z.number(),
   block_height: z.number(),

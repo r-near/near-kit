@@ -58,6 +58,38 @@ connector.on("wallet:signIn", async (data) => {
 connector.connect()
 ```
 
+## Global Contracts and Confirmation
+
+The NEAR Connect adapter supports `deployFromPublished` and `publishContract`
+with wallets that support the corresponding global-contract actions. For
+example, attach published code and initialize it in one wallet approval:
+
+```typescript
+const wallet = await connector.wallet()
+const [{ accountId }] = await wallet.getAccounts()
+
+const result = await near
+  .transaction(accountId)
+  .deployFromPublished({ accountId: "publisher.testnet" })
+  .functionCall(accountId, "init", {}, { gas: "100 Tgas" })
+  .send({ waitUntil: "FINAL" })
+```
+
+Use an account intended for the new contract; attaching code changes that
+account's contract. References can also use `{ codeHash: "<base58 hash>" }`.
+See [Global Contracts](/in-depth/global-contracts) for publishing and reference options.
+
+Wallets control when their signing request returns. If the outcome has not
+reached the requested `waitUntil` (or configured `defaultWaitUntil`), near-kit
+queries its RPC for confirmation using the submitted transaction hash. This
+does not request another signature or resubmit the transaction. The same
+behavior applies to `near.call()` and `near.send()`.
+
+Wallet connection and optional function-call key permission requests are
+configured through NEAR Connect. A restricted function-call key cannot authorize
+global-contract deployment; the wallet must approve that action using an
+account with full-access authority.
+
 ## Best Practice: React Context
 
 <Tip>

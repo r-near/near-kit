@@ -101,6 +101,10 @@ console.log(`Storage bytes: ${account.storageBytes}`)      // Raw storage in byt
 console.log(`Has contract: ${account.hasContract}`)        // Whether contract is deployed
 ```
 
+`hasContract` includes accounts using a global contract by publisher account or
+code hash. To inspect the reference, use `near.rpc.getAccount(accountId)` and
+read `global_contract_account_id` or `global_contract_hash`.
+
 <Note>
 **Why is available different from balance?**
 
