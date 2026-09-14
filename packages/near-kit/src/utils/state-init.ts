@@ -10,7 +10,7 @@
 
 import { keccak_256 } from "@noble/hashes/sha3.js"
 import { base58, hex } from "@scure/base"
-import { b } from "@zorsh/zorsh"
+import { DeterministicAccountStateInitSchema } from "../core/schema.js"
 
 /**
  * Contract code reference - either by hash or by account ID
@@ -73,33 +73,6 @@ export function parseCodeHash(codeHash: string | Uint8Array): Uint8Array {
   return hashBytes
 }
 
-// ==================== Borsh Schemas for StateInit ====================
-
-/**
- * GlobalContractIdentifier enum for Borsh serialization
- * 0 = CodeHash (32-byte hash)
- * 1 = AccountId (string)
- */
-const GlobalContractIdentifierSchema = b.enum({
-  CodeHash: b.array(b.u8(), 32),
-  AccountId: b.string(),
-})
-
-/**
- * StateInitV1 struct for Borsh serialization
- */
-const StateInitV1Schema = b.struct({
-  code: GlobalContractIdentifierSchema,
-  data: b.hashMap(b.bytes(), b.bytes()),
-})
-
-/**
- * StateInit enum (versioned) for Borsh serialization
- */
-const StateInitSchema = b.enum({
-  V1: StateInitV1Schema,
-})
-
 /**
  * Create a StateInit object from options
  *
@@ -125,8 +98,12 @@ export function createStateInit(options: StateInitOptions): StateInit {
 /**
  * Serialize a StateInit to Borsh bytes
  *
+ * The `data` map is encoded as nearcore's `BTreeMap<Vec<u8>, Vec<u8>>`: entries
+ * sorted bytewise by key, regardless of the `Map`'s insertion order.
+ *
  * @param stateInit - StateInit object to serialize
  * @returns Borsh-serialized bytes
+ * @throws Error if two keys have identical bytes
  */
 export function serializeStateInit(stateInit: StateInit): Uint8Array {
   let codeIdentifier: { CodeHash: number[] } | { AccountId: string }
@@ -137,31 +114,13 @@ export function serializeStateInit(stateInit: StateInit): Uint8Array {
     codeIdentifier = { CodeHash: Array.from(stateInit.code.hash) as number[] }
   }
 
-  // Sort the data map by keys to ensure deterministic serialization
-  // NEP-616 specifies BTreeMap which has sorted order, but JavaScript Map
-  // maintains insertion order. We must sort to ensure the same key-value pairs
-  // produce the same account ID regardless of insertion order.
-  const sortedData = new Map(
-    Array.from(stateInit.data.entries()).sort((a, b) => {
-      const [keyA] = a
-      const [keyB] = b
-      // Compare byte-by-byte
-      for (let i = 0; i < Math.min(keyA.length, keyB.length); i++) {
-        const byteA = keyA[i]
-        const byteB = keyB[i]
-        if (byteA !== undefined && byteB !== undefined && byteA !== byteB) {
-          return byteA - byteB
-        }
-      }
-      // If all bytes match, shorter key comes first
-      return keyA.length - keyB.length
-    }),
-  )
-
-  return StateInitSchema.serialize({
+  // zorsh writes the map in canonical Borsh order (entries sorted bytewise by
+  // key, as nearcore's BTreeMap), so the same entries produce the same bytes
+  // regardless of insertion order, and keys with identical bytes are rejected.
+  return DeterministicAccountStateInitSchema.serialize({
     V1: {
       code: codeIdentifier,
-      data: sortedData,
+      data: stateInit.data,
     },
   })
 }

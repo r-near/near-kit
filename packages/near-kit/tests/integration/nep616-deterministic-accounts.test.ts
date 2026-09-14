@@ -8,6 +8,7 @@
  */
 
 import { readFileSync } from "node:fs"
+import { base64 } from "@scure/base"
 import { afterAll, beforeAll, describe, expect, test } from "vitest"
 import { Near } from "../../src/core/near.js"
 import { Sandbox } from "../../src/sandbox/sandbox.js"
@@ -348,6 +349,45 @@ describe("NEP-616 - Deterministic AccountIds", () => {
       // The fact that the function call succeeded proves the account is callable
       expect(callResult).toBeDefined()
       console.log(`✓ Deterministic account is fully functional`)
+    }, 60000)
+
+    test("should deploy with multiple storage entries inserted out of key order", async () => {
+      // Keys chosen so that insertion order, JavaScript's default string sort
+      // order ("122,..." < "97,..."), and canonical bytewise order all differ.
+      const encoder = new TextEncoder()
+      const decoder = new TextDecoder()
+      const data = new Map<Uint8Array, Uint8Array>()
+      data.set(encoder.encode("zeta"), encoder.encode("last"))
+      data.set(encoder.encode("alpha"), encoder.encode("first"))
+
+      const deterministicId = deriveAccountId({
+        code: { accountId: publisherId },
+        data,
+      })
+
+      const result = await near
+        .transaction(sandbox.rootAccount.id)
+        .stateInit({
+          code: { accountId: publisherId },
+          data,
+          deposit: "5 NEAR",
+        })
+        .send()
+
+      expect(result.status).toHaveProperty("SuccessValue")
+
+      // The node accepted the derived receiver and wrote both entries
+      const state = await near.viewState(deterministicId)
+      const entries = new Map(
+        state.values.map(({ key, value }) => [
+          decoder.decode(base64.decode(key)),
+          decoder.decode(base64.decode(value)),
+        ]),
+      )
+
+      expect(entries.get("alpha")).toBe("first")
+      expect(entries.get("zeta")).toBe("last")
+      console.log(`✓ Multi-entry state init deployed to: ${deterministicId}`)
     }, 60000)
   })
 })

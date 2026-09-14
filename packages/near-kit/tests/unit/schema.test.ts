@@ -13,6 +13,7 @@ import {
   functionCall,
   signedDelegate,
   stake,
+  stateInit,
   transfer,
 } from "../../src/core/actions.js"
 import {
@@ -498,5 +499,50 @@ describe("Delegate Action integration", () => {
     // Should produce bytes
     expect(serialized).toBeInstanceOf(Uint8Array)
     expect(serialized.length).toBeGreaterThan(0)
+  })
+})
+
+describe("DeterministicStateInit action encoding", () => {
+  test("encodes state-init data in canonical order regardless of insertion order", () => {
+    const encoder = new TextEncoder()
+    const toHex = (bytes: Uint8Array) =>
+      Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("")
+    const build = (entries: [string, string][]) =>
+      stateInit({
+        code: { accountId: "publisher.near" },
+        data: new Map(
+          entries.map(
+            ([key, value]) =>
+              [encoder.encode(key), encoder.encode(value)] as [
+                Uint8Array,
+                Uint8Array,
+              ],
+          ),
+        ),
+        deposit: 0n,
+      })
+
+    const zetaFirst = toHex(
+      ActionSchema.serialize(
+        build([
+          ["zeta", "1"],
+          ["alpha", "2"],
+        ]),
+      ),
+    )
+    const alphaFirst = toHex(
+      ActionSchema.serialize(
+        build([
+          ["alpha", "2"],
+          ["zeta", "1"],
+        ]),
+      ),
+    )
+
+    expect(zetaFirst).toBe(alphaFirst)
+    // "alpha" (0x616c706861) is written before "zeta" (0x7a657461)
+    expect(zetaFirst).toContain(
+      "0200000005000000616c7068610100000032040000007a6574610100000031",
+    )
   })
 })

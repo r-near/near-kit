@@ -163,6 +163,8 @@ await near
 
 The account ID is derived as: `"0s" + hex(keccak256(borsh(state_init))[12..32])`
 
+The `data` map is encoded as nearcore's `BTreeMap`, with entries sorted bytewise by key, so the `Map`'s insertion order does not affect the derived ID. Keys must be unique by content.
+
 ### Computing Addresses
 
 ```typescript

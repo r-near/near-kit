@@ -2,11 +2,14 @@
  * Unit tests for NEP-616 StateInit utilities
  */
 
+import { keccak_256 } from "@noble/hashes/sha3.js"
+import { hex } from "@scure/base"
 import { describe, expect, test } from "vitest"
 import {
   createStateInit,
   deriveAccountId,
   isDeterministicAccountId,
+  serializeStateInit,
   verifyDeterministicAccountId,
 } from "../../src/utils/state-init.js"
 
@@ -266,5 +269,85 @@ describe("verifyDeterministicAccountId", () => {
     expect(verifyDeterministicAccountId(derivedId, optionsWithoutData)).toBe(
       false,
     )
+  })
+})
+
+describe("serializeStateInit canonical data ordering", () => {
+  const encoder = new TextEncoder()
+  const code = { accountId: "publisher.near" }
+  const zetaFirst = () =>
+    new Map([
+      [encoder.encode("zeta"), encoder.encode("1")],
+      [encoder.encode("alpha"), encoder.encode("2")],
+    ])
+  const alphaFirst = () =>
+    new Map([
+      [encoder.encode("alpha"), encoder.encode("2")],
+      [encoder.encode("zeta"), encoder.encode("1")],
+    ])
+  // Hand-built canonical encoding: StateInit::V1 (0x00),
+  // GlobalContractIdentifier::AccountId (0x01) + "publisher.near", then the
+  // BTreeMap: entry count, and each length-prefixed key and value, with the
+  // entries sorted bytewise by key ("alpha" before "zeta").
+  const canonicalHex = [
+    "00",
+    "01",
+    "0e000000",
+    hex.encode(encoder.encode("publisher.near")),
+    "02000000",
+    "05000000",
+    hex.encode(encoder.encode("alpha")),
+    "01000000",
+    hex.encode(encoder.encode("2")),
+    "04000000",
+    hex.encode(encoder.encode("zeta")),
+    "01000000",
+    hex.encode(encoder.encode("1")),
+  ].join("")
+
+  test("encodes data as a BTreeMap sorted bytewise by key, regardless of insertion order", () => {
+    expect(
+      hex.encode(
+        serializeStateInit(createStateInit({ code, data: zetaFirst() })),
+      ),
+    ).toBe(canonicalHex)
+    expect(
+      hex.encode(
+        serializeStateInit(createStateInit({ code, data: alphaFirst() })),
+      ),
+    ).toBe(canonicalHex)
+  })
+
+  test("orders keys by byte value, not by their decimal digits", () => {
+    // As decimal strings "10" sorts before "2"; as bytes 0x02 sorts before 0x0a
+    const data = new Map([
+      [new Uint8Array([10]), encoder.encode("b")],
+      [new Uint8Array([2]), encoder.encode("a")],
+    ])
+
+    const serialized = hex.encode(
+      serializeStateInit(createStateInit({ code, data })),
+    )
+
+    expect(
+      serialized.endsWith("0200000001000000020100000061010000000a0100000062"),
+    ).toBe(true)
+  })
+
+  test("derives the account ID nearcore expects for a multi-entry map", () => {
+    const expected = `0s${hex.encode(keccak_256(hex.decode(canonicalHex)).slice(12))}`
+
+    expect(expected).toBe("0sdc62d9abe65f3ea3e17df718a8842d5677229988")
+    expect(deriveAccountId({ code, data: zetaFirst() })).toBe(expected)
+    expect(deriveAccountId({ code, data: alphaFirst() })).toBe(expected)
+  })
+
+  test("rejects two keys with identical bytes", () => {
+    const data = new Map([
+      [encoder.encode("key"), encoder.encode("1")],
+      [encoder.encode("key"), encoder.encode("2")],
+    ])
+
+    expect(() => deriveAccountId({ code, data })).toThrow(/compare equal/)
   })
 })
