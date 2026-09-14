@@ -97,7 +97,7 @@ near.transaction(signerId: string)
           Global contract reference: `{ accountId: string }` or `{ codeHash: string }`
         </ResponseField>
         <ResponseField name="data" type="Map<Uint8Array, Uint8Array>">
-          Initial storage key-value pairs (borsh-serialized bytes).
+          Initial storage key-value pairs (borsh-serialized bytes). Entries are encoded sorted bytewise by key, so insertion order does not affect the derived account ID.
         </ResponseField>
         <ResponseField name="deposit" type="Amount" required>
           Storage cost reserve.
