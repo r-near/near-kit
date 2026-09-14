@@ -1,5 +1,11 @@
 # near-kit
 
+## 0.20.2
+
+### Patch Changes
+
+- ae2a7eb: Update sandbox to nearcore 2.13.4
+
 ## 0.20.1
 
 ### Patch Changes
