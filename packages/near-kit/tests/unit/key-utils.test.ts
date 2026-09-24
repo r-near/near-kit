@@ -2,6 +2,7 @@
  * Tests for key generation and parsing utilities
  */
 
+import { sha256 } from "@noble/hashes/sha2.js"
 import * as bip39 from "@scure/bip39"
 import { wordlist } from "@scure/bip39/wordlists/english.js"
 import { describe, expect, test } from "vitest"
@@ -340,12 +341,12 @@ describe("Secp256k1KeyPair - fromRandom", () => {
 
   test("fromRandom() should create signable key pair", () => {
     const keyPair = Secp256k1KeyPair.fromRandom()
-    const message = new TextEncoder().encode("test message")
+    const message = sha256(new TextEncoder().encode("test message"))
 
     const signature = keyPair.sign(message)
 
     expect(signature.keyType).toBe(KeyType.SECP256K1)
-    expect(signature.data.length).toBe(65) // 65 bytes: recovery ID + signature
+    expect(signature.data.length).toBe(65) // [r][s][v]
   })
 })
 
@@ -372,7 +373,7 @@ describe("Secp256k1KeyPair - fromString", () => {
     const key1 = Secp256k1KeyPair.fromRandom()
     const key2 = Secp256k1KeyPair.fromString(key1.secretKey)
 
-    const message = new TextEncoder().encode("test message")
+    const message = sha256(new TextEncoder().encode("test message"))
     const sig1 = key1.sign(message)
     const sig2 = key2.sign(message)
 
@@ -384,17 +385,17 @@ describe("Secp256k1KeyPair - fromString", () => {
 describe("Secp256k1KeyPair - sign", () => {
   test("sign() should create 65-byte signature with recovery ID", () => {
     const keyPair = Secp256k1KeyPair.fromRandom()
-    const message = new TextEncoder().encode("test message")
+    const message = sha256(new TextEncoder().encode("test message"))
 
     const signature = keyPair.sign(message)
 
     expect(signature.keyType).toBe(KeyType.SECP256K1)
-    expect(signature.data.length).toBe(65) // Recovery ID + signature
+    expect(signature.data.length).toBe(65) // [r][s][v]
   })
 
   test("sign() should produce consistent signatures for same message", () => {
     const keyPair = Secp256k1KeyPair.fromRandom()
-    const message = new TextEncoder().encode("test message")
+    const message = sha256(new TextEncoder().encode("test message"))
 
     const sig1 = keyPair.sign(message)
     const sig2 = keyPair.sign(message)
@@ -404,8 +405,8 @@ describe("Secp256k1KeyPair - sign", () => {
 
   test("sign() should produce different signatures for different messages", () => {
     const keyPair = Secp256k1KeyPair.fromRandom()
-    const message1 = new TextEncoder().encode("message 1")
-    const message2 = new TextEncoder().encode("message 2")
+    const message1 = sha256(new TextEncoder().encode("message 1"))
+    const message2 = sha256(new TextEncoder().encode("message 2"))
 
     const sig1 = keyPair.sign(message1)
     const sig2 = keyPair.sign(message2)
@@ -416,7 +417,7 @@ describe("Secp256k1KeyPair - sign", () => {
   test("sign() should produce different signatures for different keys", () => {
     const key1 = Secp256k1KeyPair.fromRandom()
     const key2 = Secp256k1KeyPair.fromRandom()
-    const message = new TextEncoder().encode("test message")
+    const message = sha256(new TextEncoder().encode("test message"))
 
     const sig1 = key1.sign(message)
     const sig2 = key2.sign(message)
@@ -424,24 +425,14 @@ describe("Secp256k1KeyPair - sign", () => {
     expect(sig1.data).not.toEqual(sig2.data)
   })
 
-  test("sign() should handle empty message", () => {
+  test("sign() should reject input that is not a 32-byte digest", () => {
     const keyPair = Secp256k1KeyPair.fromRandom()
-    const message = new Uint8Array(0)
 
-    const signature = keyPair.sign(message)
-
-    expect(signature.keyType).toBe(KeyType.SECP256K1)
-    expect(signature.data.length).toBe(65)
-  })
-
-  test("sign() should handle large message", () => {
-    const keyPair = Secp256k1KeyPair.fromRandom()
-    const message = new Uint8Array(10000).fill(42)
-
-    const signature = keyPair.sign(message)
-
-    expect(signature.keyType).toBe(KeyType.SECP256K1)
-    expect(signature.data.length).toBe(65)
+    expect(() => keyPair.sign(new Uint8Array(0))).toThrow(InvalidKeyError)
+    expect(() => keyPair.sign(new Uint8Array(31))).toThrow(InvalidKeyError)
+    expect(() => keyPair.sign(new Uint8Array(10000).fill(42))).toThrow(
+      InvalidKeyError,
+    )
   })
 })
 
@@ -837,9 +828,9 @@ describe("Signature Format Validation", () => {
     expect(signature.data.length).toBe(64)
   })
 
-  test("Secp256k1 signature should be 65 bytes (recovery ID + signature)", () => {
+  test("Secp256k1 signature should be 65 bytes (signature + recovery ID)", () => {
     const keyPair = Secp256k1KeyPair.fromRandom()
-    const message = new TextEncoder().encode("test")
+    const message = sha256(new TextEncoder().encode("test"))
 
     const signature = keyPair.sign(message)
 
