@@ -126,13 +126,43 @@ export class Ed25519KeyPair implements KeyPair {
 }
 
 /**
+ * Sign a 32-byte digest with secp256k1 the way nearcore expects: no prehash,
+ * low-s, serialized as `[r (32)][s (32)][v (1)]`.
+ */
+function signSecp256k1Digest(
+  digest: Uint8Array,
+  privateKey: Uint8Array,
+): Uint8Array {
+  if (digest.length !== 32) {
+    throw new InvalidKeyError(
+      `secp256k1 signs a 32-byte digest, got ${digest.length} bytes`,
+    )
+  }
+  // noble returns [v][r][s] for the "recovered" format; nearcore wants [r][s][v]
+  const recovered = secp256k1.sign(digest, privateKey, {
+    prehash: false,
+    lowS: true,
+    format: "recovered",
+  })
+  const out = new Uint8Array(65)
+  out.set(recovered.subarray(1), 0)
+  out[64] = recovered[0] as number
+  return out
+}
+
+/**
  * Secp256k1 key pair implementation.
  *
  * NEAR expects secp256k1 public keys to be 64 bytes (uncompressed without 0x04 header).
  * The secp256k1 library returns 65-byte uncompressed keys (with 0x04 header), so we
  * manually remove/add that byte as needed.
  *
- * Signatures are 65 bytes: 64-byte signature + 1-byte recovery ID.
+ * Secret keys are accepted either as the 32-byte scalar (nearcore / near-cli format)
+ * or as 96 bytes `[private (32)][public (64)]`.
+ *
+ * Signatures are 65 bytes `[r (32)][s (32)][v (1)]`, computed directly over the
+ * 32-byte digest passed to {@link Secp256k1KeyPair.sign} (no extra hashing), which
+ * is what nearcore verifies.
  */
 export class Secp256k1KeyPair implements KeyPair {
   publicKey: PublicKey
@@ -140,9 +170,25 @@ export class Secp256k1KeyPair implements KeyPair {
   private privateKey: Uint8Array
 
   constructor(secretKey: Uint8Array) {
-    // secretKey is 96 bytes: [32 bytes private key][64 bytes public key]
+    if (secretKey.length !== 32 && secretKey.length !== 96) {
+      throw new InvalidKeyError(
+        `Invalid secp256k1 secret key length: expected 32 or 96 bytes, got ${secretKey.length}`,
+      )
+    }
     this.privateKey = secretKey.slice(0, 32)
-    const publicKeyData = secretKey.slice(32) // 64 bytes without 0x04 header
+    // Always derive the public key so 32-byte keys work and a mismatched
+    // trailing public key in the 96-byte format can't produce bad signatures.
+    const publicKeyData = secp256k1
+      .getPublicKey(this.privateKey, false)
+      .slice(1)
+    if (
+      secretKey.length === 96 &&
+      !secretKey.slice(32).every((b, i) => b === publicKeyData[i])
+    ) {
+      throw new InvalidKeyError(
+        "Invalid secp256k1 secret key: public key does not match private key",
+      )
+    }
 
     this.publicKey = {
       keyType: KeyType.SECP256K1,
@@ -153,16 +199,16 @@ export class Secp256k1KeyPair implements KeyPair {
     this.secretKey = SECP256K1_KEY_PREFIX + base58.encode(secretKey)
   }
 
+  /**
+   * Sign a 32-byte digest (e.g. a transaction or delegate-action hash).
+   *
+   * The digest is signed as-is, matching nearcore's
+   * `secp256k1::Message::from_slice(data)`; it is not hashed again.
+   */
   sign(message: Uint8Array): Signature {
-    // Sign with format: 'recovered' to get 65 bytes (recovery ID + signature)
-    // This is what NEAR expects: [recovery][r][s]
-    const signatureBytes = secp256k1.sign(message, this.privateKey, {
-      format: "recovered",
-    })
-
     return {
       keyType: KeyType.SECP256K1,
-      data: signatureBytes, // 65 bytes
+      data: signSecp256k1Digest(message, this.privateKey),
     }
   }
 
@@ -196,10 +242,7 @@ export class Secp256k1KeyPair implements KeyPair {
     // Serialize and hash the message according to NEP-413
     const hash = serializeNep413Message(params)
 
-    // Sign the hash with format: 'recovered' for secp256k1
-    const signature = secp256k1.sign(hash, this.privateKey, {
-      format: "recovered",
-    })
+    const signature = signSecp256k1Digest(hash, this.privateKey)
 
     // Return signed message with base64-encoded signature per NEP-413 spec
     return {
