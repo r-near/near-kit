@@ -5,7 +5,7 @@
 import { describe, expect, test } from "vitest"
 import type { RpcClient } from "../../src/core/rpc/rpc.js"
 import { TransactionBuilder } from "../../src/core/transaction.js"
-import type { AccessKeyView } from "../../src/core/types.js"
+import type { AccessKeyView, WalletConnection } from "../../src/core/types.js"
 import { InvalidNonceError, NearError } from "../../src/errors/index.js"
 import { InMemoryKeyStore } from "../../src/keys/index.js"
 import { generateKey } from "../../src/utils/key.js"
@@ -68,7 +68,7 @@ async function setup(options: { chainNonce?: number; sendError?: Error } = {}) {
   }
   const rpc = mockRpc(counters, options)
   const builder = () => new TransactionBuilder(accountId, rpc, keyStore)
-  return { builder, counters }
+  return { builder, counters, rpc, keyStore, accountId }
 }
 
 describe("TransactionBuilder.nonce()", () => {
@@ -99,7 +99,7 @@ describe("TransactionBuilder.nonce()", () => {
     expect(counters.accessKeyCalls).toBe(1)
   })
 
-  test("sets the nonce of a gas-key slot without querying the slot nonces", async () => {
+  test("sets the nonce of a gas-key slot after confirming the slot exists", async () => {
     const { builder, counters } = await setup()
 
     const signed = await builder()
@@ -117,8 +117,52 @@ describe("TransactionBuilder.nonce()", () => {
         }
       ).cachedSignedTx.signedTx.transaction.nonce,
     ).toBe(777n)
-    expect(counters.gasKeyNonceCalls).toBe(0)
+    // One slot-existence check; the slot's on-chain nonce is not used.
+    expect(counters.gasKeyNonceCalls).toBe(1)
     expect(counters.accessKeyCalls).toBe(0)
+  })
+
+  test("rejects an out-of-range gas-key slot before signing", async () => {
+    const { builder } = await setup()
+    let signerCalls = 0
+    const tx = builder()
+    ;(tx as unknown as { signer: unknown }).signer = async () => {
+      signerCalls++
+      throw new Error("must not sign")
+    }
+
+    // The mock key has 4 slots (0..3).
+    await expect(
+      tx.useGasKey(5).nonce(777n).transfer("bob.near", "1 NEAR").sign(),
+    ).rejects.toBeInstanceOf(NearError)
+    expect(signerCalls).toBe(0)
+  })
+
+  test("send() refuses an explicit nonce with a wallet, before prompting", async () => {
+    const { rpc, keyStore, accountId } = await setup()
+    let walletCalls = 0
+    const wallet = {
+      async getAccounts() {
+        return []
+      },
+      async signAndSendTransaction() {
+        walletCalls++
+        throw new Error("must not prompt")
+      },
+    } as unknown as WalletConnection
+    const tx = new TransactionBuilder(
+      accountId,
+      rpc,
+      keyStore,
+      undefined,
+      "EXECUTED_OPTIMISTIC",
+      wallet,
+    )
+
+    await expect(
+      tx.nonce(42n).transfer("bob.near", "1 NEAR").send(),
+    ).rejects.toThrow(/wallet chooses the transaction nonce/)
+    expect(walletCalls).toBe(0)
   })
 
   test("produces the same bytes as a cache-allocated transaction with that nonce", async () => {

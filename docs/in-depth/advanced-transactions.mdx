@@ -257,5 +257,6 @@ await near
 ```
 
 - The value is used exactly as given (a positive integer that fits in a u64), and the shared nonce cache is neither read nor updated.
-- It combines with gas keys: `.useGasKey(index).nonce(n)` signs at nonce `n` on that slot.
+- It combines with gas keys: `.useGasKey(index).nonce(n)` signs at nonce `n` on that slot (the slot is still checked to exist before signing).
+- It can't be used with a wallet — the wallet chooses the nonce — so `send()` throws before prompting.
 - Because you own the nonce, `send()` does **not** retry with a fresh nonce on `InvalidNonceError` — the error is thrown so your allocator can decide what to do.

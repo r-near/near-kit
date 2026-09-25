@@ -1136,6 +1136,10 @@ export class TransactionBuilder {
    * transaction with a fresh nonce on `InvalidNonceError`; the error is thrown
    * so the caller's allocator can decide what to do.
    *
+   * Not supported with a wallet (the wallet chooses the nonce): {@link send}
+   * throws before prompting. With {@link useGasKey}, the slot is still checked
+   * to exist before signing.
+   *
    * @param nonce - The transaction nonce: a positive integer that fits in a u64.
    *
    * @example
@@ -1400,14 +1404,18 @@ export class TransactionBuilder {
 
     // A caller-supplied nonce is used exactly as given, for either variant.
     if (this.explicitNonce !== undefined) {
-      return this.gasKeyNonceIndex !== undefined
-        ? {
-            gasKeyNonce: {
-              nonce: this.explicitNonce,
-              nonceIndex: this.gasKeyNonceIndex,
-            },
-          }
-        : { nonce: { nonce: this.explicitNonce } }
+      if (this.gasKeyNonceIndex === undefined) {
+        return { nonce: { nonce: this.explicitNonce } }
+      }
+      // Still confirm the slot exists before signing, so an out-of-range slot
+      // fails here instead of after a (possibly asynchronous) signature.
+      await this.fetchGasKeyNonce(pkString, this.gasKeyNonceIndex)
+      return {
+        gasKeyNonce: {
+          nonce: this.explicitNonce,
+          nonceIndex: this.gasKeyNonceIndex,
+        },
+      }
     }
 
     if (this.gasKeyNonceIndex !== undefined) {
@@ -1596,6 +1604,15 @@ export class TransactionBuilder {
     const waitUntil = (options?.waitUntil ?? this.defaultWaitUntil) as W
 
     if (this.wallet) {
+      // A wallet chooses its own nonce: its submission interface carries only
+      // the signer, receiver and actions. Refuse before prompting rather than
+      // letting the transaction execute at a nonce the caller didn't allocate.
+      if (this.explicitNonce !== undefined) {
+        throw new NearError(
+          "An explicit nonce cannot be used with a wallet: the wallet chooses the transaction nonce",
+          "INVALID_TRANSACTION",
+        )
+      }
       const result = await this.wallet.signAndSendTransaction({
         signerId: this.signerId,
         receiverId: this.receiverId,
