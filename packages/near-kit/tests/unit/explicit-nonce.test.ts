@@ -20,7 +20,11 @@ interface MockRpcCounters {
 
 function mockRpc(
   counters: MockRpcCounters,
-  options: { chainNonce?: number; sendError?: Error } = {},
+  options: {
+    chainNonce?: number
+    sendError?: Error
+    slotNonces?: unknown[]
+  } = {},
 ): RpcClient {
   return {
     async getAccessKey(): Promise<AccessKeyView> {
@@ -35,7 +39,7 @@ function mockRpc(
     async call(method: string) {
       if (method === "EXPERIMENTAL_view_gas_key_nonces") {
         counters.gasKeyNonceCalls++
-        return { nonces: [100, 200, 300, 400] }
+        return { nonces: options.slotNonces ?? [100, 200, 300, 400] }
       }
       throw new Error(`unexpected rpc call ${method}`)
     },
@@ -55,7 +59,13 @@ function mockRpc(
   } as unknown as RpcClient
 }
 
-async function setup(options: { chainNonce?: number; sendError?: Error } = {}) {
+async function setup(
+  options: {
+    chainNonce?: number
+    sendError?: Error
+    slotNonces?: unknown[]
+  } = {},
+) {
   // A unique account per test keeps the shared (static) NonceManager cache
   // from leaking between tests.
   const accountId = `explicit-nonce-${Math.random().toString(36).slice(2)}.near`
@@ -136,6 +146,22 @@ describe("TransactionBuilder.nonce()", () => {
       tx.useGasKey(5).nonce(777n).transfer("bob.near", "1 NEAR").sign(),
     ).rejects.toBeInstanceOf(NearError)
     expect(signerCalls).toBe(0)
+  })
+
+  test("accepts a valid slot whose on-chain nonce exceeds Number.MAX_SAFE_INTEGER", async () => {
+    // The slot's current nonce isn't used with an explicit nonce, so a value
+    // that doesn't fit a JavaScript number must not block signing.
+    const { builder } = await setup({
+      slotNonces: [100, Number.MAX_SAFE_INTEGER + 2],
+    })
+
+    const signed = await builder()
+      .useGasKey(1)
+      .nonce(0xffff_ffff_ffff_fff0n)
+      .transfer("bob.near", "1 NEAR")
+      .sign()
+
+    expect(signed.getHash()).toBeTruthy()
   })
 
   test("send() refuses an explicit nonce with a wallet, before prompting", async () => {

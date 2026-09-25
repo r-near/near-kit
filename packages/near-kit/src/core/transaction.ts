@@ -1408,8 +1408,10 @@ export class TransactionBuilder {
         return { nonce: { nonce: this.explicitNonce } }
       }
       // Still confirm the slot exists before signing, so an out-of-range slot
-      // fails here instead of after a (possibly asynchronous) signature.
-      await this.fetchGasKeyNonce(pkString, this.gasKeyNonceIndex)
+      // fails here instead of after a (possibly asynchronous) signature. Only
+      // the slot count matters: the slot's current nonce is not used, so it is
+      // not required to fit in a JavaScript number.
+      await this.fetchGasKeySlots(pkString, this.gasKeyNonceIndex)
       return {
         gasKeyNonce: {
           nonce: this.explicitNonce,
@@ -1455,14 +1457,15 @@ export class TransactionBuilder {
   }
 
   /**
-   * Fetch the current on-chain nonce for a gas key's nonce slot via
-   * `EXPERIMENTAL_view_gas_key_nonces`, which returns one nonce per slot.
+   * Fetch a gas key's per-slot nonces via `EXPERIMENTAL_view_gas_key_nonces`
+   * and confirm `nonceIndex` is one of its slots. Only the slot count is
+   * checked here; the slot values are left as returned by the RPC.
    * @internal
    */
-  private async fetchGasKeyNonce(
+  private async fetchGasKeySlots(
     publicKey: string,
     nonceIndex: number,
-  ): Promise<bigint> {
+  ): Promise<unknown[]> {
     const result = await this.rpc.call<{ nonces?: unknown }>(
       "EXPERIMENTAL_view_gas_key_nonces",
       {
@@ -1483,6 +1486,19 @@ export class TransactionBuilder {
         "INVALID_TRANSACTION",
       )
     }
+    return nonces
+  }
+
+  /**
+   * Fetch the current on-chain nonce for a gas key's nonce slot via
+   * `EXPERIMENTAL_view_gas_key_nonces`, which returns one nonce per slot.
+   * @internal
+   */
+  private async fetchGasKeyNonce(
+    publicKey: string,
+    nonceIndex: number,
+  ): Promise<bigint> {
+    const nonces = await this.fetchGasKeySlots(publicKey, nonceIndex)
     const raw = nonces[nonceIndex]
     // The RPC returns nonces as JSON numbers; guard against precision loss
     // before widening to bigint, and accept a string form defensively.
