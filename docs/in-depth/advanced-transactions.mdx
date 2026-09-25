@@ -239,3 +239,24 @@ const genesis = await near.rpc.genesisConfig()
 // A validator's upcoming maintenance windows (block-height ranges)
 const windows = await near.rpc.maintenanceWindows("validator.near")
 ```
+
+## 10. Signing at an Explicit Nonce
+
+By default the builder picks each transaction's nonce itself, from a shared in-process cache that keeps concurrent transactions from colliding. That is the right choice for almost every app.
+
+If your nonces are coordinated **outside** the process — several servers signing for the same key through a shared allocator (Redis, a database), a relayer that must record the nonce before an asynchronous signature (e.g. MPC) is produced, or a replay of a previously planned transaction — pin the nonce with `.nonce()`:
+
+```typescript
+const nonce = await allocator.next("relayer.near", publicKey) // your coordination
+
+await near
+  .transaction("relayer.near")
+  .nonce(nonce)
+  .transfer("bob.near", "1 NEAR")
+  .send()
+```
+
+- The value is used exactly as given (a positive integer that fits in a u64), and the shared nonce cache is neither read nor updated.
+- It combines with gas keys: `.useGasKey(index).nonce(n)` signs at nonce `n` on that slot (the slot is still checked to exist before signing).
+- It can't be used with a wallet — the wallet chooses the nonce — so `send()` throws before prompting.
+- Because you own the nonce, `send()` does **not** retry with a fresh nonce on `InvalidNonceError` — the error is thrown so your allocator can decide what to do.

@@ -264,6 +264,11 @@ export class TransactionBuilder {
    * transaction even for an ordinary access key.
    */
   private strictNonce = false
+  /**
+   * Caller-supplied nonce set via {@link nonce}. When present it is used as-is
+   * and the shared {@link NonceManager} cache is neither read nor updated.
+   */
+  private explicitNonce?: bigint
 
   constructor(
     signerId: string,
@@ -1115,6 +1120,64 @@ export class TransactionBuilder {
   }
 
   /**
+   * Sign this transaction at an explicit, caller-chosen nonce.
+   *
+   * By default the builder allocates nonces itself through a shared in-process
+   * cache, which is right for most applications. Callers that coordinate nonces
+   * externally — a Redis- or database-backed allocator shared by several
+   * processes, a relayer that must record the nonce before an asynchronous
+   * (e.g. MPC) signature is produced, or a replay of a previously planned
+   * transaction — can pin the nonce instead. The value is used exactly as
+   * given, for both ordinary keys and gas keys (combined with
+   * {@link useGasKey}, it becomes the nonce of that slot), and the shared cache
+   * is neither consulted nor updated.
+   *
+   * Because the caller owns the nonce, {@link send} does not rebuild the
+   * transaction with a fresh nonce on `InvalidNonceError`; the error is thrown
+   * so the caller's allocator can decide what to do.
+   *
+   * Not supported with a wallet (the wallet chooses the nonce): {@link send}
+   * throws before prompting. With {@link useGasKey}, the slot is still checked
+   * to exist before signing.
+   *
+   * @param nonce - The transaction nonce: a positive integer that fits in a u64.
+   *
+   * @example
+   * ```typescript
+   * const nonce = await myAllocator.next("relayer.near", publicKey)
+   * await near.transaction("relayer.near")
+   *   .nonce(nonce)
+   *   .transfer("bob.near", "1 NEAR")
+   *   .send()
+   * ```
+   */
+  nonce(nonce: bigint | number): this {
+    const value =
+      typeof nonce === "bigint"
+        ? nonce
+        : TransactionBuilder.toNonceBigInt(nonce)
+    if (value <= 0n || value > 0xffff_ffff_ffff_ffffn) {
+      throw new NearError(
+        `Transaction nonce must be a positive integer that fits in a u64, got ${nonce}`,
+        "INVALID_TRANSACTION",
+      )
+    }
+    this.explicitNonce = value
+    return this.invalidateCache()
+  }
+
+  /** @internal */
+  private static toNonceBigInt(nonce: number): bigint {
+    if (!Number.isSafeInteger(nonce)) {
+      throw new NearError(
+        `Transaction nonce must be a safe integer or a bigint, got ${nonce}`,
+        "INVALID_TRANSACTION",
+      )
+    }
+    return BigInt(nonce)
+  }
+
+  /**
    * Whether this transaction must be encoded as a versioned (V1) transaction.
    * V1 is required to carry a gas-key nonce or to request strict nonce mode;
    * an ordinary transaction stays V0 (tag-less) for backward compatibility.
@@ -1139,18 +1202,21 @@ export class TransactionBuilder {
     const keyPair = await this.resolveKeyPair()
     const publicKey = keyPair.publicKey
 
-    // Use NonceManager to get next nonce (handles concurrent transactions)
-    const nonce = await TransactionBuilder.nonceManager.getNextNonce(
-      this.signerId,
-      publicKey.toString(),
-      async () => {
-        const accessKey = await this.rpc.getAccessKey(
-          this.signerId,
-          publicKey.toString(),
-        )
-        return BigInt(accessKey.nonce)
-      },
-    )
+    // An explicit nonce is used as-is; otherwise use NonceManager to get the
+    // next nonce (handles concurrent transactions).
+    const nonce =
+      this.explicitNonce ??
+      (await TransactionBuilder.nonceManager.getNextNonce(
+        this.signerId,
+        publicKey.toString(),
+        async () => {
+          const accessKey = await this.rpc.getAccessKey(
+            this.signerId,
+            publicKey.toString(),
+          )
+          return BigInt(accessKey.nonce)
+        },
+      ))
 
     // Use finalized block hash - more stable across load-balanced RPC nodes
     // than getStatus() which returns the optimistic head
@@ -1336,6 +1402,24 @@ export class TransactionBuilder {
   ): Promise<TransactionNonceBorsh> {
     const pkString = publicKey.toString()
 
+    // A caller-supplied nonce is used exactly as given, for either variant.
+    if (this.explicitNonce !== undefined) {
+      if (this.gasKeyNonceIndex === undefined) {
+        return { nonce: { nonce: this.explicitNonce } }
+      }
+      // Still confirm the slot exists before signing, so an out-of-range slot
+      // fails here instead of after a (possibly asynchronous) signature. Only
+      // the slot count matters: the slot's current nonce is not used, so it is
+      // not required to fit in a JavaScript number.
+      await this.fetchGasKeySlots(pkString, this.gasKeyNonceIndex)
+      return {
+        gasKeyNonce: {
+          nonce: this.explicitNonce,
+          nonceIndex: this.gasKeyNonceIndex,
+        },
+      }
+    }
+
     if (this.gasKeyNonceIndex !== undefined) {
       const index = this.gasKeyNonceIndex
       // Strict mode bypasses the monotonic cache (see below); otherwise reserve
@@ -1373,14 +1457,15 @@ export class TransactionBuilder {
   }
 
   /**
-   * Fetch the current on-chain nonce for a gas key's nonce slot via
-   * `EXPERIMENTAL_view_gas_key_nonces`, which returns one nonce per slot.
+   * Fetch a gas key's per-slot nonces via `EXPERIMENTAL_view_gas_key_nonces`
+   * and confirm `nonceIndex` is one of its slots. Only the slot count is
+   * checked here; the slot values are left as returned by the RPC.
    * @internal
    */
-  private async fetchGasKeyNonce(
+  private async fetchGasKeySlots(
     publicKey: string,
     nonceIndex: number,
-  ): Promise<bigint> {
+  ): Promise<unknown[]> {
     const result = await this.rpc.call<{ nonces?: unknown }>(
       "EXPERIMENTAL_view_gas_key_nonces",
       {
@@ -1401,6 +1486,19 @@ export class TransactionBuilder {
         "INVALID_TRANSACTION",
       )
     }
+    return nonces
+  }
+
+  /**
+   * Fetch the current on-chain nonce for a gas key's nonce slot via
+   * `EXPERIMENTAL_view_gas_key_nonces`, which returns one nonce per slot.
+   * @internal
+   */
+  private async fetchGasKeyNonce(
+    publicKey: string,
+    nonceIndex: number,
+  ): Promise<bigint> {
+    const nonces = await this.fetchGasKeySlots(publicKey, nonceIndex)
     const raw = nonces[nonceIndex]
     // The RPC returns nonces as JSON numbers; guard against precision loss
     // before widening to bigint, and accept a string form defensively.
@@ -1522,6 +1620,15 @@ export class TransactionBuilder {
     const waitUntil = (options?.waitUntil ?? this.defaultWaitUntil) as W
 
     if (this.wallet) {
+      // A wallet chooses its own nonce: its submission interface carries only
+      // the signer, receiver and actions. Refuse before prompting rather than
+      // letting the transaction execute at a nonce the caller didn't allocate.
+      if (this.explicitNonce !== undefined) {
+        throw new NearError(
+          "An explicit nonce cannot be used with a wallet: the wallet chooses the transaction nonce",
+          "INVALID_TRANSACTION",
+        )
+      }
       const result = await this.wallet.signAndSendTransaction({
         signerId: this.signerId,
         receiverId: this.receiverId,
@@ -1620,8 +1727,13 @@ export class TransactionBuilder {
       } catch (error) {
         lastError = error as Error
 
-        // Check if it's an InvalidNonceError
-        if (error instanceof InvalidNonceError) {
+        // Check if it's an InvalidNonceError. A caller-supplied nonce is owned
+        // by the caller: re-signing would reuse the same nonce, and the shared
+        // cache must not be touched, so surface the error instead of retrying.
+        if (
+          error instanceof InvalidNonceError &&
+          this.explicitNonce === undefined
+        ) {
           // Use akNonce from the error to update cache directly
           // This avoids refetching and thundering herd on retry
           if (this.cachedSignedTx) {
