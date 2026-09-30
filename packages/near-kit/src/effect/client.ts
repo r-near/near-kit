@@ -9,11 +9,12 @@ import { Near, bindClient, resolveClient, type NearRuntime } from "./near.js"
 import { NonceReservation, type NonceReservationService } from "./nonce.js"
 import { Rpc } from "./rpc.js"
 import type { RpcPrograms } from "../core/rpc/rpc-program.js"
-import { ExternalError, type NearFailure } from "./runtime.js"
+import { ExternalError, fromSync, type NearFailure } from "./runtime.js"
 import type { TransactionSigner } from "./transaction.js"
 import {
   acquireWalletAccounts,
   type WalletAccountObservation,
+  type WalletService,
 } from "./wallet.js"
 
 /** Custody is an application dependency, never an ambient default. */
@@ -45,24 +46,33 @@ export const acquire = Effect.fn("Client.acquire")(function* (
   yield* resolved.ready
   // Observable adapters are read through this one acquired observer. A legacy
   // connection without events keeps its documented fresh getAccounts behavior.
-  const ownedWallet =
+  const ownedWallet: WalletService | undefined =
     wallet?.observeAccounts && walletAccounts
-      ? {
-          ...wallet,
-          getAccounts: Effect.fn("Client.walletAccounts")(function* () {
-            yield* walletAccounts.ready
-            const state = yield* walletAccounts.get()
-            if (state._tag === "Ready")
-              return state.accounts.map((account) => ({ ...account }))
-            if (state._tag === "Failed") return yield* state.error
-            return yield* new ExternalError({
-              operation: "wallet.observeAccounts",
-              cause: new Error(
-                "Wallet observation completed readiness without an account result",
-              ),
-            })
+      ? yield* fromSync(
+          () => ({
+            signAndSendTransaction: wallet.signAndSendTransaction.bind(wallet),
+            ...(wallet.signMessage
+              ? { signMessage: wallet.signMessage.bind(wallet) }
+              : {}),
+            ...(wallet.signDelegateActions
+              ? { signDelegateActions: wallet.signDelegateActions.bind(wallet) }
+              : {}),
+            getAccounts: Effect.fn("Client.walletAccounts")(function* () {
+              yield* walletAccounts.ready
+              const state = yield* walletAccounts.get()
+              if (state._tag === "Ready")
+                return state.accounts.map((account) => ({ ...account }))
+              if (state._tag === "Failed") return yield* state.error
+              return yield* new ExternalError({
+                operation: "wallet.observeAccounts",
+                cause: new Error(
+                  "Wallet observation completed readiness without an account result",
+                ),
+              })
+            }),
           }),
-        }
+          "Client.wallet",
+        )
       : wallet
   const client = bindClient({
     ...resolved,

@@ -14,6 +14,12 @@ const reply = () =>
   Response.json({ jsonrpc: "2.0", id: 1, result: { gas_price: "10" } })
 
 describe("public configuration at the transport boundary", () => {
+  test.each([null, 0, true, "testnet"])(
+    "invalid JavaScript constructor input %j retains schema failure",
+    (input) => {
+      expect(() => Reflect.construct(Near, [input])).toThrow(Schema.SchemaError)
+    },
+  )
   test.each([
     ["default", {}, "https://free.rpc.fastnear.com"],
     ["mainnet", { network: "mainnet" }, "https://free.rpc.fastnear.com"],

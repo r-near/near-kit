@@ -54,7 +54,12 @@ export type { NearRuntime } from "../effect/near.js"
 function isAcquiredClient(
   config: NearConfig | ClientValue,
 ): config is ClientValue {
-  return "_tag" in config && config._tag === "NearClient"
+  return (
+    typeof config === "object" &&
+    config !== null &&
+    "_tag" in config &&
+    config._tag === "NearClient"
+  )
 }
 
 export class Near {
