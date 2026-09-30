@@ -11,12 +11,16 @@ import {
 import { HttpClient, HttpClientResponse } from "effect/http"
 import { TestClock } from "effect/testing"
 import { afterEach, describe, expect, test, vi } from "vitest"
-import { ZodError } from "zod"
+import * as Schema from "effect/Schema"
 import {
   type RpcFetch,
   rpcFromPromises,
   rpcToPromises,
 } from "../../src/core/rpc/rpc.js"
+import {
+  fetchTransport,
+  makeRpcPrograms,
+} from "../../src/core/rpc/rpc-program.js"
 import { Rpc, RpcTransport } from "../../src/effect/rpc.js"
 import { runPromise } from "../../src/effect/runtime.js"
 import {
@@ -138,19 +142,29 @@ describe("native RPC programs", () => {
     "reads the exact debug flag from ConfigProvider: %s",
     async (flag) => {
       const log = vi.spyOn(console, "log").mockImplementation(() => {})
-      const rpc = testRpcPrograms("https://rpc.test", async () =>
-        result({ gas_price: "10" }),
-      )
       await runPromise(
-        rpc
-          .getGasPrice()
-          .pipe(
-            Effect.provide(
-              ConfigProvider.layer(
-                ConfigProvider.fromUnknown({ NEAR_RPC_DEBUG: flag }),
+        Effect.gen(function* () {
+          const rpc = yield* makeRpcPrograms(
+            { url: "https://rpc.test" },
+            fetchTransport(async () => result({ gas_price: "10" })),
+          )
+          // Config is captured at acquisition, not re-read by request operations.
+          return yield* rpc
+            .getGasPrice()
+            .pipe(
+              Effect.provide(
+                ConfigProvider.layer(
+                  ConfigProvider.fromUnknown({ NEAR_RPC_DEBUG: "false" }),
+                ),
               ),
+            )
+        }).pipe(
+          Effect.provide(
+            ConfigProvider.layer(
+              ConfigProvider.fromUnknown({ NEAR_RPC_DEBUG: flag }),
             ),
           ),
+        ),
       )
       expect(log.mock.calls.map(([prefix]) => prefix)).toEqual(
         flag === "true" ? ["[RPC Request]", "[RPC Response]"] : [],
@@ -358,7 +372,7 @@ describe("native RPC programs", () => {
     const publicRpc = rpcToPromises(programs)
     await runPromise(programs.getGasPrice())
     await publicRpc.getGasPrice()
-    await runPromise(rpcFromPromises(publicRpc).getGasPrice())
+    await runPromise(programs.getGasPrice())
     expect(requests).toEqual(
       [1, 2, 3].map((id) =>
         JSON.stringify({
@@ -510,26 +524,30 @@ describe("native protocol decoding", () => {
     expect(await runPromise(genesisRpc.genesisConfig())).toEqual(genesis)
   })
 
-  test("rejects malformed typed payloads as ZodError without retrying transport", async () => {
-    let requests = 0
-    const rpc = testRpcPrograms("https://rpc.test", async () => {
-      requests++
-      return result({ ...account, storage_usage: "12" })
-    })
-    const failure = await runPromise(
-      rpc.getAccount("alice.near").pipe(Effect.flip),
-    )
-    expect(failure).toBeInstanceOf(ZodError)
-    if (!(failure instanceof ZodError))
-      throw new Error("expected response validation failure")
-    expect(failure.issues).toEqual([
-      expect.objectContaining({
-        code: "invalid_type",
-        path: ["storage_usage"],
-      }),
-    ])
-    expect(requests).toBe(1)
-  })
+  test.each([
+    { payload: { ...account, storage_usage: "12" }, path: "storage_usage" },
+    { payload: { error: 42 }, path: "error" },
+  ])(
+    "rejects malformed typed payloads at $path without retrying transport",
+    async ({ payload, path }) => {
+      let requests = 0
+      const rpc = testRpcPrograms("https://rpc.test", async () => {
+        requests++
+        return result(payload)
+      })
+      const failure = await runPromise(
+        (path === "error"
+          ? rpc.getAccessKey("alice.near", "ed25519:key").pipe(Effect.asVoid)
+          : rpc.getAccount("alice.near").pipe(Effect.asVoid)
+        ).pipe(Effect.flip),
+      )
+      expect(failure).toBeInstanceOf(Schema.SchemaError)
+      if (!(failure instanceof Schema.SchemaError))
+        throw new Error("expected response validation failure")
+      expect(failure.message).toContain(path)
+      expect(requests).toBe(1)
+    },
+  )
 
   test("pulls state pages lazily and stops requesting after consumer termination", async () => {
     const requests: unknown[] = []
@@ -580,28 +598,6 @@ describe("native protocol decoding", () => {
   })
 })
 
-describe("public RPC middleware", () => {
-  test("a call replacement also observes high-level methods without recursion", async () => {
-    const { testRpcClient } = await import("../helpers/rpc.js")
-    const fetch = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      Response.json({
-        result: { gas_price: "100", block_height: 1, block_hash: "block" },
-      }),
-    )
-    try {
-      const client = testRpcClient("https://unused.invalid")
-      const original = client.call.bind(client)
-      const middleware = vi.fn(original)
-      client.call = middleware
-      await client.getGasPrice()
-      expect(middleware).toHaveBeenCalledTimes(1)
-      expect(middleware).toHaveBeenCalledWith("gas_price", [null])
-    } finally {
-      fetch.mockRestore()
-    }
-  })
-})
-
 test("debug encoding failures retain network error classification and bounded retries", async () => {
   let encodings = 0
   let fetches = 0
@@ -613,24 +609,25 @@ test("debug encoding failures retain network error classification and bounded re
       return circular
     },
   }
-  const rpc = testRpcPrograms(
-    "https://unused.invalid",
-    async () => {
-      fetches++
-      return result({})
-    },
-    undefined,
-    { maxRetries: 2, initialDelayMs: 0 },
-  )
-  const program = rpc
-    .call("query", params)
-    .pipe(
-      Effect.provide(
-        ConfigProvider.layer(
-          ConfigProvider.fromUnknown({ NEAR_RPC_DEBUG: "true" }),
-        ),
-      ),
+  const program = Effect.gen(function* () {
+    const rpc = yield* makeRpcPrograms(
+      {
+        url: "https://unused.invalid",
+        retry: { maxRetries: 2, initialDelayMs: 0 },
+      },
+      fetchTransport(async () => {
+        fetches++
+        return result({})
+      }),
     )
+    return yield* rpc.call("query", params)
+  }).pipe(
+    Effect.provide(
+      ConfigProvider.layer(
+        ConfigProvider.fromUnknown({ NEAR_RPC_DEBUG: "true" }),
+      ),
+    ),
+  )
   await expect(runPromise(program)).rejects.toMatchObject({
     name: "NetworkError",
     code: "NETWORK_ERROR",

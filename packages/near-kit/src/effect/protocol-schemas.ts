@@ -1,8 +1,4 @@
-/** Effect-native codecs for the public NEAR JSON-RPC wire contracts.
- * Keep the legacy Zod exports in core/rpc/rpc-schemas.ts source-compatible.
- * Finite numbers, optional undefined values, mutable arrays, stripping structs
- * and explicit catch-all records intentionally match those public contracts.
- */
+/** The canonical NEAR JSON-RPC wire codecs and inferred response types. */
 import * as Schema from "effect/Schema"
 import * as SchemaGetter from "effect/SchemaGetter"
 
@@ -509,62 +505,42 @@ export const MinimalTransactionSchema = Schema.Struct({
   nonce: Schema.Finite,
 })
 
+const earlyOutcome = <W extends "NONE" | "INCLUDED" | "INCLUDED_FINAL">(
+  wait: W,
+) =>
+  Schema.Struct({
+    final_execution_status: Schema.Literal(wait),
+    transaction: Schema.optional(MinimalTransactionSchema),
+    status: Schema.optional(ExecutionStatusSchema),
+    transaction_outcome: Schema.optional(ExecutionOutcomeWithIdSchema),
+    receipts_outcome: Schema.optional(
+      Schema.mutable(Schema.Array(ExecutionOutcomeWithIdSchema)),
+    ),
+  })
+
+const executedOutcome = <
+  W extends "EXECUTED_OPTIMISTIC" | "EXECUTED" | "FINAL",
+>(
+  wait: W,
+) =>
+  Schema.Struct({
+    final_execution_status: Schema.Literal(wait),
+    status: ExecutionStatusSchema,
+    transaction: TransactionSchema,
+    transaction_outcome: ExecutionOutcomeWithIdSchema,
+    receipts_outcome: Schema.mutable(
+      Schema.Array(ExecutionOutcomeWithIdSchema),
+    ),
+  })
+
 export const FinalExecutionOutcomeSchema = Schema.Union(
   [
-    Schema.Struct({
-      final_execution_status: Schema.Literal("NONE"),
-      transaction: Schema.optional(MinimalTransactionSchema),
-      status: Schema.optional(ExecutionStatusSchema),
-      transaction_outcome: Schema.optional(ExecutionOutcomeWithIdSchema),
-      receipts_outcome: Schema.optional(
-        Schema.mutable(Schema.Array(ExecutionOutcomeWithIdSchema)),
-      ),
-    }),
-    Schema.Struct({
-      final_execution_status: Schema.Literal("INCLUDED"),
-      transaction: Schema.optional(MinimalTransactionSchema),
-      status: Schema.optional(ExecutionStatusSchema),
-      transaction_outcome: Schema.optional(ExecutionOutcomeWithIdSchema),
-      receipts_outcome: Schema.optional(
-        Schema.mutable(Schema.Array(ExecutionOutcomeWithIdSchema)),
-      ),
-    }),
-    Schema.Struct({
-      final_execution_status: Schema.Literal("INCLUDED_FINAL"),
-      transaction: Schema.optional(MinimalTransactionSchema),
-      status: Schema.optional(ExecutionStatusSchema),
-      transaction_outcome: Schema.optional(ExecutionOutcomeWithIdSchema),
-      receipts_outcome: Schema.optional(
-        Schema.mutable(Schema.Array(ExecutionOutcomeWithIdSchema)),
-      ),
-    }),
-    Schema.Struct({
-      final_execution_status: Schema.Literal("EXECUTED_OPTIMISTIC"),
-      status: ExecutionStatusSchema,
-      transaction: TransactionSchema,
-      transaction_outcome: ExecutionOutcomeWithIdSchema,
-      receipts_outcome: Schema.mutable(
-        Schema.Array(ExecutionOutcomeWithIdSchema),
-      ),
-    }),
-    Schema.Struct({
-      final_execution_status: Schema.Literal("EXECUTED"),
-      status: ExecutionStatusSchema,
-      transaction: TransactionSchema,
-      transaction_outcome: ExecutionOutcomeWithIdSchema,
-      receipts_outcome: Schema.mutable(
-        Schema.Array(ExecutionOutcomeWithIdSchema),
-      ),
-    }),
-    Schema.Struct({
-      final_execution_status: Schema.Literal("FINAL"),
-      status: ExecutionStatusSchema,
-      transaction: TransactionSchema,
-      transaction_outcome: ExecutionOutcomeWithIdSchema,
-      receipts_outcome: Schema.mutable(
-        Schema.Array(ExecutionOutcomeWithIdSchema),
-      ),
-    }),
+    earlyOutcome("NONE"),
+    earlyOutcome("INCLUDED"),
+    earlyOutcome("INCLUDED_FINAL"),
+    executedOutcome("EXECUTED_OPTIMISTIC"),
+    executedOutcome("EXECUTED"),
+    executedOutcome("FINAL"),
   ],
   { mode: "anyOf" },
 )
@@ -670,3 +646,92 @@ export const GenesisConfigResponseSchema = Schema.StructWithRest(
   }),
   [Schema.Record(Schema.String, Schema.Any)],
 )
+
+/** Public RPC responses remain mutable, including nested records and arrays. */
+export type MutableWire<A> = 0 extends 1 & A
+  ? A
+  : { -readonly [K in keyof A]: MutableWire<A[K]> }
+
+export type FunctionCallPermissionDetails = MutableWire<
+  typeof FunctionCallPermissionDetailsSchema.Type
+>
+export type GasKeyFunctionCallPermissionDetails = MutableWire<
+  typeof GasKeyFunctionCallPermissionDetailsSchema.Type
+>
+export type GasKeyFullAccessPermissionDetails = MutableWire<
+  typeof GasKeyFullAccessPermissionDetailsSchema.Type
+>
+export type AccessKeyPermission = MutableWire<
+  typeof AccessKeyPermissionSchema.Type
+>
+export type ViewFunctionCallResult = MutableWire<
+  typeof ViewFunctionCallResultSchema.Type
+>
+export type AccountView = MutableWire<typeof AccountViewSchema.Type>
+export type ContractCodeView = MutableWire<typeof ContractCodeViewSchema.Type>
+export type AccessKeyView = MutableWire<typeof AccessKeyViewSchema.Type>
+export type AccessKeyInfoView = MutableWire<typeof AccessKeyInfoViewSchema.Type>
+export type BlockHeaderView = MutableWire<typeof BlockHeaderViewSchema.Type>
+export type ChunkHeaderView = MutableWire<typeof ChunkHeaderViewSchema.Type>
+export type BlockView = MutableWire<typeof BlockViewSchema.Type>
+export type StatusResponse = MutableWire<typeof StatusResponseSchema.Type>
+export type GasPriceResponse = MutableWire<typeof GasPriceResponseSchema.Type>
+export type AccessKeyListResponse = MutableWire<
+  typeof AccessKeyListResponseSchema.Type
+>
+export type GasKeyNoncesResponse = MutableWire<
+  typeof GasKeyNoncesResponseSchema.Type
+>
+export type ReceiptToTxResponse = MutableWire<
+  typeof ReceiptToTxResponseSchema.Type
+>
+export type StateItem = MutableWire<typeof StateItemSchema.Type>
+export type ViewStateResult = MutableWire<typeof ViewStateResultSchema.Type>
+export type StateChangeKind = MutableWire<typeof StateChangeKindSchema.Type>
+export type BlockEffectsResponse = MutableWire<
+  typeof BlockEffectsResponseSchema.Type
+>
+export type MaintenanceWindow = MutableWire<typeof MaintenanceWindowSchema.Type>
+export type MaintenanceWindowsResponse = MutableWire<
+  typeof MaintenanceWindowsResponseSchema.Type
+>
+export type GenesisConfigResponse = MutableWire<
+  typeof GenesisConfigResponseSchema.Type
+>
+export type RpcErrorResponse = MutableWire<typeof RpcErrorResponseSchema.Type>
+export type TxExecutionStatus = MutableWire<typeof TxExecutionStatusSchema.Type>
+export type ExecutionStatus = MutableWire<typeof ExecutionStatusSchema.Type>
+export type ExecutionMetadata = MutableWire<typeof ExecutionMetadataSchema.Type>
+export type AccountContract = MutableWire<typeof AccountContractSchema.Type>
+export type ExecutionOutcome = MutableWire<typeof ExecutionOutcomeSchema.Type>
+export type MerklePathItem = MutableWire<typeof MerklePathItemSchema.Type>
+export type ExecutionOutcomeWithId = MutableWire<
+  typeof ExecutionOutcomeWithIdSchema.Type
+>
+export type RpcAction = MutableWire<typeof ActionSchema.Type>
+export type NonceMode = MutableWire<typeof NonceModeSchema.Type>
+export type RpcTransaction = MutableWire<typeof TransactionSchema.Type>
+export type RpcMinimalTransaction = MutableWire<
+  typeof MinimalTransactionSchema.Type
+>
+export type FinalExecutionOutcome = MutableWire<
+  typeof FinalExecutionOutcomeSchema.Type
+>
+export type Receipt = MutableWire<typeof ReceiptSchema.Type>
+export type FinalExecutionOutcomeWithReceipts = MutableWire<
+  typeof FinalExecutionOutcomeWithReceiptsSchema.Type
+>
+
+/** The wait level determines the corresponding decoded outcome variant. */
+export type FinalExecutionOutcomeMap = {
+  [W in TxExecutionStatus]: Extract<
+    FinalExecutionOutcome,
+    { final_execution_status: W }
+  >
+}
+export type FinalExecutionOutcomeWithReceiptsMap = {
+  [W in TxExecutionStatus]: Extract<
+    FinalExecutionOutcomeWithReceipts,
+    { final_execution_status: W }
+  >
+}

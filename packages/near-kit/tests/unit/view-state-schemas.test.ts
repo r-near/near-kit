@@ -1,3 +1,4 @@
+import * as Schema from "effect/Schema"
 /**
  * Unit tests for the view_state / stabilized-RPC response schemas.
  */
@@ -8,11 +9,11 @@ import {
   GenesisConfigResponseSchema,
   MaintenanceWindowsResponseSchema,
   ViewStateResultSchema,
-} from "../../src/core/rpc/rpc-schemas.js"
+} from "../../src/effect/protocol-schemas.js"
 
 describe("ViewStateResultSchema", () => {
   test("parses a page with a continuation cursor", () => {
-    const parsed = ViewStateResultSchema.parse({
+    const parsed = Schema.decodeSync(ViewStateResultSchema)({
       values: [
         { key: "a2V5", value: "dmFsdWU=" },
         { key: "azI=", value: "djI=" },
@@ -26,14 +27,16 @@ describe("ViewStateResultSchema", () => {
   })
 
   test("parses a final page (no last_key, no proof)", () => {
-    const parsed = ViewStateResultSchema.parse({ values: [] })
+    const parsed = Schema.decodeSync(ViewStateResultSchema)({
+      values: [],
+    })
     expect(parsed.values).toEqual([])
     expect(parsed.last_key).toBeUndefined()
     expect(parsed.proof).toBeUndefined()
   })
 
   test("accepts an inclusion proof when present", () => {
-    const parsed = ViewStateResultSchema.parse({
+    const parsed = Schema.decodeSync(ViewStateResultSchema)({
       values: [{ key: "a2V5", value: "dg==" }],
       proof: ["cHJvb2Yx", "cHJvb2Yy"],
     })
@@ -43,7 +46,7 @@ describe("ViewStateResultSchema", () => {
 
 describe("BlockEffectsResponseSchema", () => {
   test("parses tagged state-change kinds", () => {
-    const parsed = BlockEffectsResponseSchema.parse({
+    const parsed = Schema.decodeSync(BlockEffectsResponseSchema)({
       block_hash: "Hhh",
       changes: [
         { type: "account_touched", account_id: "alice.near" },
@@ -57,7 +60,7 @@ describe("BlockEffectsResponseSchema", () => {
 
 describe("MaintenanceWindowsResponseSchema", () => {
   test("parses an array of block-height ranges", () => {
-    const parsed = MaintenanceWindowsResponseSchema.parse([
+    const parsed = Schema.decodeSync(MaintenanceWindowsResponseSchema)([
       { start: 100, end: 200 },
       { start: 300, end: 400 },
     ])
@@ -66,13 +69,13 @@ describe("MaintenanceWindowsResponseSchema", () => {
   })
 
   test("parses an empty list", () => {
-    expect(MaintenanceWindowsResponseSchema.parse([])).toEqual([])
+    expect(Schema.decodeSync(MaintenanceWindowsResponseSchema)([])).toEqual([])
   })
 })
 
 describe("GenesisConfigResponseSchema", () => {
   test("parses known fields and preserves unknown ones", () => {
-    const parsed = GenesisConfigResponseSchema.parse({
+    const parsed = Schema.decodeSync(GenesisConfigResponseSchema)({
       protocol_version: 85,
       chain_id: "localnet",
       genesis_height: 0,

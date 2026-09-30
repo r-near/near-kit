@@ -16,7 +16,6 @@ import {
 } from "../core/rpc/rpc.js"
 import { isRetryableStatus } from "../core/rpc/rpc-error-handler.js"
 import {
-  aliasRpcPrograms,
   fetchTransport,
   makeRpcPrograms,
   type RpcProgramConfig,
@@ -102,10 +101,7 @@ export class Rpc extends Context.Service<Rpc, RpcService>()("near-kit/Rpc") {
       Effect.gen(function* () {
         const transport = yield* RpcTransport
         const programs = yield* makeRpcPrograms(config, transport)
-        return aliasRpcPrograms(
-          Rpc.of({ ...programs, client: rpcToPromises(programs) }),
-          programs,
-        )
+        return Rpc.of({ ...programs, client: rpcToPromises(programs) })
       }),
     )
   }

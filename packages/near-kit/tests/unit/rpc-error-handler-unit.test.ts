@@ -13,7 +13,6 @@ import {
   isRetryableStatus,
   parseQueryError,
   parseRpcError,
-  type RpcErrorResponse,
 } from "../../src/core/rpc/rpc-error-handler.js"
 import type {
   ExecutionOutcomeWithId,
@@ -249,7 +248,7 @@ function createMockTransaction(methodName?: string): RpcTransaction {
 
 describe("parseRpcError", () => {
   describe("General Errors (HANDLER_ERROR)", () => {
-    test("should throw UnknownBlockError for UNKNOWN_BLOCK", () => {
+    test("returns UnknownBlockError for UNKNOWN_BLOCK", () => {
       const error = {
         name: "HANDLER_ERROR",
         code: -32000,
@@ -262,18 +261,18 @@ describe("parseRpcError", () => {
         },
       }
 
-      expect(() => parseRpcError(error)).toThrow(UnknownBlockError)
+      expect(parseRpcError(error)).toBeInstanceOf(UnknownBlockError)
 
-      try {
-        parseRpcError(error)
-      } catch (e) {
+      {
+        const e = parseRpcError(error)
+
         expect(e).toBeInstanceOf(UnknownBlockError)
         const err = e as UnknownBlockError
         expect(err.blockReference).toBe("12345")
       }
     })
 
-    test("should throw UnknownBlockError with message fallback when no block_reference", () => {
+    test("returns UnknownBlockError with message fallback when no block_reference", () => {
       const error = {
         name: "HANDLER_ERROR",
         code: -32000,
@@ -283,18 +282,18 @@ describe("parseRpcError", () => {
         },
       }
 
-      expect(() => parseRpcError(error)).toThrow(UnknownBlockError)
+      expect(parseRpcError(error)).toBeInstanceOf(UnknownBlockError)
 
-      try {
-        parseRpcError(error)
-      } catch (e) {
+      {
+        const e = parseRpcError(error)
+
         expect(e).toBeInstanceOf(UnknownBlockError)
         const err = e as UnknownBlockError
         expect(err.blockReference).toBe("Unknown block: finalized")
       }
     })
 
-    test("should throw InvalidAccountError for INVALID_ACCOUNT", () => {
+    test("returns InvalidAccountError for INVALID_ACCOUNT", () => {
       const error = {
         name: "HANDLER_ERROR",
         code: -32000,
@@ -307,18 +306,18 @@ describe("parseRpcError", () => {
         },
       }
 
-      expect(() => parseRpcError(error)).toThrow(InvalidAccountError)
+      expect(parseRpcError(error)).toBeInstanceOf(InvalidAccountError)
 
-      try {
-        parseRpcError(error)
-      } catch (e) {
+      {
+        const e = parseRpcError(error)
+
         expect(e).toBeInstanceOf(InvalidAccountError)
         const err = e as InvalidAccountError
         expect(err.accountId).toBe("invalid..account")
       }
     })
 
-    test("should throw InvalidAccountError with unknown fallback", () => {
+    test("returns InvalidAccountError with unknown fallback", () => {
       const error = {
         name: "HANDLER_ERROR",
         code: -32000,
@@ -328,18 +327,18 @@ describe("parseRpcError", () => {
         },
       }
 
-      expect(() => parseRpcError(error)).toThrow(InvalidAccountError)
+      expect(parseRpcError(error)).toBeInstanceOf(InvalidAccountError)
 
-      try {
-        parseRpcError(error)
-      } catch (e) {
+      {
+        const e = parseRpcError(error)
+
         expect(e).toBeInstanceOf(InvalidAccountError)
         const err = e as InvalidAccountError
         expect(err.accountId).toBe("unknown")
       }
     })
 
-    test("should throw AccountDoesNotExistError for UNKNOWN_ACCOUNT", () => {
+    test("returns AccountDoesNotExistError for UNKNOWN_ACCOUNT", () => {
       const error = {
         name: "HANDLER_ERROR",
         code: -32000,
@@ -352,18 +351,18 @@ describe("parseRpcError", () => {
         },
       }
 
-      expect(() => parseRpcError(error)).toThrow(AccountDoesNotExistError)
+      expect(parseRpcError(error)).toBeInstanceOf(AccountDoesNotExistError)
 
-      try {
-        parseRpcError(error)
-      } catch (e) {
+      {
+        const e = parseRpcError(error)
+
         expect(e).toBeInstanceOf(AccountDoesNotExistError)
         const err = e as AccountDoesNotExistError
         expect(err.accountId).toBe("missing.near")
       }
     })
 
-    test("should throw AccessKeyDoesNotExistError for UNKNOWN_GAS_KEY", () => {
+    test("returns AccessKeyDoesNotExistError for UNKNOWN_GAS_KEY", () => {
       // Captured from a 2.13 sandbox: view_gas_key_nonces on a non-gas key.
       const error = {
         name: "HANDLER_ERROR",
@@ -380,11 +379,11 @@ describe("parseRpcError", () => {
         },
       }
 
-      expect(() => parseRpcError(error)).toThrow(AccessKeyDoesNotExistError)
+      expect(parseRpcError(error)).toBeInstanceOf(AccessKeyDoesNotExistError)
 
-      try {
-        parseRpcError(error)
-      } catch (e) {
+      {
+        const e = parseRpcError(error)
+
         expect(e).toBeInstanceOf(AccessKeyDoesNotExistError)
         const err = e as AccessKeyDoesNotExistError
         expect(err.publicKey).toBe(
@@ -393,7 +392,7 @@ describe("parseRpcError", () => {
       }
     })
 
-    test("should throw ShardUnavailableError for UNAVAILABLE_SHARD", () => {
+    test("returns ShardUnavailableError for UNAVAILABLE_SHARD", () => {
       const error = {
         name: "HANDLER_ERROR",
         code: -32000,
@@ -403,18 +402,18 @@ describe("parseRpcError", () => {
         },
       }
 
-      expect(() => parseRpcError(error)).toThrow(ShardUnavailableError)
+      expect(parseRpcError(error)).toBeInstanceOf(ShardUnavailableError)
 
-      try {
-        parseRpcError(error)
-      } catch (e) {
+      {
+        const e = parseRpcError(error)
+
         expect(e).toBeInstanceOf(ShardUnavailableError)
         const err = e as ShardUnavailableError
         expect(err.message).toContain("Shard is currently unavailable")
       }
     })
 
-    test("should throw NodeNotSyncedError for NO_SYNCED_BLOCKS", () => {
+    test("returns NodeNotSyncedError for NO_SYNCED_BLOCKS", () => {
       const error = {
         name: "HANDLER_ERROR",
         code: -32000,
@@ -424,18 +423,18 @@ describe("parseRpcError", () => {
         },
       }
 
-      expect(() => parseRpcError(error)).toThrow(NodeNotSyncedError)
+      expect(parseRpcError(error)).toBeInstanceOf(NodeNotSyncedError)
 
-      try {
-        parseRpcError(error)
-      } catch (e) {
+      {
+        const e = parseRpcError(error)
+
         expect(e).toBeInstanceOf(NodeNotSyncedError)
         const err = e as NodeNotSyncedError
         expect(err.message).toContain("Node has no synced blocks")
       }
     })
 
-    test("should throw NodeNotSyncedError for NOT_SYNCED_YET", () => {
+    test("returns NodeNotSyncedError for NOT_SYNCED_YET", () => {
       const error = {
         name: "HANDLER_ERROR",
         code: -32000,
@@ -445,18 +444,18 @@ describe("parseRpcError", () => {
         },
       }
 
-      expect(() => parseRpcError(error)).toThrow(NodeNotSyncedError)
+      expect(parseRpcError(error)).toBeInstanceOf(NodeNotSyncedError)
 
-      try {
-        parseRpcError(error)
-      } catch (e) {
+      {
+        const e = parseRpcError(error)
+
         expect(e).toBeInstanceOf(NodeNotSyncedError)
       }
     })
   })
 
   describe("Contract Errors", () => {
-    test("should throw ContractNotDeployedError for NO_CONTRACT_CODE with account_id", () => {
+    test("returns ContractNotDeployedError for NO_CONTRACT_CODE with account_id", () => {
       const error = {
         name: "HANDLER_ERROR",
         code: -32000,
@@ -469,18 +468,18 @@ describe("parseRpcError", () => {
         },
       }
 
-      expect(() => parseRpcError(error)).toThrow(ContractNotDeployedError)
+      expect(parseRpcError(error)).toBeInstanceOf(ContractNotDeployedError)
 
-      try {
-        parseRpcError(error)
-      } catch (e) {
+      {
+        const e = parseRpcError(error)
+
         expect(e).toBeInstanceOf(ContractNotDeployedError)
         const err = e as ContractNotDeployedError
         expect(err.accountId).toBe("empty.near")
       }
     })
 
-    test("should throw ContractNotDeployedError for NO_CONTRACT_CODE with contract_id", () => {
+    test("returns ContractNotDeployedError for NO_CONTRACT_CODE with contract_id", () => {
       const error = {
         name: "HANDLER_ERROR",
         code: -32000,
@@ -493,18 +492,18 @@ describe("parseRpcError", () => {
         },
       }
 
-      expect(() => parseRpcError(error)).toThrow(ContractNotDeployedError)
+      expect(parseRpcError(error)).toBeInstanceOf(ContractNotDeployedError)
 
-      try {
-        parseRpcError(error)
-      } catch (e) {
+      {
+        const e = parseRpcError(error)
+
         expect(e).toBeInstanceOf(ContractNotDeployedError)
         const err = e as ContractNotDeployedError
         expect(err.accountId).toBe("empty.near")
       }
     })
 
-    test("should throw ContractNotDeployedError with unknown fallback", () => {
+    test("returns ContractNotDeployedError with unknown fallback", () => {
       const error = {
         name: "HANDLER_ERROR",
         code: -32000,
@@ -514,18 +513,18 @@ describe("parseRpcError", () => {
         },
       }
 
-      expect(() => parseRpcError(error)).toThrow(ContractNotDeployedError)
+      expect(parseRpcError(error)).toBeInstanceOf(ContractNotDeployedError)
 
-      try {
-        parseRpcError(error)
-      } catch (e) {
+      {
+        const e = parseRpcError(error)
+
         expect(e).toBeInstanceOf(ContractNotDeployedError)
         const err = e as ContractNotDeployedError
         expect(err.accountId).toBe("unknown")
       }
     })
 
-    test("should throw ContractStateTooLargeError for TOO_LARGE_CONTRACT_STATE with account_id", () => {
+    test("returns ContractStateTooLargeError for TOO_LARGE_CONTRACT_STATE with account_id", () => {
       const error = {
         name: "HANDLER_ERROR",
         code: -32000,
@@ -538,18 +537,18 @@ describe("parseRpcError", () => {
         },
       }
 
-      expect(() => parseRpcError(error)).toThrow(ContractStateTooLargeError)
+      expect(parseRpcError(error)).toBeInstanceOf(ContractStateTooLargeError)
 
-      try {
-        parseRpcError(error)
-      } catch (e) {
+      {
+        const e = parseRpcError(error)
+
         expect(e).toBeInstanceOf(ContractStateTooLargeError)
         const err = e as ContractStateTooLargeError
         expect(err.accountId).toBe("large.near")
       }
     })
 
-    test("should throw ContractStateTooLargeError for TOO_LARGE_CONTRACT_STATE with contract_id", () => {
+    test("returns ContractStateTooLargeError for TOO_LARGE_CONTRACT_STATE with contract_id", () => {
       const error = {
         name: "HANDLER_ERROR",
         code: -32000,
@@ -562,18 +561,18 @@ describe("parseRpcError", () => {
         },
       }
 
-      expect(() => parseRpcError(error)).toThrow(ContractStateTooLargeError)
+      expect(parseRpcError(error)).toBeInstanceOf(ContractStateTooLargeError)
 
-      try {
-        parseRpcError(error)
-      } catch (e) {
+      {
+        const e = parseRpcError(error)
+
         expect(e).toBeInstanceOf(ContractStateTooLargeError)
         const err = e as ContractStateTooLargeError
         expect(err.accountId).toBe("large.near")
       }
     })
 
-    test("should throw ContractExecutionError for CONTRACT_EXECUTION_ERROR", () => {
+    test("returns ContractExecutionError for CONTRACT_EXECUTION_ERROR", () => {
       const error = {
         name: "HANDLER_ERROR",
         code: -32000,
@@ -588,11 +587,11 @@ describe("parseRpcError", () => {
         },
       }
 
-      expect(() => parseRpcError(error)).toThrow(ContractExecutionError)
+      expect(parseRpcError(error)).toBeInstanceOf(ContractExecutionError)
 
-      try {
-        parseRpcError(error)
-      } catch (e) {
+      {
+        const e = parseRpcError(error)
+
         expect(e).toBeInstanceOf(ContractExecutionError)
         const err = e as ContractExecutionError
         expect(err.contractId).toBe("contract.near")
@@ -605,7 +604,7 @@ describe("parseRpcError", () => {
       }
     })
 
-    test("should throw ContractExecutionError without method name", () => {
+    test("returns ContractExecutionError without method name", () => {
       const error = {
         name: "HANDLER_ERROR",
         code: -32000,
@@ -618,11 +617,11 @@ describe("parseRpcError", () => {
         },
       }
 
-      expect(() => parseRpcError(error)).toThrow(ContractExecutionError)
+      expect(parseRpcError(error)).toBeInstanceOf(ContractExecutionError)
 
-      try {
-        parseRpcError(error)
-      } catch (e) {
+      {
+        const e = parseRpcError(error)
+
         expect(e).toBeInstanceOf(ContractExecutionError)
         const err = e as ContractExecutionError
         expect(err.contractId).toBe("contract.near")
@@ -630,7 +629,7 @@ describe("parseRpcError", () => {
       }
     })
 
-    test("should throw FunctionCallError for ActionError", () => {
+    test("returns FunctionCallError for ActionError", () => {
       const error = {
         name: "HANDLER_ERROR",
         code: -32000,
@@ -644,11 +643,11 @@ describe("parseRpcError", () => {
         },
       }
 
-      expect(() => parseRpcError(error)).toThrow(FunctionCallError)
+      expect(parseRpcError(error)).toBeInstanceOf(FunctionCallError)
 
-      try {
-        parseRpcError(error)
-      } catch (e) {
+      {
+        const e = parseRpcError(error)
+
         expect(e).toBeInstanceOf(FunctionCallError)
         const err = e as FunctionCallError
         expect(err.contractId).toBe("contract.near")
@@ -657,7 +656,7 @@ describe("parseRpcError", () => {
       }
     })
 
-    test("should throw FunctionCallError for ActionError without method name", () => {
+    test("returns FunctionCallError for ActionError without method name", () => {
       const error = {
         name: "HANDLER_ERROR",
         code: -32000,
@@ -670,11 +669,11 @@ describe("parseRpcError", () => {
         },
       }
 
-      expect(() => parseRpcError(error)).toThrow(FunctionCallError)
+      expect(parseRpcError(error)).toBeInstanceOf(FunctionCallError)
 
-      try {
-        parseRpcError(error)
-      } catch (e) {
+      {
+        const e = parseRpcError(error)
+
         expect(e).toBeInstanceOf(FunctionCallError)
         const err = e as FunctionCallError
         expect(err.methodName).toBe("unknown")
@@ -683,7 +682,7 @@ describe("parseRpcError", () => {
   })
 
   describe("Block / Chunk Errors", () => {
-    test("should throw UnknownChunkError for UNKNOWN_CHUNK", () => {
+    test("returns UnknownChunkError for UNKNOWN_CHUNK", () => {
       const error = {
         name: "HANDLER_ERROR",
         code: -32000,
@@ -696,18 +695,18 @@ describe("parseRpcError", () => {
         },
       }
 
-      expect(() => parseRpcError(error)).toThrow(UnknownChunkError)
+      expect(parseRpcError(error)).toBeInstanceOf(UnknownChunkError)
 
-      try {
-        parseRpcError(error)
-      } catch (e) {
+      {
+        const e = parseRpcError(error)
+
         expect(e).toBeInstanceOf(UnknownChunkError)
         const err = e as UnknownChunkError
         expect(err.chunkReference).toBe("chunk123")
       }
     })
 
-    test("should throw UnknownChunkError with message fallback", () => {
+    test("returns UnknownChunkError with message fallback", () => {
       const error = {
         name: "HANDLER_ERROR",
         code: -32000,
@@ -717,18 +716,18 @@ describe("parseRpcError", () => {
         },
       }
 
-      expect(() => parseRpcError(error)).toThrow(UnknownChunkError)
+      expect(parseRpcError(error)).toBeInstanceOf(UnknownChunkError)
 
-      try {
-        parseRpcError(error)
-      } catch (e) {
+      {
+        const e = parseRpcError(error)
+
         expect(e).toBeInstanceOf(UnknownChunkError)
         const err = e as UnknownChunkError
         expect(err.chunkReference).toBe("Chunk not available")
       }
     })
 
-    test("should throw InvalidShardIdError for INVALID_SHARD_ID with number", () => {
+    test("returns InvalidShardIdError for INVALID_SHARD_ID with number", () => {
       const error = {
         name: "HANDLER_ERROR",
         code: -32000,
@@ -741,18 +740,18 @@ describe("parseRpcError", () => {
         },
       }
 
-      expect(() => parseRpcError(error)).toThrow(InvalidShardIdError)
+      expect(parseRpcError(error)).toBeInstanceOf(InvalidShardIdError)
 
-      try {
-        parseRpcError(error)
-      } catch (e) {
+      {
+        const e = parseRpcError(error)
+
         expect(e).toBeInstanceOf(InvalidShardIdError)
         const err = e as InvalidShardIdError
         expect(err.shardId).toBe(99)
       }
     })
 
-    test("should throw InvalidShardIdError for INVALID_SHARD_ID with string", () => {
+    test("returns InvalidShardIdError for INVALID_SHARD_ID with string", () => {
       const error = {
         name: "HANDLER_ERROR",
         code: -32000,
@@ -765,11 +764,11 @@ describe("parseRpcError", () => {
         },
       }
 
-      expect(() => parseRpcError(error)).toThrow(InvalidShardIdError)
+      expect(parseRpcError(error)).toBeInstanceOf(InvalidShardIdError)
 
-      try {
-        parseRpcError(error)
-      } catch (e) {
+      {
+        const e = parseRpcError(error)
+
         expect(e).toBeInstanceOf(InvalidShardIdError)
         const err = e as InvalidShardIdError
         expect(err.shardId).toBe("invalid")
@@ -778,7 +777,7 @@ describe("parseRpcError", () => {
   })
 
   describe("Network Errors", () => {
-    test("should throw UnknownEpochError for UNKNOWN_EPOCH", () => {
+    test("returns UnknownEpochError for UNKNOWN_EPOCH", () => {
       const error = {
         name: "HANDLER_ERROR",
         code: -32000,
@@ -791,18 +790,18 @@ describe("parseRpcError", () => {
         },
       }
 
-      expect(() => parseRpcError(error)).toThrow(UnknownEpochError)
+      expect(parseRpcError(error)).toBeInstanceOf(UnknownEpochError)
 
-      try {
-        parseRpcError(error)
-      } catch (e) {
+      {
+        const e = parseRpcError(error)
+
         expect(e).toBeInstanceOf(UnknownEpochError)
         const err = e as UnknownEpochError
         expect(err.blockReference).toBe("epoch123")
       }
     })
 
-    test("should throw UnknownEpochError with message fallback", () => {
+    test("returns UnknownEpochError with message fallback", () => {
       const error = {
         name: "HANDLER_ERROR",
         code: -32000,
@@ -812,11 +811,11 @@ describe("parseRpcError", () => {
         },
       }
 
-      expect(() => parseRpcError(error)).toThrow(UnknownEpochError)
+      expect(parseRpcError(error)).toBeInstanceOf(UnknownEpochError)
 
-      try {
-        parseRpcError(error)
-      } catch (e) {
+      {
+        const e = parseRpcError(error)
+
         expect(e).toBeInstanceOf(UnknownEpochError)
         const err = e as UnknownEpochError
         expect(err.blockReference).toBe("Unknown epoch")
@@ -825,7 +824,7 @@ describe("parseRpcError", () => {
   })
 
   describe("Transaction Errors", () => {
-    test("should throw InvalidNonceError for INVALID_TRANSACTION with InvalidNonce", () => {
+    test("returns InvalidNonceError for INVALID_TRANSACTION with InvalidNonce", () => {
       const error = {
         name: "HANDLER_ERROR",
         code: -32000,
@@ -845,11 +844,11 @@ describe("parseRpcError", () => {
         },
       }
 
-      expect(() => parseRpcError(error)).toThrow(InvalidNonceError)
+      expect(parseRpcError(error)).toBeInstanceOf(InvalidNonceError)
 
-      try {
-        parseRpcError(error)
-      } catch (e) {
+      {
+        const e = parseRpcError(error)
+
         expect(e).toBeInstanceOf(InvalidNonceError)
         const err = e as InvalidNonceError
         expect(err.txNonce).toBe(5)
@@ -857,7 +856,7 @@ describe("parseRpcError", () => {
       }
     })
 
-    test("should throw InvalidNonceError for INVALID_TRANSACTION with direct InvalidTxError", () => {
+    test("returns InvalidNonceError for INVALID_TRANSACTION with direct InvalidTxError", () => {
       const error = {
         name: "HANDLER_ERROR",
         code: -32000,
@@ -875,11 +874,11 @@ describe("parseRpcError", () => {
         },
       }
 
-      expect(() => parseRpcError(error)).toThrow(InvalidNonceError)
+      expect(parseRpcError(error)).toBeInstanceOf(InvalidNonceError)
 
-      try {
-        parseRpcError(error)
-      } catch (e) {
+      {
+        const e = parseRpcError(error)
+
         expect(e).toBeInstanceOf(InvalidNonceError)
         const err = e as InvalidNonceError
         expect(err.txNonce).toBe(3)
@@ -887,7 +886,7 @@ describe("parseRpcError", () => {
       }
     })
 
-    test("should throw InvalidTransactionError for INVALID_TRANSACTION without InvalidNonce", () => {
+    test("returns InvalidTransactionError for INVALID_TRANSACTION without InvalidNonce", () => {
       const error = {
         name: "HANDLER_ERROR",
         code: -32000,
@@ -900,18 +899,18 @@ describe("parseRpcError", () => {
         },
       }
 
-      expect(() => parseRpcError(error)).toThrow(InvalidTransactionError)
+      expect(parseRpcError(error)).toBeInstanceOf(InvalidTransactionError)
 
-      try {
-        parseRpcError(error)
-      } catch (e) {
+      {
+        const e = parseRpcError(error)
+
         expect(e).toBeInstanceOf(InvalidTransactionError)
         const err = e as InvalidTransactionError
         expect(err.message).toContain("Transaction signature is invalid")
       }
     })
 
-    test("should throw InvalidTransactionError with TxExecutionError details", () => {
+    test("returns InvalidTransactionError with TxExecutionError details", () => {
       const error = {
         name: "HANDLER_ERROR",
         code: -32000,
@@ -930,11 +929,11 @@ describe("parseRpcError", () => {
         },
       }
 
-      expect(() => parseRpcError(error)).toThrow(InvalidTransactionError)
+      expect(parseRpcError(error)).toBeInstanceOf(InvalidTransactionError)
 
-      try {
-        parseRpcError(error)
-      } catch (e) {
+      {
+        const e = parseRpcError(error)
+
         expect(e).toBeInstanceOf(InvalidTransactionError)
         const err = e as InvalidTransactionError
         expect(err.details).toEqual({
@@ -945,7 +944,7 @@ describe("parseRpcError", () => {
       }
     })
 
-    test("should throw InvalidTransactionError with InvalidTxError details", () => {
+    test("returns InvalidTransactionError with InvalidTxError details", () => {
       const error = {
         name: "HANDLER_ERROR",
         code: -32000,
@@ -960,11 +959,11 @@ describe("parseRpcError", () => {
         },
       }
 
-      expect(() => parseRpcError(error)).toThrow(InvalidTransactionError)
+      expect(parseRpcError(error)).toBeInstanceOf(InvalidTransactionError)
 
-      try {
-        parseRpcError(error)
-      } catch (e) {
+      {
+        const e = parseRpcError(error)
+
         expect(e).toBeInstanceOf(InvalidTransactionError)
         const err = e as InvalidTransactionError
         expect(err.details).toEqual({
@@ -973,7 +972,7 @@ describe("parseRpcError", () => {
       }
     })
 
-    test("should throw UnknownReceiptError for UNKNOWN_RECEIPT", () => {
+    test("returns UnknownReceiptError for UNKNOWN_RECEIPT", () => {
       const error = {
         name: "HANDLER_ERROR",
         code: -32000,
@@ -986,18 +985,18 @@ describe("parseRpcError", () => {
         },
       }
 
-      expect(() => parseRpcError(error)).toThrow(UnknownReceiptError)
+      expect(parseRpcError(error)).toBeInstanceOf(UnknownReceiptError)
 
-      try {
-        parseRpcError(error)
-      } catch (e) {
+      {
+        const e = parseRpcError(error)
+
         expect(e).toBeInstanceOf(UnknownReceiptError)
         const err = e as UnknownReceiptError
         expect(err.receiptId).toBe("receipt123")
       }
     })
 
-    test("should throw UnknownReceiptError with unknown fallback", () => {
+    test("returns UnknownReceiptError with unknown fallback", () => {
       const error = {
         name: "HANDLER_ERROR",
         code: -32000,
@@ -1007,18 +1006,18 @@ describe("parseRpcError", () => {
         },
       }
 
-      expect(() => parseRpcError(error)).toThrow(UnknownReceiptError)
+      expect(parseRpcError(error)).toBeInstanceOf(UnknownReceiptError)
 
-      try {
-        parseRpcError(error)
-      } catch (e) {
+      {
+        const e = parseRpcError(error)
+
         expect(e).toBeInstanceOf(UnknownReceiptError)
         const err = e as UnknownReceiptError
         expect(err.receiptId).toBe("unknown")
       }
     })
 
-    test("should throw TimeoutError for TIMEOUT_ERROR", () => {
+    test("returns TimeoutError for TIMEOUT_ERROR", () => {
       const error = {
         name: "HANDLER_ERROR",
         code: -32000,
@@ -1031,18 +1030,18 @@ describe("parseRpcError", () => {
         },
       }
 
-      expect(() => parseRpcError(error)).toThrow(TimeoutError)
+      expect(parseRpcError(error)).toBeInstanceOf(TimeoutError)
 
-      try {
-        parseRpcError(error)
-      } catch (e) {
+      {
+        const e = parseRpcError(error)
+
         expect(e).toBeInstanceOf(TimeoutError)
         const err = e as TimeoutError
         expect(err.transactionHash).toBe("tx123")
       }
     })
 
-    test("should throw TimeoutError without transaction hash", () => {
+    test("returns TimeoutError without transaction hash", () => {
       const error = {
         name: "HANDLER_ERROR",
         code: -32000,
@@ -1052,11 +1051,11 @@ describe("parseRpcError", () => {
         },
       }
 
-      expect(() => parseRpcError(error)).toThrow(TimeoutError)
+      expect(parseRpcError(error)).toBeInstanceOf(TimeoutError)
 
-      try {
-        parseRpcError(error)
-      } catch (e) {
+      {
+        const e = parseRpcError(error)
+
         expect(e).toBeInstanceOf(TimeoutError)
         const err = e as TimeoutError
         expect(err.transactionHash).toBeUndefined()
@@ -1065,7 +1064,7 @@ describe("parseRpcError", () => {
   })
 
   describe("Request Validation Errors", () => {
-    test("should throw ParseError for PARSE_ERROR", () => {
+    test("returns ParseError for PARSE_ERROR", () => {
       const error = {
         name: "REQUEST_VALIDATION_ERROR",
         code: -32700,
@@ -1078,11 +1077,11 @@ describe("parseRpcError", () => {
         },
       }
 
-      expect(() => parseRpcError(error)).toThrow(ParseError)
+      expect(parseRpcError(error)).toBeInstanceOf(ParseError)
 
-      try {
-        parseRpcError(error)
-      } catch (e) {
+      {
+        const e = parseRpcError(error)
+
         expect(e).toBeInstanceOf(ParseError)
         const err = e as ParseError
         expect(err.message).toContain("Parse error: invalid JSON")
@@ -1090,18 +1089,18 @@ describe("parseRpcError", () => {
       }
     })
 
-    test("should throw ParseError for REQUEST_VALIDATION_ERROR name", () => {
+    test("returns ParseError for REQUEST_VALIDATION_ERROR name", () => {
       const error = {
         name: "REQUEST_VALIDATION_ERROR",
         code: -32600,
         message: "Invalid request format",
       }
 
-      expect(() => parseRpcError(error)).toThrow(ParseError)
+      expect(parseRpcError(error)).toBeInstanceOf(ParseError)
 
-      try {
-        parseRpcError(error)
-      } catch (e) {
+      {
+        const e = parseRpcError(error)
+
         expect(e).toBeInstanceOf(ParseError)
         const err = e as ParseError
         expect(err.message).toContain("Invalid request format")
@@ -1110,7 +1109,7 @@ describe("parseRpcError", () => {
   })
 
   describe("Internal Errors", () => {
-    test("should throw InternalServerError for INTERNAL_ERROR cause", () => {
+    test("returns InternalServerError for INTERNAL_ERROR cause", () => {
       const error = {
         name: "HANDLER_ERROR",
         code: -32603,
@@ -1123,11 +1122,11 @@ describe("parseRpcError", () => {
         },
       }
 
-      expect(() => parseRpcError(error)).toThrow(InternalServerError)
+      expect(parseRpcError(error)).toBeInstanceOf(InternalServerError)
 
-      try {
-        parseRpcError(error)
-      } catch (e) {
+      {
+        const e = parseRpcError(error)
+
         expect(e).toBeInstanceOf(InternalServerError)
         const err = e as InternalServerError
         expect(err.message).toContain("Internal server error")
@@ -1137,18 +1136,18 @@ describe("parseRpcError", () => {
       }
     })
 
-    test("should throw InternalServerError for INTERNAL_ERROR name", () => {
+    test("returns InternalServerError for INTERNAL_ERROR name", () => {
       const error = {
         name: "INTERNAL_ERROR",
         code: -32603,
         message: "Internal error occurred",
       }
 
-      expect(() => parseRpcError(error)).toThrow(InternalServerError)
+      expect(parseRpcError(error)).toBeInstanceOf(InternalServerError)
 
-      try {
-        parseRpcError(error)
-      } catch (e) {
+      {
+        const e = parseRpcError(error)
+
         expect(e).toBeInstanceOf(InternalServerError)
         const err = e as InternalServerError
         expect(err.message).toContain("Internal error occurred")
@@ -1157,7 +1156,7 @@ describe("parseRpcError", () => {
   })
 
   describe("Unknown Error Types", () => {
-    test("should throw NetworkError for unknown error type with retryable status code", () => {
+    test("returns NetworkError for unknown error type with retryable status code", () => {
       const error = {
         name: "UNKNOWN_ERROR",
         code: -32000,
@@ -1167,11 +1166,11 @@ describe("parseRpcError", () => {
         },
       }
 
-      expect(() => parseRpcError(error, 503)).toThrow(NetworkError)
+      expect(parseRpcError(error, 503)).toBeInstanceOf(NetworkError)
 
-      try {
-        parseRpcError(error, 503)
-      } catch (e) {
+      {
+        const e = parseRpcError(error, 503)
+
         expect(e).toBeInstanceOf(NetworkError)
         const err = e as NetworkError
         expect(err.message).toContain("RPC error [CUSTOM_ERROR]")
@@ -1180,7 +1179,7 @@ describe("parseRpcError", () => {
       }
     })
 
-    test("should throw NetworkError for unknown error type with non-retryable status code", () => {
+    test("returns NetworkError for unknown error type with non-retryable status code", () => {
       const error = {
         name: "UNKNOWN_ERROR",
         code: -32000,
@@ -1190,29 +1189,29 @@ describe("parseRpcError", () => {
         },
       }
 
-      expect(() => parseRpcError(error, 400)).toThrow(NetworkError)
+      expect(parseRpcError(error, 400)).toBeInstanceOf(NetworkError)
 
-      try {
-        parseRpcError(error, 400)
-      } catch (e) {
+      {
+        const e = parseRpcError(error, 400)
+
         expect(e).toBeInstanceOf(NetworkError)
         const err = e as NetworkError
         expect(err.retryable).toBe(false)
       }
     })
 
-    test("should throw NetworkError for error without cause using error name", () => {
+    test("returns NetworkError for error without cause using error name", () => {
       const error = {
         name: "CUSTOM_ERROR",
         code: -32000,
         message: "Custom error occurred",
       }
 
-      expect(() => parseRpcError(error)).toThrow(NetworkError)
+      expect(parseRpcError(error)).toBeInstanceOf(NetworkError)
 
-      try {
-        parseRpcError(error)
-      } catch (e) {
+      {
+        const e = parseRpcError(error)
+
         expect(e).toBeInstanceOf(NetworkError)
         const err = e as NetworkError
         expect(err.message).toContain("RPC error [CUSTOM_ERROR]")
@@ -1220,7 +1219,7 @@ describe("parseRpcError", () => {
       }
     })
 
-    test("should throw NetworkError when no status code provided", () => {
+    test("returns NetworkError when no status code provided", () => {
       const error = {
         name: "UNKNOWN_ERROR",
         code: -32000,
@@ -1230,11 +1229,11 @@ describe("parseRpcError", () => {
         },
       }
 
-      expect(() => parseRpcError(error)).toThrow(NetworkError)
+      expect(parseRpcError(error)).toBeInstanceOf(NetworkError)
 
-      try {
-        parseRpcError(error)
-      } catch (e) {
+      {
+        const e = parseRpcError(error)
+
         expect(e).toBeInstanceOf(NetworkError)
         const err = e as NetworkError
         expect(err.retryable).toBe(false)
@@ -1243,42 +1242,41 @@ describe("parseRpcError", () => {
   })
 
   describe("Error Parsing Edge Cases", () => {
-    test("should throw NetworkError when error is undefined", () => {
-      expect(() => parseRpcError(undefined)).toThrow(NetworkError)
+    test("returns NetworkError when error is undefined", () => {
+      expect(parseRpcError(undefined)).toBeInstanceOf(NetworkError)
 
-      try {
-        parseRpcError(undefined)
-      } catch (e) {
+      {
+        const e = parseRpcError(undefined)
+
         expect(e).toBeInstanceOf(NetworkError)
         const err = e as NetworkError
         expect(err.message).toBe("Unknown RPC error")
       }
     })
 
-    test("should re-throw specific error if parsing fails but error is NearError", () => {
-      // This tests the catch block that re-throws NearError instances
+    test("returns a network failure for malformed RPC error names", () => {
       const malformedError = {
         name: 123, // Invalid type - should fail schema validation
         code: -32000,
         message: "test",
-      } as unknown as RpcErrorResponse
+      }
 
       // The schema validation will fail, but we should still get a NetworkError
-      expect(() => parseRpcError(malformedError)).toThrow(NetworkError)
+      expect(parseRpcError(malformedError)).toBeInstanceOf(NetworkError)
     })
 
-    test("should throw NetworkError when schema parsing fails", () => {
+    test("returns NetworkError when schema parsing fails", () => {
       const invalidError = {
         name: "TEST",
         code: "not-a-number", // Invalid type
         message: "test",
-      } as unknown as RpcErrorResponse
+      }
 
-      expect(() => parseRpcError(invalidError)).toThrow(NetworkError)
+      expect(parseRpcError(invalidError)).toBeInstanceOf(NetworkError)
 
-      try {
-        parseRpcError(invalidError)
-      } catch (e) {
+      {
+        const e = parseRpcError(invalidError)
+
         expect(e).toBeInstanceOf(NetworkError)
       }
     })
@@ -1426,7 +1424,7 @@ describe("extractErrorMessage", () => {
 // ==================== checkOutcomeForFunctionCallError() Tests ====================
 
 describe("checkOutcomeForFunctionCallError", () => {
-  test("should throw FunctionCallError when outcome has ActionError with FunctionCallError", () => {
+  test("returns FunctionCallError when outcome has ActionError with FunctionCallError", () => {
     const outcome = createMockOutcome(
       {
         Failure: {
@@ -1445,13 +1443,13 @@ describe("checkOutcomeForFunctionCallError", () => {
 
     const transaction = createMockTransaction("my_method")
 
-    expect(() =>
+    expect(
       checkOutcomeForFunctionCallError(outcome, transaction),
-    ).toThrow(FunctionCallError)
+    ).toBeInstanceOf(FunctionCallError)
 
-    try {
-      checkOutcomeForFunctionCallError(outcome, transaction)
-    } catch (e) {
+    {
+      const e = checkOutcomeForFunctionCallError(outcome, transaction)
+
       expect(e).toBeInstanceOf(FunctionCallError)
       const err = e as FunctionCallError
       expect(err.contractId).toBe("contract.near")
@@ -1461,7 +1459,7 @@ describe("checkOutcomeForFunctionCallError", () => {
     }
   })
 
-  test("should throw FunctionCallError with HostError", () => {
+  test("returns FunctionCallError with HostError", () => {
     const outcome = createMockOutcome({
       Failure: {
         ActionError: {
@@ -1476,20 +1474,20 @@ describe("checkOutcomeForFunctionCallError", () => {
 
     const transaction = createMockTransaction("test")
 
-    expect(() =>
+    expect(
       checkOutcomeForFunctionCallError(outcome, transaction),
-    ).toThrow(FunctionCallError)
+    ).toBeInstanceOf(FunctionCallError)
 
-    try {
-      checkOutcomeForFunctionCallError(outcome, transaction)
-    } catch (e) {
+    {
+      const e = checkOutcomeForFunctionCallError(outcome, transaction)
+
       expect(e).toBeInstanceOf(FunctionCallError)
       const err = e as FunctionCallError
       expect(err.panic).toBe("GasLimitExceeded")
     }
   })
 
-  test("should throw FunctionCallError when FunctionCallError is direct (not in ActionError)", () => {
+  test("returns FunctionCallError when FunctionCallError is direct (not in ActionError)", () => {
     const outcome = createMockOutcome({
       Failure: {
         FunctionCallError: {
@@ -1500,20 +1498,20 @@ describe("checkOutcomeForFunctionCallError", () => {
 
     const transaction = createMockTransaction("my_method")
 
-    expect(() =>
+    expect(
       checkOutcomeForFunctionCallError(outcome, transaction),
-    ).toThrow(FunctionCallError)
+    ).toBeInstanceOf(FunctionCallError)
 
-    try {
-      checkOutcomeForFunctionCallError(outcome, transaction)
-    } catch (e) {
+    {
+      const e = checkOutcomeForFunctionCallError(outcome, transaction)
+
       expect(e).toBeInstanceOf(FunctionCallError)
       const err = e as FunctionCallError
       expect(err.panic).toBe("Direct function call error")
     }
   })
 
-  test("should throw FunctionCallError with JSON stringified error when no ExecutionError or HostError", () => {
+  test("returns FunctionCallError with JSON stringified error when no ExecutionError or HostError", () => {
     const outcome = createMockOutcome({
       Failure: {
         ActionError: {
@@ -1528,13 +1526,13 @@ describe("checkOutcomeForFunctionCallError", () => {
 
     const transaction = createMockTransaction()
 
-    expect(() =>
+    expect(
       checkOutcomeForFunctionCallError(outcome, transaction),
-    ).toThrow(FunctionCallError)
+    ).toBeInstanceOf(FunctionCallError)
 
-    try {
-      checkOutcomeForFunctionCallError(outcome, transaction)
-    } catch (e) {
+    {
+      const e = checkOutcomeForFunctionCallError(outcome, transaction)
+
       expect(e).toBeInstanceOf(FunctionCallError)
       const err = e as FunctionCallError
       expect(err.panic).toBe(
@@ -1543,23 +1541,23 @@ describe("checkOutcomeForFunctionCallError", () => {
     }
   })
 
-  test("should not throw when outcome status is success", () => {
+  test("returns no error when outcome status is success", () => {
     const outcome = createMockOutcome({ SuccessValue: "e30=" })
 
-    expect(() =>
+    expect(
       checkOutcomeForFunctionCallError(outcome, createMockTransaction()),
-    ).not.toThrow()
+    ).toBeUndefined()
   })
 
-  test("should not throw when outcome status is success receipt", () => {
+  test("returns no error when outcome status is success receipt", () => {
     const outcome = createMockOutcome({ SuccessReceiptId: "receipt123" })
 
-    expect(() =>
+    expect(
       checkOutcomeForFunctionCallError(outcome, createMockTransaction()),
-    ).not.toThrow()
+    ).toBeUndefined()
   })
 
-  test("should not throw when failure is not FunctionCallError", () => {
+  test("returns no error when failure is not FunctionCallError", () => {
     const outcome = createMockOutcome({
       Failure: {
         ActionError: {
@@ -1572,17 +1570,17 @@ describe("checkOutcomeForFunctionCallError", () => {
       },
     })
 
-    expect(() =>
+    expect(
       checkOutcomeForFunctionCallError(outcome, createMockTransaction()),
-    ).not.toThrow()
+    ).toBeUndefined()
   })
 
-  test("should not throw when status is a string", () => {
+  test("returns no error when status is a string", () => {
     const outcome = createMockOutcome("Unknown")
 
-    expect(() =>
+    expect(
       checkOutcomeForFunctionCallError(outcome, createMockTransaction()),
-    ).not.toThrow()
+    ).toBeUndefined()
   })
 
   test("should extract method name from transaction when available", () => {
@@ -1596,9 +1594,9 @@ describe("checkOutcomeForFunctionCallError", () => {
 
     const transaction = createMockTransaction("transfer")
 
-    try {
-      checkOutcomeForFunctionCallError(outcome, transaction)
-    } catch (e) {
+    {
+      const e = checkOutcomeForFunctionCallError(outcome, transaction)
+
       const err = e as FunctionCallError
       expect(err.methodName).toBe("transfer")
     }
@@ -1615,9 +1613,9 @@ describe("checkOutcomeForFunctionCallError", () => {
 
     const transaction = createMockTransaction()
 
-    try {
-      checkOutcomeForFunctionCallError(outcome, transaction)
-    } catch (e) {
+    {
+      const e = checkOutcomeForFunctionCallError(outcome, transaction)
+
       const err = e as FunctionCallError
       expect(err.methodName).toBeUndefined()
     }
@@ -1632,9 +1630,9 @@ describe("checkOutcomeForFunctionCallError", () => {
       },
     })
 
-    try {
-      checkOutcomeForFunctionCallError(outcome, undefined)
-    } catch (e) {
+    {
+      const e = checkOutcomeForFunctionCallError(outcome, undefined)
+
       const err = e as FunctionCallError
       expect(err.methodName).toBeUndefined()
     }
@@ -1659,9 +1657,9 @@ describe("checkOutcomeForFunctionCallError", () => {
       hash: "hash",
     }
 
-    try {
-      checkOutcomeForFunctionCallError(outcome, transaction)
-    } catch (e) {
+    {
+      const e = checkOutcomeForFunctionCallError(outcome, transaction)
+
       const err = e as FunctionCallError
       expect(err.methodName).toBeUndefined()
     }
@@ -1737,28 +1735,28 @@ describe("isRetryableStatus", () => {
 // ==================== parseQueryError() Tests ====================
 
 describe("parseQueryError - additional coverage", () => {
-  test("should not throw when result is not an object", () => {
-    expect(() => parseQueryError("not an object", {})).not.toThrow()
-    expect(() => parseQueryError(123, {})).not.toThrow()
-    expect(() => parseQueryError(true, {})).not.toThrow()
+  test("returns no error when result is not an object", () => {
+    expect(parseQueryError("not an object", {})).toBeUndefined()
+    expect(parseQueryError(123, {})).toBeUndefined()
+    expect(parseQueryError(true, {})).toBeUndefined()
   })
 
-  test("should throw FunctionCallError with contractId even without methodName", () => {
+  test("returns FunctionCallError with contractId even without methodName", () => {
     const result = {
       error: "Contract execution failed",
     }
 
-    expect(() =>
+    expect(
       parseQueryError(result, {
         contractId: "contract.near",
       }),
-    ).toThrow(FunctionCallError)
+    ).toBeInstanceOf(FunctionCallError)
 
-    try {
-      parseQueryError(result, {
+    {
+      const e = parseQueryError(result, {
         contractId: "contract.near",
       })
-    } catch (e) {
+
       expect(e).toBeInstanceOf(FunctionCallError)
       const err = e as FunctionCallError
       expect(err.contractId).toBe("contract.near")
@@ -1772,11 +1770,11 @@ describe("parseQueryError - additional coverage", () => {
       error: "Generic error message",
     }
 
-    expect(() => parseQueryError(result)).toThrow(NetworkError)
+    expect(parseQueryError(result)).toBeInstanceOf(NetworkError)
 
-    try {
-      parseQueryError(result)
-    } catch (e) {
+    {
+      const e = parseQueryError(result)
+
       expect(e).toBeInstanceOf(NetworkError)
       const err = e as NetworkError
       expect(err.message).toContain("Query error")
@@ -1791,13 +1789,13 @@ describe("parseQueryError - additional coverage", () => {
 
 describe("parseRpcError - Real RPC Fixtures", () => {
   test("should parse real UNKNOWN_ACCOUNT error from mainnet", () => {
-    expect(() => parseRpcError(REAL_UNKNOWN_ACCOUNT_ERROR)).toThrow(
+    expect(parseRpcError(REAL_UNKNOWN_ACCOUNT_ERROR)).toBeInstanceOf(
       AccountDoesNotExistError,
     )
 
-    try {
-      parseRpcError(REAL_UNKNOWN_ACCOUNT_ERROR)
-    } catch (e) {
+    {
+      const e = parseRpcError(REAL_UNKNOWN_ACCOUNT_ERROR)
+
       expect(e).toBeInstanceOf(AccountDoesNotExistError)
       const err = e as AccountDoesNotExistError
       expect(err.accountId).toBe("this-account-does-not-exist-12345678.near")
@@ -1806,13 +1804,13 @@ describe("parseRpcError - Real RPC Fixtures", () => {
   })
 
   test("should parse real UNKNOWN_BLOCK error from mainnet", () => {
-    expect(() => parseRpcError(REAL_UNKNOWN_BLOCK_ERROR)).toThrow(
+    expect(parseRpcError(REAL_UNKNOWN_BLOCK_ERROR)).toBeInstanceOf(
       UnknownBlockError,
     )
 
-    try {
-      parseRpcError(REAL_UNKNOWN_BLOCK_ERROR)
-    } catch (e) {
+    {
+      const e = parseRpcError(REAL_UNKNOWN_BLOCK_ERROR)
+
       expect(e).toBeInstanceOf(UnknownBlockError)
       const err = e as UnknownBlockError
       // Real error has block_reference as an object {block_id: 1}
@@ -1822,13 +1820,13 @@ describe("parseRpcError - Real RPC Fixtures", () => {
   })
 
   test("should parse real NO_CONTRACT_CODE error from mainnet", () => {
-    expect(() => parseRpcError(REAL_NO_CONTRACT_CODE_ERROR)).toThrow(
+    expect(parseRpcError(REAL_NO_CONTRACT_CODE_ERROR)).toBeInstanceOf(
       ContractNotDeployedError,
     )
 
-    try {
-      parseRpcError(REAL_NO_CONTRACT_CODE_ERROR)
-    } catch (e) {
+    {
+      const e = parseRpcError(REAL_NO_CONTRACT_CODE_ERROR)
+
       expect(e).toBeInstanceOf(ContractNotDeployedError)
       const err = e as ContractNotDeployedError
       // Real error uses 'contract_account_id' field
@@ -1839,11 +1837,11 @@ describe("parseRpcError - Real RPC Fixtures", () => {
   })
 
   test("should parse real PARSE_ERROR from mainnet", () => {
-    expect(() => parseRpcError(REAL_PARSE_ERROR)).toThrow(ParseError)
+    expect(parseRpcError(REAL_PARSE_ERROR)).toBeInstanceOf(ParseError)
 
-    try {
-      parseRpcError(REAL_PARSE_ERROR)
-    } catch (e) {
+    {
+      const e = parseRpcError(REAL_PARSE_ERROR)
+
       expect(e).toBeInstanceOf(ParseError)
       const err = e as ParseError
       expect(err.message).toContain("Parse error")
@@ -1855,11 +1853,11 @@ describe("parseRpcError - Real RPC Fixtures", () => {
   })
 
   test("should parse real TIMEOUT_ERROR from mainnet", () => {
-    expect(() => parseRpcError(REAL_TIMEOUT_ERROR)).toThrow(TimeoutError)
+    expect(parseRpcError(REAL_TIMEOUT_ERROR)).toBeInstanceOf(TimeoutError)
 
-    try {
-      parseRpcError(REAL_TIMEOUT_ERROR)
-    } catch (e) {
+    {
+      const e = parseRpcError(REAL_TIMEOUT_ERROR)
+
       expect(e).toBeInstanceOf(TimeoutError)
       const err = e as TimeoutError
       // Error handler uses error.message which is "Server error" in real response
@@ -1870,29 +1868,26 @@ describe("parseRpcError - Real RPC Fixtures", () => {
   })
 
   test("should parse real UNKNOWN_CHUNK error from mainnet", () => {
-    expect(() => parseRpcError(REAL_UNKNOWN_CHUNK_ERROR)).toThrow(
+    expect(parseRpcError(REAL_UNKNOWN_CHUNK_ERROR)).toBeInstanceOf(
       UnknownChunkError,
     )
 
-    try {
-      parseRpcError(REAL_UNKNOWN_CHUNK_ERROR)
-    } catch (e) {
+    {
+      const e = parseRpcError(REAL_UNKNOWN_CHUNK_ERROR)
+
       expect(e).toBeInstanceOf(UnknownChunkError)
-      // NOTE: Real error uses 'chunk_hash' but error handler looks for 'chunk_reference'
-      // Real error uses 'chunk_hash' field
-      // Error handler now correctly extracts this field
     }
   })
 
   test("should parse real METHOD_NOT_FOUND error from mainnet", () => {
-    // Note: This is a REQUEST_VALIDATION_ERROR, which should throw ParseError
-    expect(() => parseRpcError(REAL_METHOD_NOT_FOUND_RPC_ERROR)).toThrow(
+    // Note: This is a REQUEST_VALIDATION_ERROR, which returns ParseError
+    expect(parseRpcError(REAL_METHOD_NOT_FOUND_RPC_ERROR)).toBeInstanceOf(
       ParseError,
     )
 
-    try {
-      parseRpcError(REAL_METHOD_NOT_FOUND_RPC_ERROR)
-    } catch (e) {
+    {
+      const e = parseRpcError(REAL_METHOD_NOT_FOUND_RPC_ERROR)
+
       expect(e).toBeInstanceOf(ParseError)
       const err = e as ParseError
       expect(err.message).toContain("Method not found")
@@ -1902,19 +1897,19 @@ describe("parseRpcError - Real RPC Fixtures", () => {
 
 describe("parseQueryError - Real RPC Fixtures", () => {
   test("should parse real access key error from result.error field", () => {
-    expect(() =>
+    expect(
       parseQueryError(REAL_ACCESS_KEY_ERROR_RESULT, {
         accountId: "near",
         publicKey: "ed25519:HbcF7MfbaLv6EViPkS3pDELF5cfHDKV73JJR6TdYC5BV",
       }),
-    ).toThrow(AccessKeyDoesNotExistError)
+    ).toBeInstanceOf(AccessKeyDoesNotExistError)
 
-    try {
-      parseQueryError(REAL_ACCESS_KEY_ERROR_RESULT, {
+    {
+      const e = parseQueryError(REAL_ACCESS_KEY_ERROR_RESULT, {
         accountId: "near",
         publicKey: "ed25519:HbcF7MfbaLv6EViPkS3pDELF5cfHDKV73JJR6TdYC5BV",
       })
-    } catch (e) {
+
       expect(e).toBeInstanceOf(AccessKeyDoesNotExistError)
       const err = e as AccessKeyDoesNotExistError
       expect(err.accountId).toBe("near")
@@ -1925,19 +1920,19 @@ describe("parseQueryError - Real RPC Fixtures", () => {
   })
 
   test("should parse real method not found error from result.error field", () => {
-    expect(() =>
+    expect(
       parseQueryError(REAL_METHOD_NOT_FOUND_RESULT, {
         contractId: "near",
         methodName: "test",
       }),
-    ).toThrow(FunctionCallError)
+    ).toBeInstanceOf(FunctionCallError)
 
-    try {
-      parseQueryError(REAL_METHOD_NOT_FOUND_RESULT, {
+    {
+      const e = parseQueryError(REAL_METHOD_NOT_FOUND_RESULT, {
         contractId: "near",
         methodName: "test",
       })
-    } catch (e) {
+
       expect(e).toBeInstanceOf(FunctionCallError)
       const err = e as FunctionCallError
       expect(err.contractId).toBe("near")

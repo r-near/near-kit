@@ -16,25 +16,25 @@ import {
 } from "../../src/errors/index.js"
 
 describe("parseQueryError", () => {
-  test("should throw FunctionCallError for contract method errors containing 'does not exist'", () => {
+  test("returns FunctionCallError for contract method errors containing 'does not exist'", () => {
     const result = {
       error:
         "wasm execution failed with error: FunctionCallError(MethodResolveError(MethodNotFound))",
     }
 
-    expect(() =>
+    expect(
       parseQueryError(result, {
         contractId: "wrap.near",
         methodName: "nonexistent_method",
       }),
-    ).toThrow(FunctionCallError)
+    ).toBeInstanceOf(FunctionCallError)
 
-    try {
-      parseQueryError(result, {
+    {
+      const error = parseQueryError(result, {
         contractId: "wrap.near",
         methodName: "nonexistent_method",
       })
-    } catch (error) {
+
       expect(error).toBeInstanceOf(FunctionCallError)
       const funcError = error as FunctionCallError
       expect(funcError.contractId).toBe("wrap.near")
@@ -43,24 +43,24 @@ describe("parseQueryError", () => {
     }
   })
 
-  test("should throw FunctionCallError for 'Method X does not exist' error message", () => {
+  test("returns FunctionCallError for 'Method X does not exist' error message", () => {
     const result = {
       error: "Method get_token does not exist",
     }
 
-    expect(() =>
+    expect(
       parseQueryError(result, {
         contractId: "token.near",
         methodName: "get_token",
       }),
-    ).toThrow(FunctionCallError)
+    ).toBeInstanceOf(FunctionCallError)
 
-    try {
-      parseQueryError(result, {
+    {
+      const error = parseQueryError(result, {
         contractId: "token.near",
         methodName: "get_token",
       })
-    } catch (error) {
+
       expect(error).toBeInstanceOf(FunctionCallError)
       const funcError = error as FunctionCallError
       expect(funcError.contractId).toBe("token.near")
@@ -69,25 +69,25 @@ describe("parseQueryError", () => {
     }
   })
 
-  test("should throw AccessKeyDoesNotExistError for access key queries with 'does not exist'", () => {
+  test("returns AccessKeyDoesNotExistError for access key queries with 'does not exist'", () => {
     const result = {
       error:
         "access key ed25519:He7QeRuwizNEhzeKNn2CLdCKfzkH6KLSaFKvJLYtnrFa does not exist",
     }
 
-    expect(() =>
+    expect(
       parseQueryError(result, {
         accountId: "test.near",
         publicKey: "ed25519:He7QeRuwizNEhzeKNn2CLdCKfzkH6KLSaFKvJLYtnrFa",
       }),
-    ).toThrow(AccessKeyDoesNotExistError)
+    ).toBeInstanceOf(AccessKeyDoesNotExistError)
 
-    try {
-      parseQueryError(result, {
+    {
+      const error = parseQueryError(result, {
         accountId: "test.near",
         publicKey: "ed25519:He7QeRuwizNEhzeKNn2CLdCKfzkH6KLSaFKvJLYtnrFa",
       })
-    } catch (error) {
+
       expect(error).toBeInstanceOf(AccessKeyDoesNotExistError)
       const keyError = error as AccessKeyDoesNotExistError
       expect(keyError.accountId).toBe("test.near")
@@ -98,22 +98,22 @@ describe("parseQueryError", () => {
     }
   })
 
-  test("should throw AccessKeyDoesNotExistError when only accountId is in context", () => {
+  test("returns AccessKeyDoesNotExistError when only accountId is in context", () => {
     const result = {
       error: "access key does not exist while viewing",
     }
 
-    expect(() =>
+    expect(
       parseQueryError(result, {
         accountId: "test.near",
       }),
-    ).toThrow(AccessKeyDoesNotExistError)
+    ).toBeInstanceOf(AccessKeyDoesNotExistError)
 
-    try {
-      parseQueryError(result, {
+    {
+      const error = parseQueryError(result, {
         accountId: "test.near",
       })
-    } catch (error) {
+
       expect(error).toBeInstanceOf(AccessKeyDoesNotExistError)
       const keyError = error as AccessKeyDoesNotExistError
       expect(keyError.accountId).toBe("test.near")
@@ -121,22 +121,22 @@ describe("parseQueryError", () => {
     }
   })
 
-  test("should throw AccessKeyDoesNotExistError when only publicKey is in context", () => {
+  test("returns AccessKeyDoesNotExistError when only publicKey is in context", () => {
     const result = {
       error: "access key does not exist while viewing",
     }
 
-    expect(() =>
+    expect(
       parseQueryError(result, {
         publicKey: "ed25519:ABC123",
       }),
-    ).toThrow(AccessKeyDoesNotExistError)
+    ).toBeInstanceOf(AccessKeyDoesNotExistError)
 
-    try {
-      parseQueryError(result, {
+    {
+      const error = parseQueryError(result, {
         publicKey: "ed25519:ABC123",
       })
-    } catch (error) {
+
       expect(error).toBeInstanceOf(AccessKeyDoesNotExistError)
       const keyError = error as AccessKeyDoesNotExistError
       expect(keyError.accountId).toBe("unknown")
@@ -144,16 +144,16 @@ describe("parseQueryError", () => {
     }
   })
 
-  test("should throw NetworkError for generic query errors without context", () => {
+  test("returns NetworkError for generic query errors without context", () => {
     const result = {
       error: "Some random query error",
     }
 
-    expect(() => parseQueryError(result, {})).toThrow(NetworkError)
+    expect(parseQueryError(result, {})).toBeInstanceOf(NetworkError)
 
-    try {
-      parseQueryError(result, {})
-    } catch (error) {
+    {
+      const error = parseQueryError(result, {})
+
       expect(error).toBeInstanceOf(NetworkError)
       const netError = error as NetworkError
       expect(netError.message).toContain("Query error")
@@ -161,61 +161,61 @@ describe("parseQueryError", () => {
     }
   })
 
-  test("should throw NetworkError (not AccessKeyDoesNotExistError) for 'does not exist' without access-key context", () => {
+  test("returns NetworkError (not AccessKeyDoesNotExistError) for 'does not exist' without access-key context", () => {
     // This is the view_state case: a missing account/contract must surface as a
     // generic query error, not be misclassified as an access-key error.
     const result = {
       error: "account some.near does not exist while viewing",
     }
 
-    expect(() => parseQueryError(result)).toThrow(NetworkError)
-    expect(() => parseQueryError(result)).not.toThrow(
+    expect(parseQueryError(result)).toBeInstanceOf(NetworkError)
+    expect(parseQueryError(result)).not.toBeInstanceOf(
       AccessKeyDoesNotExistError,
     )
   })
 
-  test("should throw NetworkError when access key error lacks 'does not exist' substring", () => {
+  test("returns NetworkError when access key error lacks 'does not exist' substring", () => {
     const result = {
       error: "Permission denied for access key",
     }
 
-    expect(() =>
+    expect(
       parseQueryError(result, {
         accountId: "test.near",
         publicKey: "ed25519:ABC123",
       }),
-    ).toThrow(NetworkError)
+    ).toBeInstanceOf(NetworkError)
 
-    try {
-      parseQueryError(result, {
+    {
+      const error = parseQueryError(result, {
         accountId: "test.near",
         publicKey: "ed25519:ABC123",
       })
-    } catch (error) {
+
       expect(error).toBeInstanceOf(NetworkError)
       const netError = error as NetworkError
       expect(netError.message).toContain("Permission denied")
     }
   })
 
-  test("should throw FunctionCallError for any error with contractId context", () => {
+  test("returns FunctionCallError for any error with contractId context", () => {
     const result = {
       error: "Contract execution error: out of gas",
     }
 
-    expect(() =>
+    expect(
       parseQueryError(result, {
         contractId: "contract.near",
         methodName: "expensive_method",
       }),
-    ).toThrow(FunctionCallError)
+    ).toBeInstanceOf(FunctionCallError)
 
-    try {
-      parseQueryError(result, {
+    {
+      const error = parseQueryError(result, {
         contractId: "contract.near",
         methodName: "expensive_method",
       })
-    } catch (error) {
+
       expect(error).toBeInstanceOf(FunctionCallError)
       const funcError = error as FunctionCallError
       expect(funcError.contractId).toBe("contract.near")
@@ -224,21 +224,21 @@ describe("parseQueryError", () => {
     }
   })
 
-  test("should not throw when result has no error field", () => {
+  test("returns no error when result has no error field", () => {
     const result = {
       success: true,
       data: "some data",
     }
 
-    expect(() => parseQueryError(result, {})).not.toThrow()
+    expect(parseQueryError(result, {})).toBeUndefined()
   })
 
-  test("should not throw when result is null", () => {
-    expect(() => parseQueryError(null, {})).not.toThrow()
+  test("returns no error when result is null", () => {
+    expect(parseQueryError(null, {})).toBeUndefined()
   })
 
-  test("should not throw when result is undefined", () => {
-    expect(() => parseQueryError(undefined, {})).not.toThrow()
+  test("returns no error when result is undefined", () => {
+    expect(parseQueryError(undefined, {})).toBeUndefined()
   })
 
   test("should prioritize contractId context over 'does not exist' message", () => {
@@ -247,20 +247,20 @@ describe("parseQueryError", () => {
       error: "MethodNotFound: method does not exist on the contract",
     }
 
-    expect(() =>
+    expect(
       parseQueryError(result, {
         contractId: "contract.near",
         methodName: "missing_method",
       }),
-    ).toThrow(FunctionCallError)
+    ).toBeInstanceOf(FunctionCallError)
 
     // Should NOT throw AccessKeyDoesNotExistError even though message contains "does not exist"
-    expect(() =>
+    expect(
       parseQueryError(result, {
         contractId: "contract.near",
         methodName: "missing_method",
       }),
-    ).not.toThrow(AccessKeyDoesNotExistError)
+    ).not.toBeInstanceOf(AccessKeyDoesNotExistError)
   })
 })
 
@@ -276,10 +276,10 @@ describe("parseRpcError - NO_GLOBAL_CONTRACT_CODE", () => {
   })
 
   test("should parse the current (nearcore >= 2.12) identifier shapes", () => {
-    try {
-      parseRpcError(noGlobalContractError({ hash: "9wa3Pn2XSFkQ4nWpq" }))
-      expect.unreachable()
-    } catch (error) {
+    {
+      const error = parseRpcError(
+        noGlobalContractError({ hash: "9wa3Pn2XSFkQ4nWpq" }),
+      )
       expect(error).toBeInstanceOf(GlobalContractNotFoundError)
       expect((error as GlobalContractNotFoundError).identifier).toEqual({
         codeHash: "9wa3Pn2XSFkQ4nWpq",
@@ -289,10 +289,10 @@ describe("parseRpcError - NO_GLOBAL_CONTRACT_CODE", () => {
       )
     }
 
-    try {
-      parseRpcError(noGlobalContractError({ account_id: "publisher.near" }))
-      expect.unreachable()
-    } catch (error) {
+    {
+      const error = parseRpcError(
+        noGlobalContractError({ account_id: "publisher.near" }),
+      )
       expect(error).toBeInstanceOf(GlobalContractNotFoundError)
       expect((error as GlobalContractNotFoundError).identifier).toEqual({
         accountId: "publisher.near",
@@ -303,20 +303,20 @@ describe("parseRpcError - NO_GLOBAL_CONTRACT_CODE", () => {
   test("should parse the legacy (pre-2.12) identifier shapes", () => {
     // nearcore < 2.12 serialized GlobalContractIdentifier with PascalCase
     // variant names (renamed in nearcore#15539).
-    try {
-      parseRpcError(noGlobalContractError({ CodeHash: "9wa3Pn2XSFkQ4nWpq" }))
-      expect.unreachable()
-    } catch (error) {
+    {
+      const error = parseRpcError(
+        noGlobalContractError({ CodeHash: "9wa3Pn2XSFkQ4nWpq" }),
+      )
       expect(error).toBeInstanceOf(GlobalContractNotFoundError)
       expect((error as GlobalContractNotFoundError).identifier).toEqual({
         codeHash: "9wa3Pn2XSFkQ4nWpq",
       })
     }
 
-    try {
-      parseRpcError(noGlobalContractError({ AccountId: "publisher.near" }))
-      expect.unreachable()
-    } catch (error) {
+    {
+      const error = parseRpcError(
+        noGlobalContractError({ AccountId: "publisher.near" }),
+      )
       expect(error).toBeInstanceOf(GlobalContractNotFoundError)
       expect((error as GlobalContractNotFoundError).identifier).toEqual({
         accountId: "publisher.near",
@@ -329,10 +329,8 @@ describe("parseRpcError - NO_GLOBAL_CONTRACT_CODE", () => {
     // all) must not demote the error to a generic NetworkError, or exists()
     // helpers would misreport genuine "not found" answers as failures.
     for (const identifier of [undefined, null, 42, { something: "else" }]) {
-      try {
-        parseRpcError(noGlobalContractError(identifier))
-        expect.unreachable()
-      } catch (error) {
+      {
+        const error = parseRpcError(noGlobalContractError(identifier))
         expect(error).toBeInstanceOf(GlobalContractNotFoundError)
         expect((error as GlobalContractNotFoundError).identifier).toEqual({
           accountId: "unknown",
