@@ -1,8 +1,7 @@
 "use client"
 
-import * as Effect from "effect/Effect"
 import { useMemo } from "react"
-import { external, useQuery } from "./effect-state.js"
+import { useQuery } from "./effect-state.js"
 
 import { useNear } from "./provider.js"
 
@@ -26,7 +25,7 @@ export interface AccountState {
  * Derives state from whichever signer/wallet was passed to the Near client
  * (via wallet, privateKey, keyStore, etc.).
  *
- * Note: This hook accesses internal Near client state which may change between versions.
+ * Uses the native account-reader capability; it does not inspect private client state.
  *
  * @example
  * ```tsx
@@ -41,21 +40,7 @@ export interface AccountState {
  */
 export function useAccount(): AccountState {
   const near = useNear()
-  const program = useMemo(
-    () =>
-      near.effects?.getConnectedAccountId
-        ? near.effects.getConnectedAccountId()
-        : external(async () => {
-            // Application-provided legacy clients can expose their account source.
-            const legacy = near as unknown as {
-              wallet?: { getAccounts(): Promise<Array<{ accountId: string }>> }
-              defaultSignerId?: string
-            }
-            const accounts = await legacy.wallet?.getAccounts()
-            return accounts?.[0]?.accountId ?? legacy.defaultSignerId
-          }).pipe(Effect.orElseSucceed(() => undefined)),
-    [near],
-  )
+  const program = useMemo(() => near.effects.getConnectedAccountId(), [near])
   const { data: accountId, isLoading, refetch } = useQuery(program, true)
   return { accountId, isConnected: accountId !== undefined, isLoading, refetch }
 }

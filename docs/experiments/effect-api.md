@@ -94,10 +94,31 @@ when executed. Pure fluent construction and pure cryptographic/wire algorithms
 remain ordinary synchronous operations; high-level Effect operations classify
 expected input/encoding failures in their failure channel.
 
+## Native message verification
+
+`verifyNep413Signature` from `near-kit/effect` accepts the native client's narrow
+`getAccessKey` capability. Custom readers retain their Effect service requirements;
+verification does not run a nested Promise client or discard the caller's context.
+
+```ts
+import { Near, verifyNep413Signature } from "near-kit/effect"
+
+const verify = Effect.gen(function* () {
+  const near = yield* Near
+  return yield* verifyNep413Signature(signedMessage, messageParams, { near })
+})
+```
+
+A supplied reader must confirm that the signed account/key currently has
+`FullAccess` permission. Invalid signatures, expired nonces, rejected reads and
+missing or restricted keys return `false`; interruption still propagates. Omit the
+reader only when offline cryptographic verification is sufficient. The root
+Promise helper continues to accept `{ near: new Near(...) }`.
+
 ## Errors and public boundaries
 
 Native operations retain SDK domain error classes, use native `SchemaError`
-for invalid internal config/RPC data, and use `ExternalError` for failures
+for invalid config, RPC data, and root validation-helper inputs, and use `ExternalError` for failures
 from Promise-only extensions. Its `operation` identifies the boundary and its
 `cause` retains the original value, including non-Error rejections. Promise-facing
 methods unwrap that cause to preserve existing rejection identity. Programmer
@@ -118,15 +139,19 @@ restarts. The legacy `Sandbox.start()`/`stop()` interface owns and closes the sa
 native scope. Snapshots preserve current gas-key permissions and extra nearcore
 fields.
 
-React uses native programs when given a real `Near` client. Superseded and
+React consumes the native programs owned by its `Near` client. Superseded and
 unmounted read requests are interrupted; state is observed through
 `SubscriptionRef`. Mutation Promises retain their own results, while only the
 newest active request can update the mounted UI. Unmounting disconnects UI state;
-it does not pretend to undo a submitted transaction.
+it does not pretend to undo a submitted transaction. Replacing a configured signer,
+key store, or wallet takes effect by object/function identity; authority-bearing
+config is never retained solely because its JSON representation is unchanged.
 
 ## Compatibility and measured cost
 
-Existing Zod schemas under `near-kit/schemas` remain Zod schemas. Native RPC codecs
+Existing Zod schemas under `near-kit/schemas` and credential schemas under
+`near-kit/keys` remain genuinely Zod-composable. Their runtime imports are isolated
+from the root and native core entrypoints. Native RPC codecs
 use one Effect Schema owner and preserve accepted wire defaults and unknown-field
 behavior. Internal config/RPC diagnostics no longer replay a duplicate Zod decoder. Amount, Borsh, crypto, and signed-transaction commitments are
 covered by independent unchanged vectors.

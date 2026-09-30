@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo } from "react"
-import { external, useQuery, useStableInput } from "./effect-state.js"
+import { useQuery, useStableInput } from "./effect-state.js"
 
 import type { NearError } from "near-kit"
 
@@ -63,10 +63,7 @@ export function useView<TArgs extends object = object, TResult = unknown>(
   const near = useNear()
   const args = useStableInput(params.args ?? {})
   const program = useMemo(
-    () =>
-      near.effects?.view
-        ? near.effects.view<TResult>(contractId, method, args)
-        : external(() => near.view<TResult>(contractId, method, args)),
+    () => near.effects.view<TResult>(contractId, method, args),
     [near, contractId, method, args],
   )
   return useQuery(program, enabled)
@@ -99,10 +96,7 @@ export function useBalance(params: UseBalanceParams): ViewResult<string> {
   const { accountId, enabled = true } = params
   const near = useNear()
   const program = useMemo(
-    () =>
-      near.effects?.getBalance
-        ? near.effects.getBalance(accountId)
-        : external(() => near.getBalance(accountId)),
+    () => near.effects.getBalance(accountId),
     [near, accountId],
   )
   return useQuery(program, enabled && Boolean(accountId))
@@ -137,10 +131,7 @@ export function useAccountExists(
   const { accountId, enabled = true } = params
   const near = useNear()
   const program = useMemo(
-    () =>
-      near.effects?.accountExists
-        ? near.effects.accountExists(accountId)
-        : external(() => near.accountExists(accountId)),
+    () => near.effects.accountExists(accountId),
     [near, accountId],
   )
   return useQuery(program, enabled && Boolean(accountId))

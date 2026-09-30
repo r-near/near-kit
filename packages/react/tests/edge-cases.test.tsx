@@ -1,3 +1,5 @@
+import * as Effect from "effect/Effect"
+import { ExternalError } from "near-kit/effect"
 /**
  * Tests for edge cases and branch coverage
  * Imports from index.ts to ensure that file is covered
@@ -24,6 +26,10 @@ const mockCall = vi.fn()
 const mockSend = vi.fn()
 
 interface MockNearInstance {
+  effects: Record<
+    string,
+    (...args: unknown[]) => Effect.Effect<unknown, ExternalError>
+  >
   view: typeof mockView
   call: typeof mockCall
   send: typeof mockSend
@@ -35,6 +41,40 @@ interface MockNearInstance {
 vi.mock("near-kit", () => {
   return {
     Near: vi.fn().mockImplementation(function (this: MockNearInstance) {
+      // Native capability fakes preserve this suite's controlled Promise producers.
+      this.effects = {
+        view: (...args) =>
+          Effect.tryPromise({
+            try: () => mockView(...args),
+            catch: (cause) =>
+              new ExternalError({ operation: "test.client", cause }),
+          }),
+        getBalance: (...args) =>
+          Effect.tryPromise({
+            try: () => mockGetBalance(...args),
+            catch: (cause) =>
+              new ExternalError({ operation: "test.client", cause }),
+          }),
+        accountExists: (...args) =>
+          Effect.tryPromise({
+            try: () => mockAccountExists(...args),
+            catch: (cause) =>
+              new ExternalError({ operation: "test.client", cause }),
+          }),
+        call: (...args) =>
+          Effect.tryPromise({
+            try: () => mockCall(...args),
+            catch: (cause) =>
+              new ExternalError({ operation: "test.client", cause }),
+          }),
+        send: (...args) =>
+          Effect.tryPromise({
+            try: () => mockSend(...args),
+            catch: (cause) =>
+              new ExternalError({ operation: "test.client", cause }),
+          }),
+      }
+
       this.view = mockView
       this.call = mockCall
       this.send = mockSend

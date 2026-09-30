@@ -9,13 +9,14 @@
 
 import * as Clock from "effect/Clock"
 import * as Effect from "effect/Effect"
-import { fromPromise, runPromise } from "../effect/runtime.js"
+import { runPromise } from "../effect/runtime.js"
 import { ed25519 } from "@noble/curves/ed25519.js"
 import { sha256 } from "@noble/hashes/sha2.js"
 import { randomBytes } from "@noble/hashes/utils.js"
 import { base58, base64 } from "@scure/base"
 import { b } from "@zorsh/zorsh"
 import type { Near } from "../core/near.js"
+import type { AccessKeyView } from "../effect/protocol-schemas.js"
 import type { SignedMessage, SignMessageParams } from "../core/types.js"
 import { parsePublicKey } from "./key.js"
 
@@ -198,35 +199,44 @@ export function verifyNep413Signature(
   params: SignMessageParams,
   options: VerifyNep413Options = {},
 ): Promise<boolean> {
-  return runPromise(verifyNep413SignatureEffect(signedMessage, params, options))
+  const { near, ...verification } = options
+  return runPromise(
+    verifyNep413SignatureEffect(signedMessage, params, {
+      ...verification,
+      ...(near ? { near: near.effects } : {}),
+    }),
+  )
 }
 
-export function verifyNep413SignatureEffect(
-  signedMessage: SignedMessage,
-  params: SignMessageParams,
-  options: VerifyNep413Options = {},
-): Effect.Effect<boolean> {
-  return Effect.gen(function* () {
+/** Native readers keep their requirements in the caller's Effect environment. */
+export type VerifyNep413EffectOptions<E = never, R = never> = Omit<
+  VerifyNep413Options,
+  "near"
+> & {
+  near?: {
+    getAccessKey(
+      accountId: string,
+      publicKey: string,
+    ): Effect.Effect<AccessKeyView | null, E, R>
+  }
+}
+
+export const verifyNep413SignatureEffect = Effect.fn("NEP413.verify")(
+  function* <E = never, R = never>(
+    signedMessage: SignedMessage,
+    params: SignMessageParams,
+    options: VerifyNep413EffectOptions<E, R> = {},
+  ) {
     const now = yield* Clock.currentTimeMillis
     const publicKey = yield* Effect.try(() =>
       verificationKey(signedMessage, params, options, now),
     )
     if (!publicKey) return false
-    const near = options.near
-    if (near) {
-      const accessKey = yield* near.effects
-        ? near.effects.getAccessKey(
-            signedMessage.accountId,
-            signedMessage.publicKey,
-          )
-        : fromPromise(
-            () =>
-              near.getAccessKey(
-                signedMessage.accountId,
-                signedMessage.publicKey,
-              ),
-            "signature.accessKey",
-          )
+    if (options.near) {
+      const accessKey = yield* options.near.getAccessKey(
+        signedMessage.accountId,
+        signedMessage.publicKey,
+      )
       if (accessKey?.permission !== "FullAccess") return false
     }
     return yield* Effect.try(() => {
@@ -236,14 +246,15 @@ export function verifyNep413SignatureEffect(
         signature !== null && ed25519.verify(signature, hash, publicKey.data)
       )
     })
-  }).pipe(Effect.orElseSucceed(() => false))
-}
+  },
+  (program) => program.pipe(Effect.orElseSucceed(() => false)),
+)
 
 /** Pure validation and cryptography stay outside the asynchronous workflow. */
 function verificationKey(
   signedMessage: SignedMessage,
   params: SignMessageParams,
-  options: VerifyNep413Options,
+  options: Omit<VerifyNep413Options, "near">,
   now: number,
 ) {
   const { maxAge: rawMaxAge = 5 * 60 * 1000, nonceValidation = "timestamp" } =

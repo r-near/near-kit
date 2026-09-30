@@ -19,7 +19,10 @@ export {
   type EffectContract,
 } from "../contracts/contract.js"
 export { ExternalError, type NearFailure } from "./runtime.js"
-export { verifyNep413SignatureEffect as verifyNep413Signature } from "../utils/nep413.js"
+export {
+  verifyNep413SignatureEffect as verifyNep413Signature,
+  type VerifyNep413EffectOptions,
+} from "../utils/nep413.js"
 export * as ProtocolSchema from "./protocol-schemas.js"
 
 export type { RpcFailure } from "../core/rpc/rpc.js"

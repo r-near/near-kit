@@ -22,13 +22,6 @@ export const errorValue = (failure: unknown): Error => {
   return value instanceof Error ? value : new Error(String(value))
 }
 
-/** The only adapter for application-provided clients that implement Promises. */
-export const external = <A>(operation: () => Promise<A>) =>
-  Effect.tryPromise({
-    try: operation,
-    catch: (cause) => new ExternalError({ operation: "React.client", cause }),
-  })
-
 /** Keep JSON-equivalent input data stable without reading/writing render refs. */
 export const useStableInput = <A>(value: A): A => {
   const key = JSON.stringify(value)

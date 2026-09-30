@@ -1,7 +1,7 @@
 "use client"
 
 import * as Effect from "effect/Effect"
-import { external, useMutation } from "./effect-state.js"
+import { useMutation } from "./effect-state.js"
 
 import type { CallOptions, NearError } from "near-kit"
 import { useCallback } from "react"
@@ -76,9 +76,7 @@ export function useCall<TArgs extends object = object, TResult = unknown>(
   const operation = useCallback(
     (args: TArgs, options?: CallOptions) => {
       const merged = { ...defaultOptions, ...options }
-      return near.effects?.call
-        ? near.effects.call<TResult>(contractId, method, args, merged)
-        : external(() => near.call<TResult>(contractId, method, args, merged))
+      return near.effects.call<TResult>(contractId, method, args, merged)
     },
     [near, contractId, method, defaultOptions],
   )
@@ -127,10 +125,7 @@ export function useSend(): UseSendResult {
   const near = useNear()
   const operation = useCallback(
     (to: string, amount: AmountInput) =>
-      (near.effects?.send
-        ? near.effects.send(to, amount)
-        : external(() => near.send(to, amount))
-      ).pipe(Effect.asVoid),
+      near.effects.send(to, amount).pipe(Effect.asVoid),
     [near],
   )
   const { data: _data, ...state } = useMutation(operation)
