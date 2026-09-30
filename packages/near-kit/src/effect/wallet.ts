@@ -50,67 +50,68 @@ export interface WalletAccountObservation {
 }
 
 /** Share a scoped source once; consumers cannot mutate the observed snapshot. */
-export const observeAccountStream = Effect.fn("Wallet.observeAccountStream")(
-  function* (
-    source: Stream.Stream<
-      Result.Result<ReadonlyArray<WalletAccount>, ExternalError>,
-      ExternalError
-    >,
-  ) {
-    const state = yield* SubscriptionRef.make<WalletAccountState>(
-      Object.freeze({ _tag: "Loading" }),
+export const observeAccountStream = /* @__PURE__ */ Effect.fn(
+  "Wallet.observeAccountStream",
+)(function* (
+  source: Stream.Stream<
+    Result.Result<ReadonlyArray<WalletAccount>, ExternalError>,
+    ExternalError
+  >,
+) {
+  const state = yield* SubscriptionRef.make<WalletAccountState>(
+    Object.freeze({ _tag: "Loading" }),
+  )
+  const ready = yield* Deferred.make<void>()
+  const publish = (value: WalletAccountState) =>
+    SubscriptionRef.set(state, Object.freeze(value)).pipe(
+      Effect.andThen(Deferred.succeed(ready, undefined)),
     )
-    const ready = yield* Deferred.make<void>()
-    const publish = (value: WalletAccountState) =>
-      SubscriptionRef.set(state, Object.freeze(value)).pipe(
-        Effect.andThen(Deferred.succeed(ready, undefined)),
-      )
-    const fail = (error: ExternalError) =>
-      publish({
-        _tag: "Failed",
-        error: new ExternalError({
-          operation: "wallet.observeAccounts",
-          cause: error.cause,
-        }),
-      })
-    yield* source.pipe(
-      Stream.runForEach((result) => {
-        if (Result.isFailure(result)) return fail(result.failure)
-        return fromSync(
-          () =>
-            Object.freeze(
-              result.success.map(({ accountId, publicKey }) =>
-                Object.freeze({
-                  accountId,
-                  ...(publicKey !== undefined ? { publicKey } : {}),
-                }),
-              ),
-            ),
-          "wallet.observeAccounts",
-        ).pipe(
-          Effect.flatMap((accounts) => publish({ _tag: "Ready", accounts })),
-          Effect.catch(fail),
-        )
+  const fail = (error: ExternalError) =>
+    publish({
+      _tag: "Failed",
+      error: new ExternalError({
+        operation: "wallet.observeAccounts",
+        cause: error.cause,
       }),
-      Effect.catch(fail),
-      Effect.forkScoped,
-    )
-    return {
-      get: Effect.fn("Wallet.accounts.get")(() => SubscriptionRef.get(state)),
-      changes: SubscriptionRef.changes(state),
-      ready: Deferred.await(ready),
-    } satisfies WalletAccountObservation
-  },
-)
+    })
+  yield* source.pipe(
+    Stream.runForEach((result) => {
+      if (Result.isFailure(result)) return fail(result.failure)
+      return fromSync(
+        () =>
+          Object.freeze(
+            result.success.map(({ accountId, publicKey }) =>
+              Object.freeze({
+                accountId,
+                ...(publicKey !== undefined ? { publicKey } : {}),
+              }),
+            ),
+          ),
+        "wallet.observeAccounts",
+      ).pipe(
+        Effect.flatMap((accounts) => publish({ _tag: "Ready", accounts })),
+        Effect.catch(fail),
+      )
+    }),
+    Effect.catch(fail),
+    Effect.forkScoped,
+  )
+  return {
+    get: Effect.fn("Wallet.accounts.get")(() => SubscriptionRef.get(state)),
+    changes: SubscriptionRef.changes(state),
+    ready: Deferred.await(ready),
+  } satisfies WalletAccountObservation
+})
 
 /** Acquire once in a client scope, including a snapshot for legacy wallets. */
-export const acquireWalletAccounts = Effect.fn("Wallet.acquireAccounts")(
-  (wallet: WalletService) =>
-    wallet.observeAccounts
-      ? wallet.observeAccounts()
-      : observeAccountStream(
-          Stream.fromEffect(Effect.result(wallet.getAccounts())),
-        ),
+export const acquireWalletAccounts = /* @__PURE__ */ Effect.fn(
+  "Wallet.acquireAccounts",
+)((wallet: WalletService) =>
+  wallet.observeAccounts
+    ? wallet.observeAccounts()
+    : observeAccountStream(
+        Stream.fromEffect(Effect.result(wallet.getAccounts())),
+      ),
 )
 
 const nativeWallet = Symbol.for("near-kit/NativeWallet")
