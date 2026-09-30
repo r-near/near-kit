@@ -12,6 +12,7 @@ import * as Protocol from "../../effect/protocol-schemas.js"
 import {
   AccessKeyDoesNotExistError,
   GlobalContractNotFoundError,
+  InvalidNonceError,
   NearError,
   NetworkError,
 } from "../../errors/index.js"
@@ -45,6 +46,11 @@ import {
   parseQueryError,
   parseRpcError,
 } from "./rpc-error-handler.js"
+
+import {
+  markDefinitiveNonceRejection,
+  transactionOutcomeUnknown,
+} from "./submission.js"
 
 /** Configuration and state are owned by the native service, not a Promise adapter. */
 export interface RpcProgramConfig {
@@ -213,6 +219,7 @@ function programsWithState(
 const requestRpc = Effect.fn("Rpc.request")(function* <T = unknown>(
   state: RpcState,
   request: RpcRequest,
+  onDecodedNonceRejection?: (error: InvalidNonceError) => void,
 ): Effect.fn.Return<T, RpcFailure> {
   if (state.debug) yield* debugRpc("Request", request)
   // One interruptible transport boundary owns both fetch and body consumption.
@@ -230,8 +237,14 @@ const requestRpc = Effect.fn("Rpc.request")(function* <T = unknown>(
       () => new NetworkError("RPC response missing result field"),
     ),
   )
-  if (envelope.error)
-    return yield* Effect.fail(parseRpcError(envelope.error, status))
+  if (envelope.error) {
+    const error = parseRpcError(envelope.error, status)
+    if (request.method === "send_tx" && error instanceof InvalidNonceError) {
+      markDefinitiveNonceRejection(error)
+      onDecodedNonceRejection?.(error)
+    }
+    return yield* Effect.fail(error)
+  }
   if (envelope.result === undefined)
     return yield* Effect.fail(
       new NetworkError("RPC response missing result field"),
@@ -253,13 +266,42 @@ const call = Effect.fn("Rpc.call")(function* <T = unknown>(
     params,
   }
 
-  return yield* requestRpc<T>(state, request).pipe(
+  // A retry reuses the same signed bytes, but a lost response may hide acceptance.
+  // Only a rejection decoded in this attempt can prove that it was not accepted.
+  let uncertainSubmission = false
+  const attempt =
+    method !== "send_tx"
+      ? requestRpc<T>(state, request)
+      : Effect.gen(function* () {
+          let decodedNonceRejection: InvalidNonceError | undefined
+          return yield* requestRpc<T>(state, request, (error) => {
+            decodedNonceRejection = error
+          }).pipe(
+            Effect.mapError((error) => {
+              // A transport can throw a nonce error, even one marked by a prior
+              // call. That is not rejection evidence for this submission attempt.
+              if (error !== decodedNonceRejection) uncertainSubmission = true
+              return error
+            }),
+          )
+        })
+
+  return yield* attempt.pipe(
     Effect.retry({
       schedule: Schedule.exponential(state.retryConfig.initialDelayMs).pipe(
         Schedule.upTo({ times: state.retryConfig.maxRetries }),
       ),
       while: (error) => "retryable" in error && error.retryable === true,
     }),
+    // Keep bounded same-byte retries intact, but never turn a possibly accepted
+    // submission into permission for the caller to refresh its nonce and sign.
+    Effect.mapError((error) =>
+      method === "send_tx" &&
+      uncertainSubmission &&
+      error instanceof InvalidNonceError
+        ? transactionOutcomeUnknown(error)
+        : error,
+    ),
   )
 })
 
