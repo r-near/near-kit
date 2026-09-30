@@ -131,7 +131,8 @@ export function NearProvider(props: NearProviderProps): ReactNode {
     const { activate } = projection.prepared
     const fiber = Effect.runFork(
       Effect.gen(function* () {
-        if (previous) yield* Fiber.await(previous)
+        // A cancelled intermediate owner must still retain the cleanup barrier.
+        if (previous) yield* Fiber.await(previous).pipe(Effect.uninterruptible)
         return yield* Effect.scoped(activate.pipe(Effect.andThen(Effect.never)))
       }).pipe(
         Effect.onError((cause) => {

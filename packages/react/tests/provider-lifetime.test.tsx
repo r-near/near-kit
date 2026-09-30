@@ -15,7 +15,7 @@ import {
 } from "near-kit/effect"
 import { Component, StrictMode, type ReactNode } from "react"
 import { renderToString } from "react-dom/server"
-import { describe, expect, test } from "vitest"
+import { describe, expect, test, vi } from "vitest"
 import { useAccount } from "../src/account.js"
 import { useCall } from "../src/mutations.js"
 import { NearProvider, useNear } from "../src/provider.js"
@@ -82,9 +82,11 @@ const message = {
 }
 
 describe("provider-owned observation", () => {
-  test("reports defective observation acquisition to the application error boundary", async () => {
+  test("reports defective observation acquisition after cleanup to the application error boundary", async () => {
     const defect = new Error("native observation acquisition defect")
     const caught = Deferred.makeUnsafe<unknown>()
+    const release = Deferred.makeUnsafe<void>()
+    let cleanupStarted = false
     let released = 0
     const wallet = walletConnection({
       getAccounts: () => Effect.succeed([]),
@@ -92,7 +94,9 @@ describe("provider-owned observation", () => {
       observeAccounts: () =>
         Effect.gen(function* () {
           yield* Effect.acquireRelease(Effect.void, () =>
-            Effect.sync(() => {
+            Effect.gen(function* () {
+              cleanupStarted = true
+              yield* Deferred.await(release)
               released++
             }),
           )
@@ -129,12 +133,96 @@ describe("provider-owned observation", () => {
         </NearProvider>
       </Boundary>,
     )
+    await waitFor(() => expect(cleanupStarted).toBe(true))
+    expect(view.queryByText("observation failed")).toBeNull()
+    expect(released).toBe(0)
+    await act(async () => {
+      await Effect.runPromise(Deferred.succeed(release, undefined))
+    })
     await waitFor(() =>
       expect(view.queryByText("observation failed")).not.toBeNull(),
     )
     expect(await Effect.runPromise(Deferred.await(caught))).toBe(defect)
     expect(released).toBe(1)
     view.unmount()
+  })
+
+  test.each(["replacement", "unmount"] as const)(
+    "reports delayed cleanup defects after %s without updating a stale provider",
+    async (ending) => {
+      const release = Deferred.makeUnsafe<void>()
+      const defect = new Error("observation release defect")
+      const first = observedWallet("alice.near", {
+        release: Deferred.await(release).pipe(
+          Effect.andThen(Effect.die(defect)),
+        ),
+      })
+      const second = observedWallet("bob.near")
+      let config: NearConfig = { wallet: first.wallet }
+      const wrapper = ({ children }: { children: ReactNode }) => (
+        <NearProvider config={config}>{children}</NearProvider>
+      )
+      const log = vi.spyOn(console, "log").mockImplementation(() => {})
+      const hook = renderHook(() => useAccount(), { wrapper })
+      try {
+        await waitFor(() =>
+          expect(hook.result.current.accountId).toBe("alice.near"),
+        )
+        if (ending === "replacement") {
+          config = { wallet: second.wallet }
+          hook.rerender()
+          expect(second.counts.acquired).toBe(0)
+        } else {
+          hook.unmount()
+        }
+        expect(log).not.toHaveBeenCalled()
+        await act(async () => {
+          await Effect.runPromise(Deferred.succeed(release, undefined))
+        })
+        await waitFor(() => expect(log).toHaveBeenCalledTimes(1))
+        expect(log.mock.calls[0]?.[1]).toBe(
+          "NearProvider observation cleanup failed",
+        )
+        expect(log.mock.calls[0]?.[2]).toContain(defect.message)
+        if (ending === "replacement") {
+          await waitFor(() =>
+            expect(hook.result.current.accountId).toBe("bob.near"),
+          )
+          expect(second.counts.active).toBe(1)
+          expect(second.counts.acquired).toBe(1)
+        }
+      } finally {
+        await Effect.runPromise(Deferred.succeed(release, undefined))
+        hook.unmount()
+        log.mockRestore()
+      }
+    },
+  )
+
+  test("ordinary StrictMode cleanup and unmount do not report interruption as a defect", async () => {
+    const fixture = observedWallet("alice.near")
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <StrictMode>
+        <NearProvider config={{ wallet: fixture.wallet }}>
+          {children}
+        </NearProvider>
+      </StrictMode>
+    )
+    const log = vi.spyOn(console, "log").mockImplementation(() => {})
+    const hook = renderHook(() => useAccount(), { wrapper })
+    try {
+      await waitFor(() =>
+        expect(hook.result.current.accountId).toBe("alice.near"),
+      )
+      expect(fixture.counts.active).toBe(1)
+      await act(async () => hook.unmount())
+      expect(fixture.counts.active).toBe(0)
+      expect(fixture.counts.released).toBe(fixture.counts.acquired)
+      expect(log).not.toHaveBeenCalled()
+    } finally {
+      hook.unmount()
+      log.mockRestore()
+    }
   })
 
   test("SSR and abandoned renders retain children without starting keys or observation", () => {
@@ -268,6 +356,45 @@ describe("provider-owned observation", () => {
       await Effect.runPromise(Deferred.succeed(release, undefined))
       hook.unmount()
     }
+  })
+
+  test("rapid replacements retain the oldest asynchronous cleanup barrier", async () => {
+    const release = Deferred.makeUnsafe<void>()
+    const first = observedWallet("alice.near", {
+      release: Deferred.await(release),
+    })
+    const second = observedWallet("bob.near")
+    const third = observedWallet("carol.near")
+    let config: NearConfig = { wallet: first.wallet }
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <NearProvider config={config}>{children}</NearProvider>
+    )
+    const hook = renderHook(() => useAccount(), { wrapper })
+    try {
+      await waitFor(() =>
+        expect(hook.result.current.accountId).toBe("alice.near"),
+      )
+      config = { wallet: second.wallet }
+      await act(async () => hook.rerender())
+      config = { wallet: third.wallet }
+      await act(async () => hook.rerender())
+      expect(first.counts.active).toBe(1)
+      expect(second.counts.acquired).toBe(0)
+      expect(third.counts.acquired).toBe(0)
+      await act(async () => {
+        await Effect.runPromise(Deferred.succeed(release, undefined))
+      })
+      await waitFor(() =>
+        expect(hook.result.current.accountId).toBe("carol.near"),
+      )
+      expect(first.counts.active).toBe(0)
+      expect(second.counts.acquired).toBe(0)
+      expect(third.counts.active).toBe(1)
+    } finally {
+      await Effect.runPromise(Deferred.succeed(release, undefined))
+      hook.unmount()
+    }
+    expect(third.counts.active).toBe(0)
   })
 
   test("an externally supplied Near retains its caller-owned observation after unmount", async () => {
