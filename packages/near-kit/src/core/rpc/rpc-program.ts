@@ -924,10 +924,10 @@ const debugRpc = Effect.fn("Rpc.debug")(function* (
     Effect.orDie,
   )
   if (enabled === "true") {
-    const json = yield* inputEffect(
-      () => JSON.stringify(value, null, 2),
-      "Rpc.debug.encoding",
-    )
+    const json = yield* Effect.try({
+      try: () => JSON.stringify(value, null, 2),
+      catch: transportError,
+    })
     yield* Console.log(`[RPC ${direction}]`, json)
   }
 })

@@ -601,3 +601,41 @@ describe("public RPC middleware", () => {
     }
   })
 })
+
+test("debug encoding failures retain network error classification and bounded retries", async () => {
+  let encodings = 0
+  let fetches = 0
+  const circular: Record<string, unknown> = {}
+  circular["self"] = circular
+  const params = {
+    toJSON() {
+      encodings++
+      return circular
+    },
+  }
+  const rpc = testRpcPrograms(
+    "https://unused.invalid",
+    async () => {
+      fetches++
+      return result({})
+    },
+    undefined,
+    { maxRetries: 2, initialDelayMs: 0 },
+  )
+  const program = rpc
+    .call("query", params)
+    .pipe(
+      Effect.provide(
+        ConfigProvider.layer(
+          ConfigProvider.fromUnknown({ NEAR_RPC_DEBUG: "true" }),
+        ),
+      ),
+    )
+  await expect(runPromise(program)).rejects.toMatchObject({
+    name: "NetworkError",
+    code: "NETWORK_ERROR",
+    message: expect.stringContaining("Network request failed:"),
+    retryable: true,
+  })
+  expect({ fetches, encodings }).toEqual({ fetches: 0, encodings: 3 })
+})
