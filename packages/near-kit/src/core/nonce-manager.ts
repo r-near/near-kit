@@ -1,121 +1,109 @@
+import { Effect, Semaphore } from "effect"
+import { fromPromise, runPromise } from "../effect/runtime.js"
+
+type NonceState = {
+  readonly semaphore: Semaphore.Semaphore
+  generation: number
+  next: bigint | undefined
+}
+
 /**
- * Manages nonces for concurrent transactions.
+ * Allocates distinct nonces for concurrent transactions. The state belongs to
+ * this manager, not the fiber that happens to perform the initial lookup.
  *
- * Prevents nonce collisions when sending multiple transactions in parallel
- * by caching nonces in memory and incrementing them locally.
- *
- * @internal Used by {@link TransactionBuilder}; not typically needed directly.
+ * These entries are reservation state, not a read cache: TTL/LRU eviction could
+ * reissue a nonce before the corresponding transaction has reached the chain.
+ * @internal Used by {@link TransactionBuilder}.
  */
 export class NonceManager {
-  private nonces = new Map<string, bigint>()
-  private fetching = new Map<string, Promise<void>>()
+  private readonly states = new Map<string, NonceState>()
 
-  /**
-   * Get the next nonce for an account and public key
-   *
-   * Fetches from blockchain on first call, then increments locally.
-   * Handles concurrent calls gracefully by deduplicating fetches.
-   *
-   * @param accountId - Account ID to get nonce for
-   * @param publicKey - Public key to get nonce for
-   * @param fetchFromBlockchain - Callback to fetch current nonce from blockchain
-   * @returns Next nonce to use for transaction
-   */
-  async getNextNonce(
+  private state(accountId: string, publicKey: string): NonceState {
+    const key = `${accountId}:${publicKey}`
+    let state = this.states.get(key)
+    if (!state) {
+      state = {
+        semaphore: Semaphore.makeUnsafe(1),
+        generation: 0,
+        next: undefined,
+      }
+      this.states.set(key, state)
+    }
+    return state
+  }
+
+  /** Promise compatibility boundary for external nonce lookups. */
+  getNextNonce(
     accountId: string,
     publicKey: string,
     fetchFromBlockchain: () => Promise<bigint>,
   ): Promise<bigint> {
-    const key = `${accountId}:${publicKey}`
-
-    // Wait if another call is already fetching for this key
-    const pendingFetch = this.fetching.get(key)
-    if (pendingFetch) {
-      await pendingFetch
-    }
-
-    // Fetch from blockchain if not cached
-    if (!this.nonces.has(key)) {
-      const fetchPromise = fetchFromBlockchain()
-        .then((blockchainNonce) => {
-          this.nonces.set(key, blockchainNonce + 1n)
-          this.fetching.delete(key)
-        })
-        .catch((error) => {
-          this.fetching.delete(key)
-          throw error
-        })
-
-      this.fetching.set(key, fetchPromise)
-      await fetchPromise
-    }
-
-    // Return current nonce and increment for next call
-    const nonce = this.nonces.get(key)
-    if (nonce === undefined) {
-      throw new Error(`Nonce not found for ${key} after fetch`)
-    }
-    this.nonces.set(key, nonce + 1n)
-    return nonce
+    return runPromise(
+      this.getNextNonceEffect(
+        accountId,
+        publicKey,
+        fromPromise(fetchFromBlockchain, "NonceManager.fetchFromBlockchain"),
+      ),
+    )
   }
 
   /**
-   * Invalidate cached nonce for an account and public key
-   *
-   * Call this when an InvalidNonceError occurs to force a fresh fetch
-   * from the blockchain on the next transaction.
-   *
-   * @param accountId - Account ID to invalidate
-   * @param publicKey - Public key to invalidate
+   * Reserve a nonce in the caller's fiber. The per-key permit deduplicates
+   * successful lookups and is released on failure or interruption; no detached
+   * producer or poisoned pending Promise can prevent the next caller proceeding.
    */
+  getNextNonceEffect<E, R>(
+    accountId: string,
+    publicKey: string,
+    fetchFromBlockchain: Effect.Effect<bigint, E, R>,
+  ): Effect.Effect<bigint, E, R> {
+    return Effect.suspend(() => {
+      const state = this.state(accountId, publicKey)
+      return state.semaphore.withPermit(
+        Effect.gen(function* () {
+          while (state.next === undefined) {
+            const generation = state.generation
+            const onChain = yield* fetchFromBlockchain
+            // A synchronous invalidation/update may have occurred while waiting.
+            // Discard stale results, including results older than an explicit
+            // updateAndGetNext reservation made by an InvalidNonce retry.
+            if (generation === state.generation) state.next = onChain + 1n
+          }
+          const nonce = state.next
+          state.next = nonce + 1n
+          return nonce
+        }),
+      )
+    }).pipe(Effect.withSpan("NonceManager.getNextNonce"))
+  }
+
+  /** Force a fresh chain lookup, including when a lookup is already in flight. */
   invalidate(accountId: string, publicKey: string): void {
-    this.nonces.delete(`${accountId}:${publicKey}`)
+    const state = this.state(accountId, publicKey)
+    state.generation++
+    state.next = undefined
   }
 
-  /**
-   * Update the cached nonce to a known value and return the next nonce to use.
-   *
-   * Use this when you receive an InvalidNonce error with `akNonce` -
-   * instead of invalidating and refetching, directly set the nonce
-   * to avoid thundering herd on retry.
-   *
-   * @param accountId - Account ID
-   * @param publicKey - Public key string (e.g., "ed25519:...")
-   * @param currentNonce - The current nonce on chain (akNonce from error)
-   * @returns The next nonce to use (currentNonce + 1, or higher if cache is ahead)
-   */
+  /** Advance to a chain nonce and atomically reserve the next unused value. */
   updateAndGetNext(
     accountId: string,
     publicKey: string,
     currentNonce: bigint,
   ): bigint {
-    const key = `${accountId}:${publicKey}`
-    const nextNonce = currentNonce + 1n
-
-    const cached = this.nonces.get(key)
-    if (cached !== undefined) {
-      // Update to max of current cached value and new value
-      // This handles case where another worker already advanced past this nonce
-      if (nextNonce > cached) {
-        this.nonces.set(key, nextNonce + 1n)
-        return nextNonce
-      } else {
-        // Cached value is already higher, use it
-        const result = cached
-        this.nonces.set(key, cached + 1n)
-        return result
-      }
-    }
-
-    // No entry, create one
-    this.nonces.set(key, nextNonce + 1n)
-    return nextNonce
+    const state = this.state(accountId, publicKey)
+    const next = currentNonce + 1n
+    const reserved =
+      state.next !== undefined && state.next > next ? state.next : next
+    state.generation++
+    state.next = reserved + 1n
+    return reserved
   }
 
-  /**
-   * Clear all cached nonces
-   */
+  /** Invalidate every entry without splitting the locks of existing callers. */
   clear(): void {
-    this.nonces.clear()
+    for (const state of this.states.values()) {
+      state.generation++
+      state.next = undefined
+    }
   }
 }
