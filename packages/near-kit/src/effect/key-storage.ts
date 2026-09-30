@@ -1,9 +1,16 @@
-/** Ref-owned native key storage; insertion order is part of the Promise API. */
+/** Ref-owned storage; insertion order and round-robin updates are atomic. */
 import * as Effect from "effect/Effect"
 import * as Ref from "effect/Ref"
 import type { KeyPair } from "../core/types.js"
 import { inputEffect } from "./runtime.js"
 import { parseKey } from "../utils/key.js"
+
+type Memory = Ref.Ref<ReadonlyMap<string, KeyPair>>
+type RotationState = {
+  readonly keys: ReadonlyMap<string, ReadonlyArray<KeyPair>>
+  readonly counters: ReadonlyMap<string, number>
+}
+type Rotation = Ref.Ref<RotationState>
 
 const without = <K, V>(
   values: ReadonlyMap<K, V>,
@@ -14,49 +21,113 @@ const without = <K, V>(
   return next
 }
 
-export const makeMemoryStorage = (initialKeys?: Record<string, string>) =>
-  Effect.gen(function* () {
-    const initial = yield* inputEffect(
-      () =>
-        new Map(
-          Object.entries(initialKeys ?? {}).map(([id, key]) => [
-            id,
-            parseKey(key),
-          ]),
-        ),
-      "MemoryKeyStore.initialize",
-    )
-    const keys = yield* Ref.make<ReadonlyMap<string, KeyPair>>(initial)
-    return {
-      get: Effect.fn("MemoryKeyStore.get")(function* (id: string) {
-        return (yield* Ref.get(keys)).get(id) ?? null
-      }),
-      add: Effect.fn("MemoryKeyStore.add")(function* (
-        id: string,
-        key: KeyPair,
-      ) {
-        yield* Ref.update(keys, (current) => new Map(current).set(id, key))
-      }),
-      remove: Effect.fn("MemoryKeyStore.remove")(function* (id: string) {
-        yield* Ref.update(keys, (current) => without(current, id))
-      }),
-      list: Effect.fn("MemoryKeyStore.list")(function* () {
-        return Array.from((yield* Ref.get(keys)).keys())
-      }),
-      clear: Effect.fn("MemoryKeyStore.clear")(function* () {
-        yield* Ref.set(keys, new Map())
-      }),
-    }
-  })
+// Named programs are shared across instances; construction only binds their state.
+const memoryGet = Effect.fn("MemoryKeyStore.get")(function* (
+  state: Memory,
+  id: string,
+) {
+  return (yield* Ref.get(state)).get(id) ?? null
+})
+const memoryAdd = Effect.fn("MemoryKeyStore.add")(
+  (state: Memory, id: string, key: KeyPair) =>
+    Ref.update(state, (current) => new Map(current).set(id, key)),
+)
+const memoryRemove = Effect.fn("MemoryKeyStore.remove")(
+  (state: Memory, id: string) =>
+    Ref.update(state, (current) => without(current, id)),
+)
+const memoryList = Effect.fn("MemoryKeyStore.list")(function* (state: Memory) {
+  return Array.from((yield* Ref.get(state)).keys())
+})
+const memoryClear = Effect.fn("MemoryKeyStore.clear")((state: Memory) =>
+  Ref.set(state, new Map()),
+)
 
-type RotationState = {
-  readonly keys: ReadonlyMap<string, ReadonlyArray<KeyPair>>
-  readonly counters: ReadonlyMap<string, number>
-}
+export const makeMemoryStorage = Effect.fn("MemoryKeyStore.make")(function* (
+  initialKeys?: Record<string, string>,
+) {
+  const initial = yield* inputEffect(
+    () =>
+      new Map(
+        Object.entries(initialKeys ?? {}).map(([id, key]) => [
+          id,
+          parseKey(key),
+        ]),
+      ),
+    "MemoryKeyStore.initialize",
+  )
+  const state = yield* Ref.make<ReadonlyMap<string, KeyPair>>(initial)
+  return {
+    get: (id: string) => memoryGet(state, id),
+    add: (id: string, key: KeyPair) => memoryAdd(state, id, key),
+    remove: (id: string) => memoryRemove(state, id),
+    list: () => memoryList(state),
+    clear: () => memoryClear(state),
+  }
+})
 
-export const makeRotatingStorage = (initialKeys?: Record<string, string[]>) =>
-  Effect.gen(function* () {
-    const initial = yield* inputEffect(
+const rotatingGet = Effect.fn("RotatingKeyStore.get")(
+  (state: Rotation, id: string) =>
+    Ref.modify(state, (current) => {
+      const keys = current.keys.get(id) ?? []
+      if (keys.length === 0) return [null, current] as const
+      const counter = current.counters.get(id) ?? 0
+      return [
+        keys[counter % keys.length] ?? null,
+        {
+          ...current,
+          counters: new Map(current.counters).set(id, counter + 1),
+        },
+      ] as const
+    }),
+)
+const rotatingAdd = Effect.fn("RotatingKeyStore.add")(
+  (state: Rotation, id: string, key: KeyPair) =>
+    Ref.update(state, (current) => ({
+      ...current,
+      keys: new Map(current.keys).set(id, [
+        ...(current.keys.get(id) ?? []),
+        key,
+      ]),
+    })),
+)
+const rotatingRemove = Effect.fn("RotatingKeyStore.remove")(
+  (state: Rotation, id: string) =>
+    Ref.update(state, (current) => ({
+      keys: without(current.keys, id),
+      counters: without(current.counters, id),
+    })),
+)
+const rotatingList = Effect.fn("RotatingKeyStore.list")(function* (
+  state: Rotation,
+) {
+  return Array.from((yield* Ref.get(state)).keys.keys())
+})
+const rotatingGetAll = Effect.fn("RotatingKeyStore.getAll")(function* (
+  state: Rotation,
+  id: string,
+) {
+  return Array.from((yield* Ref.get(state)).keys.get(id) ?? [])
+})
+const rotatingGetIndex = Effect.fn("RotatingKeyStore.getCurrentIndex")(
+  function* (state: Rotation, id: string) {
+    return (yield* Ref.get(state)).counters.get(id) ?? 0
+  },
+)
+const rotatingReset = Effect.fn("RotatingKeyStore.resetCounter")(
+  (state: Rotation, id: string) =>
+    Ref.update(state, (current) => ({
+      ...current,
+      counters: new Map(current.counters).set(id, 0),
+    })),
+)
+const rotatingClear = Effect.fn("RotatingKeyStore.clear")((state: Rotation) =>
+  Ref.set(state, { keys: new Map(), counters: new Map() }),
+)
+
+export const makeRotatingStorage = Effect.fn("RotatingKeyStore.make")(
+  function* (initialKeys?: Record<string, string[]>) {
+    const keys = yield* inputEffect(
       () =>
         new Map(
           Object.entries(initialKeys ?? {})
@@ -65,64 +136,16 @@ export const makeRotatingStorage = (initialKeys?: Record<string, string[]>) =>
         ),
       "RotatingKeyStore.initialize",
     )
-    const state = yield* Ref.make<RotationState>({
-      keys: initial,
-      counters: new Map(),
-    })
+    const state = yield* Ref.make<RotationState>({ keys, counters: new Map() })
     return {
-      get: Effect.fn("RotatingKeyStore.get")(function* (id: string) {
-        return yield* Ref.modify(state, (current) => {
-          const keys = current.keys.get(id) ?? []
-          if (keys.length === 0) return [null, current] as const
-          const counter = current.counters.get(id) ?? 0
-          return [
-            keys[counter % keys.length] ?? null,
-            {
-              ...current,
-              counters: new Map(current.counters).set(id, counter + 1),
-            },
-          ] as const
-        })
-      }),
-      add: Effect.fn("RotatingKeyStore.add")(function* (
-        id: string,
-        key: KeyPair,
-      ) {
-        yield* Ref.update(state, (current) => ({
-          ...current,
-          keys: new Map(current.keys).set(id, [
-            ...(current.keys.get(id) ?? []),
-            key,
-          ]),
-        }))
-      }),
-      remove: Effect.fn("RotatingKeyStore.remove")(function* (id: string) {
-        yield* Ref.update(state, (current) => ({
-          keys: without(current.keys, id),
-          counters: without(current.counters, id),
-        }))
-      }),
-      list: Effect.fn("RotatingKeyStore.list")(function* () {
-        return Array.from((yield* Ref.get(state)).keys.keys())
-      }),
-      getAll: Effect.fn("RotatingKeyStore.getAll")(function* (id: string) {
-        return Array.from((yield* Ref.get(state)).keys.get(id) ?? [])
-      }),
-      getCurrentIndex: Effect.fn("RotatingKeyStore.getCurrentIndex")(function* (
-        id: string,
-      ) {
-        return (yield* Ref.get(state)).counters.get(id) ?? 0
-      }),
-      resetCounter: Effect.fn("RotatingKeyStore.resetCounter")(function* (
-        id: string,
-      ) {
-        yield* Ref.update(state, (current) => ({
-          ...current,
-          counters: new Map(current.counters).set(id, 0),
-        }))
-      }),
-      clear: Effect.fn("RotatingKeyStore.clear")(function* () {
-        yield* Ref.set(state, { keys: new Map(), counters: new Map() })
-      }),
+      get: (id: string) => rotatingGet(state, id),
+      add: (id: string, key: KeyPair) => rotatingAdd(state, id, key),
+      remove: (id: string) => rotatingRemove(state, id),
+      list: () => rotatingList(state),
+      getAll: (id: string) => rotatingGetAll(state, id),
+      getCurrentIndex: (id: string) => rotatingGetIndex(state, id),
+      resetCounter: (id: string) => rotatingReset(state, id),
+      clear: () => rotatingClear(state),
     }
-  })
+  },
+)

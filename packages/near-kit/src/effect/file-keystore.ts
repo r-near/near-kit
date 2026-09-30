@@ -1,6 +1,5 @@
 /** Native filesystem storage. Filesystem authority is supplied by a Layer. */
 import * as Config from "effect/Config"
-import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
@@ -13,7 +12,7 @@ import {
   type Network,
 } from "../keys/credential-schemas.js"
 import { parseKey } from "../utils/key.js"
-import type { KeyStoreService } from "./keys.js"
+import { KeyStore, type KeyStoreService } from "./keys.js"
 import { ExternalError } from "./runtime.js"
 
 export interface FileStorageOptions {
@@ -87,7 +86,7 @@ export const makeFileStorage = Effect.fn("FileStorage.make")(function* (
     return file ? yield* readKey(`${dir}/${file}`) : null
   })
 
-  return FileStorage.of({
+  return {
     add: Effect.fn("FileStorage.add")(
       function* (id: string, key: KeyPair, metadata?: CredentialMetadata) {
         yield* fs.makeDirectory(directory, { recursive: true })
@@ -153,14 +152,11 @@ export const makeFileStorage = Effect.fn("FileStorage.make")(function* (
       },
       Effect.mapError(storageError("FileKeyStore.list")),
     ),
-  })
+  } satisfies FileStorageService
 })
 
-// oxlint-disable-next-line effecttsgo/lazy-effect -- Kit service operations remain named Effect.fn functions, including zero-argument methods.
-export class FileStorage extends Context.Service<
-  FileStorage,
-  FileStorageService
->()("near-kit/FileStorage") {
-  static layer = (options: FileStorageOptions = {}) =>
-    Layer.effect(FileStorage, makeFileStorage(options))
+/** Node-only layer implementing the shared key-store service. */
+export const FileStorage = {
+  layer: (options: FileStorageOptions = {}) =>
+    Layer.effect(KeyStore, makeFileStorage(options)),
 }

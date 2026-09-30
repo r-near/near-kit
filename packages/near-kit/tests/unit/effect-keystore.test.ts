@@ -1,6 +1,12 @@
 import { Effect } from "effect"
-import { describe, expect, test, vi } from "vitest"
-import { KeyStore, keyStoreService } from "../../src/effect/keys.js"
+import { describe, expect, test } from "vitest"
+import type { KeyPair } from "../../src/core/types.js"
+import { ExternalError, runPromise } from "../../src/effect/runtime.js"
+import {
+  KeyStore,
+  keyStoreConnection,
+  keyStoreService,
+} from "../../src/effect/keys.js"
 import { InMemoryKeyStore } from "../../src/keys/in-memory-keystore.js"
 import { RotatingKeyStore } from "../../src/keys/rotating-keystore.js"
 import { generateKey } from "../../src/utils/key.js"
@@ -24,7 +30,7 @@ describe("native key-store ownership", () => {
     ).toBeNull()
 
     const legacy = new InMemoryKeyStore()
-    const pending = legacy.addEffect("alice.near", key)
+    const pending = keyStoreService(legacy).add("alice.near", key)
     expect(await legacy.get("alice.near")).toBeNull()
     await Effect.runPromise(pending)
     expect(await legacy.get("alice.near")).toBe(key)
@@ -47,18 +53,42 @@ describe("native key-store ownership", () => {
     expect(store.getCurrentIndex("alice.near")).toBe(30)
   })
 
-  test("application Promise overrides remain visible to native consumers", async () => {
+  test("structural application stores preserve receivers, arguments, and rejection identity", async () => {
     const key = generateKey()
-    class ApplicationStore extends InMemoryKeyStore {
-      override async get(accountId: string) {
-        return (await super.get(accountId)) ?? key
-      }
+    const rejected = new Error("application policy denied access")
+    const application = {
+      key: null as KeyPair | null,
+      accountId: "",
+      reject: false,
+      async get(id: string) {
+        if (this.reject) throw rejected
+        return id === this.accountId ? this.key : null
+      },
+      async add(id: string, key: KeyPair) {
+        this.accountId = id
+        this.key = key
+      },
+      async remove(id: string) {
+        if (id === this.accountId) this.key = null
+      },
+      async list() {
+        return this.key ? [this.accountId] : []
+      },
     }
-    const store = new ApplicationStore()
-    const spy = vi.spyOn(store, "get")
-    const native = keyStoreService(store)
-    expect(await Effect.runPromise(native.get("alice.near"))).toBe(key)
-    expect(spy).toHaveBeenCalledTimes(1)
+    const native = keyStoreService(application)
+    const connection = keyStoreConnection(native)
+    await runPromise(native.add("alice.near", key))
+    expect(await connection.get("alice.near")).toBe(key)
+    expect(await runPromise(native.list())).toEqual(["alice.near"])
+    application.reject = true
+    const error = await Effect.runPromise(
+      native.get("alice.near").pipe(Effect.flip),
+    )
+    expect(error).toBeInstanceOf(ExternalError)
+    expect(error.cause).toBe(rejected)
+    await expect(connection.get("alice.near")).rejects.toBe(rejected)
+    await runPromise(native.remove("alice.near"))
+    expect(await connection.list()).toEqual([])
   })
   test.each([
     ["memory", () => new InMemoryKeyStore()],

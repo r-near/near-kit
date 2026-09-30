@@ -1,5 +1,4 @@
 /** Operating-system keyrings have no Effect-native backend; this is the FFI boundary. */
-import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import type { KeyPair } from "../core/types.js"
@@ -10,9 +9,8 @@ import {
 } from "../keys/credential-schemas.js"
 import { parseKey } from "../utils/key.js"
 import type { FileStorageService } from "./file-keystore.js"
+import { KeyStore } from "./keys.js"
 import { ExternalError, fromPromise } from "./runtime.js"
-
-export interface NativeStorageService extends FileStorageService {}
 
 const keyringError = (operation: string) => (cause: unknown) =>
   new ExternalError({ operation, cause })
@@ -34,7 +32,7 @@ export const makeNativeStorage = Effect.fn("NativeStorage.make")(function* (
     })
   })
 
-  return NativeStorage.of({
+  return {
     add: Effect.fn("NativeStorage.add")(function* (
       id: string,
       key: KeyPair,
@@ -82,14 +80,11 @@ export const makeNativeStorage = Effect.fn("NativeStorage.make")(function* (
       Effect.catchIf(notFound, () => Effect.void),
     ),
     list: Effect.fn("NativeStorage.list")(() => Effect.succeed<string[]>([])),
-  })
+  } satisfies FileStorageService
 })
 
-// oxlint-disable-next-line effecttsgo/lazy-effect -- Kit service operations remain named Effect.fn functions, including zero-argument methods.
-export class NativeStorage extends Context.Service<
-  NativeStorage,
-  NativeStorageService
->()("near-kit/NativeStorage") {
-  static layer = (service?: string) =>
-    Layer.effect(NativeStorage, makeNativeStorage(service))
+/** Node-only layer implementing the shared key-store service. */
+export const NativeStorage = {
+  layer: (service?: string) =>
+    Layer.effect(KeyStore, makeNativeStorage(service)),
 }

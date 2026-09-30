@@ -1,15 +1,11 @@
+import { nativeKeyStore } from "../effect/keys.js"
 import * as Effect from "effect/Effect"
 /**
  * Rotating key store implementation for concurrent transaction handling.
  */
 import type { KeyPair, KeyStore } from "../core/types.js"
 import { makeRotatingStorage } from "../effect/key-storage.js"
-import {
-  type ExternalError,
-  fromPromise,
-  runPromise,
-  runSync,
-} from "../effect/runtime.js"
+import { runPromise, runSync } from "../effect/runtime.js"
 
 /**
  * Rotating key store that cycles through multiple keys per account.
@@ -72,7 +68,7 @@ import {
  * ```
  */
 export class RotatingKeyStore implements KeyStore {
-  private readonly storage: Effect.Success<
+  readonly [nativeKeyStore]: Effect.Success<
     ReturnType<typeof makeRotatingStorage>
   >
 
@@ -91,7 +87,7 @@ export class RotatingKeyStore implements KeyStore {
    * ```
    */
   constructor(initialKeys?: Record<string, string[]>) {
-    this.storage = runSync(makeRotatingStorage(initialKeys))
+    this[nativeKeyStore] = runSync(makeRotatingStorage(initialKeys))
   }
 
   /**
@@ -114,19 +110,7 @@ export class RotatingKeyStore implements KeyStore {
    * ```
    */
   get(accountId: string): Promise<KeyPair | null> {
-    return runPromise(this.getProgram(accountId))
-  }
-
-  getEffect(accountId: string): Effect.Effect<KeyPair | null, ExternalError> {
-    if (this.get !== originalMethods.get)
-      return fromPromise(() => this.get(accountId), "RotatingKeyStore.get")
-    return this.getProgram(accountId)
-  }
-
-  private getProgram(
-    accountId: string,
-  ): Effect.Effect<KeyPair | null, ExternalError> {
-    return this.storage.get(accountId)
+    return runPromise(this[nativeKeyStore].get(accountId))
   }
 
   /**
@@ -154,36 +138,7 @@ export class RotatingKeyStore implements KeyStore {
       implicitAccountId?: string
     },
   ): Promise<void> {
-    return runPromise(this.addProgram(accountId, key, _options))
-  }
-
-  addEffect(
-    accountId: string,
-    key: KeyPair,
-    _options?: {
-      seedPhrase?: string
-      derivationPath?: string
-      implicitAccountId?: string
-    },
-  ): Effect.Effect<void, ExternalError> {
-    if (this.add !== originalMethods.add)
-      return fromPromise(
-        () => this.add(accountId, key, _options),
-        "RotatingKeyStore.add",
-      )
-    return this.addProgram(accountId, key, _options)
-  }
-
-  private addProgram(
-    accountId: string,
-    key: KeyPair,
-    _options?: {
-      seedPhrase?: string
-      derivationPath?: string
-      implicitAccountId?: string
-    },
-  ): Effect.Effect<void, ExternalError> {
-    return this.storage.add(accountId, key)
+    return runPromise(this[nativeKeyStore].add(accountId, key))
   }
 
   /**
@@ -199,20 +154,7 @@ export class RotatingKeyStore implements KeyStore {
    * ```
    */
   remove(accountId: string): Promise<void> {
-    return runPromise(this.removeProgram(accountId))
-  }
-
-  removeEffect(accountId: string): Effect.Effect<void, ExternalError> {
-    if (this.remove !== originalMethods.remove)
-      return fromPromise(
-        () => this.remove(accountId),
-        "RotatingKeyStore.remove",
-      )
-    return this.removeProgram(accountId)
-  }
-
-  private removeProgram(accountId: string): Effect.Effect<void, ExternalError> {
-    return this.storage.remove(accountId)
+    return runPromise(this[nativeKeyStore].remove(accountId))
   }
 
   /**
@@ -227,17 +169,7 @@ export class RotatingKeyStore implements KeyStore {
    * ```
    */
   list(): Promise<string[]> {
-    return runPromise(this.listProgram())
-  }
-
-  listEffect(): Effect.Effect<string[], ExternalError> {
-    if (this.list !== originalMethods.list)
-      return fromPromise(() => this.list(), "RotatingKeyStore.list")
-    return this.listProgram()
-  }
-
-  private listProgram(): Effect.Effect<string[], ExternalError> {
-    return this.storage.list()
+    return runPromise(this[nativeKeyStore].list())
   }
 
   /**
@@ -256,22 +188,7 @@ export class RotatingKeyStore implements KeyStore {
    * ```
    */
   getAll(accountId: string): Promise<KeyPair[]> {
-    return runPromise(this.getAllProgram(accountId))
-  }
-
-  getAllEffect(accountId: string): Effect.Effect<KeyPair[], ExternalError> {
-    if (this.getAll !== originalMethods.getAll)
-      return fromPromise(
-        () => this.getAll(accountId),
-        "RotatingKeyStore.getAll",
-      )
-    return this.getAllProgram(accountId)
-  }
-
-  private getAllProgram(
-    accountId: string,
-  ): Effect.Effect<KeyPair[], ExternalError> {
-    return this.storage.getAll(accountId)
+    return runPromise(this[nativeKeyStore].getAll(accountId))
   }
 
   /**
@@ -290,7 +207,7 @@ export class RotatingKeyStore implements KeyStore {
    * ```
    */
   getCurrentIndex(accountId: string): number {
-    return Effect.runSync(this.storage.getCurrentIndex(accountId))
+    return Effect.runSync(this[nativeKeyStore].getCurrentIndex(accountId))
   }
 
   /**
@@ -307,7 +224,7 @@ export class RotatingKeyStore implements KeyStore {
    * ```
    */
   resetCounter(accountId: string): void {
-    Effect.runSync(this.storage.resetCounter(accountId))
+    Effect.runSync(this[nativeKeyStore].resetCounter(accountId))
   }
 
   /**
@@ -321,19 +238,6 @@ export class RotatingKeyStore implements KeyStore {
    * ```
    */
   clear(): void {
-    Effect.runSync(this.storage.clear())
+    Effect.runSync(this[nativeKeyStore].clear())
   }
 }
-
-// Preserve supported Promise-method overrides without crossing a runtime boundary
-// in the built-in Effect implementation.
-// oxlint-disable typescript/unbound-method -- Compared by identity to honor user overrides; never invoked unbound.
-const originalMethods = {
-  get: RotatingKeyStore.prototype.get,
-  add: RotatingKeyStore.prototype.add,
-  remove: RotatingKeyStore.prototype.remove,
-  list: RotatingKeyStore.prototype.list,
-  getAll: RotatingKeyStore.prototype.getAll,
-}
-
-// oxlint-enable typescript/unbound-method
