@@ -1,3 +1,7 @@
+import {
+  PrivateKeySchema,
+  PublicKeySchema as PublicKeyStringSchema,
+} from "../../src/schemas/index.js"
 /**
  * Unit tests for ML-DSA-65 (FIPS 204) key handling.
  *
@@ -21,11 +25,7 @@ import {
   parsePublicKey,
   parseSeedPhrase,
 } from "../../src/utils/key.js"
-import {
-  isValidPublicKey,
-  PrivateKeySchema,
-  PublicKeySchema as PublicKeyStringSchema,
-} from "../../src/utils/validation.js"
+import { isValidPublicKey } from "../../src/utils/validation.js"
 
 describe("MlDsa65KeyPair", () => {
   test("fromRandom produces a 1952-byte ML-DSA-65 public key", () => {
