@@ -83,7 +83,8 @@ describe("Explicit nonce - Integration Test", () => {
     const rejectedHash = rejected.getHash()
     expect(rejectedHash).not.toBeNull()
     expect(rejectedHash).not.toBe(result.transaction.hash)
-    await expect(rejected.send({ waitUntil: "NONE" })).rejects.toMatchObject({
+    // NONE only acknowledges asynchronous submission; await validation here.
+    await expect(rejected.send()).rejects.toMatchObject({
       code: "TRANSACTION_OUTCOME_UNKNOWN",
       retryable: false,
       data: {
