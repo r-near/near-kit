@@ -42,13 +42,17 @@ export const fromPromise = <A>(
   })
 
 /** Public operational failures of composed SDK programs. */
-export type NearFailure = NearError | ZodError | ExternalError
+export type NearFailure =
+  | NearError
+  | ZodError
+  | Schema.SchemaError
+  | ExternalError
 
 /** Expected input/encoding failures, preserving SDK error classes where known. */
 export const inputEffect = <A>(
   operation: () => A,
   name: string,
-): Effect.Effect<A, NearFailure> =>
+): Effect.Effect<A, NearError | ZodError | ExternalError> =>
   Effect.try({
     try: operation,
     catch: (cause) =>
