@@ -5,6 +5,12 @@ This branch is an experiment, not a published release. It pins Effect
 `@near-kit/react` APIs remain available. The optional `near-kit/effect` entrypoint
 exposes native programs, typed failures, services, layers, and streams.
 
+The [second-pass simplification](effect-simplification.md) is in progress.
+`make(config)` now acquires the native service directly, without a Promise-client
+backreference. Node storage layers provide the common `KeyStore` service.
+Path-string `keyStore` configurations are rejected; supply a real `FileKeyStore`
+from `near-kit/keys/file` instead.
+
 ## Existing applications
 
 ```ts
@@ -15,8 +21,8 @@ const balance = await near.getBalance("alice.testnet")
 ```
 
 Existing fluent transactions, contracts, wallet connectors, key-store interfaces,
-error classes, explicit nonces, and wire encodings are retained. Public extension
-methods and RPC middleware remain meaningful. Internally, `NonceManager` and the
+error classes, explicit nonces, and wire encodings are retained. Use explicit transport and service injection for customization; arbitrary
+mutation of built-in methods is not a supported interception mechanism. Internally, `NonceManager` and the
 old RPC implementation class have been removed. The only Promise conversions are
 public compatibility boundaries and integrations that themselves expose Promises.
 
@@ -90,7 +96,8 @@ expected input/encoding failures in their failure channel.
 
 ## Errors and public boundaries
 
-Native operations retain SDK error classes and use `ExternalError` for failures
+Native operations retain SDK domain error classes, use native `SchemaError`
+for invalid internal config/RPC data, and use `ExternalError` for failures
 from Promise-only extensions. Its `operation` identifies the boundary and its
 `cause` retains the original value, including non-Error rejections. Promise-facing
 methods unwrap that cause to preserve existing rejection identity. Programmer
@@ -120,8 +127,8 @@ it does not pretend to undo a submitted transaction.
 ## Compatibility and measured cost
 
 Existing Zod schemas under `near-kit/schemas` remain Zod schemas. Native RPC codecs
-use Effect Schema and preserve wire defaults, unknown-field behavior, and legacy
-validation failures. Amount, Borsh, crypto, and signed-transaction commitments are
+use one Effect Schema owner and preserve accepted wire defaults and unknown-field
+behavior. Internal config/RPC diagnostics no longer replay a duplicate Zod decoder. Amount, Borsh, crypto, and signed-transaction commitments are
 covered by independent unchanged vectors.
 
 The added Effect runtime and native schemas have a measurable footprint. Final

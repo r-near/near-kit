@@ -4,6 +4,7 @@ import { Near } from "../../src/core/near.js"
 import { TransactionBuilder } from "../../src/core/transaction.js"
 import { InMemoryKeyStore } from "../../src/keys/in-memory-keystore.js"
 import { walletConnection } from "../../src/effect/wallet.js"
+import { AccessKeyDoesNotExistError } from "../../src/errors/index.js"
 import { ExternalError } from "../../src/effect/runtime.js"
 import { Ed25519KeyPair } from "../../src/utils/key.js"
 import { verifyNep413Signature } from "../../src/utils/nep413.js"
@@ -54,27 +55,19 @@ describe("migration acceptance boundaries", () => {
     })
   })
 
-  test("NEP-413 verification honors caller Near access-key policy overrides", async () => {
+  test("NEP-413 verification honors the injected access-key policy", async () => {
     let policyCalls = 0
-    class RestrictedNear extends Near {
-      override async getAccessKey() {
-        policyCalls++
-        return null
-      }
+    const rpc = {
+      ...testRpcPrograms("https://unused.invalid"),
+      getAccessKey: (accountId: string, publicKey: string) =>
+        Effect.suspend(() => {
+          policyCalls++
+          return Effect.fail(
+            new AccessKeyDoesNotExistError(accountId, publicKey),
+          )
+        }),
     }
-    const rpc = testRpcPrograms("https://unused.invalid", async () =>
-      Response.json({
-        jsonrpc: "2.0",
-        id: 1,
-        result: {
-          nonce: 1,
-          permission: "FullAccess",
-          block_height: 1,
-          block_hash: "test",
-        },
-      }),
-    )
-    const near = new RestrictedNear({}, { rpc })
+    const near = new Near({}, { rpc })
     const key = Ed25519KeyPair.fromRandom()
     const params = {
       message: "login",

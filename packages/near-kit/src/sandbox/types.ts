@@ -1,4 +1,4 @@
-import type { AccessKeyView } from "../core/rpc/rpc-schemas.js"
+import type { AccessKeyView } from "../effect/protocol-schemas.js"
 /**
  * Default code hash for accounts without deployed contract code.
  * This is a base58-encoded sha256 hash of an empty byte array.

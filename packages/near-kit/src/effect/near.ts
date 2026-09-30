@@ -1,109 +1,192 @@
+import * as ConfigProvider from "effect/ConfigProvider"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
-import { ZodError } from "zod"
+import * as Schema from "effect/Schema"
 import type { ContractMethods } from "../contracts/contract.js"
-import type { NearConfig } from "../core/config-schemas.js"
-import { Near as PromiseNear, type NearRuntime } from "../core/near.js"
-import { NearError } from "../errors/index.js"
-import { createEffectContract } from "./contract.js"
-import { KeyStore, keyStoreConnection } from "./keys.js"
-import { NonceReservation } from "./nonce.js"
-import { Wallet, walletConnection } from "./wallet.js"
+import {
+  isKeyStore,
+  NearConfigSchema,
+  resolveNetworkConfig,
+  type NearConfig,
+} from "../core/config-schemas.js"
+import type { Near as PromiseNear } from "../core/near.js"
+import {
+  fetchTransport,
+  makeRpcPrograms,
+  type RpcPrograms,
+} from "../core/rpc/rpc-program.js"
+import {
+  TransactionBuilder,
+  type TransactionDependencies,
+} from "../core/transaction.js"
+import { parseKey } from "../utils/key.js"
+import { createEffectContract } from "../contracts/contract.js"
+import { makeMemoryStorage } from "./key-storage.js"
+import { KeyStore, keyStoreService, type KeyStoreService } from "./keys.js"
+import { makeNearPrograms } from "./near-program.js"
+import {
+  NonceReservation,
+  sharedNonceReservation,
+  type NonceReservationService,
+} from "./nonce.js"
+import { Wallet, walletService, type WalletService } from "./wallet.js"
 import { Rpc } from "./rpc.js"
-import { ExternalError, type NearFailure } from "./runtime.js"
+import { inputEffect, type NearFailure } from "./runtime.js"
 import { transaction } from "./transaction.js"
 
-/** Construct lazily; synchronous configuration failures stay in the error channel. */
-export const make = (
-  config: NearConfig = {},
-  runtime?: NearRuntime,
-): Effect.Effect<PromiseNear, NearFailure> =>
-  Effect.try({
-    try: () =>
-      new PromiseNear(config, { ...runtime, deferInitialization: true }),
-    catch: (cause) =>
-      cause instanceof NearError || cause instanceof ZodError
-        ? cause
-        : new ExternalError({ operation: "Near.configure", cause }),
-  }).pipe(Effect.flatMap((client) => Effect.as(client.ready, client)))
+/** Resolved native capabilities, supplied without Promise conversion. */
+export interface NearRuntime {
+  readonly rpc?: RpcPrograms
+  readonly keyStore?: KeyStoreService
+  readonly wallet?: WalletService
+  readonly nonceReservation?: NonceReservationService
+}
 
-/** The native API shares exactly the same client state and implementation. */
-export const fromClient = (client: PromiseNear) => ({
-  client,
-  getConnectedAccountId: client.effects.getConnectedAccountId,
-  rpc: client.rpcEffects,
-  view: client.effects.view,
-  call: client.effects.call,
-  send: client.effects.send,
-  signMessage: client.effects.signMessage,
-  getBalance: client.effects.getBalance,
-  getAccount: client.effects.getAccount,
-  accountExists: client.effects.accountExists,
-  getAccessKey: client.effects.getAccessKey,
-  getAccessKeys: client.effects.getAccessKeys,
-  getContractCode: client.effects.getContractCode,
-  getGlobalContract: client.effects.getGlobalContract,
-  globalContractExists: client.effects.globalContractExists,
-  getTransactionStatus: client.effects.getTransactionStatus,
-  getStatus: client.effects.getStatus,
-  viewState: client.effects.viewState,
-  viewStateAll: client.rpcEffects.viewStateAll,
-  transaction: (signerId: string) => transaction(client.transaction(signerId)),
-  contract: <T extends ContractMethods>(contractId: string) =>
-    createEffectContract<T>(client, contractId),
+/** Configure once. No asynchronous key write runs until ready is executed. */
+export const acquireClient = Effect.fn("Near.acquire")(function* (
+  config: NearConfig = {},
+  runtime: NearRuntime = {},
+) {
+  const validated = yield* Schema.decodeUnknownEffect(NearConfigSchema)(config)
+  const network = yield* resolveNetworkConfig(validated.network)
+  const rpc =
+    runtime.rpc ??
+    (yield* makeRpcPrograms(
+      {
+        url: validated.rpcUrl || network.rpcUrl,
+        ...(validated.headers ? { headers: validated.headers } : {}),
+        ...(validated.retryConfig ? { retry: validated.retryConfig } : {}),
+      },
+      fetchTransport((url, init) => globalThis.fetch(url, init)),
+    ))
+  const keyStore =
+    runtime.keyStore ??
+    (isKeyStore(validated.keyStore)
+      ? keyStoreService(validated.keyStore)
+      : yield* makeMemoryStorage(validated.keyStore))
+  const wallet =
+    runtime.wallet ??
+    (validated.wallet ? walletService(validated.wallet) : undefined)
+  const sandboxRoot = rootAccount(config.network)
+  const privateKey = validated.signer
+    ? undefined
+    : (validated.privateKey ?? sandboxRoot?.secretKey)
+  const accountId = validated.privateKey
+    ? validated.defaultSignerId || sandboxRoot?.id
+    : sandboxRoot?.id
+  const key = privateKey
+    ? yield* inputEffect(
+        () =>
+          parseKey(
+            typeof privateKey === "string" ? privateKey : privateKey.toString(),
+          ),
+        "Near.privateKey",
+      )
+    : undefined
+  const ready =
+    key && accountId
+      ? yield* Effect.cached(keyStore.add(accountId, key))
+      : Effect.void
+  const dependencies: TransactionDependencies = {
+    rpc,
+    keyStore,
+    ready,
+    nonces: runtime.nonceReservation ?? sharedNonceReservation,
+    defaultWaitUntil: validated.defaultWaitUntil ?? "EXECUTED_OPTIMISTIC",
+    ...(wallet ? { wallet } : {}),
+    ...(validated.signer ? { signer: validated.signer } : {}),
+  }
+  const builder = (id: string) => new TransactionBuilder(id, dependencies)
+  const programs = makeNearPrograms({
+    rpc,
+    keyStore,
+    ready,
+    wallet,
+    defaultSignerId: validated.defaultSignerId || undefined,
+    transaction: builder,
+  })
+  const service = {
+    ...programs,
+    rpc,
+    viewStateAll: rpc.viewStateAll,
+    transaction: (id: string) => transaction(builder(id)),
+    contract: <T extends ContractMethods>(id: string) =>
+      createEffectContract<T>(programs, id),
+  }
+  return { service, dependencies, ready }
 })
 
-export type NearService = ReturnType<typeof fromClient>
+/** Sandbox objects carry credentials in addition to the public network fields. */
+function rootAccount(
+  network: NearConfig["network"],
+): { id: string; secretKey?: string } | undefined {
+  if (!network || typeof network !== "object" || !("rootAccount" in network))
+    return undefined
+  const root = network.rootAccount
+  if (
+    !root ||
+    typeof root !== "object" ||
+    !("id" in root) ||
+    typeof root.id !== "string" ||
+    !root.id
+  )
+    return undefined
+  return {
+    id: root.id,
+    ...("secretKey" in root &&
+    typeof root.secretKey === "string" &&
+    root.secretKey
+      ? { secretKey: root.secretKey }
+      : {}),
+  }
+}
 
-/**
- * Injectable NEAR client. Layers are descriptions: each fresh construction owns
- * its client and key-store state, while consumers can share a provided layer.
- */
-// oxlint-disable-next-line effecttsgo/lazy-effect -- Kit service operations remain named Effect.fn functions, including zero-argument methods.
+export type NearService = Effect.Success<
+  ReturnType<typeof acquireClient>
+>["service"]
+/** Lazy native acquisition, with configured keys ready before the service is returned. */
+export const make = (config: NearConfig = {}, runtime?: NearRuntime) =>
+  acquireClient(config, runtime).pipe(
+    Effect.flatMap(({ service, ready }) => Effect.as(ready, service)),
+  )
+/** Reuse the native owner of an existing public client; no reverse adaptation. */
+export const fromClient = (client: PromiseNear): NearService => client.effects
+
+const withServices = Effect.fn("Near.acquireServices")(function* (
+  config: NearConfig,
+  wallet?: WalletService,
+) {
+  const rpc = yield* Rpc
+  const keyStore = yield* KeyStore
+  const nonceReservation = yield* NonceReservation
+  return yield* make(config, {
+    rpc,
+    keyStore,
+    nonceReservation,
+    ...(wallet ? { wallet } : {}),
+  })
+})
+
+// oxlint-disable-next-line effecttsgo/lazy-effect -- Service operations remain functions; no service acquisition happens per operation.
 export class Near extends Context.Service<Near, NearService>()(
   "near-kit/Near",
 ) {
   static layer = (config: NearConfig = {}): Layer.Layer<Near, NearFailure> =>
-    Layer.effect(
-      Near,
-      Effect.map(make(config), (client) => Near.of(fromClient(client))),
-    )
-
+    Layer.effect(Near, make(config))
   static layerFromClient = (client: PromiseNear): Layer.Layer<Near> =>
     Layer.succeed(Near, fromClient(client))
-
-  /** Supply an RPC service to inject a transport without changing application code. */
   static layerWithRpc = (
     config: NearConfig = {},
   ): Layer.Layer<Near, NearFailure, Rpc> =>
     Layer.effect(
       Near,
-      Effect.gen(function* () {
-        const rpc = yield* Rpc
-        const client = yield* make(config, { rpc })
-        return fromClient(client)
-      }),
+      Effect.flatMap(Rpc, (rpc) => make(config, { rpc })),
     )
-  /** Explicit native dependency graph: supplied keys and nonce reservations control signing. */
   static layerWithServices = (
     config: NearConfig = {},
   ): Layer.Layer<Near, NearFailure, Rpc | KeyStore | NonceReservation> =>
-    Layer.effect(
-      Near,
-      Effect.gen(function* () {
-        const rpc = yield* Rpc
-        const keys = yield* KeyStore
-        const nonceReservation = yield* NonceReservation
-        const client = yield* make(
-          { ...config, keyStore: keyStoreConnection(keys) },
-          { rpc, nonceReservation },
-        )
-        return Near.of(fromClient(client))
-      }),
-    )
-
-  /** As above, with an explicit native wallet dependency. */
+    Layer.effect(Near, withServices(config))
   static layerWithWallet = (
     config: NearConfig = {},
   ): Layer.Layer<
@@ -113,27 +196,16 @@ export class Near extends Context.Service<Near, NearService>()(
   > =>
     Layer.effect(
       Near,
-      Effect.gen(function* () {
-        const rpc = yield* Rpc
-        const keys = yield* KeyStore
-        const nonceReservation = yield* NonceReservation
-        const wallet = yield* Wallet
-        const client = yield* make(
-          {
-            ...config,
-            keyStore: keyStoreConnection(keys),
-            wallet: walletConnection(wallet),
-          },
-          { rpc, nonceReservation },
-        )
-        return Near.of(fromClient(client))
-      }),
+      Effect.flatMap(Wallet, (wallet) => withServices(config, wallet)),
     )
 }
 
-/** Native batching keeps cancellation and requirements in the caller's fiber. */
 export const batch = <
   const T extends ReadonlyArray<Effect.Effect<unknown, unknown, unknown>>,
 >(
   ...effects: T
 ) => Effect.all(effects, { concurrency: "unbounded" })
+/** Public synchronous construction reads current process environment at its boundary. */
+export const environment = Layer.sync(ConfigProvider.ConfigProvider, () =>
+  ConfigProvider.fromEnv(),
+)

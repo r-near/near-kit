@@ -156,9 +156,12 @@ describe("wallet transaction finality", () => {
   })
 
   it("never signs again when reconciliation fails", async () => {
-    const { near, signing } = await setup("EXECUTED_OPTIMISTIC")
-    vi.spyOn(near.rpc, "getTransactionStatus").mockRejectedValue(
-      new Error("RPC unavailable"),
+    const { near, signing, fetch } = await setup("EXECUTED_OPTIMISTIC")
+    fetch.mockResolvedValue(
+      new Response("RPC unavailable", {
+        status: 400,
+        statusText: "RPC unavailable",
+      }),
     )
     await expect(
       near

@@ -1,407 +1,151 @@
-/**
- * Tests for Near client configuration
- */
-
-import { describe, expect, test } from "vitest"
-import {
-  NearConfigSchema,
-  type NetworkConfig,
-  resolveNetworkConfig,
-} from "../../src/core/config-schemas.js"
+import { Cause, ConfigProvider, Effect, Exit, Schema } from "effect"
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 import { Near } from "../../src/core/near.js"
+import type { NearConfig } from "../../src/core/config-schemas.js"
+import { make } from "../../src/effect/near.js"
+import { generateKey } from "../../src/utils/key.js"
 
-describe("Network Configuration", () => {
-  test("should use mainnet by default", () => {
-    const config = resolveNetworkConfig()
-
-    expect(config.networkId).toBe("mainnet")
-    expect(config.rpcUrl).toBe("https://free.rpc.fastnear.com")
-  })
-
-  test("should accept mainnet preset", () => {
-    const config = resolveNetworkConfig("mainnet")
-
-    expect(config.networkId).toBe("mainnet")
-    expect(config.rpcUrl).toBe("https://free.rpc.fastnear.com")
-  })
-
-  test("should accept testnet preset", () => {
-    const config = resolveNetworkConfig("testnet")
-
-    expect(config.networkId).toBe("testnet")
-    expect(config.rpcUrl).toBe("https://rpc.testnet.fastnear.com")
-  })
-
-  test("should accept localnet preset", () => {
-    const config = resolveNetworkConfig("localnet")
-
-    expect(config.networkId).toBe("localnet")
-    expect(config.rpcUrl).toBe("http://localhost:3030")
-  })
-
-  test("should accept betanet preset", () => {
-    const config = resolveNetworkConfig("betanet")
-
-    expect(config.networkId).toBe("betanet")
-    expect(config.rpcUrl).toBe("https://rpc.betanet.near.org")
-  })
-
-  test("should accept custom network config", () => {
-    const config = resolveNetworkConfig({
-      rpcUrl: "https://custom-rpc.example.com",
-      networkId: "custom-network",
-    })
-
-    expect(config.networkId).toBe("custom-network")
-    expect(config.rpcUrl).toBe("https://custom-rpc.example.com")
-  })
-
-  test("should accept custom network with optional fields", () => {
-    const config = resolveNetworkConfig({
-      rpcUrl: "https://custom-rpc.example.com",
-      networkId: "custom-network",
-    })
-
-    expect(config.networkId).toBe("custom-network")
-    expect(config.rpcUrl).toBe("https://custom-rpc.example.com")
-  })
-
-  test("should reject invalid network preset", () => {
-    expect(() => {
-      resolveNetworkConfig("invalid" as NetworkConfig)
-    }).toThrow()
-  })
-
-  test("should reject custom network with invalid RPC URL", () => {
-    expect(() => {
-      resolveNetworkConfig({
-        rpcUrl: "not-a-url",
-        networkId: "custom",
-      })
-    }).toThrow()
-  })
-
-  test("should reject custom network without networkId", () => {
-    expect(() => {
-      resolveNetworkConfig({
-        rpcUrl: "https://custom-rpc.example.com",
-        networkId: "",
-      })
-    }).toThrow()
-  })
+beforeEach(() => vi.stubEnv("NEAR_NETWORK", undefined))
+afterEach(() => {
+  vi.restoreAllMocks()
+  vi.unstubAllEnvs()
 })
+const reply = () =>
+  Response.json({ jsonrpc: "2.0", id: 1, result: { gas_price: "10" } })
 
-describe("Near Config Schema", () => {
-  test("should accept empty config", () => {
-    const config = NearConfigSchema.parse({})
-
-    expect(config).toEqual({})
-  })
-
-  test("should accept config with network preset", () => {
-    const config = NearConfigSchema.parse({
-      network: "testnet",
-    })
-
-    expect(config.network).toBe("testnet")
-  })
-
-  test("should accept config with custom network", () => {
-    const config = NearConfigSchema.parse({
-      network: {
-        rpcUrl: "https://custom.example.com",
-        networkId: "custom",
-      },
-    })
-
-    expect(config.network).toEqual({
-      rpcUrl: "https://custom.example.com",
-      networkId: "custom",
-    })
-  })
-
-  test("should accept config with rpcUrl override", () => {
-    const config = NearConfigSchema.parse({
-      network: "mainnet",
-      rpcUrl: "https://custom-mainnet.example.com",
-    })
-
-    expect(config.network).toBe("mainnet")
-    expect(config.rpcUrl).toBe("https://custom-mainnet.example.com")
-  })
-
-  test("should accept config with headers", () => {
-    const config = NearConfigSchema.parse({
-      headers: {
-        "X-API-Key": "test-key",
-        Authorization: "Bearer token",
-      },
-    })
-
-    expect(config.headers).toEqual({
-      "X-API-Key": "test-key",
-      Authorization: "Bearer token",
-    })
-  })
-
-  test("should accept config with keyStore as string", () => {
-    const config = NearConfigSchema.parse({
-      keyStore: "~/.near-credentials",
-    })
-
-    expect(config.keyStore).toBe("~/.near-credentials")
-  })
-
-  test("should accept config with keyStore as record", () => {
-    const config = NearConfigSchema.parse({
-      keyStore: {
-        "alice.near": "ed25519:...",
-        "bob.near": "ed25519:...",
-      },
-    })
-
-    expect(config.keyStore).toEqual({
-      "alice.near": "ed25519:...",
-      "bob.near": "ed25519:...",
-    })
-  })
-
-  test("should accept config with privateKey as string", () => {
-    const config = NearConfigSchema.parse({
-      privateKey:
-        "ed25519:3D4YudUahN1HBVj3pSCbSqHy8FJMZcz3g3xakNY9Bfz7hWZL9vUQHb8DdMxP7KMR5qqaXDmqcA2UGKxpqx4RqjQz",
-    })
-
-    expect(config.privateKey).toBe(
-      "ed25519:3D4YudUahN1HBVj3pSCbSqHy8FJMZcz3g3xakNY9Bfz7hWZL9vUQHb8DdMxP7KMR5qqaXDmqcA2UGKxpqx4RqjQz",
-    )
-  })
-
-  test("should reject invalid RPC URL", () => {
-    expect(() => {
-      NearConfigSchema.parse({
-        rpcUrl: "not-a-url",
+describe("public configuration at the transport boundary", () => {
+  test.each([
+    ["default", {}, "https://free.rpc.fastnear.com"],
+    ["mainnet", { network: "mainnet" }, "https://free.rpc.fastnear.com"],
+    ["testnet", { network: "testnet" }, "https://rpc.testnet.fastnear.com"],
+    ["localnet", { network: "localnet" }, "http://localhost:3030"],
+    ["betanet", { network: "betanet" }, "https://rpc.betanet.near.org"],
+    [
+      "custom",
+      { network: { rpcUrl: "https://custom.example", networkId: "custom" } },
+      "https://custom.example",
+    ],
+    [
+      "override",
+      { network: "mainnet", rpcUrl: "https://override.example" },
+      "https://override.example",
+    ],
+    [
+      "explicit undefined",
+      { network: undefined, headers: undefined, retryConfig: undefined },
+      "https://free.rpc.fastnear.com",
+    ],
+  ] satisfies Array<[string, NearConfig, string]>)(
+    "%s routes actual requests",
+    async (_name, config, url) => {
+      const fetch = vi
+        .spyOn(globalThis, "fetch")
+        .mockImplementation(async () => reply())
+      expect(await new Near(config).rpc.getGasPrice()).toEqual({
+        gas_price: "10",
       })
-    }).toThrow()
-  })
-})
+      expect(fetch.mock.calls[0]?.[0]).toBe(url)
+    },
+  )
 
-describe("Near Constructor", () => {
-  test("should create instance with no config", () => {
-    const near = new Near()
-
-    expect(near).toBeInstanceOf(Near)
-  })
-
-  test("should create instance with mainnet config", () => {
-    const near = new Near({ network: "mainnet" })
-
-    expect(near).toBeInstanceOf(Near)
-  })
-
-  test("should create instance with testnet config", () => {
-    const near = new Near({ network: "testnet" })
-
-    expect(near).toBeInstanceOf(Near)
-  })
-
-  test("should create instance with localnet config", () => {
-    const near = new Near({ network: "localnet" })
-
-    expect(near).toBeInstanceOf(Near)
-  })
-
-  test("should create instance with betanet config", () => {
-    const near = new Near({ network: "betanet" })
-
-    expect(near).toBeInstanceOf(Near)
-  })
-
-  test("should create instance with custom network", () => {
+  test("headers and retry configuration control the actual request", async () => {
+    const fetch = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response("unavailable", { status: 503 }))
+      .mockResolvedValueOnce(reply())
     const near = new Near({
-      network: {
-        rpcUrl: "https://custom.example.com",
-        networkId: "custom",
-      },
-    })
-
-    expect(near).toBeInstanceOf(Near)
-  })
-
-  test("should create instance with RPC URL override", () => {
-    const near = new Near({
-      network: "mainnet",
-      rpcUrl: "https://custom-mainnet.example.com",
-    })
-
-    expect(near).toBeInstanceOf(Near)
-  })
-
-  test("should create instance with headers", () => {
-    const near = new Near({
-      headers: {
-        "X-API-Key": "test-key",
-      },
-    })
-
-    expect(near).toBeInstanceOf(Near)
-  })
-
-  test("should create instance with in-memory keystore", () => {
-    const near = new Near({
-      keyStore: {
-        "alice.near": "ed25519:test123",
-      },
-    })
-
-    expect(near).toBeInstanceOf(Near)
-  })
-
-  test("should throw on invalid network", () => {
-    expect(() => {
-      new Near({
-        network: "invalid" as NetworkConfig,
-      })
-    }).toThrow()
-  })
-
-  test("should throw on invalid RPC URL", () => {
-    expect(() => {
-      new Near({
-        rpcUrl: "not-a-url",
-      })
-    }).toThrow()
-  })
-
-  test("should throw on invalid custom network", () => {
-    expect(() => {
-      new Near({
-        network: {
-          rpcUrl: "not-a-url",
-          networkId: "custom",
-        },
-      })
-    }).toThrow()
-  })
-})
-
-describe("Config Validation Edge Cases", () => {
-  test("should handle undefined network gracefully", () => {
-    const config = NearConfigSchema.parse({
-      network: undefined,
-    })
-
-    expect(config.network).toBeUndefined()
-  })
-
-  test("should handle multiple config options", () => {
-    const config = NearConfigSchema.parse({
-      network: "testnet",
-      rpcUrl: "https://custom.example.com",
       headers: { "X-Test": "value" },
+      retryConfig: { maxRetries: 1, initialDelayMs: 0 },
     })
-
-    expect(config.network).toBe("testnet")
-    expect(config.rpcUrl).toBe("https://custom.example.com")
-    expect(config.headers).toEqual({ "X-Test": "value" })
+    expect(await near.rpc.getGasPrice()).toEqual({ gas_price: "10" })
+    expect(fetch).toHaveBeenCalledTimes(2)
+    expect(fetch.mock.calls[1]?.[1]?.headers).toMatchObject({
+      "X-Test": "value",
+    })
   })
 
-  test("should preserve unknown fields in keyStore object", () => {
-    const config = NearConfigSchema.parse({
-      keyStore: {
-        "account1.near": "key1",
-        "account2.near": "key2",
-        "account3.near": "key3",
-      },
+  test("account-key records actually supply message signing", async () => {
+    const key = generateKey()
+    const near = new Near({
+      keyStore: { "alice.near": key.secretKey },
+      defaultSignerId: "alice.near",
     })
-
-    expect(Object.keys(config.keyStore)).toHaveLength(3)
+    const signed = await near.signMessage({
+      message: "configuration",
+      recipient: "app.near",
+      nonce: new Uint8Array(32),
+    })
+    expect(signed.publicKey).toBe(key.publicKey.toString())
   })
 })
 
-describe("NEAR_NETWORK Environment Variable", () => {
-  test("should use mainnet from NEAR_NETWORK env", () => {
-    const originalEnv = process.env["NEAR_NETWORK"]
-    process.env["NEAR_NETWORK"] = "mainnet"
+describe("configuration failures", () => {
+  test.each([
+    ["unknown preset", { network: "invalid" }],
+    ["invalid RPC URL", { rpcUrl: "not-a-url" }],
+    ["invalid custom URL", { network: { rpcUrl: "bad", networkId: "custom" } }],
+    [
+      "empty network ID",
+      { network: { rpcUrl: "https://custom.example", networkId: "" } },
+    ],
+    ["negative retries", { retryConfig: { maxRetries: -1 } }],
+    ["fractional delay", { retryConfig: { initialDelayMs: 1.5 } }],
+    ["invalid headers", { headers: { "X-Test": 42 } }],
+    ["unsupported path-string keyStore", { keyStore: "~/.near-credentials" }],
+    ["non-callable signer", { signer: {} }],
+  ])(
+    "%s fails synchronously publicly and recoverably natively",
+    async (_name, value) => {
+      // Exercise untrusted JavaScript inputs, not a well-typed application fixture.
+      const config = value as NearConfig
+      const fetch = vi.spyOn(globalThis, "fetch")
+      expect(() => new Near(config)).toThrow(Schema.SchemaError)
+      const exit = await Effect.runPromiseExit(make(config))
+      expect(Exit.isFailure(exit)).toBe(true)
+      if (Exit.isFailure(exit)) {
+        expect(Cause.hasFails(exit.cause)).toBe(true)
+        expect(Cause.hasDies(exit.cause)).toBe(false)
+        expect(Cause.squash(exit.cause)).toBeInstanceOf(Schema.SchemaError)
+      }
+      expect(fetch).not.toHaveBeenCalled()
+    },
+  )
+})
 
-    const config = resolveNetworkConfig()
+describe("network configuration ownership", () => {
+  test.each([
+    ["mainnet", "https://free.rpc.fastnear.com"],
+    ["testnet", "https://rpc.testnet.fastnear.com"],
+    ["localnet", "http://localhost:3030"],
+    ["betanet", "https://rpc.betanet.near.org"],
+    ["invalid", "https://free.rpc.fastnear.com"],
+  ])(
+    "public construction reads current NEAR_NETWORK=%s",
+    async (network, url) => {
+      vi.stubEnv("NEAR_NETWORK", network)
+      const fetch = vi
+        .spyOn(globalThis, "fetch")
+        .mockImplementation(async () => reply())
+      await new Near().rpc.getGasPrice()
+      expect(fetch.mock.calls[0]?.[0]).toBe(url)
+    },
+  )
 
-    expect(config.networkId).toBe("mainnet")
-    expect(config.rpcUrl).toBe("https://free.rpc.fastnear.com")
-
-    // Restore original env
-    if (originalEnv === undefined) {
-      delete process.env["NEAR_NETWORK"]
-    } else {
-      process.env["NEAR_NETWORK"] = originalEnv
-    }
-  })
-
-  test("should use testnet from NEAR_NETWORK env", () => {
-    const originalEnv = process.env["NEAR_NETWORK"]
-    process.env["NEAR_NETWORK"] = "testnet"
-
-    const config = resolveNetworkConfig()
-
-    expect(config.networkId).toBe("testnet")
-    expect(config.rpcUrl).toBe("https://rpc.testnet.fastnear.com")
-
-    // Restore original env
-    if (originalEnv === undefined) {
-      delete process.env["NEAR_NETWORK"]
-    } else {
-      process.env["NEAR_NETWORK"] = originalEnv
-    }
-  })
-
-  test("should use localnet from NEAR_NETWORK env", () => {
-    const originalEnv = process.env["NEAR_NETWORK"]
-    process.env["NEAR_NETWORK"] = "localnet"
-
-    const config = resolveNetworkConfig()
-
-    expect(config.networkId).toBe("localnet")
-    expect(config.rpcUrl).toBe("http://localhost:3030")
-
-    // Restore original env
-    if (originalEnv === undefined) {
-      delete process.env["NEAR_NETWORK"]
-    } else {
-      process.env["NEAR_NETWORK"] = originalEnv
-    }
-  })
-
-  test("should use betanet from NEAR_NETWORK env", () => {
-    const originalEnv = process.env["NEAR_NETWORK"]
-    process.env["NEAR_NETWORK"] = "betanet"
-
-    const config = resolveNetworkConfig()
-
-    expect(config.networkId).toBe("betanet")
-    expect(config.rpcUrl).toBe("https://rpc.betanet.near.org")
-
-    // Restore original env
-    if (originalEnv === undefined) {
-      delete process.env["NEAR_NETWORK"]
-    } else {
-      process.env["NEAR_NETWORK"] = originalEnv
-    }
-  })
-
-  test("should fallback to mainnet for invalid NEAR_NETWORK env", () => {
-    const originalEnv = process.env["NEAR_NETWORK"]
-    process.env["NEAR_NETWORK"] = "invalid"
-
-    const config = resolveNetworkConfig()
-
-    expect(config.networkId).toBe("mainnet")
-    expect(config.rpcUrl).toBe("https://free.rpc.fastnear.com")
-
-    // Restore original env
-    if (originalEnv === undefined) {
-      delete process.env["NEAR_NETWORK"]
-    } else {
-      process.env["NEAR_NETWORK"] = originalEnv
-    }
+  test("native construction uses its injected provider, not ambient process state", async () => {
+    vi.stubEnv("NEAR_NETWORK", "mainnet")
+    const fetch = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async () => reply())
+    const program = make().pipe(
+      Effect.flatMap((near) => near.rpc.getGasPrice()),
+      Effect.provide(
+        ConfigProvider.layer(
+          ConfigProvider.fromUnknown({ NEAR_NETWORK: "testnet" }),
+        ),
+      ),
+    )
+    expect(fetch).not.toHaveBeenCalled()
+    expect(await Effect.runPromise(program)).toEqual({ gas_price: "10" })
+    expect(fetch.mock.calls[0]?.[0]).toBe("https://rpc.testnet.fastnear.com")
   })
 })

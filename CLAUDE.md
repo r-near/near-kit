@@ -9,7 +9,7 @@ near-kit is a TypeScript monorepo for interacting with NEAR Protocol, designed t
 **Packages:**
 
 - `near-kit` - Core TypeScript library for NEAR Protocol interactions
-- `@near-kit/react` - React bindings with hooks and providers (planned)
+- `@near-kit/react` - React bindings with hooks and providers
 
 **Core Principles:**
 
@@ -28,7 +28,7 @@ near-kit/
 │   │   ├── tests/
 │   │   ├── package.json
 │   │   └── tsconfig.json
-│   └── react/             # React bindings (planned)
+│   └── react/             # React bindings
 ├── package.json           # Root workspace config
 ├── tsconfig.json          # Shared TypeScript config
 ├── .oxlintrc.json          # Oxlint + Effect type-aware diagnostics
@@ -40,7 +40,7 @@ near-kit/
 ### Setup
 
 ```bash
-bun install
+bun install --frozen-lockfile
 ```
 
 ### Testing
@@ -68,7 +68,7 @@ bun run typecheck          # Type check all packages
 bun run lint               # Oxlint + Effect type-aware diagnostics (read-only)
 bun run format             # Format all packages with Oxfmt
 bun run format:check       # Check formatting without writing
-bun run check              # Build, typecheck, lint, and formatting check
+bun run check              # Build, source/consumer/example types, lint, and formatting check
 ```
 
 ### Package-specific commands
@@ -128,10 +128,10 @@ The library is built around a main `Near` class with three interaction patterns:
 
 **`core/near.ts` - Main Client**
 
-- Central entry point for all operations
-- Configuration resolution (networks, keystores, signers, wallets)
-- Async keystore initialization support
-- Auto-detects sandbox root account keys
+- Public Promise projection of the native service in `effect/near.ts`
+- Native acquisition owns configuration, RPC, keys, wallet and readiness once
+- Eager public key initialization; lazy native acquisition
+- Explicit service/transport injection, not built-in method interception
 
 **`core/transaction.ts` - TransactionBuilder**
 
@@ -145,14 +145,15 @@ The library is built around a main `Near` class with three interaction patterns:
 - Low-level NEAR JSON-RPC interface
 - Automatic retries with exponential backoff (default: 4 retries, 1s initial delay)
 - Error classification and mapping to typed exceptions
-- Zod schema validation for all RPC responses
+- One Effect Schema protocol owner; response types are inferred from it
+- Named operations are module-scoped; construction binds dependencies once
 
-**`core/nonce-manager.ts` - Concurrent Transaction Support**
+**`effect/nonce.ts` - Concurrent Transaction Support**
 
-- Prevents nonce collisions for concurrent transactions
-- Local nonce caching with deduplication
-- Invalidation support for retry scenarios
-- Shared static instance used by TransactionBuilder
+- Ref-owned nonce reservation service with per-key serialization
+- Generation guards protect invalidation against stale in-flight reads
+- Reservation state is not a TTL cache: eviction can reuse an in-flight nonce
+- Native dependencies are injected; public clients share the default allocator
 
 **`keys/` - Key Management**
 
@@ -169,7 +170,8 @@ The library is built around a main `Near` class with three interaction patterns:
 
 **`errors/` - Error Hierarchy**
 
-- All errors extend `NearError` with `code` and optional `data`
+- Public domain errors extend `NearError`; native decoding uses `SchemaError`
+- Promise-only extension errors are tagged and unwrapped only at the public boundary
 - Categories: Blockchain state, transaction failures, contract execution, network issues, validation
 - `retryable` flag indicates safe-to-retry operations
 
@@ -194,20 +196,21 @@ The library is built around a main `Near` class with three interaction patterns:
 
 **Type-Driven Configuration**
 
-- Zod schemas provide both runtime validation and TypeScript types
+- Effect Schema owns internal config/protocol validation; ConfigProvider owns environment input
+- Documented Zod composition schemas remain in their public schema/credential entrypoints
 - Template literal types for `PrivateKey` enforce format at compile time
 - Explicit units required ("10 NEAR" vs raw yocto)
 
 **Automatic Nonce Management**
 
-- `NonceManager` with local caching prevents unnecessary RPC calls
+- `NonceReservation` coordinates native transaction dependencies
 - Handles concurrent transactions transparently
 - Automatic retry with nonce invalidation for edge cases
 
 **Error Recovery**
 
-- Retry loop for network transients (exponential backoff)
-- Special handling for `InvalidNonceError` (3x retries with fresh nonce)
+- Bounded Effect schedules for retryable network transients
+- At most three transaction attempts for proven InvalidNonce rejection; never replay arbitrary wallet/signer failures
 - Retryable flag on error classes for application-level retry logic
 
 **Separation of Concerns**
@@ -221,9 +224,9 @@ The library is built around a main `Near` class with three interaction patterns:
 
 All amounts accept human-readable formats:
 
-- Input: `"10"`, `10`, `"10 NEAR"` (all equivalent)
+- Use explicit units such as `"10 NEAR"`; raw bigint amounts mean yoctoNEAR
 - Internally converted to yoctoNEAR for RPC
-- Gas: `"30 Tgas"` or raw numbers
+- Gas: use explicit units such as `"30 Tgas"` or the typed Gas helpers
 
 ### Testing Structure
 

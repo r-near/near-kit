@@ -5,7 +5,6 @@ import type {
   BlockView,
   KeyStore as PromiseKeyStore,
 } from "../../src/core/types.js"
-import { rpcToPromises } from "../../src/core/rpc/rpc.js"
 import { KeyStore } from "../../src/effect/keys.js"
 import { Near } from "../../src/effect/near.js"
 import {
@@ -46,7 +45,7 @@ describe("native client dependency ownership", () => {
     }).pipe(
       Layer.provide(
         Layer.mergeAll(
-          Rpc.layerClient(rpcToPromises(programs)),
+          Layer.succeed(Rpc, programs),
           KeyStore.layer(store),
           Layer.succeed(NonceReservation, nonces),
         ),

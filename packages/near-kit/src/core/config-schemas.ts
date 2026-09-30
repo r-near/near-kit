@@ -1,58 +1,42 @@
-/**
- * Zod schemas for NEAR client configuration.
- *
- * @remarks
- * These schemas validate network, call options, and {@link NearConfig} input.
- * Most applications should use the higher-level {@link Near} API and treat
- * these schemas as an implementation detail.
- */
-import { z } from "zod"
+/** Effect-owned configuration validation; public composition schemas are separate. */
+import * as Config from "effect/Config"
+import * as Effect from "effect/Effect"
+import * as Schema from "effect/Schema"
 import {
+  isPrivateKey,
   type Amount,
   type Gas,
   type PrivateKey,
-  PrivateKeySchema,
 } from "../utils/validation.js"
+import type { KeyStore, Signer, WalletConnection } from "./types.js"
 import { NETWORK_PRESETS } from "./constants.js"
 
-// ==================== Network Config Schema ====================
-
-/**
- * Schema for network presets (mainnet, testnet, localnet)
- */
-export const NetworkPresetSchema = z.enum([
+export const NetworkPresetSchema = Schema.Literals([
   "mainnet",
   "testnet",
   "localnet",
   "betanet",
 ])
-
-/**
- * Schema for custom network configuration
- */
-export const CustomNetworkConfigSchema = z.object({
-  rpcUrl: z.string().url("RPC URL must be a valid URL"),
-  networkId: z.string().min(1, "Network ID is required"),
+export type NetworkPreset = typeof NetworkPresetSchema.Type
+export interface CustomNetworkConfig {
+  rpcUrl: string
+  networkId: string
+}
+export type NetworkConfig = NetworkPreset | CustomNetworkConfig
+const RpcUrl = Schema.String.check(
+  Schema.makeFilter(
+    (value) => URL.canParse(value) || "RPC URL must be a valid URL",
+  ),
+)
+export const CustomNetworkConfigSchema = Schema.Struct({
+  rpcUrl: RpcUrl,
+  networkId: Schema.NonEmptyString,
 })
-
-/**
- * Schema for network configuration (preset or custom)
- */
-export const NetworkConfigSchema = z.union([
+export const NetworkConfigSchema = Schema.Union([
   NetworkPresetSchema,
   CustomNetworkConfigSchema,
 ])
-
-export type NetworkPreset = z.infer<typeof NetworkPresetSchema>
-export type CustomNetworkConfig = z.infer<typeof CustomNetworkConfigSchema>
-export type NetworkConfig = z.infer<typeof NetworkConfigSchema>
-
-// ==================== Transaction Execution Status Schema ====================
-
-/**
- * Schema for transaction execution status
- */
-export const TxExecutionStatusSchema = z.enum([
+export const TxExecutionStatusSchema = Schema.Literals([
   "NONE",
   "INCLUDED",
   "EXECUTED_OPTIMISTIC",
@@ -60,174 +44,100 @@ export const TxExecutionStatusSchema = z.enum([
   "EXECUTED",
   "FINAL",
 ])
-
-// ==================== Call Options Schema ====================
-
-/**
- * Schema for function call options
- */
-export const CallOptionsSchema = z.object({
-  // Runtime validation: keep loose string/bigint types so config
-  // parsing fails fast on obviously invalid shapes.
-  gas: z.string().optional(),
-  attachedDeposit: z.union([z.string(), z.bigint()]).optional(),
-  signerId: z.string().optional(),
-  waitUntil: TxExecutionStatusSchema.optional(),
-})
-
-// Developer-facing type for call options.
-// Uses the stricter Gas/Amount aliases while the schema above
-// handles runtime validation of the underlying values.
-export type CallOptions = {
+export interface CallOptions {
   gas?: Gas
   attachedDeposit?: Amount
   signerId?: string
-  waitUntil?: z.infer<typeof TxExecutionStatusSchema>
+  waitUntil?: typeof TxExecutionStatusSchema.Type
+}
+/** blockId takes precedence when both selectors are supplied. */
+export interface BlockReference {
+  finality?: "optimistic" | "near-final" | "final" | undefined
+  blockId?: number | string | undefined
 }
 
-// ==================== Block Reference Schema ====================
-
-/**
- * Block reference for RPC queries
- *
- * Specify either `finality` OR `blockId` (not both).
- * If both are provided, `blockId` takes precedence.
- *
- * @example
- * ```typescript
- * // Query at final block (default)
- * await near.view('contract.near', 'get_value')
- *
- * // Query at optimistic for latest state
- * await near.view('contract.near', 'get_value', {}, {
- *   finality: 'optimistic'
- * })
- *
- * // Query at specific block height
- * await near.view('contract.near', 'get_value', {}, {
- *   blockId: 27912554
- * })
- *
- * // Query at specific block hash
- * await near.view('contract.near', 'get_value', {}, {
- *   blockId: '3Xz2wM9rigMXzA2c5vgCP8wTgFBaePucgUmVYPkMqhRL'
- * })
- * ```
- */
-export const BlockReferenceSchema = z.object({
-  /**
-   * Finality level for the query
-   *
-   * - `optimistic`: Block that might be skipped (~1s after submission). Use for latest state.
-   * - `near-final`: Irreversible unless a validator is slashed (~2s after submission)
-   * - `final`: Fully finalized and irreversible (~3s after submission). DEFAULT for view calls.
-   *
-   * @default "final" for view calls, "optimistic" for account/key queries
-   * @see https://docs.near.org/api/rpc/setup#using-finality-param
-   */
-  finality: z.enum(["optimistic", "near-final", "final"]).optional(),
-
-  /**
-   * Block ID to query at - can be block number or block hash
-   *
-   * Use block number (e.g., `27912554`) or block hash
-   * (e.g., `'3Xz2wM9rigMXzA2c5vgCP8wTgFBaePucgUmVYPkMqhRL'`) to query
-   * historical state.
-   *
-   * Mutually exclusive with `finality`. If both are provided, `blockId` takes precedence.
-   */
-  blockId: z.union([z.number(), z.string()]).optional(),
+export const isKeyStore = (value: unknown): value is KeyStore =>
+  typeof value === "object" &&
+  value !== null &&
+  "get" in value &&
+  typeof value.get === "function" &&
+  "add" in value &&
+  typeof value.add === "function" &&
+  "remove" in value &&
+  typeof value.remove === "function" &&
+  "list" in value &&
+  typeof value.list === "function"
+const Store = Schema.declare(isKeyStore)
+const SignerSchema = Schema.declare(
+  (value: unknown): value is Signer => typeof value === "function",
+)
+const WalletSchema = Schema.declare(
+  (value: unknown): value is WalletConnection =>
+    typeof value === "object" &&
+    value !== null &&
+    "getAccounts" in value &&
+    typeof value.getAccounts === "function" &&
+    "signAndSendTransaction" in value &&
+    typeof value.signAndSendTransaction === "function",
+)
+const PrivateKeySchema = Schema.declare(
+  (value: unknown): value is PrivateKey =>
+    typeof value === "string" && isPrivateKey(value),
+)
+const NonnegativeInt = Schema.Number.check(
+  Schema.isInt(),
+  Schema.isGreaterThanOrEqualTo(0),
+)
+export const RpcRetryConfigSchema = Schema.Struct({
+  maxRetries: Schema.optional(NonnegativeInt),
+  initialDelayMs: Schema.optional(NonnegativeInt),
 })
-
-export type BlockReference = z.infer<typeof BlockReferenceSchema>
-
-// ==================== Near Config Schema ====================
-
-/**
- * Schema for key store configuration
- */
-export const KeyStoreConfigSchema = z.union([
-  z.string(), // File path
-  z.record(z.string(), z.string()), // { accountId: privateKey }
-  z.any(), // KeyStore interface - too complex for Zod validation
-])
-
-/**
- * Schema for signer function
- */
-export const SignerSchema = z.any() // Function schema validation - simplified
-
-/**
- * Schema for RPC retry configuration
- */
-export const RpcRetryConfigSchema = z
-  .object({
-    maxRetries: z.number().int().min(0),
-    initialDelayMs: z.number().int().min(0),
-  })
-  .partial()
-
-/**
- * Inferred type for RPC retry configuration input
- * Allows partial configuration with optional fields that can be undefined
- */
-export type RpcRetryConfigInput = z.infer<typeof RpcRetryConfigSchema>
-
-/**
- * Schema for NEAR client configuration
- */
-export const NearConfigSchema = z.object({
-  network: NetworkConfigSchema.optional(),
-  rpcUrl: z.string().url("RPC URL must be a valid URL").optional(),
-  headers: z.record(z.string(), z.string()).optional(),
-  keyStore: KeyStoreConfigSchema.optional(),
-  signer: SignerSchema.optional(),
-  privateKey: z.union([PrivateKeySchema, z.instanceof(Uint8Array)]).optional(),
-  wallet: z.any().optional(), // WalletConnection interface
-  defaultSignerId: z.string().optional(),
-  defaultWaitUntil: TxExecutionStatusSchema.optional(),
-  retryConfig: RpcRetryConfigSchema.optional(),
+export interface RpcRetryConfigInput {
+  maxRetries?: number | undefined
+  initialDelayMs?: number | undefined
+}
+export const NearConfigSchema = Schema.Struct({
+  network: Schema.optional(NetworkConfigSchema),
+  rpcUrl: Schema.optional(RpcUrl),
+  headers: Schema.optional(Schema.Record(Schema.String, Schema.String)),
+  keyStore: Schema.optional(
+    Schema.Union([Store, Schema.Record(Schema.String, Schema.String)]),
+  ),
+  signer: Schema.optional(SignerSchema),
+  privateKey: Schema.optional(
+    Schema.Union([PrivateKeySchema, Schema.instanceOf(Uint8Array)]),
+  ),
+  wallet: Schema.optional(WalletSchema),
+  defaultSignerId: Schema.optional(Schema.String),
+  defaultWaitUntil: Schema.optional(TxExecutionStatusSchema),
+  retryConfig: Schema.optional(RpcRetryConfigSchema),
 })
-
-// Type override to use template literal type for better type safety
-type NearConfigBase = z.infer<typeof NearConfigSchema>
-export type NearConfig = Omit<NearConfigBase, "privateKey"> & {
+export interface NearConfig {
+  network?: NetworkConfig | undefined
+  rpcUrl?: string | undefined
+  headers?: Record<string, string> | undefined
+  keyStore?: KeyStore | Record<string, string> | undefined
+  signer?: Signer | undefined
   privateKey?: PrivateKey | Uint8Array
+  wallet?: WalletConnection | undefined
+  defaultSignerId?: string | undefined
+  defaultWaitUntil?: typeof TxExecutionStatusSchema.Type | undefined
+  retryConfig?: RpcRetryConfigInput | undefined
 }
 
-// ==================== Helper Functions ====================
-
-/**
- * Resolve network configuration with validation
- */
-export function resolveNetworkConfig(network?: NetworkConfig): {
-  rpcUrl: string
-  networkId: string
-} {
-  // Default to mainnet
-  if (!network) {
-    const envNetwork =
-      typeof process !== "undefined" ? process.env["NEAR_NETWORK"] : undefined
-    if (
-      envNetwork &&
-      (envNetwork === "mainnet" ||
-        envNetwork === "testnet" ||
-        envNetwork === "localnet" ||
-        envNetwork === "betanet")
-    ) {
-      return NETWORK_PRESETS[envNetwork as NetworkPreset]
-    }
-    return NETWORK_PRESETS.mainnet
+/** Environment selection belongs to the caller's ConfigProvider. */
+export const resolveNetworkConfig = Effect.fn("Near.network")(function* (
+  network?: NetworkConfig,
+) {
+  if (network !== undefined) {
+    const value = yield* Schema.decodeEffect(NetworkConfigSchema)(network)
+    return typeof value === "string" ? NETWORK_PRESETS[value] : value
   }
-
-  // Validate and parse network config
-  const validated = NetworkConfigSchema.parse(network)
-
-  // Network preset
-  if (typeof validated === "string") {
-    return NETWORK_PRESETS[validated as NetworkPreset]
-  }
-
-  // Custom network config (already validated)
-  return validated
-}
+  const value = yield* Config.String("NEAR_NETWORK").pipe(
+    Config.withDefault("mainnet"),
+    Effect.orElseSucceed(() => "mainnet"),
+  )
+  return Schema.is(NetworkPresetSchema)(value)
+    ? NETWORK_PRESETS[value]
+    : NETWORK_PRESETS.mainnet
+})

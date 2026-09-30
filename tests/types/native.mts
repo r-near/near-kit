@@ -9,6 +9,7 @@ import {
   Wallet,
   batch,
   type NearFailure,
+  type RpcFailure,
   type NearService,
 } from "near-kit/effect"
 
@@ -39,7 +40,7 @@ export const read = Effect.gen(function* () {
 })
 export type ReadResult = Must<Equal<Effect.Success<typeof read>, string>>
 export type ReadRequirements = Must<Equal<Effect.Services<typeof read>, Near>>
-export type ReadError = Must<Equal<Effect.Error<typeof read>, NearFailure>>
+export type ReadError = Must<Equal<Effect.Error<typeof read>, RpcFailure>>
 
 export function consumeNative(near: NearService) {
   const tx = near.transaction("alice.near").transfer("bob.near", "1 NEAR")

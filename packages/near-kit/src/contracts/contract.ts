@@ -1,3 +1,6 @@
+import type * as Effect from "effect/Effect"
+import type { NearFailure } from "../effect/runtime.js"
+import type { NearPrograms } from "../effect/near-program.js"
 import type { BlockReference } from "../core/config-schemas.js"
 import type { Near } from "../core/near.js"
 import type { CallOptions } from "../core/types.js"
@@ -68,55 +71,62 @@ export interface ContractMethods {
  * @remarks
  * Prefer using {@link Near.contract} instead of calling this function directly.
  */
+interface ContractClient {
+  view(
+    contractId: string,
+    method: string,
+    args: object | Uint8Array,
+    options?: BlockReference,
+  ): unknown
+  call(
+    contractId: string,
+    method: string,
+    args: object | Uint8Array,
+    options?: CallOptions,
+  ): unknown
+}
+
+/** The same routing owns both terminal APIs; it does not execute their results. */
+function contractProxy(client: ContractClient, id: string) {
+  const methods = <O>(
+    invoke: (method: string, args: object | Uint8Array, options?: O) => unknown,
+  ) =>
+    new Proxy(
+      {},
+      {
+        get:
+          (_target, method: string) =>
+          (args?: object | Uint8Array, options?: O) =>
+            invoke(method, args ?? {}, options),
+      },
+    )
+  return {
+    view: methods<BlockReference>((method, args, options) =>
+      client.view(id, method, args, options),
+    ),
+    call: methods<CallOptions>((method, args, options) =>
+      client.call(id, method, args, options ?? {}),
+    ),
+  }
+}
+
 export function createContract<T extends ContractMethods>(
   near: Near,
   contractId: string,
 ): T {
-  const proxy = {
-    view: new Proxy(
-      {},
-      {
-        get: (_target, methodName: string) => {
-          return async (
-            args?: object | Uint8Array,
-            options?: BlockReference,
-          ) => {
-            return await near.view(contractId, methodName, args || {}, options)
-          }
-        },
-      },
-    ),
-    call: new Proxy(
-      {},
-      {
-        get: (_target, methodName: string) => {
-          return async (args?: object | Uint8Array, options?: CallOptions) => {
-            return await near.call(
-              contractId,
-              methodName,
-              args || {},
-              options || {},
-            )
-          }
-        },
-      },
-    ),
-  }
-
-  return proxy as T
+  return contractProxy(near, contractId) as T
 }
 
-/**
- * Helper to extend {@link Near} prototype with a `contract` method.
- *
- * @internal This is used to keep the core {@link Near} implementation focused;
- * library users should call {@link Near.contract} instead of using this helper.
- */
-export function addContractMethod(nearPrototype: typeof Near.prototype): void {
-  nearPrototype.contract = function <T extends ContractMethods>(
-    this: Near,
-    contractId: string,
-  ): T {
-    return createContract<T>(this, contractId)
+export type EffectContract<T extends ContractMethods> = {
+  [Group in keyof T]: {
+    [Method in keyof T[Group]]: T[Group][Method] extends (
+      ...args: infer Args
+    ) => Promise<infer Result>
+      ? (...args: Args) => Effect.Effect<Result, NearFailure>
+      : never
   }
 }
+export const createEffectContract = <T extends ContractMethods>(
+  near: Pick<NearPrograms, "view" | "call">,
+  contractId: string,
+): EffectContract<T> => contractProxy(near, contractId) as EffectContract<T>

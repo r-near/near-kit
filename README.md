@@ -87,7 +87,7 @@ const near = new Near({
 For production applications, use a keyStore:
 
 ```typescript
-import { FileKeyStore } from "near-kit"
+import { FileKeyStore } from "near-kit/keys/file"
 
 const near = new Near({
   network: "testnet",
@@ -267,7 +267,8 @@ await sandbox.restart(snapshot)
 ## Key Management
 
 ```typescript
-import { InMemoryKeyStore, FileKeyStore, RotatingKeyStore } from "near-kit"
+import { InMemoryKeyStore, RotatingKeyStore } from "near-kit"
+import { FileKeyStore } from "near-kit/keys/file"
 
 // In-memory (runtime only)
 const near = new Near({

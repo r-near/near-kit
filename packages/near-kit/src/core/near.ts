@@ -1,34 +1,18 @@
-import { makeNearPrograms, type NearPrograms } from "../effect/near-program.js"
-/**
- * Main NEAR client class
- */
-
+/** Public Promise projection of the native Near service. */
 import * as Effect from "effect/Effect"
-import * as Fiber from "effect/Fiber"
-import { keyStoreService } from "../effect/keys.js"
+import { batchPromises } from "../effect/near-program.js"
+import {
+  acquireClient,
+  environment,
+  type NearService,
+  type NearRuntime,
+} from "../effect/near.js"
 import type { ContractMethods } from "../contracts/contract.js"
 import { createContract } from "../contracts/contract.js"
-import type { NonceReservationService } from "../effect/nonce.js"
-import {
-  fromPromise,
-  runPromise,
-  type ExternalError,
-  type NearFailure,
-} from "../effect/runtime.js"
-import { InMemoryKeyStore } from "../keys/index.js"
-import { parseKey } from "../utils/key.js"
+import { runPromise, runSync, type NearFailure } from "../effect/runtime.js"
 import type { Amount } from "../utils/validation.js"
-import {
-  NearConfigSchema,
-  resolveNetworkConfig,
-  type BlockReference,
-  type NearConfig,
-} from "./config-schemas.js"
-import {
-  fetchTransport,
-  makeRpcProgramsUnsafe,
-  type RpcPrograms,
-} from "./rpc/rpc-program.js"
+import type { BlockReference, NearConfig } from "./config-schemas.js"
+import type { RpcPrograms } from "./rpc/rpc-program.js"
 import type {
   AccessKeyListResponse,
   AccessKeyView,
@@ -37,20 +21,19 @@ import type {
   StateItem,
   StatusResponse,
   ViewStateResult,
-} from "./rpc/rpc-schemas.js"
-import { rpcFromPromises, rpcToPromises, type RpcClient } from "./rpc/rpc.js"
-import { TransactionBuilder } from "./transaction.js"
+} from "../effect/protocol-schemas.js"
+import { rpcToPromises, type RpcClient } from "./rpc/rpc.js"
+import {
+  TransactionBuilder,
+  type TransactionDependencies,
+} from "./transaction.js"
 import type {
   AccountState,
   CallOptions,
   ContractCodeResult,
   GlobalContractReference,
-  KeyStore,
   SignedMessage,
-  Signer,
   SignMessageParams,
-  TxExecutionStatus,
-  WalletConnection,
 } from "./types.js"
 
 /**
@@ -63,58 +46,25 @@ import type {
  * @remarks
  * Configure the client with {@link NearConfig} to choose networks, key stores,
  * wallets, and retry behavior. For a guided overview see
- * `docs/01-getting-started.md` and `docs/02-core-concepts.md`.
+ * `docs/start-here/quickstart.mdx` and `docs/start-here/mental-model.mdx`.
  */
-export interface NearRuntime {
-  readonly rpc?: RpcPrograms
-  readonly nonceReservation?: NonceReservationService
-  readonly deferInitialization?: boolean
-}
+export type { NearRuntime } from "../effect/near.js"
 
 export class Near {
-  private nativeRpc!: RpcPrograms
-  private readonly nonceReservation: NonceReservationService | undefined
-  private readonly programs: NearPrograms
-  private readonly publicPrograms: NearEffects
-  private _rpc!: RpcClient
-  private keyStore!: KeyStore
-  private signer?: Signer
-  private wallet?: WalletConnection
-  private defaultSignerId?: string
-  private defaultWaitUntil: TxExecutionStatus
-  private pendingKeyStoreInit?: Effect.Effect<void, ExternalError>
+  private readonly programs: NearService
+  private readonly dependencies: TransactionDependencies
+  private readonly _rpc: RpcClient
+  readonly ready: Effect.Effect<void, NearFailure>
 
   constructor(config: NearConfig = {}, runtime?: NearRuntime) {
-    const validatedConfig = NearConfigSchema.parse(config)
-
-    this.nonceReservation = runtime?.nonceReservation
-    this._initializeRpc(validatedConfig, runtime?.rpc)
-    this._resolveKeyStore(validatedConfig)
-    this._resolveSigner(validatedConfig, config)
-
-    if (validatedConfig.defaultSignerId) {
-      this.defaultSignerId = validatedConfig.defaultSignerId
-    }
-    this.defaultWaitUntil =
-      validatedConfig.defaultWaitUntil || "EXECUTED_OPTIMISTIC"
-    this.wallet = validatedConfig.wallet
-    if (this.pendingKeyStoreInit) {
-      const initialization = Effect.runSync(
-        Effect.cached(this.pendingKeyStoreInit),
-      )
-      this.pendingKeyStoreInit = runtime?.deferInitialization
-        ? initialization
-        : Fiber.join(Effect.runFork(initialization))
-    }
-    this.programs = makeNearPrograms({
-      rpc: this.nativeRpc,
-      keyStore: this.keyStore,
-      wallet: this.wallet,
-      defaultSignerId: this.defaultSignerId,
-      transaction: (id) => this.transaction(id),
-      ready: () => this.ensureKeyStoreReadyEffect(),
-    })
-    this.publicPrograms = publicNearPrograms(this, this.programs)
+    const client = runSync(
+      acquireClient(config, runtime).pipe(Effect.provide(environment)),
+    )
+    this.programs = client.service
+    this.dependencies = client.dependencies
+    this._rpc = rpcToPromises(client.service.rpc)
+    this.ready = client.ready
+    if (this.ready !== Effect.void) Effect.runFork(this.ready)
   }
 
   /**
@@ -138,175 +88,12 @@ export class Near {
 
   /** Canonical native programs shared by the optional Effect entrypoint. */
   get effects(): NearEffects {
-    return this.publicPrograms
+    return this.programs
   }
 
   get rpcEffects(): RpcPrograms {
-    return this.nativeRpc
+    return this.programs.rpc
   }
-
-  /**
-   * Initialize RPC client from configuration
-   * @internal
-   */
-  private _initializeRpc(
-    validatedConfig: ReturnType<typeof NearConfigSchema.parse>,
-    programs?: RpcPrograms,
-  ): void {
-    const networkConfig = resolveNetworkConfig(validatedConfig.network)
-    const rpcUrl = validatedConfig.rpcUrl || networkConfig.rpcUrl
-    this.nativeRpc =
-      programs ??
-      makeRpcProgramsUnsafe(
-        {
-          url: rpcUrl,
-          ...(validatedConfig.headers
-            ? { headers: validatedConfig.headers }
-            : {}),
-          ...(validatedConfig.retryConfig
-            ? { retry: validatedConfig.retryConfig }
-            : {}),
-        },
-        fetchTransport((url, init) => globalThis.fetch(url, init)),
-      )
-    this._rpc = rpcToPromises(this.nativeRpc)
-    this.nativeRpc = rpcFromPromises(this._rpc)
-  }
-
-  /**
-   * Resolve and initialize keystore from configuration
-   * @internal
-   */
-  private _resolveKeyStore(
-    validatedConfig: ReturnType<typeof NearConfigSchema.parse>,
-  ): void {
-    this.keyStore = this.resolveKeyStore(validatedConfig.keyStore)
-  }
-
-  /**
-   * Resolve and initialize signer from configuration
-   * Handles privateKey, custom signer, and sandbox root key auto-detection
-   * @internal
-   */
-  private _resolveSigner(
-    validatedConfig: ReturnType<typeof NearConfigSchema.parse>,
-    originalConfig: NearConfig,
-  ): void {
-    const signer = validatedConfig.signer
-    const privateKey = validatedConfig.privateKey
-
-    if (signer) {
-      // Custom signer function (e.g., hardware wallet)
-      this.signer = signer
-    } else if (privateKey) {
-      // When privateKey is provided, add it to keyStore instead of creating a signer wrapper
-      // This ensures consistent behavior - all key-based operations go through keyStore
-      const keyPair =
-        typeof privateKey === "string"
-          ? parseKey(privateKey)
-          : parseKey(privateKey.toString())
-
-      // Determine which account ID to use for storing the key
-      let accountId: string | undefined
-
-      // If network is a Sandbox-like object with rootAccount, use that
-      const network = originalConfig.network as unknown
-      if (network && typeof network === "object" && "rootAccount" in network) {
-        const rootAccount = (network as { rootAccount: { id: string } })
-          .rootAccount
-        accountId = rootAccount.id
-      }
-
-      // If defaultSignerId is provided, use that (takes precedence)
-      if (validatedConfig.defaultSignerId) {
-        accountId = validatedConfig.defaultSignerId
-      }
-
-      // Add the key to keyStore if we have an account ID
-      // Native initialization is shared by concurrent signing operations
-      if (accountId) {
-        this.pendingKeyStoreInit = keyStoreService(this.keyStore).add(
-          accountId,
-          keyPair,
-        )
-      }
-    }
-
-    // Auto-add sandbox root key to keyStore if available and no explicit signer/privateKey
-    // This enables simple usage like: new Near({ network: sandbox })
-    // while still allowing multi-account scenarios via keyStore
-    if (!signer && !privateKey) {
-      const network = originalConfig.network as unknown
-      if (network && typeof network === "object" && "rootAccount" in network) {
-        const rootAccount = network as {
-          rootAccount: { id?: string; secretKey?: string }
-        }
-        // Guard: only auto-add if both id and secretKey are non-empty strings
-        if (
-          rootAccount.rootAccount?.id &&
-          rootAccount.rootAccount?.secretKey &&
-          typeof rootAccount.rootAccount.secretKey === "string"
-        ) {
-          const keyPair = parseKey(rootAccount.rootAccount.secretKey)
-          // Native initialization is shared by concurrent signing operations
-          this.pendingKeyStoreInit = keyStoreService(this.keyStore).add(
-            rootAccount.rootAccount.id,
-            keyPair,
-          )
-        }
-      }
-    }
-  }
-
-  /**
-   * Ensure any pending keystore initialization is complete
-   * @internal
-   */
-  private ensureKeyStoreReady(): Promise<void> {
-    return runPromise(this.ensureKeyStoreReadyEffect())
-  }
-
-  /** Effect-native ensureKeyStoreReady operation. */
-  private ensureKeyStoreReadyEffect(): Effect.Effect<void, ExternalError> {
-    return this.pendingKeyStoreInit ?? Effect.void
-  }
-
-  /** Wait for configured keys to finish initialization in the caller's fiber. */
-  get ready(): Effect.Effect<void, ExternalError> {
-    return this.ensureKeyStoreReadyEffect()
-  }
-
-  /**
-   * Resolve key store from config input
-   * @internal
-   */
-  private resolveKeyStore(
-    keyStoreConfig?: KeyStore | string | Record<string, string>,
-  ): KeyStore {
-    if (!keyStoreConfig) {
-      return new InMemoryKeyStore()
-    }
-
-    if (typeof keyStoreConfig === "string") {
-      // Import FileKeyStore dynamically to avoid bundling in browser
-      // For now, return in-memory
-      return new InMemoryKeyStore()
-    }
-
-    if ("add" in keyStoreConfig && "get" in keyStoreConfig) {
-      return keyStoreConfig as KeyStore
-    }
-
-    // Record of account -> key mappings
-    return new InMemoryKeyStore(keyStoreConfig as Record<string, string>)
-  }
-
-  /**
-   * Get signer ID from options, default, or wallet
-   * @internal
-   */
-
-  /** Effect-native getSignerId operation. */
 
   /**
    * Call a view function on a contract (read-only, no gas).
@@ -726,11 +513,7 @@ export class Near {
     txHash: string,
     senderAccountId: string,
     waitUntil?: W,
-  ): Promise<
-    W extends keyof FinalExecutionOutcomeWithReceiptsMap
-      ? FinalExecutionOutcomeWithReceiptsMap[W]
-      : never
-  > {
+  ): Promise<FinalExecutionOutcomeWithReceiptsMap[W]> {
     return runPromise(
       this.programs.getTransactionStatus<W>(txHash, senderAccountId, waitUntil),
     )
@@ -802,7 +585,7 @@ export class Near {
   batch<T extends unknown[]>(
     ...promises: Array<Promise<T[number]>>
   ): Promise<T> {
-    return runPromise(this.programs.batch<T>(...promises))
+    return runPromise(batchPromises<T>(...promises))
   }
 
   /**
@@ -834,19 +617,7 @@ export class Near {
    * @see {@link TransactionBuilder} for available actions
    */
   transaction(signerId: string): TransactionBuilder {
-    return new TransactionBuilder(
-      signerId,
-      this._rpc,
-      this.keyStore,
-      this.signer,
-      this.defaultWaitUntil,
-      this.wallet,
-      this.pendingKeyStoreInit ? () => this.ensureKeyStoreReady() : undefined,
-      this.pendingKeyStoreInit
-        ? () => this.ensureKeyStoreReadyEffect()
-        : undefined,
-      this.nonceReservation,
-    )
+    return new TransactionBuilder(signerId, this.dependencies)
   }
 
   /**
@@ -871,270 +642,4 @@ export class Near {
   }
 }
 
-// oxlint-disable typescript/unbound-method -- Function identities honor public overrides without invoking methods unbound.
-const originalMethods = {
-  view: Near.prototype.view,
-  call: Near.prototype.call,
-  send: Near.prototype.send,
-  signMessage: Near.prototype.signMessage,
-  getBalance: Near.prototype.getBalance,
-  getAccount: Near.prototype.getAccount,
-  accountExists: Near.prototype.accountExists,
-  getAccessKey: Near.prototype.getAccessKey,
-  getAccessKeys: Near.prototype.getAccessKeys,
-  getContractCode: Near.prototype.getContractCode,
-  getGlobalContract: Near.prototype.getGlobalContract,
-  globalContractExists: Near.prototype.globalContractExists,
-  getTransactionStatus: Near.prototype.getTransactionStatus,
-  getStatus: Near.prototype.getStatus,
-  viewState: Near.prototype.viewState,
-  batch: Near.prototype.batch,
-}
-// oxlint-enable typescript/unbound-method
-
-function publicNearPrograms(near: Near, programs: NearPrograms) {
-  return {
-    ...programs,
-    view<T = unknown>(
-      this: void,
-      contractId: string,
-      methodName: string,
-      args: object | Uint8Array = {},
-      options?: BlockReference,
-    ): Effect.Effect<T | undefined, NearFailure> {
-      return Effect.suspend(() =>
-        near.view === originalMethods.view
-          ? programs.view<T>(contractId, methodName, args, options)
-          : fromPromise(
-              () => near.view<T>(contractId, methodName, args, options),
-              "Near.view",
-            ),
-      )
-    },
-    call<T = FinalExecutionOutcome>(
-      this: void,
-      contractId: string,
-      methodName: string,
-      args: object | Uint8Array = {},
-      options: CallOptions = {},
-    ): Effect.Effect<T, NearFailure> {
-      return Effect.suspend(() =>
-        near.call === originalMethods.call
-          ? programs.call<T>(contractId, methodName, args, options)
-          : fromPromise(
-              () => near.call<T>(contractId, methodName, args, options),
-              "Near.call",
-            ),
-      )
-    },
-    send(
-      this: void,
-      receiverId: string,
-      amount: Amount,
-    ): Effect.Effect<FinalExecutionOutcome, NearFailure> {
-      return Effect.suspend(() =>
-        near.send === originalMethods.send
-          ? programs.send(receiverId, amount)
-          : fromPromise(() => near.send(receiverId, amount), "Near.send"),
-      )
-    },
-    signMessage(
-      this: void,
-      params: SignMessageParams | Omit<SignMessageParams, "nonce">,
-      options?: { signerId?: string },
-    ): Effect.Effect<SignedMessage, NearFailure> {
-      return Effect.suspend(() =>
-        near.signMessage === originalMethods.signMessage
-          ? programs.signMessage(params, options)
-          : fromPromise(
-              () => near.signMessage(params, options),
-              "Near.signMessage",
-            ),
-      )
-    },
-    getBalance(
-      this: void,
-      accountId: string,
-      options?: BlockReference,
-    ): Effect.Effect<string, NearFailure> {
-      return Effect.suspend(() =>
-        near.getBalance === originalMethods.getBalance
-          ? programs.getBalance(accountId, options)
-          : fromPromise(
-              () => near.getBalance(accountId, options),
-              "Near.getBalance",
-            ),
-      )
-    },
-    getAccount(
-      this: void,
-      accountId: string,
-      options?: BlockReference,
-    ): Effect.Effect<AccountState, NearFailure> {
-      return Effect.suspend(() =>
-        near.getAccount === originalMethods.getAccount
-          ? programs.getAccount(accountId, options)
-          : fromPromise(
-              () => near.getAccount(accountId, options),
-              "Near.getAccount",
-            ),
-      )
-    },
-    accountExists(
-      this: void,
-      accountId: string,
-      options?: BlockReference,
-    ): Effect.Effect<boolean, NearFailure> {
-      return Effect.suspend(() =>
-        near.accountExists === originalMethods.accountExists
-          ? programs.accountExists(accountId, options)
-          : fromPromise(
-              () => near.accountExists(accountId, options),
-              "Near.accountExists",
-            ),
-      )
-    },
-    getAccessKey(
-      this: void,
-      accountId: string,
-      publicKey: string,
-      options?: BlockReference,
-    ): Effect.Effect<AccessKeyView | null, NearFailure> {
-      return Effect.suspend(() =>
-        near.getAccessKey === originalMethods.getAccessKey
-          ? programs.getAccessKey(accountId, publicKey, options)
-          : fromPromise(
-              () => near.getAccessKey(accountId, publicKey, options),
-              "Near.getAccessKey",
-            ),
-      )
-    },
-    getAccessKeys(
-      this: void,
-      accountId: string,
-      options?: BlockReference,
-    ): Effect.Effect<AccessKeyListResponse, NearFailure> {
-      return Effect.suspend(() =>
-        near.getAccessKeys === originalMethods.getAccessKeys
-          ? programs.getAccessKeys(accountId, options)
-          : fromPromise(
-              () => near.getAccessKeys(accountId, options),
-              "Near.getAccessKeys",
-            ),
-      )
-    },
-    getContractCode(
-      this: void,
-      accountId: string,
-      options?: BlockReference,
-    ): Effect.Effect<ContractCodeResult, NearFailure> {
-      return Effect.suspend(() =>
-        near.getContractCode === originalMethods.getContractCode
-          ? programs.getContractCode(accountId, options)
-          : fromPromise(
-              () => near.getContractCode(accountId, options),
-              "Near.getContractCode",
-            ),
-      )
-    },
-    getGlobalContract(
-      this: void,
-      contract: GlobalContractReference,
-      options?: BlockReference,
-    ): Effect.Effect<ContractCodeResult, NearFailure> {
-      return Effect.suspend(() =>
-        near.getGlobalContract === originalMethods.getGlobalContract
-          ? programs.getGlobalContract(contract, options)
-          : fromPromise(
-              () => near.getGlobalContract(contract, options),
-              "Near.getGlobalContract",
-            ),
-      )
-    },
-    globalContractExists(
-      this: void,
-      contract: GlobalContractReference,
-      options?: BlockReference,
-    ): Effect.Effect<boolean, NearFailure> {
-      return Effect.suspend(() =>
-        near.globalContractExists === originalMethods.globalContractExists
-          ? programs.globalContractExists(contract, options)
-          : fromPromise(
-              () => near.globalContractExists(contract, options),
-              "Near.globalContractExists",
-            ),
-      )
-    },
-    getTransactionStatus<
-      W extends
-        | "NONE"
-        | "INCLUDED"
-        | "EXECUTED_OPTIMISTIC"
-        | "INCLUDED_FINAL"
-        | "EXECUTED"
-        | "FINAL" = "EXECUTED_OPTIMISTIC",
-    >(
-      this: void,
-      txHash: string,
-      senderAccountId: string,
-      waitUntil?: W,
-    ): Effect.Effect<
-      W extends keyof FinalExecutionOutcomeWithReceiptsMap
-        ? FinalExecutionOutcomeWithReceiptsMap[W]
-        : never,
-      NearFailure
-    > {
-      return Effect.suspend(() =>
-        near.getTransactionStatus === originalMethods.getTransactionStatus
-          ? programs.getTransactionStatus<W>(txHash, senderAccountId, waitUntil)
-          : fromPromise(
-              () =>
-                near.getTransactionStatus<W>(
-                  txHash,
-                  senderAccountId,
-                  waitUntil,
-                ),
-              "Near.getTransactionStatus",
-            ),
-      )
-    },
-    getStatus(this: void): Effect.Effect<StatusResponse, NearFailure> {
-      return Effect.suspend(() =>
-        near.getStatus === originalMethods.getStatus
-          ? programs.getStatus()
-          : fromPromise(() => near.getStatus(), "Near.getStatus"),
-      )
-    },
-    viewState(
-      this: void,
-      accountId: string,
-      options?: BlockReference & {
-        prefix?: string
-        afterKey?: string
-        limit?: number
-        includeProof?: boolean
-      },
-    ): Effect.Effect<ViewStateResult, NearFailure> {
-      return Effect.suspend(() =>
-        near.viewState === originalMethods.viewState
-          ? programs.viewState(accountId, options)
-          : fromPromise(
-              () => near.viewState(accountId, options),
-              "Near.viewState",
-            ),
-      )
-    },
-    batch<T extends unknown[]>(
-      this: void,
-      ...promises: Array<Promise<T[number]>>
-    ): Effect.Effect<T, NearFailure> {
-      return Effect.suspend(() =>
-        near.batch === originalMethods.batch
-          ? programs.batch<T>(...promises)
-          : fromPromise(() => near.batch<T>(...promises), "Near.batch"),
-      )
-    },
-  }
-}
-
-export type NearEffects = ReturnType<typeof publicNearPrograms>
+export type NearEffects = NearService
