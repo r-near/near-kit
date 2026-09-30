@@ -45,129 +45,131 @@ type Reservation =
  * signed transaction is still in flight. Separate services must not coordinate
  * the same signing key unless their caller supplies an external allocator.
  */
-export const makeNonceReservation: Effect.Effect<NonceReservationService> =
-  Effect.gen(function* () {
-    const states = yield* Ref.make(HashMap.empty<string, ReservationState>())
+const createNonceReservation = (): NonceReservationService => {
+  const states = Ref.makeUnsafe(HashMap.empty<string, ReservationState>())
 
-    const getOrCreate = Effect.fn("NonceReservation.state")(function* (
-      key: string,
-    ) {
-      const known = HashMap.get(yield* Ref.get(states), key)
-      if (Option.isSome(known)) return known.value
-      const semaphore = yield* Semaphore.make(1)
-      const submission = yield* Semaphore.make(1)
-      const initial: ReservationState = {
-        semaphore,
-        submission,
-        generation: 0,
-        next: undefined,
-      }
-      return yield* Ref.modify(states, (entries) => {
-        const current = HashMap.get(entries, key)
-        return Option.isSome(current)
-          ? [current.value, entries]
-          : [initial, HashMap.set(entries, key, initial)]
-      })
-    })
-
-    const withSubmission = Effect.fn("NonceReservation.withSubmission")(
-      function* <A, E, R>(
-        accountId: string,
-        publicKey: string,
-        operation: Effect.Effect<A, E, R>,
-      ): Effect.fn.Return<A, E, R> {
-        const { submission } = yield* getOrCreate(`${accountId}:${publicKey}`)
-        return yield* submission.withPermit(operation)
-      },
-    )
-
-    const reserve = Effect.fn("NonceReservation.reserve")(function* <E, R>(
-      accountId: string,
-      publicKey: string,
-      fetchFromBlockchain: Effect.Effect<bigint, E, R>,
-      options?: { readonly strict?: boolean },
-    ): Effect.fn.Return<bigint, E, R> {
-      const key = `${accountId}:${publicKey}`
-      const { semaphore } = yield* getOrCreate(key)
-      return yield* semaphore.withPermit(
-        Effect.gen(function* () {
-          while (true) {
-            const reservation = yield* Ref.modify(
-              states,
-              (
-                entries,
-              ): [Reservation, HashMap.HashMap<string, ReservationState>] => {
-                const current = HashMap.getUnsafe(entries, key)
-                if (options?.strict || current.next === undefined) {
-                  return [
-                    { _tag: "Fetch", generation: current.generation },
-                    entries,
-                  ]
-                }
-                return [
-                  { _tag: "Reserved", nonce: current.next },
-                  HashMap.set(entries, key, {
-                    ...current,
-                    next: current.next + 1n,
-                  }),
-                ]
-              },
-            )
-            if (reservation._tag === "Reserved") return reservation.nonce
-            const nonce = (yield* fetchFromBlockchain) + 1n
-            const claimed = yield* Ref.modify(states, (entries) => {
-              const current = HashMap.getUnsafe(entries, key)
-              // Never let an older lookup undo explicit invalidation.
-              if (current.generation !== reservation.generation)
-                return [false, entries]
-              // Strict mode still chooses chain+1, including after a signing failure,
-              // but its reservation must not be reused by a later monotonic send.
-              const next =
-                current.next !== undefined && current.next > nonce + 1n
-                  ? current.next
-                  : nonce + 1n
-              return [true, HashMap.set(entries, key, { ...current, next })]
-            })
-            if (claimed) return nonce
-          }
-        }),
-      )
-    })
-
-    const invalidate = Effect.fn("NonceReservation.invalidate")(function* (
-      accountId: string,
-      publicKey: string,
-    ) {
-      const key = `${accountId}:${publicKey}`
-      yield* getOrCreate(key)
-      yield* Ref.update(states, (entries) => {
-        const current = HashMap.getUnsafe(entries, key)
-        return HashMap.set(entries, key, {
-          ...current,
-          generation: current.generation + 1,
-          next: undefined,
-        })
-      })
-    })
-
-    const clear = Effect.fn("NonceReservation.clear")(() =>
-      Ref.update(
-        states,
-        HashMap.map((current) => ({
-          ...current,
-          generation: current.generation + 1,
-          next: undefined,
-        })),
-      ),
-    )
-
-    return NonceReservation.of({
-      withSubmission,
-      reserve,
-      invalidate,
-      clear,
+  const getOrCreate = Effect.fn("NonceReservation.state")(function* (
+    key: string,
+  ) {
+    const known = HashMap.get(yield* Ref.get(states), key)
+    if (Option.isSome(known)) return known.value
+    const semaphore = yield* Semaphore.make(1)
+    const submission = yield* Semaphore.make(1)
+    const initial: ReservationState = {
+      semaphore,
+      submission,
+      generation: 0,
+      next: undefined,
+    }
+    return yield* Ref.modify(states, (entries) => {
+      const current = HashMap.get(entries, key)
+      return Option.isSome(current)
+        ? [current.value, entries]
+        : [initial, HashMap.set(entries, key, initial)]
     })
   })
+
+  const withSubmission = Effect.fn("NonceReservation.withSubmission")(
+    function* <A, E, R>(
+      accountId: string,
+      publicKey: string,
+      operation: Effect.Effect<A, E, R>,
+    ): Effect.fn.Return<A, E, R> {
+      const { submission } = yield* getOrCreate(`${accountId}:${publicKey}`)
+      return yield* submission.withPermit(operation)
+    },
+  )
+
+  const reserve = Effect.fn("NonceReservation.reserve")(function* <E, R>(
+    accountId: string,
+    publicKey: string,
+    fetchFromBlockchain: Effect.Effect<bigint, E, R>,
+    options?: { readonly strict?: boolean },
+  ): Effect.fn.Return<bigint, E, R> {
+    const key = `${accountId}:${publicKey}`
+    const { semaphore } = yield* getOrCreate(key)
+    return yield* semaphore.withPermit(
+      Effect.gen(function* () {
+        while (true) {
+          const reservation = yield* Ref.modify(
+            states,
+            (
+              entries,
+            ): [Reservation, HashMap.HashMap<string, ReservationState>] => {
+              const current = HashMap.getUnsafe(entries, key)
+              if (options?.strict || current.next === undefined) {
+                return [
+                  { _tag: "Fetch", generation: current.generation },
+                  entries,
+                ]
+              }
+              return [
+                { _tag: "Reserved", nonce: current.next },
+                HashMap.set(entries, key, {
+                  ...current,
+                  next: current.next + 1n,
+                }),
+              ]
+            },
+          )
+          if (reservation._tag === "Reserved") return reservation.nonce
+          const nonce = (yield* fetchFromBlockchain) + 1n
+          const claimed = yield* Ref.modify(states, (entries) => {
+            const current = HashMap.getUnsafe(entries, key)
+            // Never let an older lookup undo explicit invalidation.
+            if (current.generation !== reservation.generation)
+              return [false, entries]
+            // Strict mode still chooses chain+1, including after a signing failure,
+            // but its reservation must not be reused by a later monotonic send.
+            const next =
+              current.next !== undefined && current.next > nonce + 1n
+                ? current.next
+                : nonce + 1n
+            return [true, HashMap.set(entries, key, { ...current, next })]
+          })
+          if (claimed) return nonce
+        }
+      }),
+    )
+  })
+
+  const invalidate = Effect.fn("NonceReservation.invalidate")(function* (
+    accountId: string,
+    publicKey: string,
+  ) {
+    const key = `${accountId}:${publicKey}`
+    yield* getOrCreate(key)
+    yield* Ref.update(states, (entries) => {
+      const current = HashMap.getUnsafe(entries, key)
+      return HashMap.set(entries, key, {
+        ...current,
+        generation: current.generation + 1,
+        next: undefined,
+      })
+    })
+  })
+
+  const clear = Effect.fn("NonceReservation.clear")(() =>
+    Ref.update(
+      states,
+      HashMap.map((current) => ({
+        ...current,
+        generation: current.generation + 1,
+        next: undefined,
+      })),
+    ),
+  )
+
+  return NonceReservation.of({
+    withSubmission,
+    reserve,
+    invalidate,
+    clear,
+  })
+}
+
+export const makeNonceReservation: Effect.Effect<NonceReservationService> =
+  Effect.sync(createNonceReservation)
 
 /** Explicit, injectable coordination shared by all users of one provided layer. */
 // oxlint-disable-next-line effecttsgo/lazy-effect -- Kit service operations remain named Effect.fn functions, including zero-argument methods.
@@ -178,5 +180,8 @@ export class NonceReservation extends Context.Service<
   static readonly layer = Layer.effect(NonceReservation, makeNonceReservation)
 }
 
-/** Existing Promise clients intentionally share one process-wide allocator. */
-export const sharedNonceReservation = Effect.runSync(makeNonceReservation)
+/** Compatibility clients share one process domain, allocated only on first use.
+ * Native application layers should supply an explicit NonceReservation service. */
+let shared: NonceReservationService | undefined
+export const getSharedNonceReservation: Effect.Effect<NonceReservationService> =
+  Effect.sync(() => (shared ??= createNonceReservation()))

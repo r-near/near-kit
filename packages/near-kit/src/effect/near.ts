@@ -26,7 +26,7 @@ import { KeyStore, keyStoreService, type KeyStoreService } from "./keys.js"
 import { makeNearPrograms } from "./near-program.js"
 import {
   NonceReservation,
-  sharedNonceReservation,
+  getSharedNonceReservation,
   type NonceReservationService,
 } from "./nonce.js"
 import { Wallet, walletService, type WalletService } from "./wallet.js"
@@ -93,7 +93,7 @@ export const acquireClient = Effect.fn("Near.acquire")(function* (
     rpc,
     keyStore,
     ready,
-    nonces: runtime.nonceReservation ?? sharedNonceReservation,
+    nonces: runtime.nonceReservation ?? (yield* getSharedNonceReservation),
     defaultWaitUntil: validated.defaultWaitUntil ?? "EXECUTED_OPTIMISTIC",
     ...(wallet ? { wallet } : {}),
     ...(runtime.signer

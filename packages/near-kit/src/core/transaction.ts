@@ -18,7 +18,7 @@ export type {
 } from "../effect/transaction.js"
 import { walletService } from "../effect/wallet.js"
 import { keyStoreService } from "../effect/keys.js"
-import { sharedNonceReservation } from "../effect/nonce.js"
+import { getSharedNonceReservation } from "../effect/nonce.js"
 import { fromPromise, runPromise, runSync } from "../effect/runtime.js"
 import { InvalidKeyError, NearError } from "../errors/index.js"
 import { parseKey, parsePublicKey } from "../utils/key.js"
@@ -204,7 +204,7 @@ export class TransactionBuilder {
       dependencies = {
         rpc: transactionRpcFromPromises(rpc),
         keyStore: keyStoreService(keyStore),
-        nonces: sharedNonceReservation,
+        nonces: runSync(getSharedNonceReservation),
         defaultWaitUntil,
         ...(signer
           ? {
