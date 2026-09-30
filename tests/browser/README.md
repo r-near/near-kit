@@ -17,9 +17,9 @@ bun run test:browser
 bun run typecheck:browser
 ```
 
-Browser system libraries must be installed on the host. CI uses the official
-Playwright image pinned to the exact `@playwright/test` version. Keep those pins
-in sync when upgrading. The test command builds both packages first; the two
+Browser system libraries must be installed on the host. CI installs the official
+browser revisions selected by the pinned `@playwright/test` package on its
+isolated runner. No Docker daemon or custom browser security flags are needed. The test command builds both packages first; the two
 local Vite servers load package exports normally, without source aliases.
 
 ```sh
