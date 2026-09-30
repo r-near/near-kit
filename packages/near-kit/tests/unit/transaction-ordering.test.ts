@@ -6,40 +6,10 @@ import { inspectSignedTransaction } from "../../../../tests/browser/wire-oracle.
 import { transactionPlan, Actions } from "../../src/effect/index.js"
 import { generateKey } from "../../src/utils/key.js"
 
-const zeroHash = "11111111111111111111111111111111"
-const block = {
-  author: "validator.near",
-  chunks: [],
-  header: {
-    height: 100,
-    epoch_id: zeroHash,
-    next_epoch_id: zeroHash,
-    hash: zeroHash,
-    prev_hash: zeroHash,
-    prev_state_root: zeroHash,
-    chunk_receipts_root: zeroHash,
-    chunk_headers_root: zeroHash,
-    chunk_tx_root: zeroHash,
-    outcome_root: zeroHash,
-    chunks_included: 0,
-    challenges_root: zeroHash,
-    timestamp: 1,
-    timestamp_nanosec: "1",
-    random_value: zeroHash,
-    validator_proposals: [],
-    chunk_mask: [],
-    gas_price: "1",
-    total_supply: "1",
-    challenges_result: [],
-    last_final_block: zeroHash,
-    last_ds_final_block: zeroHash,
-    next_bp_hash: zeroHash,
-    block_merkle_root: zeroHash,
-    approvals: [],
-    signature: "fixture",
-    latest_protocol_version: 85,
-  },
-}
+import {
+  testBlock as block,
+  testBlockHash as zeroHash,
+} from "../helpers/rpc.js"
 
 afterEach(() => vi.unstubAllGlobals())
 

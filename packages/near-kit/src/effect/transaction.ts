@@ -314,14 +314,12 @@ const prepare = Effect.fn("Transaction.prepare")(function* (
     nonce = plan.nonce
   } else {
     const lookup = chainNonce(plan, dependencies, publicKeyString, index)
-    nonce =
-      versioned && plan.strictNonce
-        ? (yield* lookup) + 1n
-        : yield* dependencies.nonces.reserve(
-            plan.signerId,
-            nonceKey(publicKeyString, index),
-            lookup,
-          )
+    nonce = yield* dependencies.nonces.reserve(
+      plan.signerId,
+      nonceKey(publicKeyString, index),
+      lookup,
+      { strict: versioned && plan.strictNonce === true },
+    )
   }
   const block = yield* dependencies.rpc.getBlock({ finality: "final" })
   const transaction: UnsignedTransaction = {

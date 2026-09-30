@@ -186,3 +186,34 @@ test("submission ownership survives invalidation and a cancelled waiter", async 
     ),
   )
 })
+
+test("strict lookup discards invalidated responses and advances ordinary reservations", async () => {
+  const service = Effect.runSync(makeNonceReservation)
+  const entered = Promise.withResolvers<void>()
+  const release = Promise.withResolvers<bigint>()
+  let reads = 0
+  const lookup = Effect.promise(() => {
+    if (++reads === 1) {
+      entered.resolve()
+      return release.promise
+    }
+    return Promise.resolve(200n)
+  })
+  const pending = Effect.runPromise(
+    service.reserve("alice.near", "key", lookup, { strict: true }),
+  )
+  await entered.promise
+  Effect.runSync(service.invalidate("alice.near", "key"))
+  release.resolve(100n)
+  expect(await pending).toBe(201n)
+  expect(reads).toBe(2)
+  expect(
+    Effect.runSync(
+      service.reserve(
+        "alice.near",
+        "key",
+        Effect.die("must retain the strict reservation"),
+      ),
+    ),
+  ).toBe(202n)
+})

@@ -13,10 +13,12 @@ export interface NonceReservationService {
     publicKey: string,
     operation: Effect.Effect<A, E, R>,
   ) => Effect.Effect<A, E, R>
+  /** Strict reservations read chain+1 and keep later monotonic reservations ahead. */
   readonly reserve: <E, R>(
     accountId: string,
     publicKey: string,
     fetchFromBlockchain: Effect.Effect<bigint, E, R>,
+    options?: { readonly strict?: boolean },
   ) => Effect.Effect<bigint, E, R>
   readonly invalidate: (
     accountId: string,
@@ -83,6 +85,7 @@ export const makeNonceReservation: Effect.Effect<NonceReservationService> =
       accountId: string,
       publicKey: string,
       fetchFromBlockchain: Effect.Effect<bigint, E, R>,
+      options?: { readonly strict?: boolean },
     ): Effect.fn.Return<bigint, E, R> {
       const key = `${accountId}:${publicKey}`
       const { semaphore } = yield* getOrCreate(key)
@@ -95,7 +98,7 @@ export const makeNonceReservation: Effect.Effect<NonceReservationService> =
                 entries,
               ): [Reservation, HashMap.HashMap<string, ReservationState>] => {
                 const current = HashMap.getUnsafe(entries, key)
-                if (current.next === undefined) {
+                if (options?.strict || current.next === undefined) {
                   return [
                     { _tag: "Fetch", generation: current.generation },
                     entries,
@@ -111,14 +114,21 @@ export const makeNonceReservation: Effect.Effect<NonceReservationService> =
               },
             )
             if (reservation._tag === "Reserved") return reservation.nonce
-            const onChain = yield* fetchFromBlockchain
-            yield* Ref.update(states, (entries) => {
+            const nonce = (yield* fetchFromBlockchain) + 1n
+            const claimed = yield* Ref.modify(states, (entries) => {
               const current = HashMap.getUnsafe(entries, key)
               // Never let an older lookup undo explicit invalidation.
-              return current.generation === reservation.generation
-                ? HashMap.set(entries, key, { ...current, next: onChain + 1n })
-                : entries
+              if (current.generation !== reservation.generation)
+                return [false, entries]
+              // Strict mode still chooses chain+1, including after a signing failure,
+              // but its reservation must not be reused by a later monotonic send.
+              const next =
+                current.next !== undefined && current.next > nonce + 1n
+                  ? current.next
+                  : nonce + 1n
+              return [true, HashMap.set(entries, key, { ...current, next })]
             })
+            if (claimed) return nonce
           }
         }),
       )
