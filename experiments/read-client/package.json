@@ -25,7 +25,9 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.check.json --noEmit",
     "test": "vitest run",
-    "check": "npm run build && npm run typecheck && npm test"
+    "check": "npm run build && npm run typecheck && npm test",
+    "test:browser": "playwright test",
+    "test:sandbox": "vitest run --config vitest.sandbox.config.ts"
   },
   "dependencies": {
     "effect": "4.0.0-rc.118"
@@ -40,6 +42,7 @@
     "react": "19.2.7",
     "react-dom": "19.2.7",
     "typescript": "7.0.2",
-    "vitest": "5.0.3"
+    "vitest": "5.0.3",
+    "wabt": "1.0.39"
   }
 }

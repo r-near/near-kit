@@ -4,7 +4,23 @@
     "noEmit": true,
     "rootDir": ".",
     "jsx": "react-jsx",
-    "types": ["node"]
+    "types": [
+      "node"
+    ],
+    "lib": [
+      "ES2023",
+      "DOM",
+      "DOM.Iterable"
+    ]
   },
-  "include": ["src/**/*.ts", "test/**/*.ts", "examples/**/*.ts", "examples/**/*.tsx", "vitest.config.ts"]
+  "include": [
+    "src/**/*.ts",
+    "test/**/*.ts",
+    "examples/**/*.ts",
+    "examples/**/*.tsx",
+    "vitest.config.ts",
+    "test/**/*.tsx",
+    "playwright.config.ts",
+    "vitest.sandbox.config.ts"
+  ]
 }

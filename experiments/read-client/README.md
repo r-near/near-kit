@@ -6,7 +6,7 @@ It uses the prerelease Effect 4.0.0-rc.118. It is not published or a complete ne
 
 ## Try it
 
-From this directory:
+From this directory in the source checkout (not inside node_modules):
 
 ```sh
 npm ci --ignore-scripts
@@ -14,7 +14,13 @@ npm run check
 npm pack
 ```
 
-Install the resulting `near-kit-read-experiment-0.0.0-experimental.0.tgz` into a consumer project. All examples import that private package, not published `near-kit`.
+In a separate consumer project, install the resulting tarball and the Effect version used by its examples:
+
+```sh
+npm install /path/to/near-kit-read-experiment-0.0.0-experimental.0.tgz effect@4.0.0-rc.118
+```
+
+All examples import that private package, not published `near-kit`.
 
 ```ts
 import { Effect, Schema } from "effect"
@@ -39,6 +45,15 @@ The example accounts/contracts must exist on your selected node. For a complete 
 ```sh
 node --experimental-strip-types examples/read.ts RPC_URL ACCOUNT_ID
 ```
+
+Packed consumers should copy the example into their own project first. Node does not strip TypeScript inside node_modules:
+
+```sh
+cp node_modules/@near-kit/read-experiment/examples/read.ts ./read.mts
+node --experimental-strip-types read.mts RPC_URL ACCOUNT_ID
+```
+
+For strict browser-only TypeScript projects without Node globals, include `ESNext.Disposable` alongside your target/DOM libs; Effect rc.118 declarations use the explicit resource-management types.
 
 ## One execution model
 
