@@ -246,7 +246,7 @@ The CI matrix runs Chromium, Firefox and WebKit with React 18 and 19, and retain
 traces, screenshots and video for failures.
 
 ```sh
-bunx playwright install
+bunx playwright install --with-deps
 bun run test:browser
 # Repeat the Chromium lifecycle suite when changing cancellation or ownership:
 bun run test:browser --project=chromium-react18 --project=chromium-react19 --repeat-each=5

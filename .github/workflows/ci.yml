@@ -114,16 +114,13 @@ jobs:
           cat /etc/os-release
           command -v apt-get || true
 
-      - name: Install pinned Playwright browsers
-        # install --with-deps uses sudo/su when nonroot. Never elevate this job.
-        # Already-root isolated runners can install ordinary browser libraries;
-        # nonroot runners must provide those system libraries in their image.
-        run: |
-          if [ "$(id -u)" -eq 0 ]; then
-            bunx --no-install playwright install --with-deps chromium firefox webkit
-          else
-            bunx --no-install playwright install chromium firefox webkit
-          fi
+      - name: Install pinned Playwright browsers and system libraries
+        # Use the official installer and the isolated runner's existing supported
+        # privileges. Do not change sudo policy, security controls or isolation.
+        run: bunx --no-install playwright install --with-deps chromium firefox webkit
+
+      - name: Verify browser renderer prerequisites
+        run: node tests/browser/check-runtime.ts
 
       - name: Test built SDK in Chromium, Firefox and WebKit with React 18 and 19
         run: bun run test:browser

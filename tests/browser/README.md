@@ -12,14 +12,15 @@ No public RPC, real accounts, funded keys or wallet extensions are used.
 
 ```sh
 bun install --frozen-lockfile
-bunx --no-install playwright install chromium firefox webkit
+bunx --no-install playwright install --with-deps chromium firefox webkit
 bun run test:browser
 bun run typecheck:browser
 ```
 
-Browser system libraries must be installed on the host. CI installs the official
-browser revisions selected by the pinned `@playwright/test` package on its
-isolated runner. No Docker daemon or custom browser security flags are needed. The test command builds both packages first; the two
+The official installer installs browser system libraries and the browser revisions
+selected by the pinned `@playwright/test` package. On Linux this may use the host's
+existing sudo privileges. CI uses its isolated runner; it does not alter privilege
+policy or security controls. No Docker daemon or custom browser security flags are needed. The test command builds both packages first; the two
 local Vite servers load package exports normally, without source aliases.
 
 ```sh
