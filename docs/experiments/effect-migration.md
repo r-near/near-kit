@@ -44,7 +44,7 @@ never mutate source/tests in a checkout while its Vitest process is running.
 
 ## Verification requirements
 
-- Retain and run the existing 44 unit, 25 integration, 8 wallet, and 6 React test
+- Retain and run the existing 44 unit, 25 integration, 7 wallet, and 6 React test
   files; report actual counts and any environment-dependent failures separately.
 - Validate unchanged consumer examples and declaration compatibility.
 - Add behavior-focused negative/error-path tests only when they protect an
@@ -64,7 +64,11 @@ never mutate source/tests in a checkout while its Vitest process is running.
 - Initial unit run: 1,169 passed and one environment-path failure: the home-path
   test attempts to create `/home/agent/.near-test`, outside this workspace. Rerun
   with an isolated temporary HOME to exercise the same behavior safely.
-- Wallet, React, isolated-HOME unit rerun, and integration baseline pending.
+- Isolated-HOME rerun: all 1,170 unit tests pass; all 80 wallet and 49 React tests pass.
+- Full integration baseline is blocked locally: nearcore requires 65,535 file
+  descriptors but the container hard limit is 16,384. The historical 2.10 binary
+  download also returned HTTP 502. Only 2 integration tests ran successfully;
+  277 were skipped after suite startup failures. This is not integration proof.
 - Sandbox integration needs a usable local nearcore binary and adequate file
   descriptor limits. Investigate permitted isolated configuration; CI results
   must be distinguished from local proof if the environment remains constrained.
@@ -79,3 +83,25 @@ never mutate source/tests in a checkout while its Vitest process is running.
 - [ ] Effect/tooling version decision
 - [ ] Implementation slices
 - [ ] Independent audit and exact-commit CI
+
+## Runtime version decision
+
+Pin `effect` to `4.0.0-rc.118` for this isolated experiment. This is a prerelease,
+not the stable v3 line; the experiment intentionally evaluates the current v4
+service, schema, runtime, and resource APIs without committing to a release.
+The Promise boundary was tested against the installed version: domain failure
+identity is preserved. Third-party Promise rejections become tagged ExternalError
+values in native programs and are unwrapped only at the compatibility facade.
+
+Sources: [Effect migration guide](https://github.com/Effect-TS/effect/blob/main/MIGRATION.md),
+[Effect tsgo setup](https://github.com/Effect-TS/tsgo/blob/main/docs/README.md).
+
+## Acceptance process
+
+Maintain explicit subsystem ownership and dependency contracts. Each coherent
+slice follows implementation, independent review, and behavioral QA. An absent,
+null, skipped, or environment-blocked result never counts as passing. Diagnose
+failed checks before bounded repair attempts; preserve the failure evidence.
+Before integration, compare commit ancestry to avoid applying a completed slice
+twice. Green inherited tests are necessary but do not replace lifecycle, wire
+compatibility, and end-to-end acceptance evidence.
