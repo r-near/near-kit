@@ -523,7 +523,11 @@ export const broadcast = Effect.fn("Transaction.broadcast")(function* <
     Effect.catch((failure) =>
       Effect.gen(function* () {
         const error = originalCause(failure)
-        if (isDefinitiveNonceRejection(error)) {
+        if (
+          isDefinitiveNonceRejection(error) &&
+          Number.isSafeInteger(error.txNonce) &&
+          BigInt(error.txNonce) === signed.nonce
+        ) {
           if (history)
             yield* Ref.update(history, ({ started, rejected }) => ({
               started,
@@ -531,10 +535,12 @@ export const broadcast = Effect.fn("Transaction.broadcast")(function* <
             }))
           if (yield* allRejected(signed)) return yield* Effect.fail(failure)
         }
-        // Preserve known execution failures, but their unmatched start still prevents future re-signing.
+        // Preserve nonretryable execution failures; uncertain validation errors must not
+        // encourage a caller to create a new transaction after possible acceptance.
         if (
           error instanceof FunctionCallError ||
-          error instanceof InvalidTransactionError
+          (error instanceof InvalidTransactionError &&
+            error.retryable === false)
         )
           return yield* Effect.fail(failure)
         return yield* reconcile(signed, dependencies, waitUntil, failure)

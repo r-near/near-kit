@@ -197,13 +197,15 @@ test("nonce rejection retries keep the selected rotating key and only rebuild af
   let requests = 0
   const sender = testRpcPrograms(
     "https://rpc.invalid",
-    async () => {
+    async (_url, init) => {
+      if (typeof init.body !== "string") throw new Error("Expected RPC body")
+      const { id } = JSON.parse(init.body)
       requests++
       return Response.json(
         requests === 1
           ? {
               jsonrpc: "2.0",
-              id: 1,
+              id,
               error: {
                 name: "HANDLER_ERROR",
                 code: -32000,
@@ -220,7 +222,7 @@ test("nonce rejection retries keep the selected rotating key and only rebuild af
             }
           : {
               jsonrpc: "2.0",
-              id: 1,
+              id,
               result: { final_execution_status: "NONE" },
             },
       )

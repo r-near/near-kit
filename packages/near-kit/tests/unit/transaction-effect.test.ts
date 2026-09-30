@@ -491,9 +491,12 @@ describe("Malformed transaction inputs and RPC data", () => {
   )
 })
 
-test("malformed nonce-refresh hints fail recoverably without resubmission", async () => {
+test("malformed nonce rejection cannot authorize resubmission", async () => {
   const { rpc, dependencies } = setup()
   rpc.getAccessKey = async () => ({ nonce: 1 }) as never
+  rpc.getTransactionStatus = async () => {
+    throw new Error("transaction not visible")
+  }
   let submissions = 0
   const sender = testRpcPrograms(
     "https://rpc.invalid",

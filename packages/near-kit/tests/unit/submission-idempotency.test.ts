@@ -15,10 +15,10 @@ import { InMemoryKeyStore } from "../../src/keys/in-memory-keystore.js"
 import { generateKey } from "../../src/utils/key.js"
 import { testRpcPrograms } from "../helpers/rpc.js"
 
-function nonceRejection(nonce: number, chainNonce: number) {
+function nonceRejection(nonce: number, chainNonce: number, id: number) {
   return Response.json({
     jsonrpc: "2.0",
-    id: 1,
+    id,
     error: {
       name: "HANDLER_ERROR",
       code: -32000,
@@ -40,7 +40,8 @@ function nonceRejection(nonce: number, chainNonce: number) {
 function fixture(
   options: {
     retries?: number
-    first?: "lost" | "malformed" | "accepted"
+    first?: "lost" | "malformed" | "accepted" | "wrong nonce"
+    replay?: "ShardCongested" | "ShardStuck"
     gate?: Promise<void>
   } = {},
 ) {
@@ -57,18 +58,18 @@ function fixture(
       "https://rpc.invalid",
       async (_url, init) => {
         if (typeof init.body !== "string") throw new Error("Expected RPC body")
-        const { method, params } = JSON.parse(init.body)
+        const { id, method, params } = JSON.parse(init.body)
         if (method === "EXPERIMENTAL_tx_status") {
           lookups.push(params)
           return statusKnown
             ? Response.json({
                 jsonrpc: "2.0",
-                id: 1,
+                id,
                 result: { final_execution_status: "NONE", receipts: [] },
               })
             : Response.json({
                 jsonrpc: "2.0",
-                id: 1,
+                id,
                 error: {
                   name: "HANDLER_ERROR",
                   code: -32000,
@@ -86,20 +87,36 @@ function fixture(
         const nonce = Number(
           SignedTransactionSchema.deserialize(wire).transaction.nonce,
         )
-        if (nonce <= chainNonce) return nonceRejection(nonce, chainNonce)
+        if (nonce <= chainNonce) {
+          if (options.replay)
+            return Response.json({
+              jsonrpc: "2.0",
+              id,
+              error: {
+                name: "HANDLER_ERROR",
+                code: -32000,
+                message: options.replay,
+                cause: { name: "INVALID_TRANSACTION", info: {} },
+                data: { InvalidTxError: { [options.replay]: true } },
+              },
+            })
+          return nonceRejection(nonce, chainNonce, id)
+        }
         chainNonce = nonce
         accepted.push(base58.encode(sha256(wire.slice(0, -65))))
         started.resolve()
         if (accepted.length === 1) {
+          if (options.first === "wrong nonce")
+            return nonceRejection(nonce + 1, nonce + 1, id)
           if (options.gate) await options.gate
           if (options.first === "lost")
             throw new Error("accepted response lost")
           if (options.first === "malformed")
-            return Response.json({ jsonrpc: "2.0", id: 1, result: {} })
+            return Response.json({ jsonrpc: "2.0", id, result: {} })
         }
         return Response.json({
           jsonrpc: "2.0",
-          id: 1,
+          id,
           result: { final_execution_status: "NONE" },
         })
       },
@@ -192,6 +209,32 @@ describe("signed commitment submission history", () => {
       ),
     ).toBe(true)
   })
+
+  test.each(["wrong nonce", "ShardCongested", "ShardStuck"] as const)(
+    "%s cannot turn a possibly accepted dispatch into retry authorization",
+    async (scenario) => {
+      const f = fixture(
+        scenario === "wrong nonce"
+          ? { first: "wrong nonce" }
+          : { first: "lost", replay: scenario, retries: 1 },
+      )
+      const failure = await f.builder
+        .send({ waitUntil: "NONE" })
+        .catch((error: unknown) => error)
+      expect(failure).toMatchObject({
+        code: "TRANSACTION_OUTCOME_UNKNOWN",
+        retryable: false,
+        data: { hash: f.accepted[0], sender: "alice.near" },
+      })
+      expect(f.accepted).toHaveLength(1)
+      expect(f.signatures()).toBe(1)
+      f.knowStatus()
+      const result = await f.builder.send({ waitUntil: "NONE" })
+      expect(result.transaction?.hash).toBe(f.accepted[0])
+      expect(f.accepted).toHaveLength(1)
+      expect(f.signatures()).toBe(1)
+    },
+  )
 
   test("a concurrent rejection cannot refresh while another broadcast is unresolved", async () => {
     const gate = Promise.withResolvers<void>()
