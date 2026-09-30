@@ -1,7 +1,6 @@
 /** Effect programs and the backwards-compatible Promise boundary. */
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
-import { ZodError } from "zod"
 import { NearError } from "../errors/index.js"
 
 /** A failure reported by a Promise-only extension such as a wallet or signer. */
@@ -42,21 +41,17 @@ export const fromPromise = <A>(
   })
 
 /** Public operational failures of composed SDK programs. */
-export type NearFailure =
-  | NearError
-  | ZodError
-  | Schema.SchemaError
-  | ExternalError
+export type NearFailure = NearError | Schema.SchemaError | ExternalError
 
 /** Expected input/encoding failures, preserving SDK error classes where known. */
 export const inputEffect = <A>(
   operation: () => A,
   name: string,
-): Effect.Effect<A, NearError | ZodError | ExternalError> =>
+): Effect.Effect<A, NearError | Schema.SchemaError | ExternalError> =>
   Effect.try({
     try: operation,
     catch: (cause) =>
-      cause instanceof NearError || cause instanceof ZodError
+      cause instanceof NearError || Schema.isSchemaError(cause)
         ? cause
         : new ExternalError({ operation: name, cause }),
   })
