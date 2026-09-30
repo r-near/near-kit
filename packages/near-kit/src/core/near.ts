@@ -1,7 +1,6 @@
 /** Public Promise projection of the native Near service. */
 import * as Effect from "effect/Effect"
 import * as ConfigProvider from "effect/ConfigProvider"
-import { batchPromises } from "../effect/near-program.js"
 import {
   acquireClient,
   type NearService,
@@ -590,7 +589,7 @@ export class Near {
   batch<T extends unknown[]>(
     ...promises: Array<Promise<T[number]>>
   ): Promise<T> {
-    return runPromise(batchPromises<T>(...promises))
+    return Promise.all(promises) as Promise<T>
   }
 
   /**

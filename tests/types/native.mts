@@ -9,7 +9,6 @@ import {
   KeyStore,
   NonceReservation,
   Wallet,
-  batch,
   type NearFailure,
   type RpcFailure,
   type NearService,
@@ -80,7 +79,9 @@ export function consumeNative(near: NearService) {
     { by: 1 },
     { gas: "30 Tgas" },
   )
-  const combined = batch(Effect.succeed(1), Effect.succeed("value"))
+  const combined = Effect.all([Effect.succeed(1), Effect.succeed("value")], {
+    concurrency: "unbounded",
+  })
   const tupleIsPreserved: Must<
     Equal<Effect.Success<typeof combined>, [number, string]>
   > = true

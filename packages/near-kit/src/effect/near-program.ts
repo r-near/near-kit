@@ -23,12 +23,7 @@ import { generateNonce } from "../utils/nep413.js"
 import { normalizeAmount, type Amount } from "../utils/validation.js"
 import type { KeyStoreService } from "./keys.js"
 import type { WalletService } from "./wallet.js"
-import {
-  fromPromise,
-  fromSync,
-  inputEffect,
-  type NearFailure,
-} from "./runtime.js"
+import { fromSync, inputEffect, type NearFailure } from "./runtime.js"
 
 export interface NearProgramDependencies {
   readonly rpc: RpcPrograms
@@ -290,16 +285,6 @@ const getConnectedAccountId = Effect.fn("Near.getConnectedAccountId")(
   },
   (program) => program.pipe(Effect.orElseSucceed(() => undefined)),
 )
-
-/** Existing Promise batch inputs are adapted only at their public boundary. */
-export const batchPromises = <T extends unknown[]>(
-  ...promises: Array<Promise<T[number]>>
-) =>
-  Effect.forEach(
-    promises,
-    (promise) => fromPromise(() => promise, "Near.batch"),
-    { concurrency: "unbounded" },
-  ) as Effect.Effect<T, NearFailure>
 
 export const makeNearPrograms = (context: NearProgramDependencies) => ({
   view: <T = unknown>(

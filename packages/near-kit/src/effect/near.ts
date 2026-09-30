@@ -158,9 +158,6 @@ export const make = (config: NearConfig = {}, runtime?: NearRuntime) =>
   acquireClient(config, runtime).pipe(
     Effect.flatMap(({ service, ready }) => Effect.as(ready, service)),
   )
-/** Reuse the native owner of an existing public client; no reverse adaptation. */
-export const fromClient = (client: PromiseNear): NearService => client.effects
-
 const withServices = Effect.fn("Near.acquireServices")(function* (
   config: NearConfig,
   wallet?: WalletService,
@@ -183,7 +180,7 @@ export class Near extends Context.Service<Near, NearService>()(
   static layer = (config: NearConfig = {}): Layer.Layer<Near, NearFailure> =>
     Layer.effect(Near, make(config))
   static layerFromClient = (client: PromiseNear): Layer.Layer<Near> =>
-    Layer.succeed(Near, fromClient(client))
+    Layer.succeed(Near, client.effects)
   static layerWithRpc = (
     config: NearConfig = {},
   ): Layer.Layer<Near, NearFailure, Rpc> =>
@@ -207,9 +204,3 @@ export class Near extends Context.Service<Near, NearService>()(
       Effect.flatMap(Wallet, (wallet) => withServices(config, wallet)),
     )
 }
-
-export const batch = <
-  const T extends ReadonlyArray<Effect.Effect<unknown, unknown, unknown>>,
->(
-  ...effects: T
-) => Effect.all(effects, { concurrency: "unbounded" })
