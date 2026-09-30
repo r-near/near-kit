@@ -713,11 +713,15 @@ export const makeSandbox = Effect.fn("Sandbox.make")(
               })
               yield* fs.writeFileString(
                 genesisPath,
-                JSON.stringify(
-                  { ...genesis, records, total_supply: totalSupply },
-                  null,
-                  2,
-                ),
+                yield* Effect.try({
+                  try: () =>
+                    JSON.stringify(
+                      { ...genesis, records, total_supply: totalSupply },
+                      null,
+                      2,
+                    ),
+                  catch: sandboxError("Sandbox.restart.encoding"),
+                }),
               )
             }
             yield* fs.remove(path.join(home, "data"), {

@@ -234,7 +234,7 @@ function programsWithState(
     }
     const attempt = Effect.fn("Rpc.request")(function* (): Effect.fn.Return<
       T,
-      NearError
+      RpcFailure
     > {
       yield* debugRpc("Request", request)
       // One interruptible transport boundary owns both fetch and body consumption.
@@ -923,8 +923,13 @@ const debugRpc = Effect.fn("Rpc.debug")(function* (
     Config.withDefault(""),
     Effect.orDie,
   )
-  if (enabled === "true")
-    yield* Console.log(`[RPC ${direction}]`, JSON.stringify(value, null, 2))
+  if (enabled === "true") {
+    const json = yield* inputEffect(
+      () => JSON.stringify(value, null, 2),
+      "Rpc.debug.encoding",
+    )
+    yield* Console.log(`[RPC ${direction}]`, json)
+  }
 })
 
 function rpcFailureCause(error: unknown): unknown {

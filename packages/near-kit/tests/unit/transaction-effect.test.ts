@@ -1,5 +1,5 @@
 import { sha256 } from "@noble/hashes/sha2.js"
-import { Effect } from "effect"
+import { Cause, Effect, Exit } from "effect"
 import { describe, expect, expectTypeOf, test, vi } from "vitest"
 import { rpcToPromises } from "../../src/core/rpc/rpc.js"
 import { testRpcClient, testRpcPrograms } from "../helpers/rpc.js"
@@ -9,6 +9,7 @@ import {
   type TransactionError,
 } from "../../src/core/transaction.js"
 import type { Signature } from "../../src/core/types.js"
+import { InvalidNonceError } from "../../src/errors/index.js"
 import { ExternalError } from "../../src/effect/runtime.js"
 import { transaction } from "../../src/effect/transaction.js"
 import { InMemoryKeyStore } from "../../src/keys/in-memory-keystore.js"
@@ -227,4 +228,74 @@ describe("Transaction execution ownership", () => {
     expect((failure as ExternalError).cause).toBe(rejection)
     await expect(builder.sign()).rejects.toBe(rejection)
   })
+})
+
+// External decoding failures are recoverable, and must never reach submission.
+describe("Malformed transaction inputs and RPC data", () => {
+  test.each([
+    "classic block",
+    "strict block",
+    "access nonce",
+    "gas nonce",
+    "delegate offset",
+  ] as const)(
+    "%s fails through the native error channel before submission",
+    async (scenario) => {
+      const { rpc } = setup()
+      rpc.getAccessKey = async () =>
+        ({ nonce: scenario === "access nonce" ? 1.5 : 1 }) as never
+      rpc.getStatus = async () =>
+        ({ sync_info: { latest_block_height: 100 } }) as never
+      rpc.getBlock = async () => ({ header: { hash: "invalid!" } }) as never
+      rpc.call = async () => ({ nonces: ["not-an-integer"] }) as never
+      let submissions = 0
+      rpc.sendTransaction = async () => {
+        submissions++
+        return {} as never
+      }
+      const builder = new TransactionBuilder(
+        "malformed.near",
+        rpc,
+        new InMemoryKeyStore({ "malformed.near": PRIVATE_KEY }),
+      ).transfer("bob.near", "1 NEAR")
+      if (scenario === "classic block" || scenario === "strict block")
+        builder.nonce(42n)
+      if (scenario === "strict block" || scenario === "access nonce")
+        builder.strictNonceMode()
+      if (scenario === "gas nonce") builder.useGasKey(0).strictNonceMode()
+      const program =
+        scenario === "delegate offset"
+          ? builder.delegateEffect({ nonce: 42n, blockHeightOffset: 0.5 })
+          : builder.sendEffect()
+      const exit = await Effect.runPromiseExit(program)
+      expect(Exit.isFailure(exit)).toBe(true)
+      if (Exit.isFailure(exit)) {
+        expect(Cause.hasFails(exit.cause)).toBe(true)
+        expect(Cause.hasDies(exit.cause)).toBe(false)
+      }
+      expect(submissions).toBe(0)
+    },
+  )
+})
+
+test("malformed nonce-refresh hints fail recoverably without resubmission", async () => {
+  const { rpc } = setup()
+  rpc.getAccessKey = async () => ({ nonce: 1 }) as never
+  let submissions = 0
+  rpc.sendTransaction = async () => {
+    submissions++
+    throw new InvalidNonceError(2, 1.5)
+  }
+  const tx = new TransactionBuilder(
+    "retry-hint.near",
+    rpc,
+    new InMemoryKeyStore({ "retry-hint.near": PRIVATE_KEY }),
+  ).transfer("bob.near", "1 NEAR")
+  const exit = await Effect.runPromiseExit(tx.sendEffect())
+  expect(Exit.isFailure(exit)).toBe(true)
+  if (Exit.isFailure(exit)) {
+    expect(Cause.hasFails(exit.cause)).toBe(true)
+    expect(Cause.hasDies(exit.cause)).toBe(false)
+  }
+  expect(submissions).toBe(1)
 })

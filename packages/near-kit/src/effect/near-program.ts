@@ -205,10 +205,14 @@ export const makeNearPrograms = (context: NearProgramDependencies) => {
   ) {
     const account = yield* context.rpc.getAccount(accountId, options)
 
-    const available = calculateAvailableBalance(
-      account.amount,
-      account.locked,
-      account.storage_usage,
+    const available = yield* inputEffect(
+      () =>
+        calculateAvailableBalance(
+          account.amount,
+          account.locked,
+          account.storage_usage,
+        ),
+      "Near.account.balance",
     )
 
     return formatAmount(available.toString(), {
@@ -223,42 +227,48 @@ export const makeNearPrograms = (context: NearProgramDependencies) => {
   ) {
     const account = yield* context.rpc.getAccount(accountId, options)
 
-    const available = calculateAvailableBalance(
-      account.amount,
-      account.locked,
-      account.storage_usage,
+    const available = yield* inputEffect(
+      () =>
+        calculateAvailableBalance(
+          account.amount,
+          account.locked,
+          account.storage_usage,
+        ),
+      "Near.account.balance",
     )
 
-    const storageRequired =
-      STORAGE_AMOUNT_PER_BYTE * BigInt(account.storage_usage)
+    return yield* inputEffect(() => {
+      const storageRequired =
+        STORAGE_AMOUNT_PER_BYTE * BigInt(account.storage_usage)
 
-    // Code hash for accounts without contracts
-    const emptyCodeHash = "11111111111111111111111111111111"
+      // Code hash for accounts without contracts
+      const emptyCodeHash = "11111111111111111111111111111111"
 
-    return {
-      balance: formatAmount(account.amount, {
-        precision: 2,
-        includeSuffix: false,
-      }),
-      available: formatAmount(available.toString(), {
-        precision: 2,
-        includeSuffix: false,
-      }),
-      staked: formatAmount(account.locked, {
-        precision: 2,
-        includeSuffix: false,
-      }),
-      storageUsage: formatAmount(storageRequired.toString(), {
-        precision: 4,
-        includeSuffix: false,
-      }),
-      storageBytes: account.storage_usage,
-      hasContract:
-        account.code_hash !== emptyCodeHash ||
-        account.global_contract_hash != null ||
-        account.global_contract_account_id != null,
-      codeHash: account.code_hash,
-    }
+      return {
+        balance: formatAmount(account.amount, {
+          precision: 2,
+          includeSuffix: false,
+        }),
+        available: formatAmount(available.toString(), {
+          precision: 2,
+          includeSuffix: false,
+        }),
+        staked: formatAmount(account.locked, {
+          precision: 2,
+          includeSuffix: false,
+        }),
+        storageUsage: formatAmount(storageRequired.toString(), {
+          precision: 4,
+          includeSuffix: false,
+        }),
+        storageBytes: account.storage_usage,
+        hasContract:
+          account.code_hash !== emptyCodeHash ||
+          account.global_contract_hash != null ||
+          account.global_contract_account_id != null,
+        codeHash: account.code_hash,
+      }
+    }, "Near.account.details")
   })
 
   const accountExists = Effect.fn("Near.accountExists")(function* (
@@ -293,7 +303,10 @@ export const makeNearPrograms = (context: NearProgramDependencies) => {
     options?: BlockReference,
   ) {
     const view = yield* context.rpc.viewCode(accountId, options)
-    return { code: base64.decode(view.code_base64), hash: view.hash }
+    return yield* inputEffect(
+      () => ({ code: base64.decode(view.code_base64), hash: view.hash }),
+      "Near.contract.code",
+    )
   })
 
   const getGlobalContract = Effect.fn("Near.getGlobalContract")(function* (
@@ -301,7 +314,10 @@ export const makeNearPrograms = (context: NearProgramDependencies) => {
     options?: BlockReference,
   ) {
     const view = yield* context.rpc.viewGlobalContractCode(contract, options)
-    return { code: base64.decode(view.code_base64), hash: view.hash }
+    return yield* inputEffect(
+      () => ({ code: base64.decode(view.code_base64), hash: view.hash }),
+      "Near.contract.code",
+    )
   })
 
   const globalContractExists = Effect.fn("Near.globalContractExists")(

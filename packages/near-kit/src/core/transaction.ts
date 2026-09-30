@@ -880,15 +880,18 @@ export class TransactionBuilder {
           this.signerId,
           delegatePublicKey.toString(),
         )
-        nonce = BigInt(accessKey.nonce) + 1n
+        nonce = yield* transactionSync(() => BigInt(accessKey.nonce) + 1n)
       }
       let maxBlockHeight: bigint
       if (opts.maxBlockHeight !== undefined) {
         maxBlockHeight = opts.maxBlockHeight
       } else {
         const status = yield* this.rpcPrograms.getStatus()
-        const offset = BigInt(opts.blockHeightOffset ?? 200)
-        maxBlockHeight = BigInt(status.sync_info.latest_block_height) + offset
+        maxBlockHeight = yield* transactionSync(
+          () =>
+            BigInt(status.sync_info.latest_block_height) +
+            BigInt(opts.blockHeightOffset ?? 200),
+        )
       }
       const delegateActions = this.actions.map(
         (action) => action as ClassicAction,
@@ -1040,7 +1043,7 @@ export class TransactionBuilder {
           this.signerId,
           pkString,
         )
-        nonceValue = BigInt(accessKey.nonce) + 1n
+        nonceValue = yield* transactionSync(() => BigInt(accessKey.nonce) + 1n)
       }
       const txNonce: TransactionNonceBorsh =
         opts.nonceIndex !== undefined
@@ -1051,8 +1054,11 @@ export class TransactionBuilder {
         maxBlockHeight = opts.maxBlockHeight
       } else {
         const status = yield* this.rpcPrograms.getStatus()
-        const offset = BigInt(opts.blockHeightOffset ?? 200)
-        maxBlockHeight = BigInt(status.sync_info.latest_block_height) + offset
+        maxBlockHeight = yield* transactionSync(
+          () =>
+            BigInt(status.sync_info.latest_block_height) +
+            BigInt(opts.blockHeightOffset ?? 200),
+        )
       }
       const delegateAction = new actions.DelegateActionV2(
         this.signerId,
@@ -1336,13 +1342,15 @@ export class TransactionBuilder {
               this.signerId,
               publicKey.toString(),
             )
-            return BigInt(accessKey.nonce)
+            return yield* transactionSync(() => BigInt(accessKey.nonce))
           }),
         ))
       // Use finalized block hash - more stable across load-balanced RPC nodes
       // than getStatus() which returns the optimistic head
       const block = yield* this.rpcPrograms.getBlock({ finality: "final" })
-      const blockHash = base58.decode(block.header.hash)
+      const blockHash = yield* transactionSync(() =>
+        base58.decode(block.header.hash),
+      )
       const transaction: Transaction = {
         signerId: this.signerId,
         publicKey,
@@ -1484,7 +1492,9 @@ export class TransactionBuilder {
       const publicKey = keyPair.publicKey
       const txNonce = yield* this.resolveV1NonceEffect(publicKey)
       const block = yield* this.rpcPrograms.getBlock({ finality: "final" })
-      const blockHash = base58.decode(block.header.hash)
+      const blockHash = yield* transactionSync(() =>
+        base58.decode(block.header.hash),
+      )
       const v1: TransactionV1 = {
         signerId: this.signerId,
         publicKey,
@@ -1599,7 +1609,8 @@ export class TransactionBuilder {
           this.signerId,
           pkString,
         )
-        return { nonce: { nonce: BigInt(accessKey.nonce) + 1n } }
+        const nonce = yield* transactionSync(() => BigInt(accessKey.nonce) + 1n)
+        return { nonce: { nonce } }
       }
       const nonce = yield* this.nonces.reserve(
         this.signerId,
@@ -1609,7 +1620,7 @@ export class TransactionBuilder {
             this.signerId,
             pkString,
           )
-          return BigInt(accessKey.nonce)
+          return yield* transactionSync(() => BigInt(accessKey.nonce))
         }),
       )
       return { nonce: { nonce } }
@@ -1675,10 +1686,10 @@ export class TransactionBuilder {
             ),
           )
         }
-        return BigInt(raw)
+        return yield* transactionSync(() => BigInt(raw))
       }
       if (typeof raw === "string") {
-        return BigInt(raw)
+        return yield* transactionSync(() => BigInt(raw))
       }
       return yield* Effect.fail(
         new NearError(
@@ -1930,7 +1941,7 @@ export class TransactionBuilder {
               yield* this.nonces.updateAndGetNext(
                 this.signerId,
                 cacheKey,
-                BigInt(error.akNonce),
+                yield* transactionSync(() => BigInt(error.akNonce)),
               )
             }
           }),
