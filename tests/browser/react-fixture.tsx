@@ -4,6 +4,7 @@ import { NearProvider, useCall, useNear, useView } from "@near-kit/react"
 import {
   generateKey,
   InMemoryKeyStore,
+  RotatingKeyStore,
   verifyNep413Signature,
   type FinalExecutionOutcome,
   type NearConfig,
@@ -130,7 +131,9 @@ function AuthorityPanel() {
 }
 
 function ReactFixture({ rpcUrl }: { rpcUrl: string }) {
-  const [mode, setMode] = useState<"keyStore" | "wallet" | "signer">("keyStore")
+  const [mode, setMode] = useState<
+    "keyStore" | "wallet" | "signer" | "rotating"
+  >("keyStore")
   const [authority, setAuthority] = useState<0 | 1>(0)
   const [readMounted, setReadMounted] = useState(true)
   const [mutationMounted, setMutationMounted] = useState(true)
@@ -152,7 +155,10 @@ function ReactFixture({ rpcUrl }: { rpcUrl: string }) {
         return key.signNep413Message("alice.near", params)
       },
     }))
-    return { keys, stores, wallets }
+    const rotatingStore = new RotatingKeyStore({
+      "alice.near": keys.map((key) => key.secretKey),
+    })
+    return { keys, stores, wallets, rotatingStore }
   }, [])
   const signers = useMemo(
     () =>
@@ -175,7 +181,12 @@ function ReactFixture({ rpcUrl }: { rpcUrl: string }) {
     retryConfig: { maxRetries: 0, initialDelayMs: 0 },
     ...(mode === "wallet"
       ? { wallet: resources.wallets[authority] }
-      : { keyStore: resources.stores[mode === "signer" ? 0 : authority] }),
+      : {
+          keyStore:
+            mode === "rotating"
+              ? resources.rotatingStore
+              : resources.stores[mode === "signer" ? 0 : authority],
+        }),
     ...(mode === "signer" ? { signer: signers[authority] } : {}),
   }
   const onOutcome = useCallback(
@@ -193,7 +204,8 @@ function ReactFixture({ rpcUrl }: { rpcUrl: string }) {
           if (
             value === "keyStore" ||
             value === "wallet" ||
-            value === "signer"
+            value === "signer" ||
+            value === "rotating"
           ) {
             setMode(value)
             setAuthority(0)
@@ -203,6 +215,7 @@ function ReactFixture({ rpcUrl }: { rpcUrl: string }) {
         <option value="keyStore">Key store</option>
         <option value="wallet">Wallet</option>
         <option value="signer">Signer</option>
+        <option value="rotating">Rotating keys</option>
       </select>
       <button onClick={() => setAuthority(1)}>Replace authority</button>
       <output data-testid="expected-original-key">

@@ -1,4 +1,5 @@
 import { test, expect } from "./test.js"
+import { inspectSignedTransaction } from "./wire-oracle.js"
 
 test.describe("React browser lifecycle through real HTTP and SDK clients", () => {
   test("superseded reads abort their HTTP request and cannot replace the newer result", async ({
@@ -148,6 +149,8 @@ test.describe("React browser lifecycle through real HTTP and SDK clients", () =>
   }) => {
     await rpc.configure("mutation-hold")
     await page.evaluate((url) => window.kit.mountReactFixture(url), rpc.url)
+    // One key intentionally serializes completion; distinct keys can finish out of order.
+    await page.getByLabel("Authority mode").selectOption("rotating")
     await page
       .getByRole("button", { name: "Mutate first", exact: true })
       .click()
@@ -166,9 +169,20 @@ test.describe("React browser lifecycle through real HTTP and SDK clients", () =>
     if (!first || !second)
       throw new Error("Expected two independently observed submissions")
     expect(first).not.toBe(second)
+    const transactions = submissions.map((sent) =>
+      inspectSignedTransaction(sent.bytes),
+    )
+    expect(new Set(transactions.map((tx) => tx.publicKey)).size).toBe(2)
+    expect(transactions.every((tx) => tx.signatureValid)).toBe(true)
+    expect(transactions.map((tx) => tx.actions[0]?.args?.["id"])).toEqual([
+      "first",
+      "second",
+    ])
+    await expect(page.getByTestId("mutation-outcomes")).toHaveText("[]")
     await rpc.release("second")
     await expect(page.getByTestId("mutation-state")).toContainText(second)
     await expect(page.getByTestId("mutation-outcomes")).toContainText(second)
+    await expect(page.getByTestId("mutation-outcomes")).not.toContainText(first)
     await rpc.release("first")
     await expect(page.getByTestId("mutation-outcomes")).toContainText(first)
     await expect(page.getByTestId("mutation-state")).toContainText(second)
