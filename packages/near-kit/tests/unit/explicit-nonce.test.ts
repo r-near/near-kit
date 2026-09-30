@@ -4,7 +4,8 @@ import { TransactionV1Schema } from "../../src/core/schema.js"
  */
 
 import { describe, expect, test } from "vitest"
-import type { RpcClient } from "../../src/core/rpc/rpc.js"
+import { rpcToPromises, type RpcClient } from "../../src/core/rpc/rpc.js"
+import { testRpcPrograms } from "../helpers/rpc.js"
 import { TransactionBuilder } from "../../src/core/transaction.js"
 import type { AccessKeyView, WalletConnection } from "../../src/core/types.js"
 import { InvalidNonceError, NearError } from "../../src/errors/index.js"
@@ -23,7 +24,6 @@ function mockRpc(
   counters: MockRpcCounters,
   options: {
     chainNonce?: number
-    sendError?: Error
     slotNonces?: unknown[]
   } = {},
 ): RpcClient {
@@ -49,7 +49,6 @@ function mockRpc(
     },
     async sendTransaction() {
       counters.sendCalls++
-      if (options.sendError) throw options.sendError
       return {
         final_execution_status: "EXECUTED_OPTIMISTIC",
         status: { SuccessValue: "" },
@@ -63,11 +62,10 @@ function mockRpc(
 async function setup(
   options: {
     chainNonce?: number
-    sendError?: Error
     slotNonces?: unknown[]
   } = {},
 ) {
-  // A unique account per test keeps the shared (static) NonceManager cache
+  // A unique account per test keeps the shared nonce reservation state
   // from leaking between tests.
   const accountId = `explicit-nonce-${Math.random().toString(36).slice(2)}.near`
   const keyStore = new InMemoryKeyStore()
@@ -215,14 +213,55 @@ describe("TransactionBuilder.nonce()", () => {
   })
 
   test("send() surfaces InvalidNonceError instead of retrying a caller-owned nonce", async () => {
-    const { builder, counters } = await setup({
-      sendError: new InvalidNonceError(42, 50),
-    })
-
+    const { rpc, keyStore, accountId } = await setup()
+    let submissions = 0
+    const transport = rpcToPromises(
+      testRpcPrograms(
+        "https://rpc.invalid",
+        async (_url, init) => {
+          if (typeof init.body !== "string")
+            throw new Error("Expected RPC JSON")
+          const request = JSON.parse(init.body) as {
+            id: number
+            method: string
+          }
+          expect(request.method).toBe("send_tx")
+          submissions++
+          return Response.json({
+            jsonrpc: "2.0",
+            id: request.id,
+            error: {
+              name: "HANDLER_ERROR",
+              code: -32000,
+              message: "nonce rejected",
+              cause: { name: "INVALID_TRANSACTION", info: {} },
+              data: {
+                TxExecutionError: {
+                  InvalidTxError: {
+                    InvalidNonce: { tx_nonce: 42, ak_nonce: 50 },
+                  },
+                },
+              },
+            },
+          })
+        },
+        undefined,
+        { maxRetries: 0 },
+      ),
+    )
+    const tx = new TransactionBuilder(
+      accountId,
+      {
+        ...rpc,
+        sendTransaction: (bytes, waitUntil) =>
+          transport.sendTransaction(bytes, waitUntil),
+      },
+      keyStore,
+    )
     await expect(
-      builder().nonce(42n).transfer("bob.near", "1 NEAR").send(),
+      tx.nonce(42n).transfer("bob.near", "1 NEAR").send(),
     ).rejects.toBeInstanceOf(InvalidNonceError)
-    expect(counters.sendCalls).toBe(1)
+    expect(submissions).toBe(1)
   })
 
   test.each([

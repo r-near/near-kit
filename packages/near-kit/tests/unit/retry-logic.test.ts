@@ -3,13 +3,13 @@
  */
 
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
-import type { RpcClient } from "../../src/core/rpc/rpc.js"
+import { Effect } from "effect"
+import { rpcToPromises } from "../../src/core/rpc/rpc.js"
 import { TransactionBuilder } from "../../src/core/transaction.js"
-import type { AccessKeyView, StatusResponse } from "../../src/core/types.js"
 import { InvalidNonceError, NetworkError } from "../../src/errors/index.js"
 import { InMemoryKeyStore } from "../../src/keys/index.js"
 import { generateKey } from "../../src/utils/key.js"
-import { testRpcClient } from "../helpers/rpc.js"
+import { testRpcClient, testRpcPrograms } from "../helpers/rpc.js"
 
 describe("RPC Retry Logic", () => {
   let originalFetch: typeof global.fetch
@@ -408,195 +408,159 @@ describe("InvalidNonceError Retry Logic", () => {
 })
 
 describe("Transaction InvalidNonceError Retry", () => {
-  test("should retry transaction with fresh nonce after InvalidNonceError", async () => {
-    // Setup
-    const keyPair = generateKey()
-    const keyStore = new InMemoryKeyStore()
-    await keyStore.add("test.near", keyPair)
-
-    let sendAttemptCount = 0
-    let getAccessKeyCallCount = 0
-
-    // Create a mock RPC client
-    const mockRpc = {
-      async getAccessKey(): Promise<AccessKeyView> {
-        getAccessKeyCallCount++
-        // Return increasing nonce on each call (simulating fresh nonce)
-        return {
-          nonce: getAccessKeyCallCount * 10,
-          permission: "FullAccess",
-          block_height: 12345,
-          block_hash: "GVgoqd4XN1r7VEde3bpw2qH1FYvjJR3z8dXJ5C5FQuUL",
+  async function fixture(mode: "recover" | "reject" | "network") {
+    const key = generateKey()
+    const signing = vi.spyOn(key, "sign")
+    const store = new InMemoryKeyStore()
+    await store.add("test.near", key)
+    const nonces: bigint[] = []
+    let accessKeyCalls = 0
+    const hash = "11111111111111111111111111111111"
+    const programs = testRpcPrograms(
+      "https://rpc.invalid",
+      async (_url, init) => {
+        if (typeof init.body !== "string") throw new Error("Expected RPC JSON")
+        const request = JSON.parse(init.body) as {
+          id: number
+          method: string
+          params: { signed_tx_base64?: string }
         }
-      },
-      async getStatus(): Promise<StatusResponse> {
-        return {
-          sync_info: {
-            latest_block_hash: "GVgoqd4XN1r7VEde3bpw2qH1FYvjJR3z8dXJ5C5FQuUL",
-          },
-        } as StatusResponse
-      },
-      async getBlock() {
-        return {
-          header: {
-            hash: "GVgoqd4XN1r7VEde3bpw2qH1FYvjJR3z8dXJ5C5FQuUL",
-            height: 12345,
-          },
-        }
-      },
-      async sendTransaction() {
-        sendAttemptCount++
-        if (sendAttemptCount === 1) {
-          // First attempt: throw InvalidNonceError
-          throw new InvalidNonceError(11, 10)
-        }
-        // Second attempt: succeed
-        return {
-          final_execution_status: "EXECUTED_OPTIMISTIC",
-          status: { type: "SuccessValue", value: "" },
-          transaction: {},
-          transaction_outcome: {
-            id: "test-tx-id",
-            outcome: {
-              status: { type: "SuccessValue", value: "" },
+        if (request.method !== "send_tx") {
+          expect(request.method).toBe("EXPERIMENTAL_tx_status")
+          return Response.json({
+            jsonrpc: "2.0",
+            id: request.id,
+            error: {
+              name: "HANDLER_ERROR",
+              code: -32000,
+              message: "Transaction is not visible",
+              cause: { name: "UNKNOWN_TRANSACTION", info: {} },
             },
-          },
+          })
         }
+        if (typeof request.params.signed_tx_base64 !== "string")
+          throw new Error("Expected signed transaction bytes")
+        const bytes = Buffer.from(request.params.signed_tx_base64, "base64")
+        const keyOffset = 4 + bytes.readUInt32LE(0)
+        expect(bytes[keyOffset]).toBe(0) // V0 transaction, Ed25519 public key.
+        const nonce = bytes.readBigUInt64LE(keyOffset + 33)
+        nonces.push(nonce)
+        if (mode === "network") throw new NetworkError("Network failure")
+        if (mode === "reject" || nonces.length === 1)
+          return Response.json({
+            jsonrpc: "2.0",
+            id: request.id,
+            error: {
+              name: "HANDLER_ERROR",
+              code: -32000,
+              message: "nonce rejected",
+              cause: { name: "INVALID_TRANSACTION", info: {} },
+              data: {
+                TxExecutionError: {
+                  InvalidTxError: {
+                    InvalidNonce: {
+                      tx_nonce: Number(nonce),
+                      ak_nonce: Number(nonce),
+                    },
+                  },
+                },
+              },
+            },
+          })
+        return Response.json({
+          jsonrpc: "2.0",
+          id: request.id,
+          result: { final_execution_status: "NONE" },
+        })
       },
-    } as unknown as RpcClient
-
-    // Create transaction builder
-    const builder = new TransactionBuilder(
-      "test.near",
-      mockRpc,
-      keyStore,
       undefined,
-      "EXECUTED_OPTIMISTIC",
+      { maxRetries: 0 },
     )
-
-    // Execute transaction that will trigger nonce retry
-    const result = await builder.transfer("receiver.near", "1 NEAR").send()
-
-    // Verify retry happened
-    expect(sendAttemptCount).toBe(2) // Should try twice
-    // With smarter retry logic, we use akNonce from error instead of refetching
-    expect(getAccessKeyCallCount).toBe(1) // Only initial fetch, retry uses akNonce
-    expect(result).toBeDefined()
-  }, 10000)
-
-  test("should throw after max nonce retries", async () => {
-    // Setup
-    const keyPair = generateKey()
-    const keyStore = new InMemoryKeyStore()
-    await keyStore.add("test.near", keyPair)
-
-    let sendAttemptCount = 0
-
-    // Create a mock RPC client that always fails with InvalidNonceError
-    const mockRpc = {
-      async getAccessKey(): Promise<AccessKeyView> {
-        return {
-          nonce: 10,
-          permission: "FullAccess",
-          block_height: 12345,
-          block_hash: "GVgoqd4XN1r7VEde3bpw2qH1FYvjJR3z8dXJ5C5FQuUL",
-        }
-      },
-      async getStatus(): Promise<StatusResponse> {
-        return {
-          sync_info: {
-            latest_block_hash: "GVgoqd4XN1r7VEde3bpw2qH1FYvjJR3z8dXJ5C5FQuUL",
-          },
-        } as StatusResponse
-      },
-      async getBlock() {
-        return {
+    // These read capabilities are unrelated to rejection provenance; submission uses
+    // the actual transport, envelope decoder and error classifier above.
+    const rpc = rpcToPromises({
+      ...programs,
+      getAccessKey: () =>
+        Effect.sync(() => {
+          accessKeyCalls++
+          return {
+            nonce: 10,
+            permission: "FullAccess" as const,
+            block_height: 12345,
+            block_hash: hash,
+          }
+        }),
+      getBlock: () =>
+        Effect.succeed({
+          author: "validator.near",
+          chunks: [],
           header: {
-            hash: "GVgoqd4XN1r7VEde3bpw2qH1FYvjJR3z8dXJ5C5FQuUL",
             height: 12345,
+            epoch_id: hash,
+            next_epoch_id: hash,
+            hash,
+            prev_hash: hash,
+            prev_state_root: hash,
+            chunk_receipts_root: hash,
+            chunk_headers_root: hash,
+            chunk_tx_root: hash,
+            outcome_root: hash,
+            chunks_included: 0,
+            challenges_root: hash,
+            timestamp: 1,
+            timestamp_nanosec: "1",
+            random_value: hash,
+            validator_proposals: [],
+            chunk_mask: [],
+            gas_price: "100000000",
+            total_supply: "1000000000000000000000000000",
+            challenges_result: [],
+            last_final_block: hash,
+            last_ds_final_block: hash,
+            next_bp_hash: hash,
+            block_merkle_root: hash,
+            approvals: [],
+            signature: "ed25519:fixture",
+            latest_protocol_version: 85,
           },
-        }
-      },
-      async sendTransaction() {
-        sendAttemptCount++
-        // Always throw InvalidNonceError
-        throw new InvalidNonceError(11, 10)
-      },
-    } as unknown as RpcClient
-
-    // Create transaction builder
-    const builder = new TransactionBuilder(
-      "test.near",
-      mockRpc,
-      keyStore,
-      undefined,
-      "EXECUTED_OPTIMISTIC",
+        }),
+    })
+    const builder = new TransactionBuilder("test.near", rpc, store).transfer(
+      "receiver.near",
+      "1 NEAR",
     )
+    return { builder, signing, nonces, accessKeyCalls: () => accessKeyCalls }
+  }
 
-    // Execute transaction that will exhaust retries
-    await expect(async () => {
-      await builder.transfer("receiver.near", "1 NEAR").send()
-    }).rejects.toThrow(InvalidNonceError)
+  test("retries a decoded node rejection with a fresh nonce", async () => {
+    const { builder, signing, nonces, accessKeyCalls } =
+      await fixture("recover")
+    const result = await builder.send({ waitUntil: "NONE" })
+    expect(nonces).toHaveLength(2)
+    expect(nonces[0]).toBe(11n)
+    expect(nonces[1]).toBeGreaterThan(11n)
+    expect(signing).toHaveBeenCalledTimes(2)
+    expect(accessKeyCalls()).toBe(1)
+    expect(result).toMatchObject({ transaction: { hash: builder.getHash() } })
+  })
 
-    // Verify it tried MAX_NONCE_RETRIES (3) times
-    expect(sendAttemptCount).toBe(3)
-  }, 10000)
-
-  test("should not retry on non-InvalidNonceError", async () => {
-    // Setup
-    const keyPair = generateKey()
-    const keyStore = new InMemoryKeyStore()
-    await keyStore.add("test.near", keyPair)
-
-    let sendAttemptCount = 0
-
-    // Create a mock RPC client that throws a different error
-    const mockRpc = {
-      async getAccessKey(): Promise<AccessKeyView> {
-        return {
-          nonce: 10,
-          permission: "FullAccess",
-          block_height: 12345,
-          block_hash: "GVgoqd4XN1r7VEde3bpw2qH1FYvjJR3z8dXJ5C5FQuUL",
-        }
-      },
-      async getStatus(): Promise<StatusResponse> {
-        return {
-          sync_info: {
-            latest_block_hash: "GVgoqd4XN1r7VEde3bpw2qH1FYvjJR3z8dXJ5C5FQuUL",
-          },
-        } as StatusResponse
-      },
-      async getBlock() {
-        return {
-          header: {
-            hash: "GVgoqd4XN1r7VEde3bpw2qH1FYvjJR3z8dXJ5C5FQuUL",
-            height: 12345,
-          },
-        }
-      },
-      async sendTransaction() {
-        sendAttemptCount++
-        // Throw a different error (not InvalidNonceError)
-        throw new NetworkError("Network failure")
-      },
-    } as unknown as RpcClient
-
-    // Create transaction builder
-    const builder = new TransactionBuilder(
-      "test.near",
-      mockRpc,
-      keyStore,
-      undefined,
-      "EXECUTED_OPTIMISTIC",
+  test("bounds definitive nonce rejection recovery to three signatures/submissions", async () => {
+    const { builder, signing, nonces } = await fixture("reject")
+    await expect(builder.send({ waitUntil: "NONE" })).rejects.toBeInstanceOf(
+      InvalidNonceError,
     )
+    expect(nonces).toHaveLength(3)
+    expect(new Set(nonces).size).toBe(3)
+    expect(signing).toHaveBeenCalledTimes(3)
+  })
 
-    // Execute transaction
-    await expect(async () => {
-      await builder.transfer("receiver.near", "1 NEAR").send()
-    }).rejects.toThrow(NetworkError)
-
-    // Verify it only tried once (no retries for non-nonce errors)
-    expect(sendAttemptCount).toBe(1)
-  }, 10000)
+  test("does not re-sign after an uncertain post-submission network failure", async () => {
+    const { builder, signing, nonces } = await fixture("network")
+    await expect(builder.send({ waitUntil: "NONE" })).rejects.toMatchObject({
+      code: "TRANSACTION_OUTCOME_UNKNOWN",
+      retryable: false,
+    })
+    expect(nonces).toHaveLength(1)
+    expect(signing).toHaveBeenCalledTimes(1)
+  })
 })
