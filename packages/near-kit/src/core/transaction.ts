@@ -41,7 +41,6 @@ import type {
   Action,
   FinalExecutionOutcomeMap,
   GlobalContractReference,
-  KeyPair,
   KeyStore,
   SendOptions,
   Signer,
@@ -160,7 +159,7 @@ function toAccessKeyPermissionBorsh(
 
 interface SigningAcquisition {
   readonly plan: TransactionPlan
-  readonly key: Effect.Effect<KeyPair, Program.TransactionError>
+  readonly key: Effect.Effect<Program.SelectedKey, Program.TransactionError>
   readonly effect: Effect.Effect<
     SignedTransactionValue,
     Program.TransactionError
@@ -178,7 +177,7 @@ interface SigningAcquisition {
 export class TransactionBuilder {
   private plan: TransactionPlan
   private readonly dependencies: TransactionDependencies
-  private selectedKey?: KeyPair
+  private selectedKey?: Program.SelectedKey
   private keyIdentity = {}
   private signed?: SignedTransactionValue
   private signing?: SigningAcquisition

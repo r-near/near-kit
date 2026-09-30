@@ -201,18 +201,34 @@ export function validateNonce(nonce: bigint | number): bigint {
 export const transactionInput = <A>(operation: () => A) =>
   inputEffect(operation, "Transaction.encoding")
 
+/** Owned public authority, with signing callbacks captured only by signing terminals. */
+export interface SelectedKey {
+  readonly publicKey: PublicKey
+  readonly sign: Effect.Effect<KeyPair["sign"], NearFailure>
+}
+
 export const resolveKey = Effect.fn("Transaction.resolveKey")(function* (
   plan: TransactionPlan,
   dependencies: TransactionDependencies,
-) {
-  if (plan.keyPair) return plan.keyPair
-  yield* dependencies.ready ?? Effect.void
-  const key = yield* dependencies.keyStore.get(plan.signerId)
-  if (!key)
-    return yield* Effect.fail(
-      new InvalidKeyError(`No key found for account: ${plan.signerId}`),
-    )
-  return key
+): Effect.fn.Return<SelectedKey, NearFailure> {
+  const key =
+    plan.keyPair ??
+    (yield* Effect.gen(function* () {
+      yield* dependencies.ready ?? Effect.void
+      const stored = yield* dependencies.keyStore.get(plan.signerId)
+      if (!stored)
+        return yield* Effect.fail(
+          new InvalidKeyError(`No key found for account: ${plan.signerId}`),
+        )
+      return stored
+    }))
+  const publicKey = yield* transactionInput(() =>
+    parsePublicKey(key.publicKey.toString()),
+  )
+  // Unsigned build need not inspect a signing getter. Actual signing captures it
+  // once before waiting for the submission permit, preserving its receiver.
+  const sign = yield* Effect.cached(transactionInput(() => key.sign.bind(key)))
+  return { publicKey, sign }
 })
 
 export function validateNonceIndex(index: number): void {
@@ -290,7 +306,7 @@ const nonceValue = (nonce: bigint, index?: number): TransactionNonceBorsh =>
 const prepare = Effect.fn("Transaction.prepare")(function* (
   plan: TransactionPlan,
   dependencies: TransactionDependencies,
-  key: Effect.Effect<KeyPair, NearFailure>,
+  key: Effect.Effect<SelectedKey, NearFailure>,
   versioned: boolean,
 ) {
   if (!plan.receiverId)
@@ -337,7 +353,7 @@ const prepare = Effect.fn("Transaction.prepare")(function* (
 export const legacyBuild = Effect.fn("Transaction.legacyBuild")(function* (
   input: TransactionPlan,
   dependencies: TransactionDependencies,
-  key?: Effect.Effect<KeyPair, NearFailure>,
+  key?: Effect.Effect<SelectedKey, NearFailure>,
 ) {
   const plan = yield* transactionInput(() => make(input))
   return yield* prepare(
@@ -381,7 +397,7 @@ export const build = Effect.fn("Transaction.build")(function* (
 const signOwned = Effect.fn("Transaction.sign")(function* (
   plan: TransactionPlan,
   dependencies: TransactionDependencies,
-  key?: Effect.Effect<KeyPair, NearFailure>,
+  key?: Effect.Effect<SelectedKey, NearFailure>,
 ): Effect.fn.Return<SignedTransactionValue, NearFailure> {
   if (!plan.receiverId)
     return yield* Effect.fail(
@@ -392,12 +408,11 @@ const signOwned = Effect.fn("Transaction.sign")(function* (
     )
   const signer = plan.signer ?? (plan.keyPair ? undefined : dependencies.signer)
   const keyPair = yield* key ?? resolveKey(plan, dependencies)
-  const signDigest =
-    signer ??
-    (yield* transactionInput(() => {
-      const signKey = keyPair.sign.bind(keyPair)
-      return (digest: Uint8Array) => transactionInput(() => signKey(digest))
-    }))
+  let signDigest = signer
+  if (!signDigest) {
+    const signKey = yield* keyPair.sign
+    signDigest = (digest) => transactionInput(() => signKey(digest))
+  }
   const transaction = yield* prepare(
     plan,
     dependencies,
@@ -438,7 +453,7 @@ const signOwned = Effect.fn("Transaction.sign")(function* (
 export const sign = Effect.fn("Transaction.acquireSign")(function* (
   input: TransactionPlan,
   dependencies: TransactionDependencies,
-  key?: Effect.Effect<KeyPair, NearFailure>,
+  key?: Effect.Effect<SelectedKey, NearFailure>,
 ) {
   const plan = yield* transactionInput(() => make(input))
   return yield* signOwned(plan, dependencies, key)
@@ -560,7 +575,7 @@ export const submit = Effect.fn("Transaction.submit")(function* <
   signing: Effect.Effect<SignedTransactionValue, NearFailure>,
   cached?: SignedTransactionValue,
   options?: SendOptions<W>,
-  key?: Effect.Effect<KeyPair, NearFailure>,
+  key?: Effect.Effect<SelectedKey, NearFailure>,
 ): Effect.fn.Return<FinalExecutionOutcomeMap[W], NearFailure> {
   if (!plan.receiverId)
     return yield* Effect.fail(
@@ -611,10 +626,10 @@ export const submit = Effect.fn("Transaction.submit")(function* <
   })
   // Caller-managed nonces and already signed commitments do not allocate a new nonce.
   if (plan.nonce !== undefined || cached) return yield* operation
-  const publicKey = yield* Effect.flatMap(
-    key ?? resolveKey(plan, dependencies),
-    (selected) => transactionInput(() => selected.publicKey.toString()),
-  )
+  const selected = yield* key ?? resolveKey(plan, dependencies)
+  if (!(plan.signer ?? (plan.keyPair ? undefined : dependencies.signer)))
+    yield* selected.sign
+  const publicKey = selected.publicKey.toString()
   return yield* dependencies.nonces.withSubmission(
     plan.signerId,
     nonceKey(publicKey, plan.nonceIndex),
@@ -681,7 +696,7 @@ const delegateReceiver = (
     return receiver
   })
 const delegateKey = Effect.fn("Transaction.delegateKey")(function* (
-  key: Effect.Effect<KeyPair, NearFailure>,
+  key: Effect.Effect<SelectedKey, NearFailure>,
   requested?: string | PublicKey,
 ) {
   const keyPair = yield* key
@@ -703,7 +718,7 @@ const delegateKey = Effect.fn("Transaction.delegateKey")(function* (
         "Delegate action public key must match the signer key. Use signWith() when you need a different key.",
       ),
     )
-  const signKey = yield* transactionInput(() => keyPair.sign.bind(keyPair))
+  const signKey = yield* keyPair.sign
   return { signKey, publicKey }
 })
 const delegateNonce = Effect.fn("Transaction.delegateNonce")(function* (
@@ -745,7 +760,7 @@ export const delegate = Effect.fn("Transaction.delegate")(function* <
   input: TransactionPlan,
   dependencies: TransactionDependencies,
   options?: DelegateOptions<F>,
-  key?: Effect.Effect<KeyPair, NearFailure>,
+  key?: Effect.Effect<SelectedKey, NearFailure>,
 ): Effect.fn.Return<DelegateActionResult<F>, NearFailure> {
   const plan = yield* transactionInput(() => make(input))
   const opts = { ...options }
@@ -808,7 +823,7 @@ export const delegateV2 = Effect.fn("Transaction.delegateV2")(function* <
   input: TransactionPlan,
   dependencies: TransactionDependencies,
   options?: DelegateV2Options<F>,
-  key?: Effect.Effect<KeyPair, NearFailure>,
+  key?: Effect.Effect<SelectedKey, NearFailure>,
 ): Effect.fn.Return<DelegateV2ActionResult<F>, NearFailure> {
   const plan = yield* transactionInput(() => make(input))
   const opts = { ...options }
