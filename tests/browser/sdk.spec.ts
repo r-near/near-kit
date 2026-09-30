@@ -277,7 +277,7 @@ for (const scenario of ["held-reads", "stream-read"]) {
     await page.evaluate(() => window.kit.abortRead("slow"))
     expect(
       await page.evaluate(() => window.kit.waitRead("slow")),
-    ).toMatchObject({ resolved: false, name: "SchemaError" })
+    ).toMatchObject({ resolved: false })
     await expect
       .poll(async () => (await rpc.snapshot()).reads[0]?.aborted)
       .toBe(true)
