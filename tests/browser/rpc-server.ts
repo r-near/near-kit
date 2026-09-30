@@ -74,6 +74,7 @@ export interface RpcSnapshot {
   headers: (string | undefined)[]
 }
 interface State extends RpcSnapshot {
+  configurationId: string
   nonces: Map<string, number>
   ledger: Map<string, WireTransaction>
   held: Map<string, () => void>
@@ -142,22 +143,28 @@ export function rpcFixturePlugin(): Plugin {
           if (match[1] === "__test") {
             if (request.method === "POST" && !match[3]) {
               const config = await body(request)
-              states.set(id, {
-                scenario:
-                  typeof config["scenario"] === "string"
-                    ? config["scenario"]
-                    : "default",
-                methods: [],
-                deliveries: [],
-                reads: [],
-                submissions: [],
-                statusHashes: [],
-                accepted: 0,
-                headers: [],
-                nonces: new Map(),
-                ledger: new Map(),
-                held: new Map(),
-              })
+              const configurationId = config["configurationId"]
+              if (typeof configurationId !== "string")
+                throw new Error("A fixture configuration ID is required")
+              // A lost admin response must not clear observations or admission twice.
+              if (states.get(id)?.configurationId !== configurationId)
+                states.set(id, {
+                  configurationId,
+                  scenario:
+                    typeof config["scenario"] === "string"
+                      ? config["scenario"]
+                      : "default",
+                  methods: [],
+                  deliveries: [],
+                  reads: [],
+                  submissions: [],
+                  statusHashes: [],
+                  accepted: 0,
+                  headers: [],
+                  nonces: new Map(),
+                  ledger: new Map(),
+                  held: new Map(),
+                })
             }
             const state = states.get(id)
             if (!state) {
@@ -174,6 +181,7 @@ export function rpcFixturePlugin(): Plugin {
               state.held.get(String(command["id"]))?.()
             }
             const {
+              configurationId: _configurationId,
               nonces: _nonces,
               ledger: _ledger,
               held: _held,

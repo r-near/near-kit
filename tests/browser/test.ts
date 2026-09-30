@@ -24,11 +24,15 @@ export const test = base.extend<{
     const id = randomUUID()
     const control = `${baseURL}/__test/${id}`
     const configure = async (scenario: string) => {
-      const response = await request.post(control, { data: { scenario } })
+      // Only the idempotent admin channel retries ECONNRESET, never SDK fetch.
+      const response = await request.post(control, {
+        data: { scenario, configurationId: randomUUID() },
+        maxRetries: 2,
+      })
       expect(response.ok()).toBe(true)
     }
     const snapshot = async (): Promise<RpcSnapshot> => {
-      const response = await request.get(control)
+      const response = await request.get(control, { maxRetries: 2 })
       expect(response.ok()).toBe(true)
       return response.json() as Promise<RpcSnapshot>
     }
@@ -41,6 +45,7 @@ export const test = base.extend<{
         release: async (heldId) => {
           const response = await request.post(`${control}/release`, {
             data: { id: heldId },
+            maxRetries: 2,
           })
           expect(response.ok()).toBe(true)
         },
