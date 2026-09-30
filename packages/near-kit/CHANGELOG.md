@@ -1,5 +1,15 @@
 # near-kit
 
+## 0.21.0
+
+### Minor Changes
+
+- 86cf14a: Add `TransactionBuilder.nonce(n)` to sign a transaction at an explicit, caller-chosen nonce. The value is used as-is for ordinary keys and gas-key slots (`.useGasKey(i).nonce(n)`), bypasses the shared nonce cache, and `send()` surfaces `InvalidNonceError` instead of retrying a caller-owned nonce. This lets applications that coordinate nonces outside the process (shared allocators across servers, relayers recording the nonce before an asynchronous/MPC signature) sign without reaching into the builder's private nonce manager.
+
+### Patch Changes
+
+- 86cf14a: Reject the transaction builder's `.nonce()` setting in `delegate()` and `delegateV2()` before RPC calls, signing, or wallet prompts. Use the existing delegate `{ nonce }` options for local signing; relayers can still set an independent outer transaction nonce when wrapping a signed delegate action.
+
 ## 0.20.2
 
 ### Patch Changes
