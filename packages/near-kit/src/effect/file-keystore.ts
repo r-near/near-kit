@@ -45,13 +45,15 @@ const isKeyFile = (file: string) =>
 
 /** Path expansion is evaluated once, at construction, just like the Promise API. */
 export const resolveCredentialPath = (basePath = "~/.near-credentials") =>
-  Effect.gen(function* () {
-    const home = yield* Config.String("HOME").pipe(Config.withDefault(""))
-    const userProfile = yield* Config.String("USERPROFILE").pipe(
-      Config.withDefault(""),
-    )
-    return basePath.replace(/^~/, home || userProfile)
-  })
+  basePath.startsWith("~")
+    ? Effect.gen(function* () {
+        const home = yield* Config.String("HOME").pipe(Config.withDefault(""))
+        const userProfile = yield* Config.String("USERPROFILE").pipe(
+          Config.withDefault(""),
+        )
+        return basePath.replace(/^~/, home || userProfile)
+      })
+    : Effect.succeed(basePath)
 
 export const makeFileStorage = Effect.fn("FileStorage.make")(function* (
   options: FileStorageOptions = {},

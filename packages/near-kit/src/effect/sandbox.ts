@@ -73,100 +73,76 @@ const RpcResult = Schema.Struct({
   error: Schema.optionalKey(Schema.Struct({ message: Schema.String })),
 })
 // Keep additional nearcore fields and future record variants intact in snapshots.
-const account = Schema.StructWithRest(
-  Schema.Struct({
-    amount: Schema.String,
-    locked: Schema.String,
-    code_hash: Schema.String,
-    storage_usage: Schema.Finite,
-    version: Schema.optionalKey(Schema.String),
-  }),
-  [Schema.Record(Schema.String, Schema.Unknown)],
-)
 const extensible = <const Fields extends Schema.Struct.Fields>(
   fields: Fields,
 ) =>
   Schema.StructWithRest(Schema.Struct(fields), [
     Schema.Record(Schema.String, Schema.Unknown),
   ])
+const account = extensible({
+  amount: Schema.String,
+  locked: Schema.String,
+  code_hash: Schema.String,
+  storage_usage: Schema.Finite,
+  version: Schema.optionalKey(Schema.String),
+})
 
-const RecordSchema = Schema.StructWithRest(
-  Schema.Struct({
-    Account: Schema.optionalKey(
-      Schema.StructWithRest(
-        Schema.Struct({ account_id: Schema.String, account }),
-        [Schema.Record(Schema.String, Schema.Unknown)],
-      ),
-    ),
-    AccessKey: Schema.optionalKey(
-      Schema.StructWithRest(
-        Schema.Struct({
-          account_id: Schema.String,
-          public_key: Schema.String,
-          access_key: Schema.StructWithRest(
-            Schema.Struct({
-              nonce: Schema.Finite,
-              // Snapshots archive nearcore data, including gas-key permissions and future
-              // fields. Validate the JSON envelope without deleting
-              // fields or imposing a stale SDK permission model on the archive.
-              permission: Schema.Union([
-                Schema.Literal("FullAccess"),
-                extensible({
-                  FunctionCall: extensible({
-                    allowance: Schema.optional(Schema.NullOr(Schema.String)),
-                    receiver_id: Schema.String,
-                    method_names: Schema.mutable(Schema.Array(Schema.String)),
-                  }),
-                }),
-                extensible({
-                  GasKeyFullAccess: extensible({
-                    balance: Schema.String,
-                    num_nonces: Schema.Finite,
-                  }),
-                }),
-                extensible({
-                  GasKeyFunctionCall: extensible({
-                    balance: Schema.String,
-                    num_nonces: Schema.Finite,
-                    allowance: Schema.optional(Schema.NullOr(Schema.String)),
-                    receiver_id: Schema.String,
-                    method_names: Schema.mutable(Schema.Array(Schema.String)),
-                  }),
-                }),
-              ]),
+const RecordSchema = extensible({
+  Account: Schema.optionalKey(
+    extensible({ account_id: Schema.String, account }),
+  ),
+  AccessKey: Schema.optionalKey(
+    extensible({
+      account_id: Schema.String,
+      public_key: Schema.String,
+      access_key: extensible({
+        nonce: Schema.Finite,
+        // Snapshots archive nearcore data, including gas-key permissions and future
+        // fields. Validate the JSON envelope without deleting
+        // fields or imposing a stale SDK permission model on the archive.
+        permission: Schema.Union([
+          Schema.Literal("FullAccess"),
+          extensible({
+            FunctionCall: extensible({
+              allowance: Schema.optional(Schema.NullOr(Schema.String)),
+              receiver_id: Schema.String,
+              method_names: Schema.mutable(Schema.Array(Schema.String)),
             }),
-            [Schema.Record(Schema.String, Schema.Unknown)],
-          ),
-        }),
-        [Schema.Record(Schema.String, Schema.Unknown)],
-      ),
-    ),
-    Contract: Schema.optionalKey(
-      Schema.StructWithRest(
-        Schema.Struct({ account_id: Schema.String, code: Schema.String }),
-        [Schema.Record(Schema.String, Schema.Unknown)],
-      ),
-    ),
-    Data: Schema.optionalKey(
-      Schema.StructWithRest(
-        Schema.Struct({
-          account_id: Schema.String,
-          data_key: Schema.String,
-          value: Schema.String,
-        }),
-        [Schema.Record(Schema.String, Schema.Unknown)],
-      ),
-    ),
-  }),
-  [Schema.Record(Schema.String, Schema.Unknown)],
-)
-const Genesis = Schema.StructWithRest(
-  Schema.Struct({
-    records: Schema.optionalKey(Schema.mutable(Schema.Array(RecordSchema))),
-    total_supply: Schema.optionalKey(Schema.String),
-  }),
-  [Schema.Record(Schema.String, Schema.Unknown)],
-)
+          }),
+          extensible({
+            GasKeyFullAccess: extensible({
+              balance: Schema.String,
+              num_nonces: Schema.Finite,
+            }),
+          }),
+          extensible({
+            GasKeyFunctionCall: extensible({
+              balance: Schema.String,
+              num_nonces: Schema.Finite,
+              allowance: Schema.optional(Schema.NullOr(Schema.String)),
+              receiver_id: Schema.String,
+              method_names: Schema.mutable(Schema.Array(Schema.String)),
+            }),
+          }),
+        ]),
+      }),
+    }),
+  ),
+  Contract: Schema.optionalKey(
+    extensible({ account_id: Schema.String, code: Schema.String }),
+  ),
+  Data: Schema.optionalKey(
+    extensible({
+      account_id: Schema.String,
+      data_key: Schema.String,
+      value: Schema.String,
+    }),
+  ),
+})
+const Genesis = extensible({
+  records: Schema.optionalKey(Schema.mutable(Schema.Array(RecordSchema))),
+  total_supply: Schema.optionalKey(Schema.String),
+})
 
 export interface SandboxService {
   readonly rpcUrl: string
@@ -586,6 +562,12 @@ export const makeSandbox = Effect.fn("Sandbox.make")(
         Effect.mapError(sandboxError("Sandbox.snapshot")),
       )
 
+      const dumpStateFile = Effect.gen(function* () {
+        yield* nextBlock()
+        yield* runCommand(spawner, binary, home, ["view-state", "dump-state"])
+        return path.join(home, "output.json")
+      })
+
       return Sandbox.of({
         rpcUrl,
         networkId: "localnet",
@@ -644,11 +626,9 @@ export const makeSandbox = Effect.fn("Sandbox.make")(
           },
           Effect.mapError(sandboxError("Sandbox.fastForward")),
         ),
-        dumpState: Effect.fn("Sandbox.dumpState")(function* () {
-          yield* nextBlock()
-          yield* runCommand(spawner, binary, home, ["view-state", "dump-state"])
-          return yield* snapshotAt(path.join(home, "output.json"))
-        }),
+        dumpState: Effect.fn("Sandbox.dumpState")(() =>
+          Effect.flatMap(dumpStateFile, snapshotAt),
+        ),
         saveSnapshot: Effect.fn("Sandbox.saveSnapshot")(
           function* () {
             const directory = path.join(home, "snapshots")
@@ -657,12 +637,7 @@ export const makeSandbox = Effect.fn("Sandbox.make")(
               directory,
               `snapshot-${yield* Clock.currentTimeMillis}.json`,
             )
-            yield* nextBlock()
-            yield* runCommand(spawner, binary, home, [
-              "view-state",
-              "dump-state",
-            ])
-            yield* fs.copyFile(path.join(home, "output.json"), file)
+            yield* fs.copyFile(yield* dumpStateFile, file)
             return file
           },
           Effect.mapError(sandboxError("Sandbox.saveSnapshot")),

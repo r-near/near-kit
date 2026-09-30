@@ -2,7 +2,7 @@ import * as fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem"
-import { Cause, Effect, Exit, Layer } from "effect"
+import { Cause, ConfigProvider, Effect, Exit, Layer } from "effect"
 import { afterEach, describe, expect, test, vi } from "vitest"
 import { ZodError } from "zod"
 import { KeyStore } from "../../src/effect/keys.js"
@@ -48,6 +48,37 @@ afterEach(() => {
 })
 
 describe("native resource key-store boundaries", () => {
+  test("an explicit credential directory works without environment configuration", async () => {
+    const directory = await fs.mkdtemp(
+      path.join(os.tmpdir(), "near-effect-explicit-path-"),
+    )
+    const unavailable = ConfigProvider.make(() =>
+      Effect.fail(
+        new ConfigProvider.SourceError({ message: "environment unavailable" }),
+      ),
+    )
+    try {
+      const key = generateKey()
+      const stored = await Effect.runPromise(
+        Effect.gen(function* () {
+          const storage = yield* KeyStore
+          yield* storage.add("alice.testnet", key)
+          return yield* storage.get("alice.testnet")
+        }).pipe(
+          Effect.provide(
+            FileStorage.layer({ basePath: directory }).pipe(
+              Layer.provide(NodeFileSystem.layer),
+            ),
+          ),
+          Effect.provideService(ConfigProvider.ConfigProvider, unavailable),
+        ),
+      )
+      expect(stored?.secretKey).toBe(key.secretKey)
+    } finally {
+      await fs.rm(directory, { recursive: true, force: true })
+    }
+  })
+
   // Existing FileKeyStore tests own disk format compatibility. This guards the
   // native injectable service and its typed failure channel without Promise calls.
   test("filesystem layer reports malformed persisted credentials as a typed failure", async () => {

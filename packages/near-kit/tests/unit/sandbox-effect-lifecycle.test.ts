@@ -114,13 +114,26 @@ const absent = async (directory: string) =>
 const stopped = (pid: number) => expect(() => process.kill(pid, 0)).toThrow()
 
 describe("sandbox scoped resource ownership", () => {
-  test("snapshot loading preserves gas-key and future permission fields", async () => {
+  test("snapshot loading preserves gas-key and additional nearcore fields", async () => {
     const fixture = await executable("normal")
     const sandbox = await Sandbox.start({
       binaryPath: fixture.binary,
       detached: false,
     })
     const records = [
+      {
+        Account: {
+          account_id: "test.near",
+          account: {
+            amount: "100",
+            locked: "0",
+            code_hash: "11111111111111111111111111111111",
+            storage_usage: 0,
+            future_account_field: "keep",
+          },
+          future_record_field: "keep",
+        },
+      },
       {
         AccessKey: {
           account_id: "test.near",
@@ -137,6 +150,18 @@ describe("sandbox scoped resource ownership", () => {
             future_key_field: 7,
           },
         },
+      },
+      {
+        Contract: { account_id: "test.near", code: "", future_field: 1 },
+      },
+      {
+        Data: {
+          account_id: "test.near",
+          data_key: "a2V5",
+          value: "dmFsdWU=",
+          future_field: 2,
+        },
+        future_envelope_field: "keep",
       },
       { FutureRecord: { value: "keep" } },
     ]
