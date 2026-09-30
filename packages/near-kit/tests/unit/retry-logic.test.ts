@@ -532,26 +532,34 @@ describe("Transaction InvalidNonceError Retry", () => {
     return { builder, signing, nonces, accessKeyCalls: () => accessKeyCalls }
   }
 
-  test("retries a decoded node rejection with a fresh nonce", async () => {
+  test("a decoded nonce rejection reconciles instead of authorizing fresh signing", async () => {
     const { builder, signing, nonces, accessKeyCalls } =
       await fixture("recover")
-    const result = await builder.send({ waitUntil: "NONE" })
-    expect(nonces).toHaveLength(2)
-    expect(nonces[0]).toBe(11n)
-    expect(nonces[1]).toBeGreaterThan(11n)
-    expect(signing).toHaveBeenCalledTimes(2)
+    await expect(builder.send({ waitUntil: "NONE" })).rejects.toMatchObject({
+      code: "TRANSACTION_OUTCOME_UNKNOWN",
+      retryable: false,
+    })
+    expect(nonces).toEqual([11n])
+    expect(signing).toHaveBeenCalledTimes(1)
     expect(accessKeyCalls()).toBe(1)
+    // An explicit caller replay keeps its prior commitment, even when a later
+    // response succeeds. It never allocates a new nonce for this intent.
+    const result = await builder.send({ waitUntil: "NONE" })
+    expect(nonces).toEqual([11n, 11n])
+    expect(signing).toHaveBeenCalledTimes(1)
     expect(result).toMatchObject({ transaction: { hash: builder.getHash() } })
   })
 
-  test("bounds definitive nonce rejection recovery to three signatures/submissions", async () => {
+  test("repeated node rejections never mint a second signed commitment", async () => {
     const { builder, signing, nonces } = await fixture("reject")
-    await expect(builder.send({ waitUntil: "NONE" })).rejects.toBeInstanceOf(
-      InvalidNonceError,
-    )
-    expect(nonces).toHaveLength(3)
-    expect(new Set(nonces).size).toBe(3)
-    expect(signing).toHaveBeenCalledTimes(3)
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await expect(builder.send({ waitUntil: "NONE" })).rejects.toMatchObject({
+        code: "TRANSACTION_OUTCOME_UNKNOWN",
+        retryable: false,
+      })
+    }
+    expect(nonces).toEqual([11n, 11n, 11n])
+    expect(signing).toHaveBeenCalledTimes(1)
   })
 
   test("does not re-sign after an uncertain post-submission network failure", async () => {

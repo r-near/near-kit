@@ -15,7 +15,7 @@ import { InMemoryKeyStore } from "../../src/keys/in-memory-keystore.js"
 import { generateKey } from "../../src/utils/key.js"
 import { testRpcPrograms } from "../helpers/rpc.js"
 
-function nonceRejection(nonce: number, chainNonce: number, id: number) {
+function nonceRejection(nonce: number, chainNonce: number, id: unknown) {
   return Response.json({
     jsonrpc: "2.0",
     id,
@@ -40,9 +40,11 @@ function nonceRejection(nonce: number, chainNonce: number, id: number) {
 function fixture(
   options: {
     retries?: number
-    first?: "lost" | "malformed" | "accepted" | "wrong nonce"
+    first?: "lost" | "malformed" | "accepted" | "wrong nonce" | "hidden replay"
     replay?: "ShardCongested" | "ShardStuck"
     gate?: Promise<void>
+    rejection?: { id?: unknown; txNonce: number; akNonce: number }
+    statusIdentity?: "correct" | "hash" | "signer" | "receiver" | "nonce"
   } = {},
 ) {
   const key = generateKey()
@@ -65,7 +67,29 @@ function fixture(
             ? Response.json({
                 jsonrpc: "2.0",
                 id,
-                result: { final_execution_status: "NONE", receipts: [] },
+                result: {
+                  final_execution_status: "NONE",
+                  receipts: [],
+                  ...(options.statusIdentity
+                    ? {
+                        transaction: {
+                          hash:
+                            options.statusIdentity === "hash"
+                              ? "another-hash"
+                              : accepted[0],
+                          signer_id:
+                            options.statusIdentity === "signer"
+                              ? "other.near"
+                              : "alice.near",
+                          receiver_id:
+                            options.statusIdentity === "receiver"
+                              ? "other.near"
+                              : "bob.near",
+                          nonce: options.statusIdentity === "nonce" ? 999 : 2,
+                        },
+                      }
+                    : {}),
+                },
               })
             : Response.json({
                 jsonrpc: "2.0",
@@ -106,6 +130,15 @@ function fixture(
         accepted.push(base58.encode(sha256(wire.slice(0, -65))))
         started.resolve()
         if (accepted.length === 1) {
+          if (options.rejection)
+            return nonceRejection(
+              options.rejection.txNonce,
+              options.rejection.akNonce,
+              options.rejection.id,
+            )
+          // A browser/proxy can replay below fetch: the SDK observes only this rejection.
+          if (options.first === "hidden replay")
+            return nonceRejection(nonce, chainNonce, id)
           if (options.first === "wrong nonce")
             return nonceRejection(nonce + 1, nonce + 1, id)
           if (options.gate) await options.gate
@@ -160,7 +193,71 @@ function fixture(
   }
 }
 
-describe("signed commitment submission history", () => {
+describe("signed commitment submission safety", () => {
+  test.each([
+    { native: false, known: false },
+    { native: false, known: true },
+    { native: true, known: false },
+    { native: true, known: true },
+  ])(
+    "a first visible nonce rejection cannot prove nonexecution ($native/$known)",
+    async ({ native, known }) => {
+      const f = fixture({ first: "hidden replay", retries: 1 })
+      if (known) f.knowStatus()
+      const pending = native
+        ? Effect.runPromise(
+            transactions(f.dependencies).send(
+              {
+                signerId: "alice.near",
+                receiverId: "bob.near",
+                actions: [{ transfer: { deposit: 1n } }],
+              },
+              { waitUntil: "NONE" },
+            ),
+          )
+        : f.builder.send({ waitUntil: "NONE" })
+      if (known) {
+        const result = await pending
+        expect(result.transaction?.hash).toBe(f.accepted[0])
+      } else {
+        await expect(pending).rejects.toMatchObject({
+          code: "TRANSACTION_OUTCOME_UNKNOWN",
+          retryable: false,
+        })
+      }
+      expect(f.accepted).toHaveLength(1)
+      expect(f.signatures()).toBe(1)
+      expect(new Set(f.wires.map((wire) => base64.encode(wire))).size).toBe(1)
+      expect(f.lookups).toEqual([
+        {
+          tx_hash: f.accepted[0],
+          sender_account_id: "alice.near",
+          wait_until: "NONE",
+        },
+      ])
+    },
+  )
+
+  test.each(["correct", "hash", "signer", "receiver", "nonce"] as const)(
+    "reconciliation checks returned transaction identity (%s)",
+    async (statusIdentity) => {
+      const f = fixture({ first: "hidden replay", statusIdentity })
+      f.knowStatus()
+      const pending = f.builder.send({ waitUntil: "NONE" })
+      if (statusIdentity === "correct") {
+        expect((await pending).transaction?.hash).toBe(f.accepted[0])
+      } else {
+        await expect(pending).rejects.toMatchObject({
+          code: "TRANSACTION_OUTCOME_UNKNOWN",
+          retryable: false,
+          data: { hash: f.accepted[0] },
+        })
+      }
+      expect(f.accepted).toHaveLength(1)
+      expect(f.signatures()).toBe(1)
+    },
+  )
+
   test.each([
     "internal retry",
     "caller retry",
@@ -233,6 +330,44 @@ describe("signed commitment submission history", () => {
       expect(result.transaction?.hash).toBe(f.accepted[0])
       expect(f.accepted).toHaveLength(1)
       expect(f.signatures()).toBe(1)
+    },
+  )
+
+  test.each([
+    { id: 0, txNonce: 2, akNonce: 2 },
+    { id: undefined, txNonce: 2, akNonce: 2 },
+    { id: "1", txNonce: 2, akNonce: 2 },
+    { id: 1, txNonce: -1, akNonce: 2 },
+    { id: 1, txNonce: 1.5, akNonce: 2 },
+    {
+      id: 1,
+      txNonce: Number.MAX_SAFE_INTEGER + 1,
+      akNonce: Number.MAX_SAFE_INTEGER + 1,
+    },
+    { id: 1, txNonce: 0, akNonce: -1 },
+    { id: 1, txNonce: 2, akNonce: 2.5 },
+    { id: 1, txNonce: 2, akNonce: Number.MAX_SAFE_INTEGER + 1 },
+    { id: 1, txNonce: 2, akNonce: 1 },
+  ])(
+    "untrusted rejection hints never authorize another economic operation (%j)",
+    async (rejection) => {
+      const f = fixture({ rejection, retries: 1 })
+      await expect(f.builder.send({ waitUntil: "NONE" })).rejects.toMatchObject(
+        {
+          code: "TRANSACTION_OUTCOME_UNKNOWN",
+          retryable: false,
+        },
+      )
+      expect(f.accepted).toHaveLength(1)
+      expect(f.signatures()).toBe(1)
+      expect(new Set(f.wires.map((wire) => base64.encode(wire))).size).toBe(1)
+      expect(f.lookups).toEqual([
+        {
+          tx_hash: f.accepted[0],
+          sender_account_id: "alice.near",
+          wait_until: "NONE",
+        },
+      ])
     },
   )
 

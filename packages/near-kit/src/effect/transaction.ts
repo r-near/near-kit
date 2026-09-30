@@ -2,8 +2,6 @@
 import { sha256 } from "@noble/hashes/sha2.js"
 import { base58 } from "@scure/base"
 import * as Effect from "effect/Effect"
-import * as Schedule from "effect/Schedule"
-import * as Ref from "effect/Ref"
 import * as actions from "../core/actions.js"
 import {
   type ClassicAction,
@@ -40,10 +38,6 @@ import {
   type Amount,
 } from "../utils/validation.js"
 import type { RpcPrograms } from "../core/rpc/rpc-program.js"
-import {
-  isDefinitiveNonceRejection,
-  transactionOutcomeUnknown,
-} from "../core/rpc/submission.js"
 import {
   InvalidKeyError,
   FunctionCallError,
@@ -108,26 +102,22 @@ export interface SignedTransactionValue {
   readonly serialize: () => Uint8Array
 }
 
-// The commitment owns broadcast history across callers and fibers; no registry or TTL can erase it.
-const submissionHistory = Symbol("submissionHistory")
-type SubmissionHistory = { readonly started: number; readonly rejected: number }
-type TrackedCommitment = SignedTransactionValue & {
-  readonly [submissionHistory]: Ref.Ref<SubmissionHistory>
-}
-const historyOf = (signed: SignedTransactionValue) =>
-  (signed as Partial<TrackedCommitment>)[submissionHistory]
-const allRejected = (signed: SignedTransactionValue) => {
-  const history = historyOf(signed)
-  return history
-    ? Ref.get(history).pipe(
-        Effect.map(
-          ({ started, rejected }) => started > 0 && started === rejected,
-        ),
-      )
-    : Effect.succeed(false)
-}
 const originalCause = (failure: unknown) =>
   failure instanceof ExternalError ? failure.cause : failure
+
+/** Status absence cannot establish that submitted bytes never executed. */
+const transactionOutcomeUnknown = (
+  cause: unknown,
+  details: Record<string, unknown>,
+) =>
+  Object.assign(
+    new NearError(
+      "Transaction submission outcome is unknown; check its status before creating a new transaction",
+      "TRANSACTION_OUTCOME_UNKNOWN",
+      { ...details, cause },
+    ),
+    { retryable: false as const },
+  )
 
 /** Delegate nonce and expiry belong to these options, not the outer transaction plan.
  * A plan nonce is rejected; plan strictNonce and nonceIndex do not select delegate policy. */
@@ -436,12 +426,7 @@ const signOwned = Effect.fn("Transaction.sign")(function* (
     signed.set(encodedSignature, bytes.length)
     return signed
   })
-  const history = yield* Ref.make<SubmissionHistory>({
-    started: 0,
-    rejected: 0,
-  })
   return Object.freeze({
-    [submissionHistory]: history,
     hash,
     signerId: transaction.signerId,
     receiverId: transaction.receiverId,
@@ -491,6 +476,19 @@ const reconcile = Effect.fn("Transaction.reconcile")(function* <
   return yield* dependencies.rpc
     .getTransactionStatus(signed.hash, signed.signerId, waitUntil)
     .pipe(
+      Effect.filterOrFail(
+        (result) =>
+          !result.transaction ||
+          (result.transaction.hash === signed.hash &&
+            result.transaction.signer_id === signed.signerId &&
+            result.transaction.receiver_id === signed.receiverId &&
+            result.transaction.nonce === Number(signed.nonce)),
+        () =>
+          new NearError(
+            "RPC status returned a different transaction",
+            "TRANSACTION_STATUS_MISMATCH",
+          ),
+      ),
       Effect.map((result) => withTransaction<W>(signed, result)),
       Effect.mapError((lookupFailure) =>
         transactionOutcomeUnknown(originalCause(failure), {
@@ -513,28 +511,10 @@ export const broadcast = Effect.fn("Transaction.broadcast")(function* <
     dependencies.defaultWaitUntil ??
     "EXECUTED_OPTIMISTIC") as W
   const bytes = yield* transactionInput(() => signed.serialize())
-  const history = historyOf(signed)
-  if (history)
-    yield* Ref.update(history, ({ started, rejected }) => ({
-      started: started + 1,
-      rejected,
-    }))
   const result = yield* dependencies.rpc.sendTransaction(bytes, waitUntil).pipe(
     Effect.catch((failure) =>
       Effect.gen(function* () {
         const error = originalCause(failure)
-        if (
-          isDefinitiveNonceRejection(error) &&
-          Number.isSafeInteger(error.txNonce) &&
-          BigInt(error.txNonce) === signed.nonce
-        ) {
-          if (history)
-            yield* Ref.update(history, ({ started, rejected }) => ({
-              started,
-              rejected: rejected + 1,
-            }))
-          if (yield* allRejected(signed)) return yield* Effect.fail(failure)
-        }
         // Preserve nonretryable execution failures; uncertain validation errors must not
         // encourage a caller to create a new transaction after possible acceptance.
         if (
@@ -624,43 +604,10 @@ export const submit = Effect.fn("Transaction.submit")(function* <
       waitUntil,
     )) as FinalExecutionOutcomeMap[W]
   }
-  let signed = cached
-  const attempt = Effect.gen(function* () {
-    const commitment = signed ?? (yield* signing)
-    signed = commitment
-    return yield* broadcast(commitment, dependencies, { waitUntil }).pipe(
-      Effect.catch((failure) =>
-        Effect.gen(function* () {
-          const error = originalCause(failure)
-          if (!isDefinitiveNonceRejection(error) || plan.nonce !== undefined)
-            return yield* Effect.fail(failure)
-          if (!(yield* allRejected(commitment)))
-            return yield* reconcile(
-              commitment,
-              dependencies,
-              waitUntil,
-              failure,
-            )
-          if (!plan.strictNonce)
-            yield* dependencies.nonces.updateAndGetNext(
-              plan.signerId,
-              nonceKey(commitment.publicKey, plan.nonceIndex),
-              yield* transactionInput(() => BigInt(error.akNonce)),
-            )
-          signed = undefined
-          // Every broadcast of this exact commitment was definitively rejected.
-          return yield* Effect.fail({ _tag: "NonceRetry" as const, failure })
-        }),
-      ),
-    )
-  })
-  return yield* attempt.pipe(
-    Effect.retry({
-      schedule: Schedule.recurs(2),
-      while: (failure) => "_tag" in failure && failure._tag === "NonceRetry",
-    }),
-    Effect.catchTag("NonceRetry", ({ failure }) => Effect.fail(failure)),
-  )
+  // A correlated rejection can be a hidden browser/proxy replay of accepted bytes.
+  // Sign once; even the first observable InvalidNonce must reconcile this hash.
+  const signed = cached ?? (yield* signing)
+  return yield* broadcast(signed, dependencies, { waitUntil })
 })
 
 export const send = Effect.fn("Transaction.send")(function* <
@@ -671,11 +618,10 @@ export const send = Effect.fn("Transaction.send")(function* <
   options?: SendOptions<W>,
 ): Effect.fn.Return<FinalExecutionOutcomeMap[W], NearFailure> {
   const plan = yield* transactionInput(() => make(input))
-  const key = yield* Effect.cached(resolveKey(plan, dependencies))
   return yield* submit(
     plan,
     dependencies,
-    signOwned(plan, dependencies, key),
+    signOwned(plan, dependencies),
     undefined,
     options,
   )

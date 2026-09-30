@@ -420,7 +420,7 @@ export class UnknownEpochError extends NearError {
 export class InvalidNonceError extends NearError {
   txNonce: number
   akNonce: number
-  retryable = true // Can retry with updated nonce
+  retryable = true // Low-level RPC may retry identical bytes; this never authorizes re-signing.
 
   constructor(txNonce: number, akNonce: number) {
     super(

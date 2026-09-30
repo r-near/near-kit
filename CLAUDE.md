@@ -149,9 +149,9 @@ The library is built around a main `Near` class with three interaction patterns:
 - Native data plans and module operations, without a second fluent builder
 - Captures canonical unsigned bytes before invoking external signers
 - Owns signing, versioned unsigned snapshots, submission and delegate preparation
-- Bounded fresh-nonce recovery requires correlated node rejection of every attempt
+- Signs once per intent; never authorizes a fresh nonce from a submission rejection
 - Ambiguous submission reconciles the original hash; unknown status never authorizes fresh signing
-- Submission history is private to each signed commitment and survives repeated sends
+- Immutable signed values and the public signed cache support safe same-byte replay
 
 **`core/rpc/` - RPC Client**
 
@@ -219,14 +219,14 @@ The library is built around a main `Near` class with three interaction patterns:
 **Automatic Nonce Management**
 
 - `NonceReservation` coordinates native transaction dependencies
-- Handles concurrent transactions transparently
-- Automatic retry with nonce invalidation for edge cases
+- Reserves unique nonces for concurrent preparation within one shared allocation domain
+- Submitted commitments are never automatically rebuilt with a fresh nonce
 
 **Error Recovery**
 
 - Bounded Effect schedules for retryable network transients
-- At most three transaction attempts for proven InvalidNonce rejection; never replay arbitrary wallet/signer failures
-- Retryable flag on error classes for application-level retry logic
+- Retry only identical signed bytes; reconcile all nonce rejections by exact hash
+- High-level uncertainty is nonretryable; generic Effect.retry(send(plan)) creates new commitments and is unsafe after submission
 
 **Separation of Concerns**
 

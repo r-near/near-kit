@@ -212,8 +212,11 @@ describe("TransactionBuilder.nonce()", () => {
     expect(second).not.toBe(first)
   })
 
-  test("send() surfaces InvalidNonceError instead of retrying a caller-owned nonce", async () => {
+  test("send() preserves a caller-owned nonce and reconciles rejection without re-signing", async () => {
     const { rpc, keyStore, accountId } = await setup()
+    rpc.getTransactionStatus = async () => {
+      throw new Error("not visible")
+    }
     let submissions = 0
     const transport = rpcToPromises(
       testRpcPrograms(
@@ -260,7 +263,11 @@ describe("TransactionBuilder.nonce()", () => {
     )
     await expect(
       tx.nonce(42n).transfer("bob.near", "1 NEAR").send(),
-    ).rejects.toBeInstanceOf(InvalidNonceError)
+    ).rejects.toMatchObject({
+      code: "TRANSACTION_OUTCOME_UNKNOWN",
+      retryable: false,
+      data: { cause: expect.any(InvalidNonceError) },
+    })
     expect(submissions).toBe(1)
   })
 

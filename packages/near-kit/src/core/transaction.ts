@@ -762,18 +762,18 @@ export class TransactionBuilder {
    * Sign this transaction at an explicit, caller-chosen nonce.
    *
    * By default the builder allocates nonces itself through a shared in-process
-   * cache, which is right for most applications. Callers that coordinate nonces
+   * reservation service, which is right for most applications. Callers that coordinate nonces
    * externally — a Redis- or database-backed allocator shared by several
    * processes, a relayer that must record the nonce before an asynchronous
    * (e.g. MPC) signature is produced, or a replay of a previously planned
    * transaction — can pin the nonce instead. The value is used exactly as
    * given, for both ordinary keys and gas keys (combined with
-   * {@link useGasKey}, it becomes the nonce of that slot), and the shared cache
+   * {@link useGasKey}, it becomes the nonce of that slot), and the shared reservation service
    * is neither consulted nor updated.
    *
-   * Because the caller owns the nonce, {@link send} does not rebuild the
-   * transaction with a fresh nonce on `InvalidNonceError`; the error is thrown
-   * so the caller's allocator can decide what to do.
+   * The nonce stays fixed across sends. Submission failures reconcile the signed
+   * hash; they never authorize an automatic fresh-nonce signature. Unknown status
+   * raises TRANSACTION_OUTCOME_UNKNOWN so the caller can inspect the original hash.
    *
    * Not supported with a wallet (the wallet chooses the nonce): {@link send}
    * throws before prompting. With {@link useGasKey}, the slot is still checked
@@ -907,7 +907,7 @@ export class TransactionBuilder {
    *
    * Ambiguous submissions are reconciled by their exact hash. If status is unknown,
    * throws TRANSACTION_OUTCOME_UNKNOWN with the hash and original cause; it never
-   * automatically signs a fresh nonce for a potentially accepted transaction.
+   * automatically signs a fresh nonce, even after a matching nonce rejection.
    *
    * The response will always include `transaction.hash` for tracking, even when
    * using `waitUntil: "NONE"` which normally doesn't return transaction details.

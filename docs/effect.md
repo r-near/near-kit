@@ -102,27 +102,33 @@ historical shape. Delegate options separately own delegate nonce, expiry and slo
 ordinary transaction mode fields do not implicitly select a delegate format.
 
 Signing returns a stable signed commitment without broadcasting;
-`broadcast(signed)` uses its captured bytes. `send(plan)` can re-sign only after a
-proven submission nonce failure, with bounded retries. Each execution snapshots
+`broadcast(signed)` uses its captured bytes. `send(plan)` signs once per execution
+and never replaces submitted bytes with a fresh nonce. Each execution snapshots
 its inputs. Returned unsigned data and serialized bytes do not alias builder or
 signed state. Editing a public builder invalidates its signature cache, including
 pending completions for the old plan.
 
 ### Submission safety
 
-A lost response does not prove that a transaction failed. Transport retries reuse
-the exact signed bytes. Automatic fresh-nonce signing requires a decoded,
-correlated nonce rejection and no earlier potentially accepted attempt for that
-commitment. This history survives repeated sends of the same public builder and
-concurrent broadcasts of the same signed value.
+Automatic fresh-nonce recovery has deliberately been removed. This changes
+recovery behavior while retaining the simple API shape. A matching `InvalidNonce`
+response proves only that a replay was rejected: a browser, proxy or transport may
+already have retried accepted bytes without exposing the lost response to the SDK.
+No nonce rejection is permission to sign a second economic operation.
 
-Ambiguous high-level submissions look up the original hash. A confirmed result
-returns that transaction; an unavailable or unknown status raises
-`TRANSACTION_OUTCOME_UNKNOWN` with `retryable: false` and the hash, sender and
-underlying cause in `error.data`. An unknown status on a lagging node is not proof
-of non-execution. Do not blindly retry `near.send(...)` or `send(plan)` with a new
-commitment after this error. Check the original hash; if rebroadcasting, retain
-and reuse the original signed bytes. Interrupting a submission cannot undo it.
+Transport retries retain the exact signed bytes. High-level submissions reconcile
+nonce rejections and ambiguous failures by the original hash. A matching status
+returns the original transaction; missing/unavailable status or conflicting
+transaction metadata raises `TRANSACTION_OUTCOME_UNKNOWN` with `retryable: false`
+and the hash, sender and original cause in `error.data`. An unknown status on a
+lagging node never proves non-execution.
+
+Retain a native signed value and deliberately reuse `broadcast(signed)` for
+same-byte replay. Reusing the same unedited public builder also retains its signed
+commitment. In contrast, rerunning `send(plan)`, applying `Effect.retry` to it, or
+calling `near.send(...)` again creates a new commitment. Do not do that blindly
+after uncertainty or interruption. Check the original hash; interruption cannot
+undo a submitted transaction. Editing a builder also represents a new intent.
 
 A native `TransactionSigner` returns an Effect and stays in the caller's fiber.
 Resolve any application services before supplying it through native runtime

@@ -184,10 +184,13 @@ test("a later signature remains cached when an older plan finishes last", async 
   expectCommitment(latest, hash, key.publicKey.data)
 })
 
-test("nonce rejection retries keep the selected rotating key and only rebuild after broadcast", async () => {
+test("caller replay after nonce rejection retains the rotating key and exact signed bytes", async () => {
   const keys = [generateKey(), generateKey()]
   let gets = 0
   const rpc = setup().rpc
+  rpc.getTransactionStatus = async () => {
+    throw new Error("not visible")
+  }
   const publicKeys: string[] = []
   rpc.getAccessKey = async (_id, publicKey) => {
     publicKeys.push(publicKey)
@@ -244,9 +247,14 @@ test("nonce rejection retries keep the selected rotating key and only rebuild af
     "bob.near",
     "1 NEAR",
   )
+  await expect(builder.send({ waitUntil: "NONE" })).rejects.toMatchObject({
+    code: "TRANSACTION_OUTCOME_UNKNOWN",
+    retryable: false,
+  })
   await builder.send({ waitUntil: "NONE" })
   expect(gets).toBe(1)
   expect(sent).toHaveLength(2)
+  expect(sent[0]).toEqual(sent[1])
   expect(new Set(publicKeys).size).toBe(1)
   const key = keys[0]
   if (!key) throw new Error("fixture key missing")
