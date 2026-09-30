@@ -5,6 +5,7 @@ Minimal, copy-paste ready examples for common NEAR operations.
 ## Examples
 
 ### [`quickstart.ts`](./quickstart.ts)
+
 Essential operations: view, call, send, type-safe contracts, transaction builder.
 Start here if you're new to near-kit.
 
@@ -13,21 +14,26 @@ bun run examples/quickstart.ts
 ```
 
 ### [`wallet-browser.ts`](./wallet-browser.ts)
+
 Connect to user wallets in the browser with NEAR Connect.
 
 ### [`meta-transactions.ts`](./meta-transactions.ts)
+
 Gasless transactions (NEP-366): user signs, relayer pays.
 Shows both user and relayer sides.
 
 ### [`sign-in-with-near.ts`](./sign-in-with-near.ts)
+
 Gasless authentication using message signing (NEP-413).
 Client signs, server verifies.
 
 ### [`universal-code.ts`](./universal-code.ts)
+
 Same API works everywhere: server with private keys, browser with wallets.
 Write once, run anywhere.
 
 ### [`rotating-keystore.ts`](./rotating-keystore.ts)
+
 High-throughput concurrent transactions using multiple access keys.
 Send many transactions without nonce collisions.
 
@@ -49,3 +55,12 @@ Get a testnet account at [wallet.testnet.near.org](https://wallet.testnet.near.o
 ## Documentation
 
 Full docs: [kit.near.tools](https://kit.near.tools)
+
+## Effect experiment
+
+`effect.ts` demonstrates the optional `near-kit/effect` entrypoint and explicit
+RPC/key/nonce layer injection. Importing that example does not perform I/O.
+Run `bun run typecheck:examples` from the repository root to check every example.
+The Promise examples use the public workspace package imports, so build the
+packages before running them. Only run value-moving examples with accounts and
+funds you deliberately intend to use; validation does not execute those examples.

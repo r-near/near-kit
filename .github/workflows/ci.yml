@@ -32,6 +32,12 @@ jobs:
       - name: Run typecheck
         run: bun run typecheck
 
+      - name: Check public and native consumer contracts
+        run: bun run typecheck:consumers
+
+      - name: Typecheck examples
+        run: bun run typecheck:examples
+
       - name: Run lint
         run: bun run lint
 

@@ -5,5 +5,11 @@
   "useTabs": false,
   "semi": false,
   "singleQuote": false,
-  "ignorePatterns": ["**/dist/**", "**/coverage/**", "docs/book/**", "bun.lock"]
+  "ignorePatterns": [
+    "**/dist/**",
+    "**/coverage/**",
+    "docs/book/**",
+    "bun.lock",
+    ".agents/skills/**"
+  ]
 }

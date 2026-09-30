@@ -37,37 +37,37 @@
     },
     {
       "id": "tooling",
-      "state": "integration",
+      "state": "integrated-awaiting-final-acceptance",
       "dependsOn": ["baseline"],
       "checks": {
         "nativeBuild": "passed",
         "effectDiagnostics": "verified operational",
-        "strictLint": "pending inherited and migration diagnostics"
+        "strictLint": "passed"
       }
     },
     {
       "id": "rpc",
-      "state": "review-and-integration",
+      "state": "integrated-awaiting-final-acceptance",
       "dependsOn": ["runtime-and-reservations", "tooling"]
     },
     {
       "id": "transactions",
-      "state": "review-and-integration",
+      "state": "integrated-awaiting-final-acceptance",
       "dependsOn": ["rpc", "runtime-and-reservations"]
     },
     {
       "id": "client-wallets-stores",
-      "state": "implementation",
+      "state": "integrated-awaiting-final-acceptance",
       "dependsOn": ["rpc", "transactions"]
     },
     {
       "id": "filesystem-and-sandbox",
-      "state": "pending",
+      "state": "integrated-awaiting-final-acceptance",
       "dependsOn": ["rpc", "client-wallets-stores"]
     },
     {
       "id": "react",
-      "state": "pending",
+      "state": "integrated-awaiting-final-acceptance",
       "dependsOn": ["client-wallets-stores"]
     },
     {
@@ -96,7 +96,7 @@
     },
     {
       "id": "core-checkpoint-2",
-      "state": "local-verified-awaiting-ci",
+      "state": "verified-checkpoint",
       "dependsOn": ["runtime-and-reservations"],
       "checks": {
         "build": "passed",
@@ -105,7 +105,8 @@
         "unit": "1212 passed",
         "wallet": "80 passed",
         "react": "49 passed",
-        "independentReview": "nonce, RPC and memory-store review completed; three reproduced ordering/empty-pool regressions repaired"
+        "independentReview": "nonce, RPC and memory-store review completed; three reproduced ordering/empty-pool regressions repaired",
+        "ci": "passed"
       },
       "scope": [
         "typed memory storage",
@@ -119,6 +120,46 @@
         "platform filesystem and scoped sandbox",
         "React native lifecycle",
         "new Oxc toolchain and final acceptance"
+      ],
+      "commits": ["23612c5367e69c40502542f605d1245b1872589a"],
+      "ci": "https://github.com/r-near/near-kit/actions/runs/36658229951"
+    },
+    {
+      "id": "integrated-candidate",
+      "state": "local-verified-awaiting-independent-exact-commit-gate",
+      "dependsOn": [
+        "tooling",
+        "rpc",
+        "transactions",
+        "client-wallets-stores",
+        "filesystem-and-sandbox",
+        "react"
+      ],
+      "checks": {
+        "cleanBuild": "passed",
+        "sourceTypecheck": "passed",
+        "consumerTypes": "passed",
+        "examples": "passed",
+        "lint": "passed",
+        "coreAndWallet": "1318 passed",
+        "react": "52 passed",
+        "localIntegration": "blocked: hard nofile 16384; nearcore requires 65535",
+        "independentFinalAudit": "pending",
+        "finalCi": "pending"
+      },
+      "reviewRepairs": [
+        "native wallet cancellation ownership",
+        "public Near and RPC policy/middleware overrides",
+        "typed synchronous input and extension failures",
+        "CreateAccount codec parity",
+        "gas-key and extensible sandbox snapshots",
+        "key storage insertion order and empty pools",
+        "sandbox stop/restart resource ownership"
+      ],
+      "remaining": [
+        "final exact-commit acceptance",
+        "final bundle and performance measurements",
+        "exact-commit CI"
       ]
     }
   ]

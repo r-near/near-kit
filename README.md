@@ -47,7 +47,7 @@ await near.call(
   "example.testnet",
   "increment",
   {},
-  { attachedDeposit: "0.1 NEAR" }
+  { attachedDeposit: "0.1 NEAR" },
 )
 
 // Send NEAR tokens
@@ -177,7 +177,7 @@ const info = await contract.view.get_info()
 // Call methods automatically get options parameter
 await contract.call.transfer(
   { to: "bob.near", amount: "10" },
-  { attachedDeposit: "1 NEAR" }
+  { attachedDeposit: "1 NEAR" },
 )
 ```
 
@@ -193,7 +193,7 @@ const receipt = await near
     "market.near",
     "buy",
     { id: "123" },
-    { attachedDeposit: "5 NEAR" } // Alice attaches 5 NEAR to the call
+    { attachedDeposit: "5 NEAR" }, // Alice attaches 5 NEAR to the call
   )
   .send()
 ```
@@ -205,7 +205,7 @@ const receipt = await near
 const [balance, status, exists] = await near.batch(
   near.getBalance("alice.near"),
   near.getStatus(),
-  near.accountExists("bob.near")
+  near.accountExists("bob.near"),
 )
 ```
 
@@ -238,12 +238,19 @@ afterAll(async () => {
 import { EMPTY_CODE_HASH } from "near-kit/sandbox"
 
 // Patch blockchain state without transactions
-await sandbox.patchState([{
-  Account: {
-    account_id: "alice.test.near",
-    account: { amount: "5000000000000000000000000", locked: "0", code_hash: EMPTY_CODE_HASH, storage_usage: 100 }
-  }
-}])
+await sandbox.patchState([
+  {
+    Account: {
+      account_id: "alice.test.near",
+      account: {
+        amount: "5000000000000000000000000",
+        locked: "0",
+        code_hash: EMPTY_CODE_HASH,
+        storage_usage: 100,
+      },
+    },
+  },
+])
 
 // Fast-forward blocks for time-dependent logic
 await sandbox.fastForward(100)
@@ -465,7 +472,7 @@ const near = new Near({ keyStore })
 await Promise.all(
   Array(20)
     .fill(0)
-    .map(() => near.send("recipient.near", "0.1 NEAR"))
+    .map(() => near.send("recipient.near", "0.1 NEAR")),
 )
 ```
 
@@ -502,3 +509,7 @@ bun run examples/quickstart.ts
 ## License
 
 MIT
+
+## Effect experiment
+
+This branch retains the familiar public API and adds [`near-kit/effect`](docs/experiments/effect-api.md) for native Effects, services, Layers and scoped resources. See the [migration plan](docs/experiments/effect-migration.md) and [pinned toolchain](docs/experiments/effect-toolchain.md). It uses an exact Effect v4 release candidate and is not a production release.

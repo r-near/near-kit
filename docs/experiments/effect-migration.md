@@ -79,9 +79,9 @@ never mutate source/tests in a checkout while its Vitest process is running.
 - [x] Existing source layout, contributor guidance, and workflows inspected
 - [x] Requested OpenClaw test-audit skill inspected and installed with provenance
 - [x] Baseline dependency install, build, typecheck, and lint
-- [ ] Full baseline and compatibility fixtures
-- [ ] Effect/tooling version decision
-- [ ] Implementation slices
+- [x] Baseline recorded and public/native compile-only compatibility fixtures
+- [x] Effect/tooling version decision
+- [x] Implementation slices
 - [ ] Independent audit and exact-commit CI
 
 ## Runtime version decision
@@ -126,3 +126,25 @@ wallet, filesystem, sandbox, React, and final acceptance work remains in progres
 The native TypeScript/Oxc toolchain is validated separately and will land with its
 strict source/lifecycle corrections; this checkpoint keeps the passing existing
 gates rather than publishing known lint failures.
+
+## Integrated candidate
+
+All implementation slices are integrated: class-free RPC programs, transaction
+and wallet effects, native client/contract services, injected key storage and nonce
+reservation Layers, filesystem/keyring services, scoped sandbox resources, and
+React lifecycle ownership. The optional native browser entrypoint and separate
+Node-only resource entrypoints are exported. No obsolete NonceManager adapter is
+retained. Public method overrides, custom callback receivers, error identities,
+eager constructor key initialization, and request middleware remain supported.
+
+Independent review found and reproduced cancellation, extension-policy dispatch,
+synchronous input error-channel, empty-action codec and gas-key snapshot parity
+regressions; fixes have owner-boundary tests. Focused imports avoid eagerly loading
+unrelated Effect modules. Strict compile-only consumers and examples are CI gates.
+The local aggregate behavioral run passes 1,318 core/wallet tests and 52 React tests.
+The full candidate still requires independent exact-commit acceptance, final
+bundle/performance measurements, and exact-commit CI. Local real-nearcore execution
+remains environment-blocked as described above, never counted as passing.
+
+The preceding published core checkpoint, `23612c5`, passed [full CI](https://github.com/r-near/near-kit/actions/runs/36658229951),
+including the real integration suite on its existing isolated runner.

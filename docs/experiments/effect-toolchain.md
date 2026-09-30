@@ -37,6 +37,8 @@ Use normal Vitest tests that return/await `Effect.runPromise` or
 bun install --frozen-lockfile
 bun run build
 bun run typecheck
+bun run typecheck:consumers
+bun run typecheck:examples
 bun run lint
 bun run format:check
 bun run test
@@ -49,6 +51,16 @@ it does not patch repository source. The explicit `--no-force` works around a
 otherwise treated as required. Compatibility validation remains enabled.
 If installation was run with
 `--ignore-scripts`, explicitly run `bun run prepare` before checking code.
+
+Source typechecking uses TypeScript's declaration-only project build because
+TS7 rejects `--build --noEmit` for this referenced workspace (`TS6310`). The
+package-level command checks production sources without emitting. Its former
+configuration included tests outside `rootDir`, and failed with `TS6059` on the
+baseline; it never supplied a working test-type gate. Runtime invalid-input mocks
+remain runtime tests. Dedicated strict compile-only public/native consumer
+fixtures now verify inference, required services, errors, delegate payloads and
+wait-level narrowing against the built package exports. Examples are also checked
+without executing any blockchain operations. CI runs both gates.
 
 `bun run lint` is read-only. Use `bun run lint:fix` for safe lint fixes and
 `bun run format` for formatting. CI never writes fixes. The pre-commit hook
@@ -87,7 +99,9 @@ Formatting retains this repository's two-space indentation, double quotes,
   fibers need explicit ownership/disposal; retries must not leak timers, listeners
   or processes.
 - Retry only at the narrowest boundary with proven idempotency. Bound backoff
-  and use jitter. Transaction submission, signing, nonce refresh and confirmation
+  with the existing deterministic delay policy. Jitter would change the public
+  timing contract and is not introduced by this rewrite. Transaction submission,
+  signing, nonce refresh and confirmation
   polling are separate policies; never blindly retry the whole transaction.
 - Preserve the existing React hooks/provider surface and React 18 compatibility.
   Atom bindings are a separate design decision, not a prerequisite for this rewrite.

@@ -7,9 +7,9 @@
  * Run: bun run examples/rotating-keystore.ts
  */
 
-import { Near, RotatingKeyStore } from "../src/index.js"
-import { Sandbox } from "../src/sandbox/index.js"
-import { generateKey } from "../src/utils/key.js"
+import { Near, RotatingKeyStore } from "near-kit"
+import { Sandbox } from "near-kit/sandbox"
+import { generateKey } from "near-kit"
 
 // ============================================================================
 // High-Throughput Bot Pattern

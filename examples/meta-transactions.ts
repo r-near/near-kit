@@ -5,11 +5,7 @@
  * Perfect for onboarding users without requiring them to hold NEAR for gas.
  */
 
-import {
-  decodeSignedDelegateAction,
-  Near,
-  type PrivateKey,
-} from "../src/index.js"
+import { decodeSignedDelegateAction, Near, type PrivateKey } from "near-kit"
 
 // User credentials (signs the action but doesn't pay gas)
 const USER_ACCOUNT = process.env["USER_ACCOUNT"] || "user.testnet"

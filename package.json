@@ -4,13 +4,14 @@
   "workspaces": [
     "packages/*"
   ],
+  "type": "module",
   "scripts": {
     "build": "tsc --build",
     "clean": "tsc --build --clean && rm -rf packages/*/dist",
     "dev": "bun run --filter '*' dev",
     "test": "bun run --filter '*' test",
     "lint": "oxlint .",
-    "typecheck": "tsc --build --noEmit",
+    "typecheck": "tsc --build --emitDeclarationOnly",
     "ci:version": "changeset version && bun update",
     "ci:publish": "bun run build && for dir in packages/*; do (cd \"$dir\" && PKG_NAME=$(jq -r .name package.json) && PKG_VERSION=$(jq -r .version package.json) && if npm view \"$PKG_NAME@$PKG_VERSION\" version 2>/dev/null; then echo \"$PKG_NAME@$PKG_VERSION already published, skipping\"; else bun pm pack && npm publish *.tgz --access public && rm *.tgz; fi); done && changeset tag",
     "release": "bun run ci:publish",
@@ -19,7 +20,9 @@
     "lint:fix": "oxlint --fix .",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
-    "check": "bun run build && bun run typecheck && bun run lint && bun run format:check"
+    "check": "bun run build && bun run typecheck && bun run typecheck:consumers && bun run typecheck:examples && bun run lint && bun run format:check",
+    "typecheck:examples": "tsc --project examples/tsconfig.json",
+    "typecheck:consumers": "tsc --project tests/types/tsconfig.json"
   },
   "devDependencies": {
     "@changesets/cli": "^2.31.1",
@@ -31,7 +34,7 @@
     "typescript": "7.0.2"
   },
   "engines": {
-    "node": ">=22.12.0"
+    "node": ">=22.19.0"
   },
   "packageManager": "bun@1.4.2"
 }
