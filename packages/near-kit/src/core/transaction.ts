@@ -741,6 +741,13 @@ export class TransactionBuilder {
   async delegate<F extends DelegateActionPayloadFormat = "base64">(
     options?: DelegateOptions<F>,
   ): Promise<DelegateActionResult<F>> {
+    if (this.explicitNonce !== undefined) {
+      throw new NearError(
+        ".nonce() sets the outer transaction nonce and cannot be used with delegate(). Use delegate({ nonce }) for local signing; wallets choose their own delegate nonce.",
+        "INVALID_TRANSACTION",
+      )
+    }
+
     const opts = options ?? ({} as DelegateOptions<F>)
     if (this.actions.length === 0) {
       throw new NearError(
@@ -875,6 +882,13 @@ export class TransactionBuilder {
   async delegateV2<F extends DelegateActionPayloadFormat = "base64">(
     options?: DelegateV2Options<F>,
   ): Promise<DelegateV2ActionResult<F>> {
+    if (this.explicitNonce !== undefined) {
+      throw new NearError(
+        ".nonce() sets the outer transaction nonce and cannot be used with delegateV2(). Use delegateV2({ nonce }) for local signing, with nonceIndex for a gas-key slot.",
+        "INVALID_TRANSACTION",
+      )
+    }
+
     const opts = options ?? ({} as DelegateV2Options<F>)
     if (this.actions.length === 0) {
       throw new NearError(
@@ -1139,6 +1153,12 @@ export class TransactionBuilder {
    * Not supported with a wallet (the wallet chooses the nonce): {@link send}
    * throws before prompting. With {@link useGasKey}, the slot is still checked
    * to exist before signing.
+   *
+   * Applies only to the outer transaction. {@link delegate} and
+   * {@link delegateV2} reject this setting; use their `{ nonce }` options for
+   * local delegate signing instead. A relayer can still use this method with
+   * {@link signedDelegateAction} or {@link signedDelegateActionV2} to set its
+   * own transaction nonce independently of the signed delegate's nonce.
    *
    * @param nonce - The transaction nonce: a positive integer that fits in a u64.
    *
