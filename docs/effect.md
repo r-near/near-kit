@@ -131,6 +131,13 @@ calling `near.send(...)` again creates a new commitment. Do not do that blindly
 after uncertainty or interruption. Check the original hash; interruption cannot
 undo a submitted transaction. Editing a builder also represents a new intent.
 
+Automatic local sends sharing a nonce service are sequenced per account, key and
+nonce slot from reservation through signing and the requested submission result.
+Different keys and slots remain concurrent. `NONE` still means acknowledgment,
+not confirmed node admission; use an inclusion/execution wait level when ordering
+matters. Explicit nonces and offline/pre-signed commitments remain caller-managed:
+the SDK cannot reorder independently prepared transactions after signing.
+
 A wallet connector owns its own signing and submission. The SDK cannot coalesce
 opaque `wallet.signAndSendTransaction` calls or infer whether a wallet failure
 submitted anything; use the wallet's recovery contract rather than blindly

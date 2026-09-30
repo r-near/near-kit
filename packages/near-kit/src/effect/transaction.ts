@@ -562,6 +562,7 @@ export const submit = Effect.fn("Transaction.submit")(function* <
   signing: Effect.Effect<SignedTransactionValue, NearFailure>,
   cached?: SignedTransactionValue,
   options?: SendOptions<W>,
+  key?: Effect.Effect<KeyPair, NearFailure>,
 ): Effect.fn.Return<FinalExecutionOutcomeMap[W], NearFailure> {
   if (!plan.receiverId)
     return yield* Effect.fail(
@@ -606,8 +607,21 @@ export const submit = Effect.fn("Transaction.submit")(function* <
   }
   // A correlated rejection can be a hidden browser/proxy replay of accepted bytes.
   // Sign once; even the first observable InvalidNonce must reconcile this hash.
-  const signed = cached ?? (yield* signing)
-  return yield* broadcast(signed, dependencies, { waitUntil })
+  const operation = Effect.gen(function* () {
+    const signed = cached ?? (yield* signing)
+    return yield* broadcast(signed, dependencies, { waitUntil })
+  })
+  // Caller-managed nonces and already signed commitments do not allocate a new nonce.
+  if (plan.nonce !== undefined || cached) return yield* operation
+  const publicKey = yield* Effect.flatMap(
+    key ?? resolveKey(plan, dependencies),
+    (selected) => transactionInput(() => selected.publicKey.toString()),
+  )
+  return yield* dependencies.nonces.withSubmission(
+    plan.signerId,
+    nonceKey(publicKey, plan.nonceIndex),
+    operation,
+  )
 })
 
 export const send = Effect.fn("Transaction.send")(function* <
@@ -618,12 +632,14 @@ export const send = Effect.fn("Transaction.send")(function* <
   options?: SendOptions<W>,
 ): Effect.fn.Return<FinalExecutionOutcomeMap[W], NearFailure> {
   const plan = yield* transactionInput(() => make(input))
+  const key = yield* Effect.cached(resolveKey(plan, dependencies))
   return yield* submit(
     plan,
     dependencies,
-    signOwned(plan, dependencies),
+    signOwned(plan, dependencies, key),
     undefined,
     options,
+    key,
   )
 })
 

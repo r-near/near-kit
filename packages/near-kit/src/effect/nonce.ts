@@ -7,6 +7,12 @@ import * as Ref from "effect/Ref"
 import * as Semaphore from "effect/Semaphore"
 
 export interface NonceReservationService {
+  /** Order local automatic sends through their requested submission result. */
+  readonly withSubmission: <A, E, R>(
+    accountId: string,
+    publicKey: string,
+    operation: Effect.Effect<A, E, R>,
+  ) => Effect.Effect<A, E, R>
   readonly reserve: <E, R>(
     accountId: string,
     publicKey: string,
@@ -16,17 +22,13 @@ export interface NonceReservationService {
     accountId: string,
     publicKey: string,
   ) => Effect.Effect<void>
-  readonly updateAndGetNext: (
-    accountId: string,
-    publicKey: string,
-    currentNonce: bigint,
-  ) => Effect.Effect<bigint>
   // oxlint-disable-next-line effecttsgo/lazy-effect -- Kit service operations remain named Effect.fn functions, including zero-argument methods.
   readonly clear: () => Effect.Effect<void>
 }
 
 type ReservationState = {
   readonly semaphore: Semaphore.Semaphore
+  readonly submission: Semaphore.Semaphore
   readonly generation: number
   readonly next: bigint | undefined
 }
@@ -51,8 +53,10 @@ export const makeNonceReservation: Effect.Effect<NonceReservationService> =
       const known = HashMap.get(yield* Ref.get(states), key)
       if (Option.isSome(known)) return known.value
       const semaphore = yield* Semaphore.make(1)
+      const submission = yield* Semaphore.make(1)
       const initial: ReservationState = {
         semaphore,
+        submission,
         generation: 0,
         next: undefined,
       }
@@ -63,6 +67,17 @@ export const makeNonceReservation: Effect.Effect<NonceReservationService> =
           : [initial, HashMap.set(entries, key, initial)]
       })
     })
+
+    const withSubmission = Effect.fn("NonceReservation.withSubmission")(
+      function* <A, E, R>(
+        accountId: string,
+        publicKey: string,
+        operation: Effect.Effect<A, E, R>,
+      ): Effect.fn.Return<A, E, R> {
+        const { submission } = yield* getOrCreate(`${accountId}:${publicKey}`)
+        return yield* submission.withPermit(operation)
+      },
+    )
 
     const reserve = Effect.fn("NonceReservation.reserve")(function* <E, R>(
       accountId: string,
@@ -99,7 +114,7 @@ export const makeNonceReservation: Effect.Effect<NonceReservationService> =
             const onChain = yield* fetchFromBlockchain
             yield* Ref.update(states, (entries) => {
               const current = HashMap.getUnsafe(entries, key)
-              // Never let an older lookup undo invalidation or a retry reservation.
+              // Never let an older lookup undo explicit invalidation.
               return current.generation === reservation.generation
                 ? HashMap.set(entries, key, { ...current, next: onChain + 1n })
                 : entries
@@ -125,29 +140,6 @@ export const makeNonceReservation: Effect.Effect<NonceReservationService> =
       })
     })
 
-    const updateAndGetNext = Effect.fn("NonceReservation.updateAndGetNext")(
-      function* (accountId: string, publicKey: string, currentNonce: bigint) {
-        const key = `${accountId}:${publicKey}`
-        yield* getOrCreate(key)
-        return yield* Ref.modify(states, (entries) => {
-          const current = HashMap.getUnsafe(entries, key)
-          const requested = currentNonce + 1n
-          const nonce =
-            current.next !== undefined && current.next > requested
-              ? current.next
-              : requested
-          return [
-            nonce,
-            HashMap.set(entries, key, {
-              ...current,
-              generation: current.generation + 1,
-              next: nonce + 1n,
-            }),
-          ]
-        })
-      },
-    )
-
     const clear = Effect.fn("NonceReservation.clear")(() =>
       Ref.update(
         states,
@@ -159,7 +151,12 @@ export const makeNonceReservation: Effect.Effect<NonceReservationService> =
       ),
     )
 
-    return NonceReservation.of({ reserve, invalidate, updateAndGetNext, clear })
+    return NonceReservation.of({
+      withSubmission,
+      reserve,
+      invalidate,
+      clear,
+    })
   })
 
 /** Explicit, injectable coordination shared by all users of one provided layer. */

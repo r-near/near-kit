@@ -25,7 +25,11 @@ describe("native client dependency ownership", () => {
     const nonces = Effect.runSync(makeNonceReservation)
     expect(
       Effect.runSync(
-        nonces.updateAndGetNext("alice.near", key.publicKey.toString(), 1000n),
+        nonces.reserve(
+          "alice.near",
+          key.publicKey.toString(),
+          Effect.succeed(1000n),
+        ),
       ),
     ).toBe(1001n)
     let blockCalls = 0

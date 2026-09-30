@@ -376,10 +376,18 @@ describe("RotatingKeyStore Integration", () => {
         } messages added)`,
       )
 
-      // Both should achieve 100% success rate
-      // RotatingKeyStore eliminates nonce collisions with multiple keys
+      // Surface the actual rejection causes and verify real contract admission,
+      // not only fulfilled Promise counts. Independent keys can progress in parallel.
+      expect(
+        singleResults.filter((result) => result.status === "rejected"),
+      ).toEqual([])
+      expect(
+        multiResults.filter((result) => result.status === "rejected"),
+      ).toEqual([])
       expect(singleSucceeded).toBe(10)
       expect(multiSucceeded).toBe(10)
+      expect(singleFinalCount).toBe(singleInitialCount! + 10)
+      expect(multiFinalCount).toBe(multiInitialCount! + 10)
 
       console.log(`✓ Both approaches achieved 100% success rate`)
     }, 180000)

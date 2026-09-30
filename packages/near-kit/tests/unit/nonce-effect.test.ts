@@ -9,7 +9,7 @@ import {
 // invalidation must never repopulate the cache or overwrite a newer chain nonce.
 // Existing tests invalidate only after a fetch has completed.
 describe("NonceReservation in-flight invalidation", () => {
-  test.each(["invalidate", "clear", "advance"] as const)(
+  test.each(["invalidate", "clear"] as const)(
     "%s prevents a stale fetch from replacing newer nonce state",
     async (operation) => {
       const manager = Effect.runSync(makeNonceReservation)
@@ -30,20 +30,14 @@ describe("NonceReservation in-flight invalidation", () => {
       await started.promise
       if (operation === "invalidate")
         Effect.runSync(manager.invalidate("alice.near", "key"))
-      else if (operation === "clear") Effect.runSync(manager.clear())
-      else
-        expect(
-          Effect.runSync(manager.updateAndGetNext("alice.near", "key", 500n)),
-        ).toBe(501n)
+      else Effect.runSync(manager.clear())
       const second = Effect.runPromise(
         manager.reserve("alice.near", "key", Effect.promise(fetchNonce)),
       )
       pending.resolve(100n)
       const reserved = await Promise.all([first, second])
-      expect(reserved.sort((a, b) => Number(a - b))).toEqual(
-        operation === "advance" ? [502n, 503n] : [201n, 202n],
-      )
-      expect(fetchCount).toBe(operation === "advance" ? 1 : 2)
+      expect(reserved.sort((a, b) => Number(a - b))).toEqual([201n, 202n])
+      expect(fetchCount).toBe(2)
     },
   )
 })
@@ -142,4 +136,53 @@ describe("NonceReservation service layers", () => {
     expect(await Effect.runPromise(program)).toEqual([51n, 52n, 53n])
     expect(await Effect.runPromise(program)).toEqual([51n, 52n, 53n])
   })
+})
+
+// Invalidating reservation values must not replace a live submission permit.
+test("submission ownership survives invalidation and a cancelled waiter", async () => {
+  await Effect.runPromise(
+    Effect.scoped(
+      Effect.gen(function* () {
+        const service = yield* makeNonceReservation
+        const entered = yield* Deferred.make<void>()
+        const release = yield* Deferred.make<void>()
+        const first = yield* service
+          .withSubmission(
+            "alice.near",
+            "key#0",
+            Effect.gen(function* () {
+              yield* Deferred.succeed(entered, undefined)
+              yield* Deferred.await(release)
+            }),
+          )
+          .pipe(Effect.forkScoped)
+        yield* Deferred.await(entered)
+        yield* service.invalidate("alice.near", "key#0")
+        yield* service.clear()
+        let overtook = false
+        const waiter = yield* service
+          .withSubmission(
+            "alice.near",
+            "key#0",
+            Effect.sync(() => {
+              overtook = true
+            }),
+          )
+          .pipe(Effect.forkScoped)
+        yield* Effect.yieldNow
+        expect(overtook).toBe(false)
+        yield* Fiber.interrupt(waiter)
+        yield* Deferred.succeed(release, undefined)
+        yield* Fiber.join(first)
+        expect(
+          yield* service.withSubmission(
+            "alice.near",
+            "key#0",
+            Effect.succeed("available"),
+          ),
+        ).toBe("available")
+        expect(overtook).toBe(false)
+      }),
+    ),
+  )
 })

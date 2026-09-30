@@ -395,3 +395,41 @@ test("a failed build cannot pin an unused signing acquisition to stale key state
     unsigned.publicKey.data,
   )
 })
+
+test("failed shared send key acquisition is retryable before any submission", async () => {
+  const { rpc, sent, key } = setup()
+  rpc.getAccessKey = async () => ({ nonce: 0 }) as never
+  const entered = Promise.withResolvers<void>()
+  const release = Promise.withResolvers<void>()
+  const failure = new Error("key store is locked")
+  let gets = 0
+  const builder = new TransactionBuilder("alice.near", rpc, {
+    get: async () => {
+      if (++gets === 1) {
+        entered.resolve()
+        await release.promise
+        throw failure
+      }
+      return key
+    },
+    add: async () => {},
+    remove: async () => {},
+    list: async () => ["alice.near"],
+  }).transfer("bob.near", "1 yocto")
+  const attempts = Promise.allSettled([
+    builder.send({ waitUntil: "NONE" }),
+    builder.send({ waitUntil: "NONE" }),
+  ])
+  await entered.promise
+  release.resolve()
+  expect(await attempts).toEqual([
+    { status: "rejected", reason: failure },
+    { status: "rejected", reason: failure },
+  ])
+  expect(gets).toBe(1)
+  expect(sent).toHaveLength(0)
+  await builder.send({ waitUntil: "NONE" })
+  expect(gets).toBe(2)
+  expect(sent).toHaveLength(1)
+  expectCommitment(builder.serialize(), builder.getHash(), key.publicKey.data)
+})

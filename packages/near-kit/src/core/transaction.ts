@@ -160,6 +160,7 @@ function toAccessKeyPermissionBorsh(
 
 interface SigningAcquisition {
   readonly plan: TransactionPlan
+  readonly key: Effect.Effect<KeyPair, Program.TransactionError>
   readonly effect: Effect.Effect<
     SignedTransactionValue,
     Program.TransactionError
@@ -271,15 +272,29 @@ export class TransactionBuilder {
     plan: TransactionPlan,
     key: ReturnType<typeof Program.resolveKey>,
   ) {
-    if (this.signed && this.plan === plan) return Effect.succeed(this.signed)
-    if (this.signing?.plan === plan) return this.signing.effect
+    if (this.signed && this.plan === plan)
+      return { plan, key, effect: Effect.succeed(this.signed) }
+    if (this.signing?.plan === plan) return this.signing
     // Allocate the native memo atomically at this synchronous public boundary.
     // Concurrent terminals share acquisition; edits and failures release only their own entry.
+    const ownedKey = runSync(
+      Effect.cached(
+        key.pipe(
+          Effect.onExit((exit) =>
+            Effect.sync(() => {
+              if (Exit.isFailure(exit) && this.signing === entry)
+                delete this.signing
+            }),
+          ),
+        ),
+      ),
+    )
     const entry: SigningAcquisition = {
       plan,
+      key: ownedKey,
       effect: runSync(
         Effect.cached(
-          Program.sign(plan, this.dependencies, key).pipe(
+          Program.sign(plan, this.dependencies, ownedKey).pipe(
             Effect.onExit((exit) =>
               Effect.sync(() => {
                 if (this.signing !== entry) return
@@ -293,7 +308,7 @@ export class TransactionBuilder {
       ),
     }
     this.signing = entry
-    return entry.effect
+    return entry
   }
 
   /**
@@ -881,7 +896,7 @@ export class TransactionBuilder {
       Effect.suspend(() => {
         if (this.signed) return Effect.succeed(this)
         const { plan, key } = this.execution()
-        return this.signingFor(plan, key).pipe(Effect.as(this))
+        return this.signingFor(plan, key).effect.pipe(Effect.as(this))
       }),
     )
   }
@@ -978,14 +993,16 @@ export class TransactionBuilder {
     return runPromise(
       Effect.suspend(() => {
         const { plan, key } = this.execution()
+        const acquisition = this.dependencies.wallet
+          ? { key, effect: Program.sign(plan, this.dependencies, key) }
+          : this.signingFor(plan, key)
         return Program.submit(
           plan,
           this.dependencies,
-          this.dependencies.wallet
-            ? Program.sign(plan, this.dependencies, key)
-            : this.signingFor(plan, key),
+          acquisition.effect,
           this.signed,
           options,
+          acquisition.key,
         )
       }),
     )
