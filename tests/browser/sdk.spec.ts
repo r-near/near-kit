@@ -303,6 +303,40 @@ test("replaying a successful public builder retains the first admitted hash", as
   )
 })
 
+for (const native of [false, true]) {
+  test(`${native ? "native" : "Promise"}: concurrent fresh sends admit every distinct intent once`, async ({
+    page,
+    rpc,
+  }) => {
+    const hashes = await page.evaluate(
+      ({ url, native }) => window.kit.freshConcurrentSends(url, native),
+      { url: rpc.url, native },
+    )
+    const state = await rpc.snapshot()
+    expect(state.accepted).toBe(4)
+    expect(state.submissions).toHaveLength(4)
+    const transactions = state.submissions.map((sent) =>
+      inspectSignedTransaction(sent.bytes),
+    )
+    expect(new Set(transactions.map((tx) => tx.publicKey)).size).toBe(1)
+    expect(new Set(transactions.map((tx) => tx.nonce)).size).toBe(4)
+    expect(new Set(transactions.map((tx) => tx.hash)).size).toBe(4)
+    expect(new Set(transactions.map((tx) => tx.actions[0]?.deposit))).toEqual(
+      new Set(["1", "2", "3", "4"]),
+    )
+    expect(new Set(hashes)).toEqual(new Set(transactions.map((tx) => tx.hash)))
+    for (const transaction of transactions) {
+      expect(transaction).toMatchObject({
+        signerId: "alice.near",
+        receiverId: "bob.near",
+        signatureValid: true,
+        actions: [{ kind: "transfer" }],
+      })
+      expect(transaction.actions).toHaveLength(1)
+    }
+  })
+}
+
 test("concurrent native browser signing reserves unique nonces for one real key", async ({
   page,
   rpc,

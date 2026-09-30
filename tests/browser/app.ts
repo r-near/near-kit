@@ -89,10 +89,10 @@ const kit = {
     const store = new InMemoryKeyStore({ "alice.near": key.secretKey })
     const reservations = Effect.runSync(makeNonceReservation)
     Effect.runSync(
-      reservations.updateAndGetNext(
+      reservations.reserve(
         "alice.near",
         key.publicKey.toString(),
-        1000n,
+        Effect.succeed(1000n),
       ),
     )
     const signed = await Effect.runPromise(
@@ -281,6 +281,21 @@ const kit = {
         ),
       ),
     )
+  },
+  async freshConcurrentSends(url: string, native: boolean) {
+    const near = client(url)
+    const amounts = ["1 yocto", "2 yocto", "3 yocto", "4 yocto"] as const
+    const results = native
+      ? await Effect.runPromise(
+          Effect.all(
+            amounts.map((amount) => near.effects.send("bob.near", amount)),
+            { concurrency: "unbounded" },
+          ),
+        )
+      : await Promise.all(
+          amounts.map((amount) => near.send("bob.near", amount)),
+        )
+    return results.map((result) => result.transaction?.hash)
   },
   async concurrent(url: string, count: number) {
     const near = client(url)
