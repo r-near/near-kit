@@ -1,4 +1,3 @@
-import * as ConfigProvider from "effect/ConfigProvider"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -205,7 +204,3 @@ export const batch = <
 >(
   ...effects: T
 ) => Effect.all(effects, { concurrency: "unbounded" })
-/** Public synchronous construction reads current process environment at its boundary. */
-export const environment = Layer.sync(ConfigProvider.ConfigProvider, () =>
-  ConfigProvider.fromEnv(),
-)

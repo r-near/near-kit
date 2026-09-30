@@ -1,9 +1,9 @@
 /** Public Promise projection of the native Near service. */
 import * as Effect from "effect/Effect"
+import * as ConfigProvider from "effect/ConfigProvider"
 import { batchPromises } from "../effect/near-program.js"
 import {
   acquireClient,
-  environment,
   type NearService,
   type NearRuntime,
 } from "../effect/near.js"
@@ -58,7 +58,12 @@ export class Near {
 
   constructor(config: NearConfig = {}, runtime?: NearRuntime) {
     const client = runSync(
-      acquireClient(config, runtime).pipe(Effect.provide(environment)),
+      acquireClient(config, runtime).pipe(
+        Effect.provideService(
+          ConfigProvider.ConfigProvider,
+          publicConfiguration(),
+        ),
+      ),
     )
     this.programs = client.service
     this.dependencies = client.dependencies
@@ -643,3 +648,19 @@ export class Near {
 }
 
 export type NearEffects = NearService
+
+/** Snapshot only SDK settings at the public boundary; native layers keep caller configuration. */
+function publicConfiguration() {
+  const processEnv = (
+    globalThis as { process?: { env?: Record<string, string | undefined> } }
+  ).process?.env
+  const metaEnv = (
+    import.meta as ImportMeta & { env?: Record<string, string | undefined> }
+  ).env
+  const read = (name: string) =>
+    metaEnv && name in metaEnv ? metaEnv[name] : processEnv?.[name]
+  return ConfigProvider.fromUnknown({
+    NEAR_NETWORK: read("NEAR_NETWORK"),
+    NEAR_RPC_DEBUG: read("NEAR_RPC_DEBUG"),
+  })
+}

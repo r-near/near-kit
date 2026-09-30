@@ -44,6 +44,7 @@ import {
 } from "../effect/nonce.js"
 import {
   ExternalError,
+  inputEffect,
   fromPromise,
   runPromise,
   type NearFailure,
@@ -1692,21 +1693,9 @@ export class TransactionBuilder {
   }
 }
 
-/** Classify failures from synchronous protocol/key extension boundaries. */
-function transactionSync<A>(
-  operation: () => A,
-): Effect.Effect<A, NearError | ExternalError> {
-  return Effect.try({
-    try: operation,
-    catch: (cause) =>
-      cause instanceof NearError
-        ? cause
-        : new ExternalError({
-            operation: "TransactionBuilder.encoding",
-            cause,
-          }),
-  })
-}
+/** Synchronous protocol/key boundaries share the SDK's native error classifier. */
+const transactionSync = <A>(operation: () => A) =>
+  inputEffect(operation, "TransactionBuilder.encoding")
 
 function transactionNonce(
   nonce: bigint,
