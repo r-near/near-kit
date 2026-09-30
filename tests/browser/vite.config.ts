@@ -7,10 +7,13 @@ const react = process.env["REACT_VERSION"] === "18" ? "react18" : "react"
 const dom = process.env["REACT_VERSION"] === "18" ? "react-dom18" : "react-dom"
 export default defineConfig({
   plugins: [rpcFixturePlugin()],
-  // Keep the browser's ordinary transport untouched. Tests never need hot reload.
+  // Vite injects its dev client even with hmr:false. Allow only its fixed local
+  // sockets; SDK HTTP remains same-origin and no request routing is installed.
   server: {
-    hmr: false,
-    headers: { "Content-Security-Policy": "connect-src 'self'" },
+    headers: {
+      "Content-Security-Policy":
+        "connect-src 'self' ws://127.0.0.1:4173 ws://127.0.0.1:4174",
+    },
   },
   cacheDir: `node_modules/.vite-react${process.env["REACT_VERSION"] === "18" ? "18" : "19"}`,
   resolve: {

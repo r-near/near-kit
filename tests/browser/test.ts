@@ -61,6 +61,8 @@ export const test = base.extend<{
   },
   page: async ({ page, baseURL, rpc }, use, testInfo) => {
     const failures: string[] = []
+    const localSocket = new URL(rpc.url)
+    localSocket.protocol = "ws:"
     const traffic = new Map<Request, BrowserRequest>()
     page.on("pageerror", (error) => failures.push(error.message))
     page.on("console", (message) => {
@@ -77,7 +79,7 @@ export const test = base.extend<{
     // Observe only. Routing interception can change the browser's own retry behavior.
     page.on("request", (request) => {
       const url = new URL(request.url())
-      if (url.origin !== baseURL)
+      if (url.origin !== baseURL && url.origin !== localSocket.origin)
         failures.push(`Unexpected external request: ${url.origin}`)
       if (request.url() === rpc.url)
         traffic.set(request, {
