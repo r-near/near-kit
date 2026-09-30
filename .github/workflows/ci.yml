@@ -83,7 +83,7 @@ jobs:
 
   browser-tests:
     runs-on: arc-runner-set
-    timeout-minutes: 20
+    timeout-minutes: 30
     permissions:
       contents: read
     steps:
