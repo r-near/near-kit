@@ -41,7 +41,7 @@ export default defineConfig({
   webServer: reactVersions.map(({ version, port }) => ({
     command: `bun run test:browser:serve --host 127.0.0.1 --port ${port} --strictPort`,
     env: { REACT_VERSION: version },
-    url: `http://127.0.0.1:${port}`,
+    url: `http://127.0.0.1:${port}/tests/browser/`,
     reuseExistingServer: false,
     timeout: 60_000,
     gracefulShutdown: { signal: "SIGTERM", timeout: 5_000 },

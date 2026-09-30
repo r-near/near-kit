@@ -51,6 +51,9 @@ Tests use [Vitest](https://vitest.dev/) (not Bun's test runner) which runs tests
 # Run all tests across all packages
 bun run test
 
+# Run built-package browser E2E (install official Playwright browsers first)
+bun run test:browser
+
 # Run tests for a specific package
 bun run --filter near-kit test
 

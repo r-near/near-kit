@@ -227,6 +227,7 @@ bun run build
 bun run typecheck
 bun run typecheck:consumers
 bun run typecheck:examples
+bun run typecheck:browser
 bun run lint
 bun run format:check
 bun run test
@@ -237,6 +238,19 @@ JavaScript, avoiding TypeScript 7's aggregate `--build --noEmit` restriction.
 Sandbox integration requires a host hard file-descriptor limit of at least
 65,535. Process/download lifecycle fixtures do not substitute for real-chain
 integration tests.
+
+Browser E2E tests import the built packages and exercise real HTTP, browser crypto,
+and React UI lifecycles against an isolated local RPC fixture. All signing keys
+are disposable; the fixture never connects to a public network or moves assets.
+The CI matrix runs Chromium, Firefox and WebKit with React 18 and 19, and retains
+traces, screenshots and video for failures.
+
+```sh
+bunx playwright install
+bun run test:browser
+# Repeat the Chromium lifecycle suite when changing cancellation or ownership:
+bun run test:browser --project=chromium-react18 --project=chromium-react19 --repeat-each=5
+```
 
 The prepare command uses `effect-tsgo patch --oxlint --no-force`: the pinned
 `@effect/tsgo` CLI requires an explicit value for its deprecated force option.
