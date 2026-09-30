@@ -21,9 +21,9 @@ export const rpcTransportHttpClient: Layer.Layer<
   RpcTransport,
   never,
   HttpClient.HttpClient
-> = Layer.effect(
+> = /* @__PURE__ */ Layer.effect(
   RpcTransport,
-  Effect.gen(function* () {
+  /* @__PURE__ */ Effect.gen(function* () {
     const http = HttpClient.withScope(yield* HttpClient.HttpClient)
     return RpcTransport.of({
       execute: Effect.fn("RpcTransport.http")(function* (
