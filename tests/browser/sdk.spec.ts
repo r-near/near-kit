@@ -12,7 +12,7 @@ test("root and native package exports read through real HTTP and injected RPC", 
     process: "undefined",
     secure: true,
     reactVersion: testInfo.project.name.endsWith("react18")
-      ? "18.0.0"
+      ? "18.0.0-fc46dba67-20220329"
       : "19.2.7",
   })
   expect(await page.evaluate((url) => window.kit.reads(url), rpc.url)).toEqual({
