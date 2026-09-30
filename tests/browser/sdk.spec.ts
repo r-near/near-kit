@@ -192,6 +192,45 @@ test("repeating the same ambiguous public builder preserves its signed commitmen
   expect(new Set(state.statusHashes).size).toBe(1)
 })
 
+for (const strict of [false, true]) {
+  test(`V${strict ? 1 : 0}: async signer completion and caller byte edits cannot replace a captured commitment`, async ({
+    page,
+    rpc,
+  }) => {
+    const result = await page.evaluate(
+      ({ url, strict }) => window.kit.commitmentOwnership(url, strict),
+      { url: rpc.url, strict },
+    )
+    const state = await rpc.snapshot()
+    expect(result.staleHash).toBeNull()
+    expect(result.invalidated).toBe(true)
+    expect(result.signerCalls).toBe(2)
+    expect(state.accepted).toBe(2)
+    expect(state.submissions).toHaveLength(2)
+    expect(state.submissions[0]).toMatchObject({
+      version: strict ? 1 : 0,
+      nonce: 42,
+      hash: result.firstHash,
+      signatureValid: true,
+      publicKey: result.publicKey,
+      actions: [{ kind: "transfer", deposit: "1" }],
+    })
+    expect(state.submissions[1]?.bytes).toBe(result.bytes)
+    expect(inspectSignedTransaction(result.bytes)).toMatchObject({
+      version: strict ? 1 : 0,
+      nonce: 43,
+      hash: result.secondHash,
+      signatureValid: true,
+      publicKey: result.publicKey,
+      actions: [
+        { kind: "transfer", deposit: "1" },
+        { kind: "transfer", deposit: "2" },
+      ],
+    })
+    expect(result.firstHash).not.toBe(result.secondHash)
+  })
+}
+
 test("concurrent broadcasts of one native commitment admit only one transfer", async ({
   page,
   rpc,

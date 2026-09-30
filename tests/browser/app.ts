@@ -202,6 +202,53 @@ const kit = {
     }
     return results
   },
+  async commitmentOwnership(url: string, strict: boolean) {
+    const key = generateKey()
+    const near = client(url, key)
+    const started = Promise.withResolvers<void>()
+    const release = Promise.withResolvers<void>()
+    let signerCalls = 0
+    let returnedSignature: ReturnType<KeyPair["sign"]> | undefined
+    const builder = near
+      .transaction("alice.near")
+      .transfer("bob.near", "1 yocto")
+      .nonce(42n)
+      .signWith(async (digest) => {
+        signerCalls++
+        started.resolve()
+        await release.promise
+        returnedSignature = key.sign(digest)
+        digest.fill(77)
+        return returnedSignature
+      })
+    if (strict) builder.strictNonceMode()
+    const original = builder.send()
+    await started.promise
+    builder.transfer("bob.near", "2 yocto").nonce(43n)
+    release.resolve()
+    const firstResult = await original
+    const staleHash = builder.getHash()
+    let invalidated = false
+    try {
+      builder.serialize()
+    } catch (error) {
+      invalidated = Reflect.get(Object(error), "code") === "INVALID_STATE"
+    }
+    await builder.sign()
+    const bytes = b64(builder.serialize())
+    builder.serialize().fill(66)
+    returnedSignature?.data.fill(55)
+    const secondResult = await builder.send()
+    return {
+      firstHash: firstResult.transaction?.hash,
+      secondHash: secondResult.transaction?.hash,
+      staleHash,
+      invalidated,
+      bytes,
+      signerCalls,
+      publicKey: key.publicKey.toString(),
+    }
+  },
   async concurrentBroadcast(url: string) {
     const near = client(url)
     const signed = await Effect.runPromise(
