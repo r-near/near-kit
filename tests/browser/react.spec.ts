@@ -210,3 +210,23 @@ test.describe("React browser lifecycle through real HTTP and SDK clients", () =>
     })
   }
 })
+
+test("StrictMode lifecycle replay leaves reads usable and one clicked mutation is submitted once", async ({
+  page,
+  rpc,
+}) => {
+  await page.evaluate((url) => window.kit.mountReactFixture(url, true), rpc.url)
+  await expect(page.getByTestId("read-state")).toContainText('"data":"fast"')
+  await expect(page.getByTestId("read-state")).toContainText('"loading":false')
+  await page.getByRole("button", { name: "Mutate first", exact: true }).click()
+  await expect(page.getByTestId("mutation-state")).toContainText(
+    '"success":true',
+  )
+  const state = await rpc.snapshot()
+  expect(state.accepted).toBe(1)
+  expect(state.submissions).toHaveLength(1)
+  const hash = state.submissions[0]?.hash
+  if (!hash) throw new Error("Expected independently observed transaction hash")
+  await expect(page.getByTestId("mutation-state")).toContainText(hash)
+  await expect(page.getByTestId("mutation-outcomes")).toContainText(hash)
+})

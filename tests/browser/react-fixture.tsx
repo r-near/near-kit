@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react"
+import { StrictMode, useCallback, useMemo, useState } from "react"
 import { createRoot } from "react-dom/client"
 import { NearProvider, useCall, useNear, useView } from "@near-kit/react"
 import {
@@ -230,9 +230,12 @@ function ReactFixture({ rpcUrl }: { rpcUrl: string }) {
   )
 }
 
-export function mountReactFixture(rpcUrl: string): void {
+export function mountReactFixture(rpcUrl: string, strict = false): void {
   const element = document.createElement("main")
   element.id = "react-fixture"
   document.body.append(element)
-  createRoot(element).render(<ReactFixture rpcUrl={rpcUrl} />)
+  const fixture = <ReactFixture rpcUrl={rpcUrl} />
+  createRoot(element).render(
+    strict ? <StrictMode>{fixture}</StrictMode> : fixture,
+  )
 }
