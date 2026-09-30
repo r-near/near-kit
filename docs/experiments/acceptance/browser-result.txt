@@ -1,2 +1,0 @@
-PASS near-kit browser acceptance
-{"ok":true,"read":7,"nativeRead":7,"signatureVerified":true,"transportAborted":true,"requests":4,"processPresent":false,"bufferPresent":false}

@@ -1,16 +1,9 @@
-# Effect-native experiment
+# Effect-native API
 
-This branch is an experiment, not a published release. It pins Effect
-`4.0.0-rc.118`, a prerelease. The familiar `near-kit` Promise API and
-`@near-kit/react` APIs remain available. The optional `near-kit/effect` entrypoint
-exposes native programs, typed failures, services, layers, and streams.
-
-The [second-pass simplification](effect-simplification.md) removes duplicate ownership
-and internal compatibility machinery.
-`make(config)` now acquires the native service directly, without a Promise-client
-backreference. Node storage layers provide the common `KeyStore` service.
-Path-string `keyStore` configurations are rejected; supply a real `FileKeyStore`
-from `near-kit/keys/file` instead.
+The familiar `near-kit` Promise API and `@near-kit/react` APIs share a native
+Effect implementation. The optional `near-kit/effect` entrypoint exposes
+composable programs, typed failures, services, layers and streams. This branch
+pins Effect `4.0.0-rc.118`, a prerelease, and is not yet a published release.
 
 ## Existing applications
 
@@ -148,7 +141,7 @@ it does not pretend to undo a submitted transaction. Replacing a configured sign
 key store, or wallet takes effect by object/function identity; authority-bearing
 config is never retained solely because its JSON representation is unchanged.
 
-## Compatibility and measured cost
+## Validation compatibility
 
 Existing Zod schemas under `near-kit/schemas` and credential schemas under
 `near-kit/keys` remain genuinely Zod-composable. Their runtime imports are isolated
@@ -156,15 +149,6 @@ from the root and native core entrypoints. Native RPC codecs
 use one Effect Schema owner and preserve accepted wire defaults and unknown-field
 behavior. Internal config/RPC diagnostics no longer replay a duplicate Zod decoder. Amount, Borsh, crypto, and signed-transaction commitments are
 covered by independent unchanged vectors.
-
-The added Effect runtime and native schemas have a measurable footprint. Final
-browser sizes, microbenchmark methodology, runtime versions, and both baseline
-comparisons are recorded in the [simplification acceptance report](simplification/acceptance/acceptance-report.md).
-The root browser bundle is 112,111 gzip bytes, down 14.6% from the first Effect
-pass but still 36.6% above the original SDK. Fresh-client construction and mock
-Promise reads improve substantially versus the first pass while remaining slower
-than the original. Synthetic no-network timings are not production RPC latency.
-The experiment is not a release recommendation.
 
 ## Toolchain and validation
 
@@ -187,7 +171,9 @@ bun run test
 `typecheck` emits declarations for the project-reference graph without emitting
 JavaScript, avoiding TypeScript 7's aggregate `--build --noEmit` restriction.
 Sandbox integration requires a host hard file-descriptor limit of at least
-65,535. This cloud workspace is capped at 16,384, so exact-commit CI on the
-configured isolated runners supplies real-chain integration evidence. Local
-process/download lifecycle fixtures are separate evidence and are not presented
-as real-chain tests.
+65,535. Process/download lifecycle fixtures do not substitute for real-chain
+integration tests.
+
+The prepare command uses `effect-tsgo patch --oxlint --no-force`: the pinned
+`@effect/tsgo` CLI requires an explicit value for its deprecated force option.
+`--no-force` keeps compatibility validation enabled.

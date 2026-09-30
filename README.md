@@ -513,4 +513,4 @@ MIT
 
 ## Effect experiment
 
-This branch retains the familiar public API and adds [`near-kit/effect`](docs/experiments/effect-api.md) for native Effects, services, Layers and scoped resources. See the [migration plan](docs/experiments/effect-migration.md) and [pinned toolchain](docs/experiments/effect-toolchain.md). It uses an exact Effect v4 release candidate and is not a production release.
+This branch retains the familiar public API and adds [`near-kit/effect`](docs/effect.md) for native Effects, services, Layers and scoped resources. The guide covers dependency injection, error boundaries, Node/browser entrypoints and the pinned toolchain. It uses an exact Effect v4 release candidate and is not a production release.
