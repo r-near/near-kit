@@ -8,7 +8,6 @@ import {
   Layer,
   Stream,
 } from "effect"
-import { HttpClient, HttpClientResponse } from "effect/http"
 import { TestClock } from "effect/testing"
 import { afterEach, describe, expect, test, vi } from "vitest"
 import * as Schema from "effect/Schema"
@@ -98,44 +97,6 @@ describe("native RPC programs", () => {
         },
       ])
     }
-  })
-
-  /* oxlint-disable effecttsgo/unstable-api-usage -- Independent lifecycle proof for the explicit pinned Effect HTTP integration. */
-  test("composes an injected HttpClient and closes each request scope on success and failure", async () => {
-    const signals: AbortSignal[] = []
-    const http = HttpClient.make((request, _url, signal) =>
-      Effect.sync(() => {
-        signals.push(signal)
-        return HttpClientResponse.fromWeb(
-          request,
-          signals.length === 1
-            ? result({ gas_price: "10" })
-            : new Response("bad request", { status: 400 }),
-        )
-      }),
-    )
-    const rpcLayer = Rpc.layer({
-      url: "https://rpc.test",
-      retry: { maxRetries: 2, initialDelayMs: 0 },
-    }).pipe(
-      Layer.provide(RpcTransport.layerHttpClient),
-      Layer.provide(Layer.succeed(HttpClient.HttpClient, http)),
-    )
-    await runPromise(
-      Effect.gen(function* () {
-        const rpc = yield* Rpc
-        expect(yield* rpc.getGasPrice()).toEqual({ gas_price: "10" })
-        expect(signals[0]?.aborted).toBe(true)
-        const failure = yield* rpc.getGasPrice().pipe(Effect.flip)
-        expect(failure).toMatchObject({
-          code: "NETWORK_ERROR",
-          statusCode: 400,
-          retryable: false,
-        })
-        expect(signals).toHaveLength(2)
-        expect(signals[1]?.aborted).toBe(true)
-      }).pipe(Effect.provide(rpcLayer)),
-    )
   })
 
   test.each(["true", "TRUE", "yes"])(

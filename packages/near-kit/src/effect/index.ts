@@ -1,6 +1,7 @@
 /** Native Effect services. This entrypoint is safe to import in browsers. */
 export { Near, make, fromClient, batch, type NearService } from "./near.js"
 export { Rpc, RpcTransport, type RpcLayerConfig } from "./rpc.js"
+export { rpcTransportHttpClient } from "./rpc-http.js"
 export { KeyStore, keyStoreService, type KeyStoreService } from "./keys.js"
 export {
   NonceReservation,
