@@ -1,7 +1,10 @@
 /** Native Effect services. This entrypoint is safe to import in browsers. */
 export { Near, make, type NearService } from "./near.js"
+export { publicConfiguration } from "../core/near.js"
 export {
   Client,
+  prepareClient,
+  type PreparedClient,
   Signer,
   type ClientValue,
   type ClientRuntime,

@@ -678,7 +678,7 @@ export class Near {
 export type NearEffects = NearService
 
 /** Snapshot only SDK settings at the public boundary; native layers keep caller configuration. */
-function publicConfiguration() {
+export function publicConfiguration() {
   const processEnv = (
     globalThis as { process?: { env?: Record<string, string | undefined> } }
   ).process?.env

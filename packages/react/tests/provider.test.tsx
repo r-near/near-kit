@@ -3,30 +3,6 @@ import type { ReactNode } from "react"
 import { describe, expect, it, vi } from "vitest"
 import { NearProvider, useNear } from "../src/provider.js"
 
-interface MockNearInstance {
-  config: unknown
-  view: ReturnType<typeof vi.fn>
-  call: ReturnType<typeof vi.fn>
-  send: ReturnType<typeof vi.fn>
-  contract: ReturnType<typeof vi.fn>
-}
-
-// Mock the Near class using a function factory
-vi.mock("near-kit", () => {
-  return {
-    Near: vi.fn().mockImplementation(function (
-      this: MockNearInstance,
-      config: unknown,
-    ) {
-      this.config = config
-      this.view = vi.fn()
-      this.call = vi.fn()
-      this.send = vi.fn()
-      this.contract = vi.fn()
-    }),
-  }
-})
-
 describe("NearProvider", () => {
   it("provides Near instance from config", () => {
     const wrapper = ({ children }: { children: ReactNode }) => (

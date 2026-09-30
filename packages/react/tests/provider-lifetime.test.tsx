@@ -1,0 +1,318 @@
+import { act, renderHook, waitFor } from "@testing-library/react"
+import { Deferred, Effect, Fiber, SubscriptionRef } from "effect"
+import {
+  generateKey,
+  Near,
+  type FinalExecutionOutcome,
+  type KeyPair,
+  type KeyStore,
+  type NearConfig,
+} from "near-kit"
+import {
+  prepareClient,
+  walletConnection,
+  type WalletAccountState,
+} from "near-kit/effect"
+import { StrictMode, type ReactNode } from "react"
+import { renderToString } from "react-dom/server"
+import { describe, expect, test } from "vitest"
+import { useAccount } from "../src/account.js"
+import { useCall } from "../src/mutations.js"
+import { NearProvider, useNear } from "../src/provider.js"
+
+const observedWallet = (
+  accountId: string,
+  options: {
+    release?: Effect.Effect<unknown>
+    submit?: Effect.Effect<FinalExecutionOutcome>
+  } = {},
+) => {
+  const state = Effect.runSync(
+    SubscriptionRef.make<WalletAccountState>({
+      _tag: "Ready",
+      accounts: [{ accountId }],
+    }),
+  )
+  const counts = {
+    acquired: 0,
+    released: 0,
+    active: 0,
+    peak: 0,
+    directReads: 0,
+  }
+  const acquired = Deferred.makeUnsafe<void>()
+  const wallet = walletConnection({
+    getAccounts: () =>
+      Effect.suspend(() => {
+        counts.directReads++
+        return Effect.die("The provider must use its shared account observer")
+      }),
+    signAndSendTransaction: () => options.submit ?? Effect.die("unused"),
+    observeAccounts: () =>
+      Effect.acquireRelease(
+        Effect.gen(function* () {
+          counts.acquired++
+          counts.active++
+          counts.peak = Math.max(counts.peak, counts.active)
+          yield* Deferred.succeed(acquired, undefined)
+          return {
+            get: () => SubscriptionRef.get(state),
+            changes: SubscriptionRef.changes(state),
+            ready: Effect.void,
+          }
+        }),
+        () =>
+          (options.release ?? Effect.void).pipe(
+            Effect.andThen(
+              Effect.sync(() => {
+                counts.released++
+                counts.active--
+              }),
+            ),
+          ),
+      ),
+  })
+  return { wallet, state, counts, acquired }
+}
+
+const message = {
+  message: "provider readiness",
+  recipient: "app.near",
+  nonce: new Uint8Array(32),
+}
+
+describe("provider-owned observation", () => {
+  test("SSR and abandoned renders retain children without starting keys or observation", () => {
+    const key = generateKey()
+    const fixture = observedWallet("alice.near")
+    let writes = 0
+    const keyStore: KeyStore = {
+      add: async () => {
+        writes++
+      },
+      get: async () => key,
+      remove: async () => {},
+      list: async () => [],
+    }
+    const config: NearConfig = {
+      network: "testnet",
+      privateKey: key.secretKey,
+      defaultSignerId: "alice.near",
+      keyStore,
+      wallet: fixture.wallet,
+    }
+    function Child({ abandon = false }: { abandon?: boolean }) {
+      const near = useNear()
+      if (abandon) throw new Error("abandon this render")
+      return (
+        <span>
+          {typeof near.view === "function"
+            ? "child rendered"
+            : "missing client"}
+        </span>
+      )
+    }
+    expect(
+      renderToString(
+        <NearProvider config={config}>
+          <Child />
+        </NearProvider>,
+      ),
+    ).toContain("child rendered")
+    expect(() =>
+      renderToString(
+        <NearProvider config={config}>
+          <Child abandon />
+        </NearProvider>,
+      ),
+    ).toThrow("abandon this render")
+    expect(writes).toBe(0)
+    expect(fixture.counts.acquired).toBe(0)
+  })
+
+  test("StrictMode shares one live observer across account hooks and releases replacements", async () => {
+    const first = observedWallet("alice.near")
+    const second = observedWallet("bob.near")
+    let config: NearConfig = { wallet: first.wallet }
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <StrictMode>
+        <NearProvider config={config}>{children}</NearProvider>
+      </StrictMode>
+    )
+    const hook = renderHook(() => [useAccount(), useAccount()], { wrapper })
+    await waitFor(() =>
+      expect(hook.result.current.map((value) => value.accountId)).toEqual([
+        "alice.near",
+        "alice.near",
+      ]),
+    )
+    expect(first.counts.active).toBe(1)
+    expect(first.counts.peak).toBe(1)
+    expect(first.counts.directReads).toBe(0)
+    const beforeEvent = first.counts.acquired
+    await act(async () => {
+      await Effect.runPromise(
+        SubscriptionRef.set(first.state, {
+          _tag: "Ready",
+          accounts: [{ accountId: "changed.near" }],
+        }),
+      )
+    })
+    await waitFor(() =>
+      expect(hook.result.current.map((value) => value.accountId)).toEqual([
+        "changed.near",
+        "changed.near",
+      ]),
+    )
+    expect(first.counts.acquired).toBe(beforeEvent)
+    config = { wallet: second.wallet }
+    hook.rerender()
+    await waitFor(() =>
+      expect(hook.result.current.map((value) => value.accountId)).toEqual([
+        "bob.near",
+        "bob.near",
+      ]),
+    )
+    expect(first.counts.active).toBe(0)
+    expect(first.counts.released).toBe(first.counts.acquired)
+    expect(second.counts.active).toBe(1)
+    hook.unmount()
+    expect(second.counts.active).toBe(0)
+    expect(second.counts.released).toBe(second.counts.acquired)
+  })
+
+  test("replacement waits for asynchronous cleanup before acquiring the next observer", async () => {
+    const release = Deferred.makeUnsafe<void>()
+    const first = observedWallet("alice.near", {
+      release: Deferred.await(release),
+    })
+    const second = observedWallet("bob.near")
+    let config: NearConfig = { wallet: first.wallet }
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <NearProvider config={config}>{children}</NearProvider>
+    )
+    const hook = renderHook(() => useAccount(), { wrapper })
+    await waitFor(() =>
+      expect(hook.result.current.accountId).toBe("alice.near"),
+    )
+    try {
+      config = { wallet: second.wallet }
+      hook.rerender()
+      expect(first.counts.active).toBe(1)
+      expect(second.counts.acquired).toBe(0)
+      await act(async () => {
+        await Effect.runPromise(Deferred.succeed(release, undefined))
+        await Effect.runPromise(Deferred.await(second.acquired))
+      })
+      await waitFor(() =>
+        expect(hook.result.current.accountId).toBe("bob.near"),
+      )
+      expect(first.counts.active).toBe(0)
+      expect(second.counts.active).toBe(1)
+    } finally {
+      await Effect.runPromise(Deferred.succeed(release, undefined))
+      hook.unmount()
+    }
+  })
+
+  test("an externally supplied Near retains its caller-owned observation after unmount", async () => {
+    const fixture = observedWallet("alice.near")
+    const prepared = Effect.runSync(prepareClient({ wallet: fixture.wallet }))
+    const near = Near.fromClient(prepared.client)
+    const owner = Effect.runFork(
+      Effect.scoped(prepared.activate.pipe(Effect.andThen(Effect.never))),
+    )
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <NearProvider near={near}>{children}</NearProvider>
+    )
+    const hook = renderHook(() => useAccount(), { wrapper })
+    try {
+      await waitFor(() =>
+        expect(hook.result.current.accountId).toBe("alice.near"),
+      )
+      hook.unmount()
+      expect(fixture.counts.active).toBe(1)
+      expect(fixture.counts.released).toBe(0)
+    } finally {
+      await Effect.runPromise(Fiber.interrupt(owner))
+    }
+    expect(fixture.counts.active).toBe(0)
+  })
+
+  test("key readiness starts with signing and stays owned by that Promise across unmount", async () => {
+    const key = generateKey()
+    const release = Promise.withResolvers<void>()
+    let writes = 0
+    let stored: KeyPair | null = null
+    const keyStore: KeyStore = {
+      add: async (_accountId, value) => {
+        writes++
+        await release.promise
+        stored = value
+      },
+      get: async () => stored,
+      remove: async () => {},
+      list: async () => [],
+    }
+    const config: NearConfig = {
+      privateKey: key.secretKey,
+      defaultSignerId: "alice.near",
+      keyStore,
+    }
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <StrictMode>
+        <NearProvider config={config}>{children}</NearProvider>
+      </StrictMode>
+    )
+    const hook = renderHook(() => useNear(), { wrapper })
+    expect(writes).toBe(0)
+    const signed = hook.result.current.signMessage(message)
+    expect(writes).toBe(1)
+    hook.unmount()
+    release.resolve()
+    expect((await signed).publicKey).toBe(key.publicKey.toString())
+    expect(writes).toBe(1)
+  })
+
+  test("closing provider observation does not interrupt a submitted wallet mutation", async () => {
+    const submitted = Deferred.makeUnsafe<void>()
+    const result = Deferred.makeUnsafe<FinalExecutionOutcome>()
+    let finalized = false
+    const fixture = observedWallet("alice.near", {
+      submit: Deferred.succeed(submitted, undefined).pipe(
+        Effect.andThen(Deferred.await(result)),
+        Effect.ensuring(
+          Effect.sync(() => {
+            finalized = true
+          }),
+        ),
+      ),
+    })
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <NearProvider config={{ wallet: fixture.wallet }}>
+        {children}
+      </NearProvider>
+    )
+    const hook = renderHook(
+      () =>
+        useCall<object, FinalExecutionOutcome>({
+          contractId: "counter.near",
+          method: "write",
+          options: { waitUntil: "NONE" },
+        }),
+      { wrapper },
+    )
+    let mutation: Promise<FinalExecutionOutcome> | undefined
+    await act(async () => {
+      mutation = hook.result.current.mutate({})
+      await Effect.runPromise(Deferred.await(submitted))
+    })
+    hook.unmount()
+    expect(fixture.counts.active).toBe(0)
+    expect(finalized).toBe(false)
+    const outcome: FinalExecutionOutcome = { final_execution_status: "NONE" }
+    await Effect.runPromise(Deferred.succeed(result, outcome))
+    expect(await mutation).toBe(outcome)
+    expect(finalized).toBe(true)
+  })
+})

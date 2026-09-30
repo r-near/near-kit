@@ -1,6 +1,9 @@
 "use client"
 
-import { useMemo } from "react"
+import * as Effect from "effect/Effect"
+import * as Stream from "effect/Stream"
+import type { WalletAccountObservation } from "near-kit/effect"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useQuery } from "./effect-state.js"
 
 import { useNear } from "./provider.js"
@@ -40,7 +43,54 @@ export interface AccountState {
  */
 export function useAccount(): AccountState {
   const near = useNear()
+  const observation = near.walletAccounts
   const program = useMemo(() => near.effects.getConnectedAccountId(), [near])
-  const { data: accountId, isLoading, refetch } = useQuery(program, true)
+  const query = useQuery(program, !observation)
+  const queryRefetch = query.refetch
+  const latest = useRef<symbol | undefined>(undefined)
+  const [observed, setObserved] = useState<{
+    source: WalletAccountObservation | undefined
+    accountId: string | undefined
+    isLoading: boolean
+  }>({ source: undefined, accountId: undefined, isLoading: true })
+  useEffect(() => {
+    if (!observation) return
+    const id = Symbol()
+    latest.current = id
+    const fiber = Effect.runFork(
+      observation.changes.pipe(
+        Stream.mapEffect((state) =>
+          state._tag === "Loading"
+            ? Effect.succeed({ accountId: undefined, isLoading: true })
+            : program.pipe(
+                Effect.map((accountId) => ({ accountId, isLoading: false })),
+              ),
+        ),
+        Stream.runForEach((value) =>
+          Effect.sync(() => {
+            if (latest.current === id)
+              setObserved({ source: observation, ...value })
+          }),
+        ),
+      ),
+    )
+    return () => {
+      latest.current = undefined
+      fiber.interruptUnsafe()
+    }
+  }, [observation, program])
+  const refetch = useCallback(() => {
+    if (!observation) return queryRefetch()
+    const id = latest.current
+    return Effect.runPromise(program).then((accountId) => {
+      if (id !== undefined && latest.current === id)
+        setObserved({ source: observation, accountId, isLoading: false })
+    })
+  }, [observation, program, queryRefetch])
+  const { accountId, isLoading } = observation
+    ? observed.source === observation
+      ? observed
+      : { accountId: undefined, isLoading: true }
+    : { accountId: query.data, isLoading: query.isLoading }
   return { accountId, isConnected: accountId !== undefined, isLoading, refetch }
 }

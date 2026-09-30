@@ -1,4 +1,5 @@
 import * as Effect from "effect/Effect"
+import { Near } from "near-kit"
 import { ExternalError } from "near-kit/effect"
 import { act, renderHook } from "@testing-library/react"
 import type { ReactNode } from "react"
@@ -52,8 +53,9 @@ vi.mock("near-kit", () => {
   }
 })
 
+const near = new Near({ network: "testnet" })
 const wrapper = ({ children }: { children: ReactNode }) => (
-  <NearProvider config={{ network: "testnet" }}>{children}</NearProvider>
+  <NearProvider near={near}>{children}</NearProvider>
 )
 
 describe("useCall", () => {

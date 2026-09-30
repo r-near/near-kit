@@ -1,7 +1,18 @@
 "use client"
 
 import { Near, type NearConfig } from "near-kit"
-import { createContext, type ReactNode, useContext, useMemo } from "react"
+import { prepareClient, publicConfiguration } from "near-kit/effect"
+import * as ConfigProvider from "effect/ConfigProvider"
+import * as Effect from "effect/Effect"
+import * as Fiber from "effect/Fiber"
+import {
+  createContext,
+  type ReactNode,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+} from "react"
 
 /**
  * Context for the Near client instance
@@ -67,22 +78,30 @@ export function NearProvider(props: NearProviderProps): ReactNode {
   const maxRetries = retryConfig?.maxRetries
   const initialDelayMs = retryConfig?.initialDelayMs
   // Capabilities carry authority and must be compared by identity, not JSON.
-  const nearInstance = useMemo(() => {
-    if (nearProp) return nearProp
+  const projection = useMemo(() => {
+    if (nearProp) return { near: nearProp, prepared: undefined }
     if (!hasConfig)
       throw new Error("NearProvider requires either 'near' or 'config' prop")
-    return new Near({
-      network,
-      rpcUrl,
-      headers,
-      keyStore,
-      signer,
-      wallet,
-      defaultSignerId,
-      defaultWaitUntil,
-      ...(privateKey !== undefined ? { privateKey } : {}),
-      retryConfig: { maxRetries, initialDelayMs },
-    })
+    const prepared = Effect.runSync(
+      prepareClient({
+        network,
+        rpcUrl,
+        headers,
+        keyStore,
+        signer,
+        wallet,
+        defaultSignerId,
+        defaultWaitUntil,
+        ...(privateKey !== undefined ? { privateKey } : {}),
+        retryConfig: { maxRetries, initialDelayMs },
+      }).pipe(
+        Effect.provideService(
+          ConfigProvider.ConfigProvider,
+          publicConfiguration(),
+        ),
+      ),
+    )
+    return { near: Near.fromClient(prepared.client), prepared }
   }, [
     nearProp,
     hasConfig,
@@ -99,9 +118,24 @@ export function NearProvider(props: NearProviderProps): ReactNode {
     initialDelayMs,
   ])
 
+  const owner = useRef<Fiber.Fiber<void> | undefined>(undefined)
+  useEffect(() => {
+    if (!projection.prepared) return
+    const previous = owner.current
+    const { activate } = projection.prepared
+    const fiber = Effect.runFork(
+      Effect.gen(function* () {
+        if (previous) yield* Fiber.await(previous)
+        return yield* Effect.scoped(activate.pipe(Effect.andThen(Effect.never)))
+      }).pipe(Effect.exit, Effect.asVoid),
+    )
+    owner.current = fiber
+    return () => fiber.interruptUnsafe()
+  }, [projection])
+
   return (
     <NearProviderDetectionContext.Provider value={true}>
-      <NearContext.Provider value={nearInstance}>
+      <NearContext.Provider value={projection.near}>
         {children}
       </NearContext.Provider>
     </NearProviderDetectionContext.Provider>

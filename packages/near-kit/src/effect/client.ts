@@ -3,6 +3,8 @@ import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import type * as Scope from "effect/Scope"
+import * as Stream from "effect/Stream"
+import * as SubscriptionRef from "effect/SubscriptionRef"
 import type { NearConfig } from "../core/config-schemas.js"
 import { KeyStore, type KeyStoreService } from "./keys.js"
 import { Near, bindClient, resolveClient, type NearRuntime } from "./near.js"
@@ -14,6 +16,7 @@ import type { TransactionSigner } from "./transaction.js"
 import {
   acquireWalletAccounts,
   type WalletAccountObservation,
+  type WalletAccountState,
   type WalletService,
 } from "./wallet.js"
 
@@ -40,14 +43,20 @@ export const acquire = Effect.fn("Client.acquire")(function* (
 ): Effect.fn.Return<ClientValue, NearFailure, Scope.Scope> {
   const resolved = yield* resolveClient(config, runtime)
   const wallet = resolved.dependencies.wallet
-  const walletAccounts = wallet
+  const walletAccounts = wallet?.observeAccounts
     ? yield* acquireWalletAccounts(wallet)
     : undefined
   yield* resolved.ready
-  // Observable adapters are read through this one acquired observer. A legacy
-  // connection without events keeps its documented fresh getAccounts behavior.
+  return yield* observedClient(resolved, walletAccounts)
+})
+
+const observedClient = Effect.fn("Client.bindObservation")(function* (
+  resolved: Effect.Success<ReturnType<typeof resolveClient>>,
+  walletAccounts?: WalletAccountObservation,
+): Effect.fn.Return<ClientValue, ExternalError> {
+  const wallet = resolved.dependencies.wallet
   const ownedWallet: WalletService | undefined =
-    wallet?.observeAccounts && walletAccounts
+    wallet && walletAccounts
       ? yield* fromSync(
           () => ({
             signAndSendTransaction: wallet.signAndSendTransaction.bind(wallet),
@@ -85,6 +94,69 @@ export const acquire = Effect.fn("Client.acquire")(function* (
     _tag: "NearClient",
     ...client,
     ...(walletAccounts ? { walletAccounts } : {}),
+  }
+})
+
+export interface PreparedClient {
+  readonly client: ClientValue
+  /** Close the previous activation scope before starting another. */
+  readonly activate: Effect.Effect<void, never, Scope.Scope>
+}
+
+/**
+ * Assemble without I/O. Signing operations own configured-key readiness;
+ * activation owns only live account observation and can restart after cleanup.
+ */
+export const prepareClient = Effect.fn("Client.prepare")(function* (
+  config: NearConfig = {},
+  runtime: NearRuntime = {},
+): Effect.fn.Return<PreparedClient, NearFailure> {
+  const resolved = yield* resolveClient(config, runtime)
+  const wallet = resolved.dependencies.wallet
+  if (!wallet?.observeAccounts) {
+    return { client: yield* observedClient(resolved), activate: Effect.void }
+  }
+  const current = yield* SubscriptionRef.make<
+    WalletAccountObservation | WalletAccountState
+  >({ _tag: "Loading" })
+  const changes = SubscriptionRef.changes(current).pipe(
+    Stream.switchMap((value) =>
+      "changes" in value ? value.changes : Stream.succeed(value),
+    ),
+  )
+  const get = Effect.fn("Client.preparedAccounts")(function* () {
+    const value = yield* SubscriptionRef.get(current)
+    return "get" in value ? yield* value.get() : value
+  })
+  const waitUntilReady = changes.pipe(
+    Stream.filter((state) => state._tag !== "Loading"),
+    Stream.take(1),
+    Stream.runDrain,
+  )
+  const observation: WalletAccountObservation = {
+    get,
+    changes,
+    ready: get().pipe(
+      Effect.flatMap((state) =>
+        state._tag === "Loading" ? waitUntilReady : Effect.void,
+      ),
+    ),
+  }
+  const activate = Effect.gen(function* () {
+    const acquired = yield* acquireWalletAccounts(wallet)
+    yield* Effect.acquireRelease(SubscriptionRef.set(current, acquired), () =>
+      SubscriptionRef.set(current, {
+        _tag: "Failed",
+        error: new ExternalError({
+          operation: "wallet.observeAccounts",
+          cause: new Error("Wallet observation scope closed"),
+        }),
+      }),
+    )
+  })
+  return {
+    client: yield* observedClient(resolved, observation),
+    activate,
   }
 })
 
