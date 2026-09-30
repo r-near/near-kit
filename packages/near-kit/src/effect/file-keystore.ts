@@ -7,7 +7,7 @@ import * as PlatformError from "effect/PlatformError"
 import type { KeyPair } from "../core/types.js"
 import {
   type CredentialMetadata,
-  decodeCredential,
+  parseCredentialFile,
   makeCredential,
   type Network,
 } from "../keys/credential-schemas.js"
@@ -70,7 +70,10 @@ export const makeFileStorage = Effect.fn("FileStorage.make")(function* (
       try: () => JSON.parse(content) as unknown,
       catch: storageError("FileKeyStore.get"),
     })
-    const credential = yield* decodeCredential(json)
+    const credential = yield* Effect.try({
+      try: () => parseCredentialFile(json),
+      catch: storageError("FileKeyStore.get"),
+    })
     return yield* Effect.try({
       try: () => parseKey(credential.private_key),
       catch: storageError("FileKeyStore.get"),
@@ -90,10 +93,11 @@ export const makeFileStorage = Effect.fn("FileStorage.make")(function* (
     add: Effect.fn("FileStorage.add")(
       function* (id: string, key: KeyPair, metadata?: CredentialMetadata) {
         yield* fs.makeDirectory(directory, { recursive: true })
-        yield* fs.writeFileString(
-          keyPath(id),
-          JSON.stringify(makeCredential(id, key, metadata), null, 2),
-        )
+        const content = yield* Effect.try({
+          try: () => JSON.stringify(makeCredential(id, key, metadata), null, 2),
+          catch: storageError("FileKeyStore.add"),
+        })
+        yield* fs.writeFileString(keyPath(id), content)
       },
       Effect.mapError(storageError("FileKeyStore.add")),
     ),

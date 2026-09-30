@@ -2,7 +2,7 @@ import * as fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem"
-import { Effect, Layer } from "effect"
+import { Cause, Effect, Exit, Layer } from "effect"
 import { afterEach, describe, expect, test, vi } from "vitest"
 import { ZodError } from "zod"
 import { KeyStore } from "../../src/effect/keys.js"
@@ -75,6 +75,45 @@ describe("native resource key-store boundaries", () => {
       expect(error.operation).toBe("FileKeyStore.get")
       expect(error.cause).toBeInstanceOf(ZodError)
     } finally {
+      await fs.rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  test("filesystem credential encoding failures stay typed without writing a file", async () => {
+    const directory = await fs.mkdtemp(
+      path.join(os.tmpdir(), "near-effect-encoding-"),
+    )
+    const key = generateKey()
+    const rejection = new Error("external public key encoding denied")
+    const encoding = vi
+      .spyOn(key.publicKey, "toString")
+      .mockImplementation(() => {
+        throw rejection
+      })
+    try {
+      const exit = await Effect.runPromiseExit(
+        Effect.gen(function* () {
+          const store = yield* KeyStore
+          yield* store.add("alice.testnet", key)
+        }).pipe(
+          Effect.provide(
+            FileStorage.layer({ basePath: directory }).pipe(
+              Layer.provide(NodeFileSystem.layer),
+            ),
+          ),
+        ),
+      )
+      expect(Exit.isFailure(exit)).toBe(true)
+      if (Exit.isFailure(exit)) {
+        expect(Cause.hasFails(exit.cause)).toBe(true)
+        expect(Cause.hasDies(exit.cause)).toBe(false)
+        const error = Cause.squash(exit.cause)
+        expect(error).toBeInstanceOf(ExternalError)
+        if (error instanceof ExternalError) expect(error.cause).toBe(rejection)
+      }
+      expect(await fs.readdir(directory)).toEqual([])
+    } finally {
+      encoding.mockRestore()
       await fs.rm(directory, { recursive: true, force: true })
     }
   })

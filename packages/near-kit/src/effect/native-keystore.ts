@@ -4,7 +4,7 @@ import * as Layer from "effect/Layer"
 import type { KeyPair } from "../core/types.js"
 import {
   type CredentialMetadata,
-  decodeCredential,
+  parseCredentialFile,
   makeCredential,
 } from "../keys/credential-schemas.js"
 import { parseKey } from "../utils/key.js"
@@ -57,9 +57,10 @@ export const makeNativeStorage = Effect.fn("NativeStorage.make")(function* (
           try: () => JSON.parse(stored) as unknown,
           catch: keyringError("NativeKeyStore.get"),
         })
-        const credential = yield* decodeCredential(json).pipe(
-          Effect.mapError(keyringError("NativeKeyStore.get")),
-        )
+        const credential = yield* Effect.try({
+          try: () => parseCredentialFile(json),
+          catch: keyringError("NativeKeyStore.get"),
+        })
         return yield* Effect.try({
           try: () => parseKey(credential.private_key),
           catch: keyringError("NativeKeyStore.get"),

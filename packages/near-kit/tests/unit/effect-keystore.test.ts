@@ -2,11 +2,7 @@ import { Effect } from "effect"
 import { describe, expect, test } from "vitest"
 import type { KeyPair } from "../../src/core/types.js"
 import { ExternalError, runPromise } from "../../src/effect/runtime.js"
-import {
-  KeyStore,
-  keyStoreConnection,
-  keyStoreService,
-} from "../../src/effect/keys.js"
+import { KeyStore, keyStoreService } from "../../src/effect/keys.js"
 import { InMemoryKeyStore } from "../../src/keys/in-memory-keystore.js"
 import { RotatingKeyStore } from "../../src/keys/rotating-keystore.js"
 import { generateKey } from "../../src/utils/key.js"
@@ -76,9 +72,8 @@ describe("native key-store ownership", () => {
       },
     }
     const native = keyStoreService(application)
-    const connection = keyStoreConnection(native)
     await runPromise(native.add("alice.near", key))
-    expect(await connection.get("alice.near")).toBe(key)
+    expect(await runPromise(native.get("alice.near"))).toBe(key)
     expect(await runPromise(native.list())).toEqual(["alice.near"])
     application.reject = true
     const error = await Effect.runPromise(
@@ -86,9 +81,9 @@ describe("native key-store ownership", () => {
     )
     expect(error).toBeInstanceOf(ExternalError)
     expect(error.cause).toBe(rejected)
-    await expect(connection.get("alice.near")).rejects.toBe(rejected)
+    await expect(runPromise(native.get("alice.near"))).rejects.toBe(rejected)
     await runPromise(native.remove("alice.near"))
-    expect(await connection.list()).toEqual([])
+    expect(await runPromise(native.list())).toEqual([])
   })
   test.each([
     ["memory", () => new InMemoryKeyStore()],

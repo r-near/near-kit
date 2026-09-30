@@ -28,8 +28,6 @@
  * @see https://github.com/near/near-cli
  */
 
-import * as Effect from "effect/Effect"
-import * as Schema from "effect/Schema"
 import { z } from "zod"
 
 /**
@@ -133,49 +131,15 @@ export type Network = z.infer<typeof NetworkSchema>
  * @returns Parsed credential with normalized field names
  * @throws {z.ZodError} If the data doesn't match any supported format
  */
-/** Native credential codec; the exported Zod schemas retain their existing API. */
-const credentialFields = {
-  account_id: Schema.optional(Schema.String),
-  public_key: Schema.String,
-  seed_phrase_hd_path: Schema.optional(Schema.String),
-  master_seed_phrase: Schema.optional(Schema.String),
-  implicit_account_id: Schema.optional(Schema.String),
-}
-
-export const Credential = Schema.Struct({
-  ...credentialFields,
-  private_key: Schema.String,
-})
-export interface Credential extends Schema.Schema.Type<typeof Credential> {}
-
-const LegacyCredential = Schema.Struct({
-  ...credentialFields,
-  secret_key: Schema.String,
-})
-
-/** Decode persisted data, preferring the modern key when both forms are present. */
-export const decodeCredential = Effect.fn("Credential.decode")(function* (
-  data: unknown,
-) {
-  return yield* Schema.decodeUnknownEffect(Credential)(data).pipe(
-    Effect.catch(() =>
-      Schema.decodeUnknownEffect(LegacyCredential)(data).pipe(
-        Effect.map(({ secret_key, ...rest }) => ({
-          ...rest,
-          private_key: secret_key,
-        })),
-        // Preserve the established public Zod error and issue details on invalid input.
-        Effect.mapError((error) => {
-          const result = NearCliCredentialSchema.safeParse(data)
-          return result.success ? error : result.error
-        }),
-      ),
-    ),
-  )
-})
-
 export function parseCredentialFile(data: unknown): NearCliCredential {
-  return Effect.runSync(decodeCredential(data))
+  const current = NearCliCredentialSchema.safeParse(data)
+  if (current.success) return current.data
+  const legacy = LegacyCredentialSchema.safeParse(data)
+  if (legacy.success) {
+    const { secret_key, ...rest } = legacy.data
+    return { ...rest, private_key: secret_key }
+  }
+  throw current.error
 }
 
 export interface CredentialMetadata {
@@ -192,7 +156,7 @@ export function makeCredential(
     readonly secretKey: string
   },
   options?: CredentialMetadata,
-): Credential {
+): NearCliCredential {
   return {
     account_id: accountId,
     public_key: key.publicKey.toString(),

@@ -3,7 +3,7 @@ import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import type { KeyPair, KeyStore as PromiseKeyStore } from "../core/types.js"
 import { makeMemoryStorage } from "./key-storage.js"
-import { type ExternalError, fromPromise, runPromise } from "./runtime.js"
+import { type ExternalError, fromPromise } from "./runtime.js"
 
 export interface KeyStoreService {
   readonly get: (
@@ -49,14 +49,3 @@ export class KeyStore extends Context.Service<KeyStore, KeyStoreService>()(
       Effect.map(makeMemoryStorage(initialKeys), KeyStore.of),
     )
 }
-
-/** Project a native service into the documented Promise connection shape. */
-export const keyStoreConnection = (
-  service: KeyStoreService,
-): NativeKeyStore => ({
-  [nativeKeyStore]: service,
-  get: (id) => runPromise(service.get(id)),
-  add: (id, key) => runPromise(service.add(id, key)),
-  remove: (id) => runPromise(service.remove(id)),
-  list: () => runPromise(service.list()),
-})
