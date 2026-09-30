@@ -5,7 +5,8 @@ This branch is an experiment, not a published release. It pins Effect
 `@near-kit/react` APIs remain available. The optional `near-kit/effect` entrypoint
 exposes native programs, typed failures, services, layers, and streams.
 
-The [second-pass simplification](effect-simplification.md) is in progress.
+The [second-pass simplification](effect-simplification.md) removes duplicate ownership
+and internal compatibility machinery.
 `make(config)` now acquires the native service directly, without a Promise-client
 backreference. Node storage layers provide the common `KeyStore` service.
 Path-string `keyStore` configurations are rejected; supply a real `FileKeyStore`
@@ -157,10 +158,13 @@ behavior. Internal config/RPC diagnostics no longer replay a duplicate Zod decod
 covered by independent unchanged vectors.
 
 The added Effect runtime and native schemas have a measurable footprint. Final
-browser sizes, microbenchmark methodology, runtime versions, and baseline
-comparisons are recorded in the [acceptance report](acceptance/acceptance-report.md). Synthetic no-network timings
-are not production RPC latency. This experiment does not claim a performance
-improvement or a release recommendation.
+browser sizes, microbenchmark methodology, runtime versions, and both baseline
+comparisons are recorded in the [simplification acceptance report](simplification/acceptance/acceptance-report.md).
+The root browser bundle is 112,111 gzip bytes, down 14.6% from the first Effect
+pass but still 36.6% above the original SDK. Fresh-client construction and mock
+Promise reads improve substantially versus the first pass while remaining slower
+than the original. Synthetic no-network timings are not production RPC latency.
+The experiment is not a release recommendation.
 
 ## Toolchain and validation
 

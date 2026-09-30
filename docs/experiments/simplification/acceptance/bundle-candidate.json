@@ -1,0 +1,20 @@
+{
+  "method": "All available source entrypoints built together; browser target; minify; Node gzip level 9",
+  "node": "v24.19.0",
+  "zlib": "1.3.2.1-motley-3246f1b",
+  "entries": [
+    {
+      "entry": "index.js",
+      "rawBytes": 333986,
+      "gzip9Bytes": 112111
+    },
+    {
+      "entry": "effect/index.js",
+      "rawBytes": 326602,
+      "gzip9Bytes": 109856
+    }
+  ],
+  "zodInputs": [],
+  "compatibilitySchemaInputs": [],
+  "externalImports": []
+}

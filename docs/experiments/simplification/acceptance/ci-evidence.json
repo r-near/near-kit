@@ -1,0 +1,119 @@
+{
+  "sourceCommit": "1d314715725520178a9c659ee6bb6ef5832a8589",
+  "url": "https://github.com/r-near/near-kit/actions/runs/36671572748",
+  "checkout": [
+    "2026-09-30T05:02:40.5612027Z HEAD is now at 9292961 Merge 1d314715725520178a9c659ee6bb6ef5832a8589 into 86cf14a2a9e0c7d3acaa8e3d40b5fb4c85ef172d"
+  ],
+  "integrationFiles": 25,
+  "integrationTests": 286,
+  "integration": [
+    {
+      "file": "rpc-error-scenarios.test.ts",
+      "tests": 48
+    },
+    {
+      "file": "near-client.test.ts",
+      "tests": 30
+    },
+    {
+      "file": "guestbook-comprehensive.test.ts",
+      "tests": 21
+    },
+    {
+      "file": "actions.test.ts",
+      "tests": 14
+    },
+    {
+      "file": "nep616-deterministic-accounts.test.ts",
+      "tests": 17
+    },
+    {
+      "file": "contract-interface.test.ts",
+      "tests": 18
+    },
+    {
+      "file": "transaction-signing.test.ts",
+      "tests": 14
+    },
+    {
+      "file": "rpc-error-handler-paths.test.ts",
+      "tests": 13
+    },
+    {
+      "file": "send-transaction.test.ts",
+      "tests": 8
+    },
+    {
+      "file": "error-handling.test.ts",
+      "tests": 9
+    },
+    {
+      "file": "concurrent-transactions.test.ts",
+      "tests": 9
+    },
+    {
+      "file": "rotating-keystore.test.ts",
+      "tests": 8
+    },
+    {
+      "file": "rpc-view-methods.test.ts",
+      "tests": 9
+    },
+    {
+      "file": "contract-panics.test.ts",
+      "tests": 12
+    },
+    {
+      "file": "nep413-rpc-validation.test.ts",
+      "tests": 5
+    },
+    {
+      "file": "tx-status.test.ts",
+      "tests": 4
+    },
+    {
+      "file": "view-state-rpc.test.ts",
+      "tests": 6
+    },
+    {
+      "file": "gas-key-actions.test.ts",
+      "tests": 3
+    },
+    {
+      "file": "ml-dsa.test.ts",
+      "tests": 2
+    },
+    {
+      "file": "gas-key-signing.test.ts",
+      "tests": 2
+    },
+    {
+      "file": "gas-key-nonces.test.ts",
+      "tests": 2
+    },
+    {
+      "file": "delegate-v2.test.ts",
+      "tests": 1
+    },
+    {
+      "file": "secp256k1.test.ts",
+      "tests": 2
+    },
+    {
+      "file": "explicit-nonce.test.ts",
+      "tests": 2
+    },
+    {
+      "file": "sandbox.test.ts",
+      "tests": 27
+    }
+  ],
+  "testSummaries": [
+    "2026-09-30T05:06:08.2518002Z near-kit test:  Test Files  89 passed (89)",
+    "2026-09-30T05:06:08.2531228Z near-kit test:       Tests  1602 passed (1602)",
+    "2026-09-30T05:06:12.2860543Z @near-kit/react test:  Test Files  8 passed (8)",
+    "2026-09-30T05:06:12.2862597Z @near-kit/react test:       Tests  54 passed (54)"
+  ],
+  "testJob": 109747487158,
+  "strictJob": 109747487323
+}

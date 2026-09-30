@@ -1,7 +1,9 @@
 # Effect implementation experiment
 
-Status: planning and baseline verification. This branch is experimental and is not
-ready to merge or publish.
+Status: the first implementation passed acceptance, followed by a substantial
+[second-pass simplification](effect-simplification.md). This document preserves the
+original plan and historical checkpoints; current API decisions are in the
+[native API guide](effect-api.md). The branch remains an unpublished draft experiment.
 
 Base: `86cf14a2a9e0c7d3acaa8e3d40b5fb4c85ef172d` (main, 2026-09-30), including
 explicit caller-selected transaction nonces from PR #247.
@@ -127,7 +129,7 @@ The native TypeScript/Oxc toolchain is validated separately and will land with i
 strict source/lifecycle corrections; this checkpoint keeps the passing existing
 gates rather than publishing known lint failures.
 
-## Integrated candidate
+## First-pass integrated candidate (historical)
 
 All implementation slices are integrated: class-free RPC programs, transaction
 and wallet effects, native client/contract services, injected key storage and nonce
@@ -135,7 +137,10 @@ reservation Layers, filesystem/keyring services, scoped sandbox resources, and
 React lifecycle ownership. The optional native browser entrypoint and separate
 Node-only resource entrypoints are exported. No obsolete NonceManager adapter is
 retained. Public method overrides, custom callback receivers, error identities,
-eager constructor key initialization, and request middleware remain supported.
+eager constructor key initialization, and request middleware were supported at
+this historical checkpoint. The second pass deliberately retires undocumented
+method interception in favor of explicit service/transport injection; see its
+[compatibility scope](effect-simplification.md#supported-surface-and-deliberate-internal-cleanup).
 
 Independent review found and reproduced cancellation, extension-policy dispatch,
 synchronous input error-channel, empty-action codec and gas-key snapshot parity

@@ -62,6 +62,50 @@ opened a file store; reject that no-op explicitly and use `FileKeyStore` from it
 Node-only subpath. The unpublished native API can be revised to eliminate circular
 ownership and redundant service identities; document its final form.
 
+## Implemented source checkpoint
+
+At `1d314715725520178a9c659ee6bb6ef5832a8589`, the native service owns client
+acquisition and all operations. There is one RPC codec and one RPC program set;
+public clients project native capabilities only at Promise boundaries. Native
+storage layers provide the common KeyStore service. React and native message
+verification consume native capabilities directly. Compatibility Zod schemas stay
+in their explicit subpaths and no longer load with root/native SDK imports.
+
+The source inventory is now 57 modules, 14,761 physical lines and 9,608 nonblank
+comment-stripped lines: reductions of 2 modules, 2,530 physical lines (14.6%), and
+1,763 nonblank lines (15.5%). Classes fell from 52 to 50; the retained classes are
+mostly public error/key/facade types and Effect service identities. WeakMaps fell
+from four to zero. `fromPromise` sites fell from 83 to 40, `runPromise` from 79 to
+78, and `tryPromise` from three to two. These three asynchronous boundary-site
+categories total 165 to 120; this is a static inventory, not measured runtime
+crossings. The full [candidate inventory](simplification/architecture-candidate.json)
+includes pure synchronous guards separately.
+
+Two independently demonstrated defects were repaired along the way: React now
+updates signing authority when a JSON-equal wallet/key store is replaced, and
+nonce retry eligibility comes only from an actual transaction submission failure,
+never a pre-broadcast signer rejection. Constructor acquisition snapshots only the
+two SDK environment settings at the public boundary; native acquisition honors
+the caller's ConfigProvider. This avoids indexing the full process environment
+for every new client.
+
+The [test ownership ledger](simplification/test-retention.md) records deliberately
+retired implementation checks, stronger replacement proof, retained safeguards,
+and the exact literal-title change inventory. The source checkpoint passes all
+local aggregate checks, 1,316 core/wallet tests and 54 React tests. Independent
+isolated acceptance also passes Node 22.19/24, React 18/19, package/browser VM and
+cross-tree codec/helper checks. [Exact-source CI](https://github.com/r-near/near-kit/actions/runs/36671572748)
+passes 1,602 near-kit and 54 React tests, including all 286 real-chain integration
+cases. The [acceptance report](simplification/acceptance/acceptance-report.md)
+contains the complete evidence and environment limitations.
+
+Matched-method root browser gzip drops from 131,292 to 112,111 bytes (14.6%);
+native gzip drops from 132,948 to 109,856 (17.4%). Fresh seven-pair no-network
+medians improve from 0.430 to 0.063 ms for construction and 0.269 to 0.153 ms for
+Promise views. The root still adds 36.6% gzip versus the original pre-Effect SDK;
+original-relative startup/read/construction overhead remains material. See the
+report for both complete comparisons, raw samples, and method caveats.
+
 ## Acceptance gates
 
 - Compare source/module/class/conversion-site inventory against the fixed baseline;
@@ -75,7 +119,8 @@ ownership and redundant service identities; document its final form.
 - Run all source/consumer/example, lint/format, unit, wallet, React and integration
   checks, with exact-head CI and environment limitations reported honestly
 
-Target approximately 1,800–2,500 fewer meaningful production lines through actual
-owner consolidation, not an arbitrary deletion quota. Size and performance gains
-remain hypotheses until measured. No merge, publication or deployment is part of
-this experiment.
+The original estimate was approximately 1,800–2,500 fewer meaningful production
+lines. The measured result is 1,763 nonblank/comment-stripped lines and 2,530
+physical lines removed through owner consolidation. Safeguards were retained
+rather than deleting more to meet a quota. No merge, publication or deployment
+is part of this experiment.

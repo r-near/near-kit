@@ -1,0 +1,48 @@
+{
+  "method": "Paired source-entry builds with Bun 1.4.2 and Node24 gzip level9; no payload summation",
+  "comparisons": [
+    {
+      "commit": "86cf14a",
+      "entries": [
+        {
+          "entry": "index.js",
+          "rawBytes": 258032,
+          "gzip9Bytes": 82046
+        }
+      ],
+      "zodInputCount": 20
+    },
+    {
+      "commit": "95111ba",
+      "entries": [
+        {
+          "entry": "index.js",
+          "rawBytes": 417507,
+          "gzip9Bytes": 131292
+        },
+        {
+          "entry": "effect/index.js",
+          "rawBytes": 422841,
+          "gzip9Bytes": 132948
+        }
+      ],
+      "zodInputCount": 20
+    },
+    {
+      "commit": "1d314715",
+      "entries": [
+        {
+          "entry": "index.js",
+          "rawBytes": 333986,
+          "gzip9Bytes": 112111
+        },
+        {
+          "entry": "effect/index.js",
+          "rawBytes": 326602,
+          "gzip9Bytes": 109856
+        }
+      ],
+      "zodInputCount": 0
+    }
+  ]
+}

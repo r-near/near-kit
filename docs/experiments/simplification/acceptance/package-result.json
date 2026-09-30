@@ -1,0 +1,20 @@
+{
+  "name": "near-kit",
+  "version": "0.20.2",
+  "fileCount": 201,
+  "packageBytes": 218093,
+  "unpackedBytes": 1313857,
+  "subpaths": [
+    ".",
+    "./keys",
+    "./sandbox",
+    "./keys/file",
+    "./keys/native",
+    "./schemas",
+    "./effect",
+    "./effect/keys/file",
+    "./effect/keys/native",
+    "./effect/sandbox"
+  ],
+  "missingExportTargets": []
+}

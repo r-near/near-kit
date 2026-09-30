@@ -167,11 +167,64 @@
       ],
       "remaining": [],
       "commits": ["b1979fa", "fe454a2", "a39d1aa"]
+    },
+    {
+      "id": "native-owner-simplification",
+      "state": "verified-with-documented-environment-limitations",
+      "dependsOn": ["final-acceptance"],
+      "baseline": "95111ba2076939ae8ab9820bd27428214858e245",
+      "sourceCommit": "1d314715725520178a9c659ee6bb6ef5832a8589",
+      "commits": [
+        "3c6e49a",
+        "56dd136",
+        "b90e06e",
+        "26c3d6d",
+        "3ba673e",
+        "68fbd2e",
+        "d2713b7",
+        "a4520de",
+        "fe2606f",
+        "70bd584",
+        "65f08ca",
+        "c26e244",
+        "366037b",
+        "15c19b1",
+        "a61ce27",
+        "840ab8c",
+        "1d31471"
+      ],
+      "checks": {
+        "aggregate": "passed with zero lint warnings",
+        "coreAndWallet": "1316 passed",
+        "react": "54 passed",
+        "independentFinalAudit": "passed; no unresolved reproduced finding; documented environment limitations",
+        "exactSourceCi": "1602 near-kit +54 React passed; 25 integration files/286 tests; no test skips"
+      },
+      "scope": [
+        "one native client/RPC/store/wallet owner; no reverse Promise adaptation",
+        "single native protocol codec; public Zod schemas isolated",
+        "transaction dependency engine and broadcast-proven retry eligibility",
+        "identity-aware React authority and direct native consumption",
+        "narrow native verification reader with preserved requirements"
+      ],
+      "evidence": [
+        "effect-simplification.md",
+        "simplification/architecture-candidate.json",
+        "simplification/test-retention.md"
+      ],
+      "intentionalRetirements": [
+        "undocumented built-in method/subclass interception",
+        "internal Zod diagnostic identity",
+        "path-string keyStore no-op",
+        "dead addContractMethod helper and redundant native service identities"
+      ],
+      "ci": "https://github.com/r-near/near-kit/actions/runs/36671572748",
+      "report": "simplification/acceptance/acceptance-report.md"
     }
   ],
-  "sourceCandidate": "a39d1aa517fe3d3b90d16b19c8da957f4172a3d8",
-  "acceptanceReport": "acceptance/acceptance-report.md",
-  "exactSourceCi": "https://github.com/r-near/near-kit/actions/runs/36664462378",
+  "sourceCandidate": "1d314715725520178a9c659ee6bb6ef5832a8589",
+  "acceptanceReport": "simplification/acceptance/acceptance-report.md",
+  "exactSourceCi": "https://github.com/r-near/near-kit/actions/runs/36671572748",
   "limitations": [
     "Local nearcore execution blocked by hard nofile 16384; real integration passed in exact CI",
     "Live cloud-browser localhost navigation blocked; browser bundles and standards-global VM smoke passed",
