@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "composite": false,
+    "noEmit": true,
+    "rootDir": "../..",
+    "types": ["node", "react", "react-dom"],
+    "declaration": false,
+    "declarationMap": false,
+    "module": "ESNext",
+    "moduleResolution": "Bundler"
+  },
+  "include": ["./**/*.ts", "./**/*.tsx", "../../playwright.config.ts"],
+  "references": []
+}
