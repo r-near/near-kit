@@ -4,25 +4,15 @@ import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Fiber from "effect/Fiber"
-import * as Ref from "effect/Ref"
-import * as Stream from "effect/Stream"
-import * as SubscriptionRef from "effect/SubscriptionRef"
 import { ExternalError } from "near-kit/effect"
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  useSyncExternalStore,
-} from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 
 export const errorValue = (failure: unknown): Error => {
   const value = failure instanceof ExternalError ? failure.cause : failure
   return value instanceof Error ? value : new Error(String(value))
 }
 
-/** Keep JSON-equivalent input data stable without reading/writing render refs. */
+/** Keep JSON-equivalent query input stable; authority-bearing config uses identity. */
 export const useStableInput = <A>(value: A): A => {
   const key = JSON.stringify(value)
   const [saved, setSaved] = useState({ key, value })
@@ -33,96 +23,67 @@ export const useStableInput = <A>(value: A): A => {
   return saved.value
 }
 
-const useSubscription = <A>(store: SubscriptionRef.SubscriptionRef<A>): A => {
-  const subscribe = useCallback(
-    (notify: () => void) => {
-      const fiber = Effect.runFork(
-        SubscriptionRef.changes(store).pipe(
-          Stream.drop(1),
-          Stream.runForEach(() => Effect.sync(notify)),
-        ),
-      )
-      return () => fiber.interruptUnsafe()
-    },
-    [store],
-  )
-  const snapshot = useCallback(() => SubscriptionRef.getUnsafe(store), [store])
-  return useSyncExternalStore(subscribe, snapshot, snapshot)
-}
-
 export interface QueryState<A> {
   readonly data: A | undefined
   readonly error: Error | undefined
   readonly isLoading: boolean
 }
 
+/** React owns visible state; one Effect fiber owns each read and its finalizers. */
 export const useQuery = <A, E>(
   program: Effect.Effect<A, E>,
   enabled: boolean,
 ) => {
-  const [store] = useState(() =>
-    Effect.runSync(
-      SubscriptionRef.make<QueryState<A>>({
-        data: undefined,
-        error: undefined,
-        isLoading: enabled,
-      }),
-    ),
-  )
-  const [generation] = useState(() => Ref.makeUnsafe(0))
+  const [state, setState] = useState<QueryState<A>>({
+    data: undefined,
+    error: undefined,
+    isLoading: enabled,
+  })
+  const latest = useRef<symbol | undefined>(undefined)
   const active = useRef<Fiber.Fiber<void, never> | undefined>(undefined)
-  const state = useSubscription(store)
-  const execute = useMemo(
-    () =>
-      Effect.fn("React.query")(function* () {
-        const id = yield* Ref.updateAndGet(generation, (value) => value + 1)
-        if (!enabled) {
-          yield* SubscriptionRef.update(store, (current) => ({
-            ...current,
-            isLoading: false,
-          }))
-          return
-        }
-        yield* SubscriptionRef.update(store, (current) => ({
-          ...current,
-          error: undefined,
-          isLoading: true,
-        }))
-        const result = yield* Effect.exit(program)
-        if (id !== (yield* Ref.get(generation))) return
-        if (Exit.isSuccess(result)) {
-          yield* SubscriptionRef.set(store, {
-            data: result.value,
-            error: undefined,
-            isLoading: false,
-          })
-        } else if (!Cause.hasInterrupts(result.cause)) {
-          yield* SubscriptionRef.update(store, (current) => ({
-            ...current,
-            error: errorValue(Cause.squash(result.cause)),
-            isLoading: false,
-          }))
-        }
-      }),
-    [program, enabled, generation, store],
-  )
-
-  const refetch = useCallback((): Promise<void> => {
+  const start = useCallback(() => {
+    const id = Symbol()
+    latest.current = id
     active.current?.interruptUnsafe()
-    const fiber = Effect.runFork(execute())
+    const fiber = Effect.runFork(
+      Effect.gen(function* () {
+        yield* Effect.sync(() =>
+          setState((current) => ({
+            ...current,
+            ...(enabled ? { error: undefined } : {}),
+            isLoading: enabled,
+          })),
+        )
+        if (!enabled) return
+        const result = yield* Effect.exit(program)
+        yield* Effect.sync(() => {
+          if (id !== latest.current) return
+          if (Exit.isSuccess(result)) {
+            setState({ data: result.value, error: undefined, isLoading: false })
+          } else if (!Cause.hasInterrupts(result.cause)) {
+            setState((current) => ({
+              ...current,
+              error: errorValue(Cause.squash(result.cause)),
+              isLoading: false,
+            }))
+          }
+        })
+      }).pipe(Effect.withSpan("React.query")),
+    )
     active.current = fiber
-    // Reads expose errors as state. A superseded read completes its refetch handle.
-    return Effect.runPromise(Fiber.await(fiber)).then(() => undefined)
-  }, [execute])
-
+    return fiber
+  }, [program, enabled])
+  const refetch = useCallback(
+    () => Effect.runPromise(Fiber.await(start())).then(() => undefined),
+    [start],
+  )
   useEffect(() => {
-    const fiber = Effect.runFork(execute())
-    active.current = fiber
+    start()
     return () => {
-      Effect.runSync(Ref.update(generation, (value) => value + 1))
+      latest.current = undefined
       active.current?.interruptUnsafe()
     }
-  }, [execute, generation])
+  }, [start])
   return { ...state, refetch }
 }
 
@@ -144,69 +105,62 @@ const initialMutation = <A>(): MutationState<A> => ({
 export const useMutation = <Args extends unknown[], A, E>(
   operation: (...args: Args) => Effect.Effect<A, E>,
 ) => {
-  const [store] = useState(() =>
-    Effect.runSync(SubscriptionRef.make(initialMutation<A>())),
-  )
-  const [generation] = useState(() => Ref.makeUnsafe(0))
+  const [state, setState] = useState(initialMutation<A>)
+  const latest = useRef<symbol | undefined>(undefined)
   const mounted = useRef(false)
-  const state = useSubscription(store)
   useEffect(() => {
     mounted.current = true
     return () => {
       mounted.current = false
-      Effect.runSync(Ref.update(generation, (value) => value + 1))
+      latest.current = undefined
     }
-  }, [generation])
+  }, [])
   const mutate = useCallback(
-    (...args: Args): Promise<A> =>
-      Effect.runPromise(
-        Effect.gen(function* () {
-          const id = yield* Ref.updateAndGet(generation, (value) => value + 1)
-          yield* SubscriptionRef.update(store, (current) => ({
-            ...current,
-            error: undefined,
-            isPending: true,
-            isSuccess: false,
-            isError: false,
-          }))
-          const result = yield* Effect.exit(
-            Effect.suspend(() => operation(...args)),
-          )
-          const current = mounted.current && id === (yield* Ref.get(generation))
-          if (Exit.isSuccess(result)) {
-            if (current)
-              yield* SubscriptionRef.set(store, {
-                data: result.value,
-                error: undefined,
-                isPending: false,
-                isSuccess: true,
-                isError: false,
-              })
-            return result.value
-          }
-          const error = errorValue(Cause.squash(result.cause))
+    (...args: Args): Promise<A> => {
+      const id = Symbol()
+      latest.current = id
+      setState((current) => ({
+        ...current,
+        error: undefined,
+        isPending: true,
+        isSuccess: false,
+        isError: false,
+      }))
+      return Effect.runPromiseExit(
+        Effect.suspend(() => operation(...args)).pipe(
+          Effect.withSpan("React.mutate"),
+        ),
+      ).then((result) => {
+        const current = mounted.current && id === latest.current
+        if (Exit.isSuccess(result)) {
           if (current)
-            yield* SubscriptionRef.update(store, (previous) => ({
-              ...previous,
-              error,
+            setState({
+              data: result.value,
+              error: undefined,
               isPending: false,
-              isSuccess: false,
-              isError: true,
-            }))
-          return yield* Effect.fail(error)
-        }).pipe(Effect.withSpan("React.mutate")),
-      ),
-    [operation, generation, store],
+              isSuccess: true,
+              isError: false,
+            })
+          return result.value
+        }
+        const error = errorValue(Cause.squash(result.cause))
+        if (current)
+          setState((previous) => ({
+            ...previous,
+            error,
+            isPending: false,
+            isSuccess: false,
+            isError: true,
+          }))
+        throw error
+      })
+    },
+    [operation],
   )
   const reset = useCallback(() => {
-    Effect.runSync(
-      Effect.gen(function* () {
-        yield* Ref.update(generation, (value) => value + 1)
-        yield* SubscriptionRef.set(store, initialMutation<A>())
-      }),
-    )
-  }, [generation, store])
-  // A mutation's returned Promise owns its work. Unmount only disconnects UI;
-  // it cannot roll back a wallet approval or an already-submitted transaction.
+    latest.current = undefined
+    setState(initialMutation<A>())
+  }, [])
+  // A mutation's Promise owns its work; unmount/reset only disconnect UI state.
   return { ...state, mutate, reset }
 }

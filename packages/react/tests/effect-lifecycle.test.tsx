@@ -49,7 +49,7 @@ describe("Effect-owned React lifetimes", () => {
     }
   })
 
-  test("changing query arguments interrupts the old scope before publishing the new result", async () => {
+  test("changing query arguments interrupts the old read and ignores its stale result", async () => {
     const pending = Deferred.makeUnsafe<string>()
     let released = false
     const near = {

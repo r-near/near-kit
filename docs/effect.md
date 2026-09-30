@@ -134,8 +134,8 @@ native scope. Snapshots preserve current gas-key permissions and extra nearcore
 fields.
 
 React consumes the native programs owned by its `Near` client. Superseded and
-unmounted read requests are interrupted; state is observed through
-`SubscriptionRef`. Mutation Promises retain their own results, while only the
+unmounted read requests are interrupted; React owns visible state, while one Effect fiber owns each active read and its
+resource finalizers. Mutation Promises retain their own results, while only the
 newest active request can update the mounted UI. Unmounting disconnects UI state;
 it does not pretend to undo a submitted transaction. Replacing a configured signer,
 key store, or wallet takes effect by object/function identity; authority-bearing
