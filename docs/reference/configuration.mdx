@@ -33,7 +33,8 @@ Controls which NEAR network to connect to.
 </ResponseField>
 
 <ResponseField name="rpcUrl" type="string">
-  Override the RPC URL for a preset network (e.g., to use a specific provider like Infura or Lava).
+  Override the RPC URL for a preset network (e.g., to use a specific provider
+  like Infura or Lava).
 </ResponseField>
 
 <ResponseField name="headers" type="Record<string, string>">
@@ -53,26 +54,21 @@ Controls which NEAR network to connect to.
 </ResponseField>
 
 <ResponseField name="keyStore" type="KeyStore">
-  A storage backend for multiple keys.
-  
-  | KeyStore | Environment | Description |
-  |----------|-------------|-------------|
-  | `InMemoryKeyStore` | Any | Default, keys in memory |
-  | `FileKeyStore` | Node.js | Stores in `~/.near-credentials` |
-  | `NativeKeyStore` | Node.js | macOS Keychain / Windows Credential Manager |
+  A storage backend for multiple keys. | KeyStore | Environment | Description |
+  |----------|-------------|-------------| | `InMemoryKeyStore` | Any | Default,
+  keys in memory | | `FileKeyStore` | Node.js | Stores in `~/.near-credentials`
+  | | `NativeKeyStore` | Node.js | macOS Keychain / Windows Credential Manager |
   | `RotatingKeyStore` | Any | For high-concurrency apps |
 </ResponseField>
 
 <ResponseField name="wallet" type="WalletAdapter">
-  A wrapper around a browser wallet.
-  
-  ```typescript
-  wallet: fromHotConnect(connector)
-  ```
+  A wrapper around a browser wallet. ```typescript wallet:
+  fromHotConnect(connector) ```
 </ResponseField>
 
 <ResponseField name="signer" type="(hash: Uint8Array) => Promise<Signature>">
-  A custom signing function. Use this for hardware wallets, KMS, or multi-sig logic.
+  A custom signing function. Use this for hardware wallets, KMS, or multi-sig
+  logic.
 </ResponseField>
 
 <ResponseField name="defaultSignerId" type="string">
@@ -81,19 +77,20 @@ Controls which NEAR network to connect to.
 
 ## Execution Behavior
 
-<ResponseField name="defaultWaitUntil" type="string" default="EXECUTED_OPTIMISTIC">
-  Controls how long `.send()` waits before returning.
-  
-  | Value | Description |
-  |-------|-------------|
-  | `"INCLUDED"` | Return as soon as the network accepts it (fastest, no result value) |
-  | `"EXECUTED_OPTIMISTIC"` | Transaction is executed and result is available (default) |
-  | `"FINAL"` | Wait for BFT finality (safest, slowest) |
+<ResponseField
+  name="defaultWaitUntil"
+  type="string"
+  default="EXECUTED_OPTIMISTIC"
+>
+  Controls how long `.send()` waits before returning. | Value | Description |
+  |-------|-------------| | `"INCLUDED"` | Return as soon as the network accepts
+  it (fastest, no result value) | | `"EXECUTED_OPTIMISTIC"` | Transaction is
+  executed and result is available (default) | | `"FINAL"` | Wait for BFT
+  finality (safest, slowest) |
 </ResponseField>
 
 <ResponseField name="retryConfig" type="object">
   Configuration for automatic retries on network errors.
-  
   <Expandable title="properties">
     <ResponseField name="maxRetries" type="number" default={4}>
       Maximum retries for retryable network errors (429, 503, etc).

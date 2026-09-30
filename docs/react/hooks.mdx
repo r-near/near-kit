@@ -11,9 +11,9 @@ These hooks fetch data from the blockchain. They all return a consistent shape:
 
 ```typescript
 interface ViewResult<T> {
-  data: T | undefined          // The fetched data
-  error: Error | undefined     // Any error that occurred
-  isLoading: boolean           // Whether fetch is in progress
+  data: T | undefined // The fetched data
+  error: Error | undefined // Any error that occurred
+  isLoading: boolean // Whether fetch is in progress
   refetch: () => Promise<void> // Manually trigger a refetch
 }
 ```
@@ -46,23 +46,25 @@ interface ViewResult<T> {
 import { useView } from "@near-kit/react"
 
 function Messages() {
-  const { data, isLoading, error, refetch } = useView<{ limit: number }, Message[]>({
-    contractId: "guestbook.near",
-    method: "get_messages",
-    args: { limit: 10 },
-  })
+const { data, isLoading, error, refetch } = useView<{ limit: number }, Message[]>({
+contractId: "guestbook.near",
+method: "get_messages",
+args: { limit: 10 },
+})
 
-  if (isLoading) return <p>Loading...</p>
-  if (error) return <p>Error: {error.message}</p>
+if (isLoading) return <p>Loading...</p>
+if (error) return <p>Error: {error.message}</p>
 
-  return (
-    <div>
-      {data?.map((msg) => <p key={msg.id}>{msg.text}</p>)}
-      <button onClick={refetch}>Refresh</button>
-    </div>
-  )
+return (
+
+<div>
+{data?.map((msg) => <p key={msg.id}>{msg.text}</p>)}
+<button onClick={refetch}>Refresh</button>
+</div>
+)
 }
-```
+
+````
 
 ```tsx Conditional Fetching
 function UserProfile({ userId }: { userId?: string }) {
@@ -77,7 +79,7 @@ function UserProfile({ userId }: { userId?: string }) {
   if (!userId) return <p>Select a user</p>
   return <p>{profile?.name}</p>
 }
-```
+````
 
 ```tsx Type-Safe Arguments
 interface GetMessagesArgs {
@@ -99,10 +101,12 @@ const { data } = useView<GetMessagesArgs, Message[]>({
   args: { limit: 20, offset: 0 },
 })
 ```
+
 </CodeGroup>
 
 <Tip>
-  When `args` change (by reference or value), the hook automatically refetches. Use `useMemo` for computed args to prevent unnecessary refetches.
+  When `args` change (by reference or value), the hook automatically refetches.
+  Use `useMemo` for computed args to prevent unnecessary refetches.
 </Tip>
 
 ---
@@ -140,7 +144,8 @@ function WalletBalance({ accountId }: { accountId: string }) {
 ```
 
 <Note>
-  Returns a human-readable string like `"10.50 NEAR"`. For raw BigInt values, use `useNear()` and call `near.getAccountDetails()` directly.
+  Returns a human-readable string like `"10.50 NEAR"`. For raw BigInt values,
+  use `useNear()` and call `near.getAccountDetails()` directly.
 </Note>
 
 ---
@@ -193,10 +198,10 @@ Returns:
 
 ```typescript
 interface AccountState {
-  accountId: string | undefined  // The connected account ID
-  isConnected: boolean           // Whether any account is connected
-  isLoading: boolean             // Whether state is being fetched
-  refetch: () => Promise<void>   // Refresh account state
+  accountId: string | undefined // The connected account ID
+  isConnected: boolean // Whether any account is connected
+  isLoading: boolean // Whether state is being fetched
+  refetch: () => Promise<void> // Refresh account state
 }
 ```
 
@@ -214,7 +219,8 @@ function Header() {
 ```
 
 <Warning>
-  This hook accesses internal Near client state. The account is derived from whatever signer was configured (wallet adapter, private key, or keystore).
+  This hook accesses internal Near client state. The account is derived from
+  whatever signer was configured (wallet adapter, private key, or keystore).
 </Warning>
 
 ---
@@ -225,13 +231,13 @@ These hooks modify blockchain state. They return a consistent shape:
 
 ```typescript
 interface MutationResult<TArgs, TResult> {
-  mutate: (args: TArgs) => Promise<TResult>  // Execute the mutation
-  data: TResult | undefined                  // Last successful result
-  error: Error | undefined                   // Any error from last call
-  isPending: boolean                         // Whether mutation is in progress
-  isSuccess: boolean                         // Whether last call succeeded
-  isError: boolean                           // Whether last call failed
-  reset: () => void                          // Reset mutation state
+  mutate: (args: TArgs) => Promise<TResult> // Execute the mutation
+  data: TResult | undefined // Last successful result
+  error: Error | undefined // Any error from last call
+  isPending: boolean // Whether mutation is in progress
+  isSuccess: boolean // Whether last call succeeded
+  isError: boolean // Whether last call failed
+  reset: () => void // Reset mutation state
 }
 ```
 
@@ -244,7 +250,10 @@ interface MutationResult<TArgs, TResult> {
 </ParamField>
 
 <Warning>
-  **Cache invalidation not included.** After a mutation, related queries won't automatically refetch. For apps where mutations should update the UI, use [React Query with `invalidateQueries()`](/react/data-fetching#react-query) instead.
+  **Cache invalidation not included.** After a mutation, related queries won't
+  automatically refetch. For apps where mutations should update the UI, use
+  [React Query with `invalidateQueries()`](/react/data-fetching#react-query)
+  instead.
 </Warning>
 
 <Expandable title="UseCallParams Properties">
@@ -264,21 +273,23 @@ interface MutationResult<TArgs, TResult> {
 import { useCall } from "@near-kit/react"
 
 function IncrementButton() {
-  const { mutate, isPending, isError, error } = useCall({
-    contractId: "counter.testnet",
-    method: "increment",
-  })
+const { mutate, isPending, isError, error } = useCall({
+contractId: "counter.testnet",
+method: "increment",
+})
 
-  return (
-    <div>
-      <button onClick={() => mutate({})} disabled={isPending}>
-        {isPending ? "Processing..." : "Increment"}
-      </button>
-      {isError && <p>Error: {error?.message}</p>}
-    </div>
-  )
+return (
+
+<div>
+<button onClick={() => mutate({})} disabled={isPending}>
+{isPending ? "Processing..." : "Increment"}
+</button>
+{isError && <p>Error: {error?.message}</p>}
+</div>
+)
 }
-```
+
+````
 
 ```tsx With Arguments and Options
 interface AddMessageArgs {
@@ -319,7 +330,7 @@ function AddMessage() {
     </form>
   )
 }
-```
+````
 
 ```tsx Override Options Per-Call
 const { mutate } = useCall({
@@ -331,17 +342,17 @@ const { mutate } = useCall({
 // Override deposit for this specific call
 await mutate(
   { token_id: "1", receiver_id: "alice.near" },
-  { attachedDeposit: "0.1 NEAR" }
+  { attachedDeposit: "0.1 NEAR" },
 )
 ```
+
 </CodeGroup>
 
 <Accordion title="CallOptions Reference">
-  | Option | Type | Description |
-  |--------|------|-------------|
-  | `gas` | `string` | Gas limit (e.g., `"30 Tgas"`, `"100 Tgas"`) |
-  | `attachedDeposit` | `string` | NEAR to attach (e.g., `"1 NEAR"`, `"0.01 NEAR"`) |
-  | `waitUntil` | `"INCLUDED" \| "EXECUTED" \| "FINAL"` | When to resolve the promise |
+  | Option | Type | Description | |--------|------|-------------| | `gas` |
+  `string` | Gas limit (e.g., `"30 Tgas"`, `"100 Tgas"`) | | `attachedDeposit` |
+  `string` | NEAR to attach (e.g., `"1 NEAR"`, `"0.01 NEAR"`) | | `waitUntil` |
+  `"INCLUDED" \| "EXECUTED" \| "FINAL"` | When to resolve the promise |
 </Accordion>
 
 ---
@@ -443,10 +454,17 @@ import type { Contract } from "near-kit"
 type FungibleToken = Contract<{
   view: {
     ft_balance_of: (args: { account_id: string }) => Promise<string>
-    ft_metadata: () => Promise<{ name: string; symbol: string; decimals: number }>
+    ft_metadata: () => Promise<{
+      name: string
+      symbol: string
+      decimals: number
+    }>
   }
   call: {
-    ft_transfer: (args: { receiver_id: string; amount: string }) => Promise<void>
+    ft_transfer: (args: {
+      receiver_id: string
+      amount: string
+    }) => Promise<void>
   }
 }>
 
@@ -463,5 +481,7 @@ function TokenBalance({ accountId }: { accountId: string }) {
 ```
 
 <Tip>
-  For reactive data fetching with contracts, combine `useContract` with `useEffect` or integrate with React Query. See [Data Fetching](/react/data-fetching) for patterns.
+  For reactive data fetching with contracts, combine `useContract` with
+  `useEffect` or integrate with React Query. See [Data
+  Fetching](/react/data-fetching) for patterns.
 </Tip>

@@ -34,13 +34,13 @@
   // Before
   const hasFullAccessKey = await near.fullAccessKeyExists(
     "alice.near",
-    "ed25519:..."
-  );
+    "ed25519:...",
+  )
 
   // After
-  const accessKey = await near.getAccessKey("alice.near", "ed25519:...");
+  const accessKey = await near.getAccessKey("alice.near", "ed25519:...")
   const hasFullAccessKey =
-    accessKey !== null && accessKey.permission === "FullAccess";
+    accessKey !== null && accessKey.permission === "FullAccess"
   ```
 
   This change provides more flexibility by exposing the full `AccessKeyView` data instead of a boolean, allowing users to inspect key permissions, nonces, and other metadata.
@@ -85,17 +85,17 @@
 
   ```typescript
   // Without blockchain validation (cryptographic verification only)
-  const isValid = await verifyNep413Signature(signedMessage, params);
+  const isValid = await verifyNep413Signature(signedMessage, params)
 
   // With blockchain validation (verifies key belongs to account AND is full access)
-  const near = new Near({ network: "mainnet" });
-  const isValid = await verifyNep413Signature(signedMessage, params, { near });
+  const near = new Near({ network: "mainnet" })
+  const isValid = await verifyNep413Signature(signedMessage, params, { near })
 
   // Check if full access key exists directly
   const hasFullAccessKey = await near.fullAccessKeyExists(
     "alice.near",
-    "ed25519:..."
-  );
+    "ed25519:...",
+  )
   ```
 
 ## 0.5.5
@@ -187,12 +187,12 @@
 
   ```typescript
   // Before
-  publishContract(wasm); // immutable (hash)
-  publishContract(wasm, "factory.near"); // updatable (account)
+  publishContract(wasm) // immutable (hash)
+  publishContract(wasm, "factory.near") // updatable (account)
 
   // After
-  publishContract(wasm); // updatable (account) - DEFAULT CHANGED
-  publishContract(wasm, { identifiedBy: "hash" }); // immutable (hash)
+  publishContract(wasm) // updatable (account) - DEFAULT CHANGED
+  publishContract(wasm, { identifiedBy: "hash" }) // immutable (hash)
   ```
 
   This change makes it clear that:

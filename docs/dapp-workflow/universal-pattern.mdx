@@ -30,7 +30,7 @@ export async function buyItem(near: Near, signerId: string, itemId: string) {
       "market.near",
       "buy",
       { item_id: itemId },
-      { attachedDeposit: "1 NEAR", gas: "50 Tgas" }
+      { attachedDeposit: "1 NEAR", gas: "50 Tgas" },
     )
     .send()
 }
@@ -56,12 +56,13 @@ Now, let's see how to initialize the `Near` object for different environments.
 
     await buyItem(near, "admin.testnet", "sword-1")
     ```
+
   </Tab>
   <Tab title="Backend">
     In production server environments, you rarely handle raw private key strings manually. You use a `KeyStore`.
 
     A `KeyStore` manages keys for multiple accounts. When you call `.transaction("alice.near")`, the `Near` instance automatically looks up Alice's key in the store.
-    
+
     ```typescript
     import { Near } from "near-kit"
     import { FileKeyStore } from "near-kit/keys/file" // Node.js only
@@ -83,6 +84,7 @@ Now, let's see how to initialize the `Near` object for different environments.
     <Tip>
     **Why use a KeyStore?** It allows your app to manage multiple accounts (e.g., `worker-1`, `worker-2`, `admin`) seamlessly. You just switch the `signerId` argument, and `near-kit` finds the right key.
     </Tip>
+
   </Tab>
   <Tab title="Frontend">
     In the browser, you don't have private keys. You have a Wallet Adapter.
@@ -106,6 +108,7 @@ Now, let's see how to initialize the `Near` object for different environments.
     // The wallet popup will appear for the user!
     await buyItem(near, userAccount, "sword-1")
     ```
+
   </Tab>
   <Tab title="Testing">
     In tests, `near-kit` auto-configures everything when you pass the sandbox object.
@@ -123,6 +126,7 @@ Now, let's see how to initialize the `Near` object for different environments.
 
     await buyItem(near, sandbox.rootAccount.id, "sword-1")
     ```
+
   </Tab>
 </Tabs>
 

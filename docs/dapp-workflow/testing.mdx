@@ -91,12 +91,12 @@ await sandbox.patchState([
 
 Each `StateRecord` can be one of:
 
-| Record type  | Description                            |
-| ------------ | -------------------------------------- |
-| `Account`    | Account balance, locked amount, etc.   |
-| `AccessKey`  | Full-access or function-call key       |
-| `Contract`   | Deployed WASM code (base64-encoded)    |
-| `Data`       | Contract storage key/value pairs       |
+| Record type | Description                          |
+| ----------- | ------------------------------------ |
+| `Account`   | Account balance, locked amount, etc. |
+| `AccessKey` | Full-access or function-call key     |
+| `Contract`  | Deployed WASM code (base64-encoded)  |
+| `Data`      | Contract storage key/value pairs     |
 
 ## Fast-Forwarding Blocks
 
@@ -161,7 +161,10 @@ await sandbox.restart(snapshot)
 ```
 
 <Tip>
-  `restart()` with a snapshot is the most reliable way to reset state. Unlike `restoreState()` which patches on top of existing state, `restart()` merges snapshot records into the genesis file so the sandbox boots with exactly the state you want.
+  `restart()` with a snapshot is the most reliable way to reset state. Unlike
+  `restoreState()` which patches on top of existing state, `restart()` merges
+  snapshot records into the genesis file so the sandbox boots with exactly the
+  state you want.
 </Tip>
 
 ## Custom Binary
@@ -171,7 +174,7 @@ By default, `Sandbox.start()` downloads the near-sandbox binary from NEAR's serv
 ```typescript
 // Option 1: Pass the path directly
 const sandbox = await Sandbox.start({
-  binaryPath: "/path/to/near-sandbox"
+  binaryPath: "/path/to/near-sandbox",
 })
 
 // Option 2: Set environment variable
@@ -180,11 +183,13 @@ const sandbox = await Sandbox.start()
 ```
 
 Priority order:
+
 1. `binaryPath` option (if provided)
 2. `NEAR_SANDBOX_BIN_PATH` environment variable
 3. Download from NEAR's S3 bucket
 
 This is useful for:
+
 - CI environments with pre-cached binaries
 - Testing against a custom-built sandbox
 - Offline development

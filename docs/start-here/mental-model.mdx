@@ -17,6 +17,7 @@ To use `near-kit` effectively, there are only three concepts you need to interna
     near.transaction(...)
     near.getBalance(...)
     ```
+
   </Step>
   
   <Step title="We hate math (Units)">
@@ -34,6 +35,7 @@ To use `near-kit` effectively, there are only three concepts you need to interna
     // ❌ Bad (Throws Error)
     near.transfer("bob.near", 5) // Did you mean 5 NEAR or 5 yocto?
     ```
+
   </Step>
   
   <Step title="Transactions are Fluent Chains">
@@ -50,6 +52,7 @@ To use `near-kit` effectively, there are only three concepts you need to interna
       .transfer("bob.alice.near", "1 NEAR") // 2. Chain
       .send() // 3. Send
     ```
+
   </Step>
 </Steps>
 

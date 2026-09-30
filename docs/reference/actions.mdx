@@ -27,6 +27,7 @@ near.transaction(signerId: string)
     ```typescript
     .transfer("bob.near", "10 NEAR")
     ```
+
   </Accordion>
 
   <Accordion title=".stake(publicKey, amount)">
@@ -38,6 +39,7 @@ near.transaction(signerId: string)
     <ResponseField name="amount" type="Amount" required>
       The amount to stake.
     </ResponseField>
+
   </Accordion>
 </AccordionGroup>
 
@@ -75,6 +77,7 @@ near.transaction(signerId: string)
       { gas: "50 Tgas", attachedDeposit: "1 NEAR" }
     )
     ```
+
   </Accordion>
 
   <Accordion title=".deployContract(accountId, code)">
@@ -86,6 +89,7 @@ near.transaction(signerId: string)
     <ResponseField name="code" type="Uint8Array" required>
       The raw bytes of the compiled Wasm file.
     </ResponseField>
+
   </Accordion>
 
   <Accordion title=".stateInit(stateInit, options?)">
@@ -124,6 +128,7 @@ near.transaction(signerId: string)
     ```
 
     See [Global Contracts](/in-depth/global-contracts) for more details.
+
   </Accordion>
 </AccordionGroup>
 
@@ -142,6 +147,7 @@ near.transaction(signerId: string)
     .transfer("bob.alice.near", "1 NEAR")
     .addKey(publicKey, { type: "fullAccess" })
     ```
+
   </Accordion>
 
   <Accordion title=".deleteAccount({ beneficiary })">
@@ -158,6 +164,7 @@ near.transaction(signerId: string)
       .deleteAccount({ beneficiary: "alice.near" })
       .send()
     ```
+
   </Accordion>
 </AccordionGroup>
 
@@ -193,6 +200,7 @@ near.transaction(signerId: string)
         ```
       </Tab>
     </Tabs>
+
   </Accordion>
 
   <Accordion title=".deleteKey(accountId, publicKey)">
@@ -204,6 +212,7 @@ near.transaction(signerId: string)
     <ResponseField name="publicKey" type="string" required>
       The public key to remove.
     </ResponseField>
+
   </Accordion>
 </AccordionGroup>
 
@@ -240,6 +249,7 @@ near.transaction(signerId: string)
         ```
       </Tab>
     </Tabs>
+
   </Accordion>
 
   <Accordion title=".deployFromPublished(reference)">
@@ -250,6 +260,7 @@ near.transaction(signerId: string)
       - `{ accountId: string }` - Account ID of the publisher (for updatable contracts)
       - `{ codeHash: string }` - Base58 hash of an immutable contract
     </ResponseField>
+
   </Accordion>
 </AccordionGroup>
 
@@ -271,6 +282,7 @@ near.transaction(signerId: string)
     </ResponseField>
 
     **Returns:** `{ signedDelegateAction, payload, format }`
+
   </Accordion>
 
   <Accordion title=".signedDelegateAction(signedDelegate)">
@@ -279,6 +291,7 @@ near.transaction(signerId: string)
     <ResponseField name="signedDelegate" type="SignedDelegateAction" required>
       The signed delegate action from the user.
     </ResponseField>
+
   </Accordion>
 
   <Accordion title=".signWith(key)">
@@ -304,5 +317,6 @@ near.transaction(signerId: string)
         ```
       </Tab>
     </Tabs>
+
   </Accordion>
 </AccordionGroup>

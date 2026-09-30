@@ -68,7 +68,7 @@ app.post("/api/login", async (req, res) => {
       recipient,
       nonce: hex.decode(nonce), // Convert hex string back to Uint8Array
     },
-    { near }
+    { near },
   )
 
   if (!isValid) {
@@ -90,7 +90,10 @@ Customize expiration window if needed:
 
 ```typescript
 // Accept signatures up to 10 minutes old
-await verifyNep413Signature(signedMessage, params, { near, maxAge: 10 * 60 * 1000 })
+await verifyNep413Signature(signedMessage, params, {
+  near,
+  maxAge: 10 * 60 * 1000,
+})
 ```
 
 You can also check key existence directly:
@@ -104,6 +107,7 @@ const hasKey = await near.fullAccessKeyExists("alice.near", "ed25519:...")
 Cryptographic verification alone is not enough! If you do not check if the `nonce` has been used before, an attacker who intercepts the signed message can "replay" it to your server to log in as the user again.
 
 **Always store used nonces in your database (with an expiration time) and reject duplicates.**
+
 </Warning>
 
 ## Custom Nonce Schemes

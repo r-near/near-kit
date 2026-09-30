@@ -40,6 +40,7 @@ If you are coming from `near-api-js`, you will find `near-kit` to be more concis
     const signer = KeyPairSigner.fromSecretKey("ed25519:...")
     const account = new Account("alice.testnet", provider, signer)
     ```
+
   </Tab>
   <Tab title="near-kit">
     Configuration is flattened. The KeyStore is optional for simple cases.
@@ -66,6 +67,7 @@ If you are coming from `near-api-js`, you will find `near-kit` to be more concis
     const amount = parseNearAmount("10.5") // "1050000..."
     const gas = "30000000000000" // Hope you counted the zeros right!
     ```
+
   </Tab>
   <Tab title="near-kit">
     Parses human-readable strings automatically.
@@ -94,6 +96,7 @@ If you are coming from `near-api-js`, you will find `near-kit` to be more concis
       deposit: parseNearAmount("1")!,
     })
     ```
+
   </Tab>
   <Tab title="near-kit">
     Uses a fluent chain.
@@ -141,6 +144,7 @@ If you are coming from `near-api-js`, you will find `near-kit` to be more concis
       }
     }
     ```
+
   </Tab>
 </Tabs>
 

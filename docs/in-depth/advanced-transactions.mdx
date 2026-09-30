@@ -14,7 +14,10 @@ All actions added to a single transaction are executed **sequentially as one ato
 In other words: **within one transaction / receipt, it’s all-or-nothing.**
 
 <Warning title="The atomicity boundary stops at the transaction itself">
-Cross-contract calls created *by* your transaction run later as separate receipts. Once those child receipts have been emitted and executed on other contracts, their effects are **not** automatically rolled back if something else fails later—you must implement any "compensating logic" yourself.
+  Cross-contract calls created *by* your transaction run later as separate
+  receipts. Once those child receipts have been emitted and executed on other
+  contracts, their effects are **not** automatically rolled back if something
+  else fails later—you must implement any "compensating logic" yourself.
 </Warning>
 
 ## 2. The "Factory" Pattern (Batching)
@@ -22,7 +25,10 @@ Cross-contract calls created *by* your transaction run later as separate receipt
 Because of the atomicity rules above, we can safely use the "Factory" pattern: creating a new sub-account, funding it, deploying a contract to it, and initializing that contract—all in one transaction.
 
 <Tip title="Why do it this way?">
-If you deploy a contract but forget to initialize it, anyone could call `init` and take ownership. By bundling `deploy` and `init` in one atomic transaction, you guarantee that **only you** can initialize it, and if initialization fails, the account creation is rolled back entirely.
+  If you deploy a contract but forget to initialize it, anyone could call `init`
+  and take ownership. By bundling `deploy` and `init` in one atomic transaction,
+  you guarantee that **only you** can initialize it, and if initialization
+  fails, the account creation is rolled back entirely.
 </Tip>
 
 ```typescript
@@ -89,7 +95,9 @@ await near
 ```
 
 <Info title="Understanding Allowance">
-The `allowance` is a specific amount of NEAR set aside **strictly for gas fees**. It cannot be transferred or withdrawn. If the key uses up this allowance, it will be deleted automatically.
+  The `allowance` is a specific amount of NEAR set aside **strictly for gas
+  fees**. It cannot be transferred or withdrawn. If the key uses up this
+  allowance, it will be deleted automatically.
 </Info>
 
 ### Rotating Keys (Security)
@@ -119,7 +127,8 @@ await near
 ```
 
 <Note title="Unstaking">
-To unstake, you typically need to call function methods (`unstake`, `withdraw`) on the staking pool contract rather than using a native action.
+  To unstake, you typically need to call function methods (`unstake`,
+  `withdraw`) on the staking pool contract rather than using a native action.
 </Note>
 
 ## 5. Deleting Accounts
@@ -155,7 +164,8 @@ You can pass these options to `.send({ waitUntil: "..." })`.
 - **Data:** Full logs and return values are available.
 
 <Tip title="Best for most cases">
-This is the default for a reason. It provides the return value you need for your UI, and happens relatively quickly (~2s).
+  This is the default for a reason. It provides the return value you need for
+  your UI, and happens relatively quickly (~2s).
 </Tip>
 
 #### `INCLUDED`
@@ -164,7 +174,8 @@ This is the default for a reason. It provides the return value you need for your
 - **Data:** **No return values or logs are available yet.**
 
 <Warning title="Missing Data">
-Use `INCLUDED` only for "fire-and-forget" UI feedback. You cannot check if the smart contract call actually succeeded or failed logic checks yet.
+  Use `INCLUDED` only for "fire-and-forget" UI feedback. You cannot check if the
+  smart contract call actually succeeded or failed logic checks yet.
 </Warning>
 
 #### `FINAL`
@@ -176,10 +187,12 @@ Use `INCLUDED` only for "fire-and-forget" UI feedback. You cannot check if the s
 Use `FINAL` when moving large amounts of money to ensure 100% certainty.
 
 ```typescript
-await near.transaction("alice.near")
+await near
+  .transaction("alice.near")
   .transfer("bob.near", "10000 NEAR")
-  .send({ waitUntil: "FINAL" });
+  .send({ waitUntil: "FINAL" })
 ```
+
 </Tip>
 
 ## 7. Mapping a Receipt Back to its Transaction
@@ -188,7 +201,7 @@ When you only have a receipt ID (for example, from a cross-contract call), you c
 
 ```typescript
 const { transaction_hash, sender_account_id } = await near.rpc.receiptToTx(
-  "9ADoP8t3kRkV6JqYy3a6mJZ1uXuJ4Z3o2bF7tQwErTy"
+  "9ADoP8t3kRkV6JqYy3a6mJZ1uXuJ4Z3o2bF7tQwErTy",
 )
 ```
 
@@ -220,7 +233,9 @@ if (page.last_key) {
 }
 
 // Or iterate everything, following the cursor across pages automatically
-for await (const { key, value } of near.viewStateAll("contract.near", { limit: 100 })) {
+for await (const { key, value } of near.viewStateAll("contract.near", {
+  limit: 100,
+})) {
   // ...
 }
 ```

@@ -5,7 +5,9 @@ title: "Frontend Integration"
 `near-kit` is designed to work seamlessly in browser environments. The logic for building transactions is identical to the server-side; the only difference is that signing is delegated to the user's wallet via an **Adapter**.
 
 <Info>
-  **New to React?** Check out [`@near-kit/react`](/react/overview) for ready-to-use hooks that handle loading states, error handling, and integrate with React Query or SWR.
+  **New to React?** Check out [`@near-kit/react`](/react/overview) for
+  ready-to-use hooks that handle loading states, error handling, and integrate
+  with React Query or SWR.
 </Info>
 
 ## 🚀 Live Demo
@@ -93,7 +95,9 @@ account with full-access authority.
 ## Best Practice: React Context
 
 <Tip>
-  For a more streamlined React experience with built-in hooks, see the [`@near-kit/react`](/react/overview) package which provides `NearProvider`, `useView`, `useCall`, and more.
+  For a more streamlined React experience with built-in hooks, see the
+  [`@near-kit/react`](/react/overview) package which provides `NearProvider`,
+  `useView`, `useCall`, and more.
 </Tip>
 
 In a React application, you should create a `WalletContext` to store the `Near` instance so it can be accessed by any component.
@@ -106,10 +110,10 @@ import { createContext, useContext, useEffect, useState } from "react"
 import { Near, fromHotConnect } from "near-kit"
 import { NearConnector } from "@hot-labs/near-connect"
 
-const WalletContext = createContext<{ near: Near | null }>(null)
+const WalletContext = createContext < { near: Near | null } > null
 
 export const WalletProvider = ({ children }) => {
-  const [near, setNear] = useState<Near | null>(null)
+  const [near, setNear] = (useState < Near) | (null > null)
 
   useEffect(() => {
     const connector = new NearConnector({ network: "testnet" })
@@ -119,7 +123,7 @@ export const WalletProvider = ({ children }) => {
         new Near({
           network: "testnet",
           wallet: fromHotConnect(connector),
-        })
+        }),
       )
     })
 
