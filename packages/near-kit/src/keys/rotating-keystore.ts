@@ -22,7 +22,7 @@ import { runPromise, runSync } from "../effect/runtime.js"
  * ## How It Works
  * - Each account can have multiple keys registered
  * - `get()` returns the next key in round-robin order
- * - Each key has independent nonce tracking via NonceManager
+ * - Each key has independent reservations in the shared nonce service
  * - No nonce collisions between concurrent transactions
  *
  * @example
