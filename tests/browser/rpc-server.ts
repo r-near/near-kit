@@ -40,13 +40,33 @@ const block = {
     latest_protocol_version: 85,
   },
 }
+type RequestId = string | number | null
+export interface TransportDelivery {
+  ordinal: number
+  requestId: RequestId
+  method: string
+  responseId: RequestId
+  responseKind:
+    | "pending"
+    | "result"
+    | "nonce-error"
+    | "rpc-error"
+    | "dropped"
+    | "streaming"
+  serverFinished: boolean
+  closedBeforeFinish: boolean
+  hash?: string
+}
 export interface Submission extends WireTransaction {
+  deliveryOrdinal: number
+  requestId: RequestId
   bytes: string
   accepted: boolean
 }
 export interface RpcSnapshot {
   scenario: string
   methods: string[]
+  deliveries: TransportDelivery[]
   reads: { id: string; aborted: boolean }[]
   submissions: Submission[]
   statusHashes: string[]
@@ -128,6 +148,7 @@ export function rpcFixturePlugin(): Plugin {
                     ? config["scenario"]
                     : "default",
                 methods: [],
+                deliveries: [],
                 reads: [],
                 submissions: [],
                 statusHashes: [],
@@ -166,19 +187,45 @@ export function rpcFixturePlugin(): Plugin {
           const rpc = await body(request)
           const method = String(rpc["method"])
           const params = (rpc["params"] ?? {}) as Record<string, unknown>
+          const requestId =
+            typeof rpc["id"] === "string" || typeof rpc["id"] === "number"
+              ? rpc["id"]
+              : null
+          const delivery: TransportDelivery = {
+            ordinal: state.deliveries.length + 1,
+            requestId,
+            method,
+            responseId: null,
+            responseKind: "pending",
+            serverFinished: false,
+            closedBeforeFinish: false,
+          }
+          state.deliveries.push(delivery)
+          // A server finish means bytes reached the socket, not that fetch received them.
+          response.on("finish", () => {
+            delivery.serverFinished = true
+          })
+          response.on("close", () => {
+            delivery.closedBeforeFinish = !response.writableFinished
+          })
           state.methods.push(method)
           state.headers.push(
             typeof request.headers["x-fixture-service"] === "string"
               ? request.headers["x-fixture-service"]
               : undefined,
           )
-          const result = (value: unknown) =>
+          const result = (value: unknown) => {
+            delivery.responseKind = "result"
+            delivery.responseId = requestId
             json(response, { jsonrpc: "2.0", id: rpc["id"], result: value })
+          }
           const nonceError = (
             nonce: number,
             chain: number,
-            responseId = rpc["id"],
-          ) =>
+            responseId: RequestId = requestId,
+          ) => {
+            delivery.responseKind = "nonce-error"
+            delivery.responseId = responseId
             json(response, {
               jsonrpc: "2.0",
               id: responseId,
@@ -196,6 +243,7 @@ export function rpcFixturePlugin(): Plugin {
                 },
               },
             })
+          }
           if (method === "EXPERIMENTAL_view_gas_key_nonces") {
             result({ nonces: [10, 20, 30] })
             return
@@ -257,6 +305,8 @@ export function rpcFixturePlugin(): Plugin {
               return
             }
             if (state.scenario === "stream-read" && readId !== "fast") {
+              delivery.responseKind = "streaming"
+              delivery.responseId = requestId
               response.writeHead(200, { "content-type": "application/json" })
               const encoded = JSON.stringify({
                 jsonrpc: "2.0",
@@ -286,7 +336,14 @@ export function rpcFixturePlugin(): Plugin {
             if (!tx.signatureValid)
               throw new Error("Invalid browser transaction signature")
             const chain = state.nonces.get(tx.publicKey) ?? 1
-            const record = { ...tx, bytes, accepted: false }
+            delivery.hash = tx.hash
+            const record = {
+              ...tx,
+              bytes,
+              accepted: false,
+              deliveryOrdinal: delivery.ordinal,
+              requestId,
+            }
             state.submissions.push(record)
             if (
               state.scenario === "nonce-rejected" &&
@@ -305,6 +362,7 @@ export function rpcFixturePlugin(): Plugin {
             record.accepted = true
             state.accepted++
             if (state.accepted === 1 && state.scenario.startsWith("lost-")) {
+              delivery.responseKind = "dropped"
               response.destroy()
               return
             }
@@ -321,7 +379,7 @@ export function rpcFixturePlugin(): Plugin {
                   : tx.nonce,
                 state.scenario === "stale-id"
                   ? `${String(rpc["id"])}-other`
-                  : rpc["id"],
+                  : requestId,
               )
               return
             }
@@ -347,6 +405,8 @@ export function rpcFixturePlugin(): Plugin {
               result(outcome(tx))
               return
             }
+            delivery.responseKind = "rpc-error"
+            delivery.responseId = requestId
             json(response, {
               jsonrpc: "2.0",
               id: rpc["id"],

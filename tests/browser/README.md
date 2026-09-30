@@ -7,6 +7,11 @@ small deterministic node, not a replacement SDK. It records independently
 decoded transaction bytes and signatures, admits transfers into a disposable
 ledger, and can drop a response after admission or hold an unfinished body.
 No public RPC, real accounts, funded keys or wallet extensions are used.
+Browser requests use ordinary fetch without Playwright routing interception.
+The fixture disables HMR and enforces `connect-src 'self'`. Passive browser
+observations and server HTTP delivery records are attached for failed tests and
+lost-response scenarios, so browser-internal replay is visible without changing
+the transport. A matching nonce error never permits a newly signed commitment.
 
 ## Run
 

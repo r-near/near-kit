@@ -7,6 +7,11 @@ const react = process.env["REACT_VERSION"] === "18" ? "react18" : "react"
 const dom = process.env["REACT_VERSION"] === "18" ? "react-dom18" : "react-dom"
 export default defineConfig({
   plugins: [rpcFixturePlugin()],
+  // Keep the browser's ordinary transport untouched. Tests never need hot reload.
+  server: {
+    hmr: false,
+    headers: { "Content-Security-Policy": "connect-src 'self'" },
+  },
   cacheDir: `node_modules/.vite-react${process.env["REACT_VERSION"] === "18" ? "18" : "19"}`,
   resolve: {
     alias: [

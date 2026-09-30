@@ -126,37 +126,51 @@ for (const native of [false, true]) {
             },
           },
         ])
-      if (scenario.startsWith("lost-"))
+      if (scenario.startsWith("lost-")) {
         expect(state.submissions.length).toBeGreaterThanOrEqual(2)
+        const delivered = state.deliveries.filter(
+          (item) => item.method === "send_tx",
+        )
+        expect(delivered[0]).toMatchObject({
+          responseKind: "dropped",
+          serverFinished: false,
+          hash: first?.hash,
+        })
+        expect(
+          delivered.some((item) => item.responseKind === "nonce-error"),
+        ).toBe(true)
+      }
     })
   }
-  test(`${api}: a correlated definitive nonce rejection permits bounded fresh signing`, async ({
+  test(`${api}: a matching nonce rejection never authorizes a freshly signed submission`, async ({
     page,
     rpc,
   }) => {
     await rpc.configure("nonce-rejected")
-    expect(
-      await page.evaluate(({ url, native }) => window.kit.submit(url, native), {
-        url: rpc.url,
-        native,
-      }),
-    ).toMatchObject([{ ok: true }])
+    const results = await page.evaluate(
+      ({ url, native }) => window.kit.submit(url, native),
+      { url: rpc.url, native },
+    )
     const state = await rpc.snapshot()
-    expect(state.submissions).toHaveLength(3)
-    expect(
-      state.submissions
-        .slice(0, 2)
-        .map((tx) => ({ nonce: tx.nonce, accepted: tx.accepted })),
-    ).toEqual([
-      { nonce: 2, accepted: false },
-      { nonce: 2, accepted: false },
+    const first = state.submissions[0]
+    expect(first).toBeDefined()
+    expect(results).toMatchObject([
+      {
+        ok: false,
+        error: {
+          code: "TRANSACTION_OUTCOME_UNKNOWN",
+          retryable: false,
+          data: { hash: first?.hash },
+        },
+      },
     ])
-    expect(state.submissions[2]?.nonce).toBeGreaterThan(10)
-    expect(state.submissions[2]?.accepted).toBe(true)
-    expect(state.submissions[0]?.bytes).toBe(state.submissions[1]?.bytes)
-    expect(state.submissions[2]?.bytes).not.toBe(state.submissions[0]?.bytes)
-    expect(state.accepted).toBe(1)
-    expect(state.statusHashes).toEqual([])
+    expect(state.accepted).toBe(0)
+    expect(state.submissions).toHaveLength(2)
+    expect(
+      state.submissions.every((tx) => !tx.accepted && tx.nonce === 2),
+    ).toBe(true)
+    expect(new Set(state.submissions.map((tx) => tx.bytes)).size).toBe(1)
+    expect(state.statusHashes).toContain(first?.hash)
   })
   test(`${api}: malformed HTTP RPC data fails without retrying or submitting`, async ({
     page,
