@@ -125,10 +125,16 @@ lagging node never proves non-execution.
 
 Retain a native signed value and deliberately reuse `broadcast(signed)` for
 same-byte replay. Reusing the same unedited public builder also retains its signed
-commitment. In contrast, rerunning `send(plan)`, applying `Effect.retry` to it, or
+commitment, including concurrent local `sign()`/`send()` calls. Failed signing
+acquisition is cleared so a later pre-submission attempt can succeed. In contrast, rerunning `send(plan)`, applying `Effect.retry` to it, or
 calling `near.send(...)` again creates a new commitment. Do not do that blindly
 after uncertainty or interruption. Check the original hash; interruption cannot
 undo a submitted transaction. Editing a builder also represents a new intent.
+
+A wallet connector owns its own signing and submission. The SDK cannot coalesce
+opaque `wallet.signAndSendTransaction` calls or infer whether a wallet failure
+submitted anything; use the wallet's recovery contract rather than blindly
+repeating an approval or submission.
 
 A native `TransactionSigner` returns an Effect and stays in the caller's fiber.
 Resolve any application services before supplying it through native runtime

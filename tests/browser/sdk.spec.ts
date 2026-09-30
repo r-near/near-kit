@@ -245,6 +245,25 @@ for (const strict of [false, true]) {
   })
 }
 
+test("concurrent sends of one initially unsigned public builder share one commitment", async ({
+  page,
+  rpc,
+}) => {
+  await rpc.configure("lost-known")
+  const results = await page.evaluate(
+    (url) => window.kit.concurrentBuilder(url),
+    rpc.url,
+  )
+  const state = await rpc.snapshot()
+  expect(state.accepted).toBe(1)
+  expect(new Set(state.submissions.map((tx) => tx.bytes)).size).toBe(1)
+  const first = state.submissions[0]
+  if (!first) throw new Error("Expected an observed signed commitment")
+  expect(results).toEqual(
+    Array.from({ length: 3 }, () => ({ ok: true, hash: first.hash })),
+  )
+})
+
 test("concurrent broadcasts of one native commitment admit only one transfer", async ({
   page,
   rpc,

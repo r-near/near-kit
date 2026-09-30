@@ -249,6 +249,19 @@ const kit = {
       publicKey: key.publicKey.toString(),
     }
   },
+  async concurrentBuilder(url: string) {
+    const builder = client(url)
+      .transaction("alice.near")
+      .transfer("bob.near", "1 yocto")
+    return Promise.all(
+      Array.from({ length: 3 }, () =>
+        builder.send().then(
+          (result) => ({ ok: true, hash: result.transaction?.hash }),
+          (error) => ({ ok: false, error: errorRecord(error) }),
+        ),
+      ),
+    )
+  },
   async concurrentBroadcast(url: string) {
     const near = client(url)
     const signed = await Effect.runPromise(

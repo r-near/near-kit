@@ -301,3 +301,70 @@ test.each(["42", true, null, undefined])(
     )
   },
 )
+
+test("failed shared signing is cleared so a later acquisition can succeed", async () => {
+  const { key, builder } = setup()
+  const gate = Promise.withResolvers<void>()
+  const started = Promise.withResolvers<void>()
+  const failure = new Error("hardware not ready")
+  let calls = 0
+  builder.transfer("bob.near", "1 yocto").signWith(async (digest) => {
+    const attempt = ++calls
+    started.resolve()
+    await gate.promise
+    if (attempt === 1) throw failure
+    return key.sign(digest)
+  })
+  const attempts = Promise.allSettled([builder.sign(), builder.sign()])
+  await started.promise
+  gate.resolve()
+  expect(await attempts).toEqual([
+    { status: "rejected", reason: failure },
+    { status: "rejected", reason: failure },
+  ])
+  expect(calls).toBe(1)
+  expect(builder.getHash()).toBeNull()
+  await builder.sign()
+  expect(calls).toBe(2)
+  expectCommitment(builder.serialize(), builder.getHash(), key.publicKey.data)
+})
+
+test.each([false, true])(
+  "an old signing completion cannot invalidate its replacement (failure=%s)",
+  async (failOld) => {
+    const { key, builder } = setup()
+    const oldGate = Promise.withResolvers<void>()
+    const oldStarted = Promise.withResolvers<void>()
+    const newGate = Promise.withResolvers<void>()
+    const newStarted = Promise.withResolvers<void>()
+    const oldError = new Error("superseded signer failure")
+    let newCalls = 0
+    builder.transfer("bob.near", "1 yocto").signWith(async (digest) => {
+      oldStarted.resolve()
+      await oldGate.promise
+      if (failOld) throw oldError
+      return key.sign(digest)
+    })
+    const old = builder.sign().then(
+      () => undefined,
+      (error: unknown) => error,
+    )
+    await oldStarted.promise
+    builder.signWith(async (digest) => {
+      newCalls++
+      newStarted.resolve()
+      await newGate.promise
+      return key.sign(digest)
+    })
+    const replacement = builder.sign()
+    await newStarted.promise
+    oldGate.resolve()
+    expect(await old).toBe(failOld ? oldError : undefined)
+    expect(builder.getHash()).toBeNull()
+    const overlapping = builder.sign()
+    newGate.resolve()
+    await Promise.all([replacement, overlapping])
+    expect(newCalls).toBe(1)
+    expectCommitment(builder.serialize(), builder.getHash(), key.publicKey.data)
+  },
+)

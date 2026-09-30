@@ -1,4 +1,5 @@
 import * as Effect from "effect/Effect"
+import * as Exit from "effect/Exit"
 import * as Program from "../effect/transaction.js"
 import type {
   DelegateActionResult,
@@ -18,7 +19,7 @@ export type {
 import { walletService } from "../effect/wallet.js"
 import { keyStoreService } from "../effect/keys.js"
 import { sharedNonceReservation } from "../effect/nonce.js"
-import { fromPromise, runPromise } from "../effect/runtime.js"
+import { fromPromise, runPromise, runSync } from "../effect/runtime.js"
 import { InvalidKeyError, NearError } from "../errors/index.js"
 import { parseKey, parsePublicKey } from "../utils/key.js"
 import { deriveAccountId } from "../utils/state-init.js"
@@ -157,6 +158,14 @@ function toAccessKeyPermissionBorsh(
   }
 }
 
+interface SigningAcquisition {
+  readonly plan: TransactionPlan
+  readonly effect: Effect.Effect<
+    SignedTransactionValue,
+    Program.TransactionError
+  >
+}
+
 /**
  * Fluent builder for constructing and sending NEAR transactions.
  *
@@ -164,12 +173,14 @@ function toAccessKeyPermissionBorsh(
  * (transfers, function calls, key management, staking, delegate actions) into
  * a single atomic transaction.
  */
+
 export class TransactionBuilder {
   private plan: TransactionPlan
   private readonly dependencies: TransactionDependencies
   private selectedKey?: KeyPair
   private keyIdentity = {}
   private signed?: SignedTransactionValue
+  private signing?: SigningAcquisition
 
   constructor(signerId: string, dependencies: TransactionDependencies)
   constructor(signerId: string, ...legacy: LegacyTransactionArguments)
@@ -222,6 +233,7 @@ export class TransactionBuilder {
   private edit(update: Partial<TransactionPlan>): this {
     this.plan = { ...this.plan, ...update }
     delete this.signed
+    delete this.signing
     return this
   }
 
@@ -252,14 +264,30 @@ export class TransactionBuilder {
             ),
           ),
     )
-    const sign = Program.sign(plan, this.dependencies, key).pipe(
-      Effect.tap((signed) =>
-        Effect.sync(() => {
-          if (this.plan === plan) this.signed = signed
-        }),
+    if (this.signed) return { plan, key, sign: Effect.succeed(this.signed) }
+    if (this.signing?.plan === plan)
+      return { plan, key, sign: this.signing.effect }
+    // Allocate the native memo atomically at this synchronous public boundary.
+    // Concurrent terminals share acquisition; edits and failures release only their own entry.
+    const entry: SigningAcquisition = {
+      plan,
+      effect: runSync(
+        Effect.cached(
+          Program.sign(plan, this.dependencies, key).pipe(
+            Effect.onExit((exit) =>
+              Effect.sync(() => {
+                if (this.signing !== entry) return
+                delete this.signing
+                if (Exit.isSuccess(exit) && this.plan === plan)
+                  this.signed = exit.value
+              }),
+            ),
+          ),
+        ),
       ),
-    )
-    return { plan, key, sign }
+    }
+    this.signing = entry
+    return { plan, key, sign: entry.effect }
   }
 
   /**
@@ -709,6 +737,7 @@ export class TransactionBuilder {
     this.keyIdentity = {}
     delete this.selectedKey
     delete this.signed
+    delete this.signing
     return this
   }
 

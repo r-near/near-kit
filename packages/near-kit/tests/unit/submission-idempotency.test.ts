@@ -43,6 +43,7 @@ function fixture(
     first?: "lost" | "malformed" | "accepted" | "wrong nonce" | "hidden replay"
     replay?: "ShardCongested" | "ShardStuck"
     gate?: Promise<void>
+    signGate?: Promise<void>
     rejection?: { id?: unknown; txNonce: number; akNonce: number }
     statusIdentity?: "correct" | "hash" | "signer" | "receiver" | "nonce"
   } = {},
@@ -55,6 +56,7 @@ function fixture(
   let statusKnown = false
   let signatures = 0
   const started = Promise.withResolvers<void>()
+  const signingStarted = Promise.withResolvers<void>()
   const rpc = {
     ...testRpcPrograms(
       "https://rpc.invalid",
@@ -169,8 +171,11 @@ function fixture(
     ),
     nonces: Effect.runSync(makeNonceReservation),
     signer: (digest) =>
-      Effect.sync(() => {
+      Effect.gen(function* () {
         signatures++
+        signingStarted.resolve()
+        if (options.signGate)
+          yield* Effect.promise(() => options.signGate ?? Promise.resolve())
         return key.sign(digest)
       }),
   }
@@ -186,6 +191,7 @@ function fixture(
     wires,
     lookups,
     started: started.promise,
+    signingStarted: signingStarted.promise,
     knowStatus: () => {
       statusKnown = true
     },
@@ -194,6 +200,29 @@ function fixture(
 }
 
 describe("signed commitment submission safety", () => {
+  test.each(["send+send", "sign+send"] as const)(
+    "concurrent %s on one unsigned builder shares one commitment",
+    async (mode) => {
+      const gate = Promise.withResolvers<void>()
+      const f = fixture({ signGate: gate.promise })
+      f.knowStatus()
+      const first =
+        mode === "send+send"
+          ? f.builder.send({ waitUntil: "NONE" })
+          : f.builder.sign()
+      const second = f.builder.send({ waitUntil: "NONE" })
+      await f.signingStarted
+      gate.resolve()
+      await first
+      const result = await second
+      expect(f.signatures()).toBe(1)
+      expect(f.accepted).toHaveLength(1)
+      expect(new Set(f.wires.map((wire) => base64.encode(wire))).size).toBe(1)
+      expect(result.transaction?.hash).toBe(f.accepted[0])
+      expect(f.builder.getHash()).toBe(f.accepted[0])
+    },
+  )
+
   test.each([
     { native: false, known: false },
     { native: false, known: true },
