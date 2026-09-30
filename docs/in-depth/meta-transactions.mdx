@@ -14,7 +14,11 @@ Meta-transactions (NEP-366) allow a user to sign a transaction off-chain, which 
 
 ## 1. Client Side: Signing the Action
 
-On the frontend, use the `.delegate()` method. This works exactly like `.send()`, but implies no network activity and no gas cost for the signer.
+On the frontend, use the `.delegate()` method to sign the queued actions without submitting a transaction or paying gas. It may make RPC calls to look up the nonce and expiration block height, or prompt a connected wallet to sign.
+
+For local signing, set the delegate nonce with `.delegate({ nonce: n })`. For V2 delegates, use `.delegateV2({ nonce: n })`, adding `nonceIndex` when signing with a gas-key slot. The builder's `.nonce(n)` method is reserved for the outer transaction: combining it with `delegate()` or `delegateV2()` throws before RPC calls or signing, even if a delegate nonce option is also provided. Wallets choose their own delegate nonce.
+
+A relayer can still use `.nonce(n).signedDelegateAction(signedDelegateAction).send()` (or `signedDelegateActionV2`) to choose its outer transaction nonce independently of the user's signed delegate nonce.
 
 It returns two properties:
 
