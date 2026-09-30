@@ -368,3 +368,30 @@ test.each([false, true])(
     expectCommitment(builder.serialize(), builder.getHash(), key.publicKey.data)
   },
 )
+
+test("a failed build cannot pin an unused signing acquisition to stale key state", async () => {
+  const keys = [generateKey(), generateKey()]
+  const failure = new Error("key store is locked")
+  let gets = 0
+  const builder = new TransactionBuilder("alice.near", setup().rpc, {
+    get: async () => {
+      gets++
+      if (gets === 1) throw failure
+      return keys[(gets - 2) % keys.length] ?? null
+    },
+    add: async () => {},
+    remove: async () => {},
+    list: async () => ["alice.near"],
+  })
+    .nonce(42n)
+    .transfer("bob.near", "1 yocto")
+  await expect(builder.build()).rejects.toBe(failure)
+  const unsigned = await builder.build()
+  await builder.sign()
+  expect(gets).toBe(2)
+  expectCommitment(
+    builder.serialize(),
+    builder.getHash(),
+    unsigned.publicKey.data,
+  )
+})

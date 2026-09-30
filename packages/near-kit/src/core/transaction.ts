@@ -264,9 +264,15 @@ export class TransactionBuilder {
             ),
           ),
     )
-    if (this.signed) return { plan, key, sign: Effect.succeed(this.signed) }
-    if (this.signing?.plan === plan)
-      return { plan, key, sign: this.signing.effect }
+    return { plan, key }
+  }
+
+  private signingFor(
+    plan: TransactionPlan,
+    key: ReturnType<typeof Program.resolveKey>,
+  ) {
+    if (this.signed && this.plan === plan) return Effect.succeed(this.signed)
+    if (this.signing?.plan === plan) return this.signing.effect
     // Allocate the native memo atomically at this synchronous public boundary.
     // Concurrent terminals share acquisition; edits and failures release only their own entry.
     const entry: SigningAcquisition = {
@@ -287,7 +293,7 @@ export class TransactionBuilder {
       ),
     }
     this.signing = entry
-    return { plan, key, sign: entry.effect }
+    return entry.effect
   }
 
   /**
@@ -872,11 +878,11 @@ export class TransactionBuilder {
    */
   sign(): Promise<this> {
     return runPromise(
-      Effect.suspend(() =>
-        this.signed
-          ? Effect.succeed(this)
-          : this.execution().sign.pipe(Effect.as(this)),
-      ),
+      Effect.suspend(() => {
+        if (this.signed) return Effect.succeed(this)
+        const { plan, key } = this.execution()
+        return this.signingFor(plan, key).pipe(Effect.as(this))
+      }),
     )
   }
 
@@ -971,11 +977,13 @@ export class TransactionBuilder {
   ): Promise<FinalExecutionOutcomeMap[W]> {
     return runPromise(
       Effect.suspend(() => {
-        const { plan, sign } = this.execution()
+        const { plan, key } = this.execution()
         return Program.submit(
           plan,
           this.dependencies,
-          sign,
+          this.dependencies.wallet
+            ? Program.sign(plan, this.dependencies, key)
+            : this.signingFor(plan, key),
           this.signed,
           options,
         )
