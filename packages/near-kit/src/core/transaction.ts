@@ -136,6 +136,17 @@ export interface TransactionDependencies {
   readonly defaultWaitUntil?: TxExecutionStatus
 }
 
+type LegacyTransactionArguments = [
+  rpc: RpcClient,
+  keyStore: KeyStore,
+  signer?: Signer,
+  defaultWaitUntil?: TxExecutionStatus,
+  wallet?: WalletConnection,
+  ensureKeyStoreReady?: () => Promise<void>,
+  ensureKeyStoreReadyEffect?: () => Effect.Effect<void, ExternalError>,
+  nonces?: NonceReservationService,
+]
+
 type DelegateSigningOptions = {
   receiverId?: string
   /**
@@ -298,35 +309,28 @@ export class TransactionBuilder {
   private explicitNonce?: bigint
 
   constructor(signerId: string, dependencies: TransactionDependencies)
+  constructor(signerId: string, ...legacy: LegacyTransactionArguments)
   constructor(
     signerId: string,
-    rpc: RpcClient,
-    keyStore: KeyStore,
-    signer?: Signer,
-    defaultWaitUntil?: TxExecutionStatus,
-    wallet?: WalletConnection,
-    ensureKeyStoreReady?: () => Promise<void>,
-    ensureKeyStoreReadyEffect?: () => Effect.Effect<void, ExternalError>,
-    nonces?: NonceReservationService,
-  )
-  constructor(
-    signerId: string,
-    rpcOrDependencies: RpcClient | TransactionDependencies,
-    keyStore?: KeyStore,
-    signer?: Signer,
-    defaultWaitUntil: TxExecutionStatus = "EXECUTED_OPTIMISTIC",
-    wallet?: WalletConnection,
-    ensureKeyStoreReady?: () => Promise<void>,
-    ensureKeyStoreReadyEffect?: () => Effect.Effect<void, ExternalError>,
-    nonces: NonceReservationService = sharedNonceReservation,
+    ...args: [TransactionDependencies] | LegacyTransactionArguments
   ) {
     let dependencies: TransactionDependencies
-    if ("rpc" in rpcOrDependencies) {
-      dependencies = rpcOrDependencies
+    if (args.length === 1) {
+      dependencies = args[0]
     } else {
+      const [
+        rpc,
+        keyStore,
+        signer,
+        defaultWaitUntil = "EXECUTED_OPTIMISTIC",
+        wallet,
+        ensureKeyStoreReady,
+        ensureKeyStoreReadyEffect,
+        nonces = sharedNonceReservation,
+      ] = args
       if (!keyStore) throw new InvalidKeyError("A key store is required")
       dependencies = {
-        rpc: rpcFromPromises(rpcOrDependencies),
+        rpc: rpcFromPromises(rpc),
         keyStore: keyStoreService(keyStore),
         nonces,
         defaultWaitUntil,

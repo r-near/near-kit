@@ -191,6 +191,22 @@ describe("Transaction execution ownership", () => {
     expect(send).not.toHaveBeenCalled()
   })
 
+  test("accepts an external provider with an unrelated rpc metadata property", async () => {
+    const { rpc } = setup()
+    const provider = Object.assign(rpc, { rpc: "provider metadata" })
+    const builder = new TransactionBuilder(
+      "alice.near",
+      provider,
+      new InMemoryKeyStore({ "alice.near": PRIVATE_KEY }),
+    )
+      .nonce(42n)
+      .transfer("bob.near", "1 NEAR")
+    await builder.sign()
+    expect(builder.getHash()).toBe(
+      "14p5Cg5kU2xFUs5KnkhKhJh6sUo4XtsmRvaf6DKcbsQb",
+    )
+  })
+
   test("preserves callback receivers at Promise-only extension boundaries", async () => {
     const { rpc } = setup()
     const receivers: unknown[] = []
@@ -282,7 +298,7 @@ describe("Malformed transaction inputs and RPC data", () => {
       if (scenario === "strict block" || scenario === "access nonce")
         builder.strictNonceMode()
       if (scenario === "gas nonce") builder.useGasKey(0).strictNonceMode()
-      const program =
+      const program: Effect.Effect<unknown, TransactionError> =
         scenario === "delegate offset"
           ? builder.delegateEffect({ nonce: 42n, blockHeightOffset: 0.5 })
           : builder.sendEffect()
