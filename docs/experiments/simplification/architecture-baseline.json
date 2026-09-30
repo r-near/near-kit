@@ -1,0 +1,851 @@
+{
+  "commit": "95111ba2076939ae8ab9820bd27428214858e245",
+  "method": "Tracked packages/*/src TypeScript; physical lines and Babel-comment-stripped nonblank lines include type declarations. Boundary counts are static call sites by named runner/adapter, not dynamic crossings; classify pure sync guards separately.",
+  "totals": {
+    "modules": 59,
+    "physicalLines": 17291,
+    "nonblankWithoutComments": 11371,
+    "classes": 52,
+    "asyncFunctions": 5,
+    "weakMaps": 4,
+    "boundaryCalls": 228,
+    "boundaries": {
+      "runSync": 17,
+      "runFork": 4,
+      "runPromise": 79,
+      "fromPromise": 83,
+      "inputEffect": 13,
+      "tryPromise": 3,
+      "transactionSync": 28,
+      "fromSync": 1
+    }
+  },
+  "files": [
+    {
+      "file": "packages/near-kit/src/contracts/contract.ts",
+      "physicalLines": 122,
+      "nonblankWithoutComments": 68,
+      "classes": [],
+      "asyncFunctions": 2,
+      "weakMaps": 0,
+      "boundaries": {}
+    },
+    {
+      "file": "packages/near-kit/src/contracts/index.ts",
+      "physicalLines": 5,
+      "nonblankWithoutComments": 1,
+      "classes": [],
+      "asyncFunctions": 0,
+      "weakMaps": 0,
+      "boundaries": {}
+    },
+    {
+      "file": "packages/near-kit/src/core/actions.ts",
+      "physicalLines": 587,
+      "nonblankWithoutComments": 329,
+      "classes": [
+        {
+          "name": "DelegateAction",
+          "super": null
+        },
+        {
+          "name": "DelegateActionV2",
+          "super": null
+        }
+      ],
+      "asyncFunctions": 0,
+      "weakMaps": 0,
+      "boundaries": {}
+    },
+    {
+      "file": "packages/near-kit/src/core/config-schemas.ts",
+      "physicalLines": 233,
+      "nonblankWithoutComments": 103,
+      "classes": [],
+      "asyncFunctions": 0,
+      "weakMaps": 0,
+      "boundaries": {}
+    },
+    {
+      "file": "packages/near-kit/src/core/constants.ts",
+      "physicalLines": 97,
+      "nonblankWithoutComments": 46,
+      "classes": [],
+      "asyncFunctions": 0,
+      "weakMaps": 0,
+      "boundaries": {}
+    },
+    {
+      "file": "packages/near-kit/src/core/near.ts",
+      "physicalLines": 1140,
+      "nonblankWithoutComments": 607,
+      "classes": [
+        {
+          "name": "Near",
+          "super": null
+        }
+      ],
+      "asyncFunctions": 0,
+      "weakMaps": 0,
+      "boundaries": {
+        "runSync": 1,
+        "runFork": 1,
+        "runPromise": 17,
+        "fromPromise": 16
+      }
+    },
+    {
+      "file": "packages/near-kit/src/core/rpc/rpc-error-handler.ts",
+      "physicalLines": 577,
+      "nonblankWithoutComments": 393,
+      "classes": [],
+      "asyncFunctions": 0,
+      "weakMaps": 0,
+      "boundaries": {}
+    },
+    {
+      "file": "packages/near-kit/src/core/rpc/rpc-program.ts",
+      "physicalLines": 977,
+      "nonblankWithoutComments": 869,
+      "classes": [],
+      "asyncFunctions": 1,
+      "weakMaps": 1,
+      "boundaries": {
+        "inputEffect": 4,
+        "tryPromise": 1
+      }
+    },
+    {
+      "file": "packages/near-kit/src/core/rpc/rpc-schemas.ts",
+      "physicalLines": 953,
+      "nonblankWithoutComments": 621,
+      "classes": [],
+      "asyncFunctions": 0,
+      "weakMaps": 0,
+      "boundaries": {}
+    },
+    {
+      "file": "packages/near-kit/src/core/rpc/rpc.ts",
+      "physicalLines": 547,
+      "nonblankWithoutComments": 513,
+      "classes": [],
+      "asyncFunctions": 1,
+      "weakMaps": 3,
+      "boundaries": {
+        "fromPromise": 20,
+        "runPromise": 19
+      }
+    },
+    {
+      "file": "packages/near-kit/src/core/schema.ts",
+      "physicalLines": 1020,
+      "nonblankWithoutComments": 512,
+      "classes": [],
+      "asyncFunctions": 0,
+      "weakMaps": 0,
+      "boundaries": {}
+    },
+    {
+      "file": "packages/near-kit/src/core/transaction.ts",
+      "physicalLines": 1993,
+      "nonblankWithoutComments": 1244,
+      "classes": [
+        {
+          "name": "TransactionBuilder",
+          "super": null
+        }
+      ],
+      "asyncFunctions": 0,
+      "weakMaps": 0,
+      "boundaries": {
+        "fromPromise": 10,
+        "runPromise": 5,
+        "transactionSync": 28
+      }
+    },
+    {
+      "file": "packages/near-kit/src/core/types.ts",
+      "physicalLines": 556,
+      "nonblankWithoutComments": 213,
+      "classes": [],
+      "asyncFunctions": 0,
+      "weakMaps": 0,
+      "boundaries": {}
+    },
+    {
+      "file": "packages/near-kit/src/effect/contract.ts",
+      "physicalLines": 47,
+      "nonblankWithoutComments": 44,
+      "classes": [],
+      "asyncFunctions": 0,
+      "weakMaps": 0,
+      "boundaries": {}
+    },
+    {
+      "file": "packages/near-kit/src/effect/file-keystore.ts",
+      "physicalLines": 166,
+      "nonblankWithoutComments": 152,
+      "classes": [
+        {
+          "name": "FileStorage",
+          "super": "Context.Service<\n  FileStorage,\n  FileStorageService\n>()(\"near-kit/FileStorage\")"
+        }
+      ],
+      "asyncFunctions": 0,
+      "weakMaps": 0,
+      "boundaries": {}
+    },
+    {
+      "file": "packages/near-kit/src/effect/index.ts",
+      "physicalLines": 25,
+      "nonblankWithoutComments": 24,
+      "classes": [],
+      "asyncFunctions": 0,
+      "weakMaps": 0,
+      "boundaries": {}
+    },
+    {
+      "file": "packages/near-kit/src/effect/key-storage.ts",
+      "physicalLines": 128,
+      "nonblankWithoutComments": 123,
+      "classes": [],
+      "asyncFunctions": 0,
+      "weakMaps": 0,
+      "boundaries": {
+        "inputEffect": 2
+      }
+    },
+    {
+      "file": "packages/near-kit/src/effect/keys.ts",
+      "physicalLines": 91,
+      "nonblankWithoutComments": 77,
+      "classes": [
+        {
+          "name": "KeyStore",
+          "super": "Context.Service<KeyStore, KeyStoreService>()(\n  \"near-kit/KeyStore\",\n)"
+        }
+      ],
+      "asyncFunctions": 0,
+      "weakMaps": 0,
+      "boundaries": {
+        "fromPromise": 4,
+        "runPromise": 4
+      }
+    },
+    {
+      "file": "packages/near-kit/src/effect/native-keystore.ts",
+      "physicalLines": 95,
+      "nonblankWithoutComments": 87,
+      "classes": [
+        {
+          "name": "NativeStorage",
+          "super": "Context.Service<\n  NativeStorage,\n  NativeStorageService\n>()(\"near-kit/NativeStorage\")"
+        }
+      ],
+      "asyncFunctions": 0,
+      "weakMaps": 0,
+      "boundaries": {
+        "fromPromise": 1
+      }
+    },
+    {
+      "file": "packages/near-kit/src/effect/near-program.ts",
+      "physicalLines": 445,
+      "nonblankWithoutComments": 385,
+      "classes": [],
+      "asyncFunctions": 0,
+      "weakMaps": 0,
+      "boundaries": {
+        "inputEffect": 7,
+        "fromPromise": 1
+      }
+    },
+    {
+      "file": "packages/near-kit/src/effect/near.ts",
+      "physicalLines": 139,
+      "nonblankWithoutComments": 120,
+      "classes": [
+        {
+          "name": "Near",
+          "super": "Context.Service<Near, NearService>()(\n  \"near-kit/Near\",\n)"
+        }
+      ],
+      "asyncFunctions": 0,
+      "weakMaps": 0,
+      "boundaries": {}
+    },
+    {
+      "file": "packages/near-kit/src/effect/nonce.ts",
+      "physicalLines": 175,
+      "nonblankWithoutComments": 152,
+      "classes": [
+        {
+          "name": "NonceReservation",
+          "super": "Context.Service<\n  NonceReservation,\n  NonceReservationService\n>()(\"near-kit/NonceReservation\")"
+        }
+      ],
+      "asyncFunctions": 0,
+      "weakMaps": 0,
+      "boundaries": {
+        "runSync": 1
+      }
+    },
+    {
+      "file": "packages/near-kit/src/effect/protocol-schemas.ts",
+      "physicalLines": 672,
+      "nonblankWithoutComments": 624,
+      "classes": [],
+      "asyncFunctions": 0,
+      "weakMaps": 0,
+      "boundaries": {}
+    },
+    {
+      "file": "packages/near-kit/src/effect/rpc.ts",
+      "physicalLines": 137,
+      "nonblankWithoutComments": 117,
+      "classes": [
+        {
+          "name": "RpcTransport",
+          "super": "Context.Service<\n  RpcTransport,\n  RpcTransportService\n>()(\"near-kit/RpcTransport\")"
+        },
+        {
+          "name": "Rpc",
+          "super": "Context.Service<Rpc, RpcService>()(\"near-kit/Rpc\")"
+        }
+      ],
+      "asyncFunctions": 0,
+      "weakMaps": 0,
+      "boundaries": {}
+    },
+    {
+      "file": "packages/near-kit/src/effect/runtime.ts",
+      "physicalLines": 78,
+      "nonblankWithoutComments": 55,
+      "classes": [
+        {
+          "name": "ExternalError",
+          "super": "Schema.TaggedError<ExternalError>()(\n  \"ExternalError\",\n  {\n    operation: Schema.String,\n    cause: Schema.Unknown,\n  },\n)"
+        }
+      ],
+      "asyncFunctions": 0,
+      "weakMaps": 0,
+      "boundaries": {
+        "runPromise": 1,
+        "tryPromise": 1,
+        "runSync": 1
+      }
+    },
+    {
+      "file": "packages/near-kit/src/effect/sandbox.ts",
+      "physicalLines": 770,
+      "nonblankWithoutComments": 726,
+      "classes": [
+        {
+          "name": "Sandbox",
+          "super": "Context.Service<Sandbox, SandboxService>()(\n  \"near-kit/Sandbox\",\n)"
+        }
+      ],
+      "asyncFunctions": 0,
+      "weakMaps": 0,
+      "boundaries": {
+        "fromPromise": 1
+      }
+    },
+    {
+      "file": "packages/near-kit/src/effect/transaction.ts",
+      "physicalLines": 167,
+      "nonblankWithoutComments": 139,
+      "classes": [
+        {
+          "name": "EffectTransactionBuilder",
+          "super": null
+        }
+      ],
+      "asyncFunctions": 0,
+      "weakMaps": 0,
+      "boundaries": {}
+    },
+    {
+      "file": "packages/near-kit/src/effect/wallet.ts",
+      "physicalLines": 122,
+      "nonblankWithoutComments": 114,
+      "classes": [
+        {
+          "name": "Wallet",
+          "super": "Context.Service<Wallet, WalletService>()(\n  \"near-kit/Wallet\",\n)"
+        }
+      ],
+      "asyncFunctions": 0,
+      "weakMaps": 0,
+      "boundaries": {
+        "runPromise": 4,
+        "fromPromise": 4
+      }
+    },
+    {
+      "file": "packages/near-kit/src/errors/index.ts",
+      "physicalLines": 535,
+      "nonblankWithoutComments": 368,
+      "classes": [
+        {
+          "name": "NearError",
+          "super": "Error"
+        },
+        {
+          "name": "InsufficientBalanceError",
+          "super": "NearError"
+        },
+        {
+          "name": "FunctionCallError",
+          "super": "NearError"
+        },
+        {
+          "name": "NetworkError",
+          "super": "NearError"
+        },
+        {
+          "name": "InvalidKeyError",
+          "super": "NearError"
+        },
+        {
+          "name": "AccountDoesNotExistError",
+          "super": "NearError"
+        },
+        {
+          "name": "AccessKeyDoesNotExistError",
+          "super": "NearError"
+        },
+        {
+          "name": "InvalidAccountIdError",
+          "super": "NearError"
+        },
+        {
+          "name": "SignatureError",
+          "super": "NearError"
+        },
+        {
+          "name": "GasLimitExceededError",
+          "super": "NearError"
+        },
+        {
+          "name": "TransactionTimeoutError",
+          "super": "NearError"
+        },
+        {
+          "name": "WalletError",
+          "super": "NearError"
+        },
+        {
+          "name": "UnknownBlockError",
+          "super": "NearError"
+        },
+        {
+          "name": "InvalidAccountError",
+          "super": "NearError"
+        },
+        {
+          "name": "ShardUnavailableError",
+          "super": "NearError"
+        },
+        {
+          "name": "NodeNotSyncedError",
+          "super": "NearError"
+        },
+        {
+          "name": "ContractNotDeployedError",
+          "super": "NearError"
+        },
+        {
+          "name": "GlobalContractNotFoundError",
+          "super": "NearError"
+        },
+        {
+          "name": "ContractStateTooLargeError",
+          "super": "NearError"
+        },
+        {
+          "name": "ContractExecutionError",
+          "super": "NearError"
+        },
+        {
+          "name": "UnknownChunkError",
+          "super": "NearError"
+        },
+        {
+          "name": "InvalidShardIdError",
+          "super": "NearError"
+        },
+        {
+          "name": "UnknownEpochError",
+          "super": "NearError"
+        },
+        {
+          "name": "InvalidNonceError",
+          "super": "NearError"
+        },
+        {
+          "name": "InvalidTransactionError",
+          "super": "NearError"
+        },
+        {
+          "name": "UnknownReceiptError",
+          "super": "NearError"
+        },
+        {
+          "name": "ParseError",
+          "super": "NearError"
+        },
+        {
+          "name": "TimeoutError",
+          "super": "NearError"
+        },
+        {
+          "name": "InternalServerError",
+          "super": "NearError"
+        }
+      ],
+      "asyncFunctions": 0,
+      "weakMaps": 0,
+      "boundaries": {}
+    },
+    {
+      "file": "packages/near-kit/src/index.ts",
+      "physicalLines": 143,
+      "nonblankWithoutComments": 122,
+      "classes": [],
+      "asyncFunctions": 0,
+      "weakMaps": 0,
+      "boundaries": {}
+    },
+    {
+      "file": "packages/near-kit/src/keys/credential-schemas.ts",
+      "physicalLines": 208,
+      "nonblankWithoutComments": 91,
+      "classes": [],
+      "asyncFunctions": 0,
+      "weakMaps": 0,
+      "boundaries": {
+        "runSync": 1
+      }
+    },
+    {
+      "file": "packages/near-kit/src/keys/file-keystore.ts",
+      "physicalLines": 86,
+      "nonblankWithoutComments": 66,
+      "classes": [
+        {
+          "name": "FileKeyStore",
+          "super": null
+        }
+      ],
+      "asyncFunctions": 0,
+      "weakMaps": 0,
+      "boundaries": {
+        "runSync": 1,
+        "fromPromise": 4,
+        "runPromise": 4
+      }
+    },
+    {
+      "file": "packages/near-kit/src/keys/in-memory-keystore.ts",
+      "physicalLines": 160,
+      "nonblankWithoutComments": 79,
+      "classes": [
+        {
+          "name": "InMemoryKeyStore",
+          "super": null
+        }
+      ],
+      "asyncFunctions": 0,
+      "weakMaps": 0,
+      "boundaries": {
+        "runSync": 2,
+        "runPromise": 4,
+        "fromPromise": 4
+      }
+    },
+    {
+      "file": "packages/near-kit/src/keys/index.ts",
+      "physicalLines": 18,
+      "nonblankWithoutComments": 3,
+      "classes": [],
+      "asyncFunctions": 0,
+      "weakMaps": 0,
+      "boundaries": {}
+    },
+    {
+      "file": "packages/near-kit/src/keys/native-keystore.ts",
+      "physicalLines": 71,
+      "nonblankWithoutComments": 56,
+      "classes": [
+        {
+          "name": "NativeKeyStore",
+          "super": null
+        }
+      ],
+      "asyncFunctions": 0,
+      "weakMaps": 0,
+      "boundaries": {
+        "runSync": 1,
+        "fromPromise": 4,
+        "runPromise": 4
+      }
+    },
+    {
+      "file": "packages/near-kit/src/keys/rotating-keystore.ts",
+      "physicalLines": 339,
+      "nonblankWithoutComments": 125,
+      "classes": [
+        {
+          "name": "RotatingKeyStore",
+          "super": null
+        }
+      ],
+      "asyncFunctions": 0,
+      "weakMaps": 0,
+      "boundaries": {
+        "runSync": 4,
+        "runPromise": 5,
+        "fromPromise": 5
+      }
+    },
+    {
+      "file": "packages/near-kit/src/sandbox/index.ts",
+      "physicalLines": 6,
+      "nonblankWithoutComments": 2,
+      "classes": [],
+      "asyncFunctions": 0,
+      "weakMaps": 0,
+      "boundaries": {}
+    },
+    {
+      "file": "packages/near-kit/src/sandbox/platform.ts",
+      "physicalLines": 30,
+      "nonblankWithoutComments": 25,
+      "classes": [],
+      "asyncFunctions": 0,
+      "weakMaps": 0,
+      "boundaries": {}
+    },
+    {
+      "file": "packages/near-kit/src/sandbox/sandbox.ts",
+      "physicalLines": 82,
+      "nonblankWithoutComments": 70,
+      "classes": [
+        {
+          "name": "Sandbox",
+          "super": null
+        }
+      ],
+      "asyncFunctions": 0,
+      "weakMaps": 0,
+      "boundaries": {
+        "runPromise": 9
+      }
+    },
+    {
+      "file": "packages/near-kit/src/sandbox/types.ts",
+      "physicalLines": 63,
+      "nonblankWithoutComments": 40,
+      "classes": [],
+      "asyncFunctions": 0,
+      "weakMaps": 0,
+      "boundaries": {}
+    },
+    {
+      "file": "packages/near-kit/src/schemas/index.ts",
+      "physicalLines": 33,
+      "nonblankWithoutComments": 13,
+      "classes": [],
+      "asyncFunctions": 0,
+      "weakMaps": 0,
+      "boundaries": {}
+    },
+    {
+      "file": "packages/near-kit/src/utils/amount.ts",
+      "physicalLines": 205,
+      "nonblankWithoutComments": 92,
+      "classes": [],
+      "asyncFunctions": 0,
+      "weakMaps": 0,
+      "boundaries": {}
+    },
+    {
+      "file": "packages/near-kit/src/utils/gas.ts",
+      "physicalLines": 198,
+      "nonblankWithoutComments": 82,
+      "classes": [],
+      "asyncFunctions": 0,
+      "weakMaps": 0,
+      "boundaries": {}
+    },
+    {
+      "file": "packages/near-kit/src/utils/hd.ts",
+      "physicalLines": 103,
+      "nonblankWithoutComments": 54,
+      "classes": [],
+      "asyncFunctions": 0,
+      "weakMaps": 0,
+      "boundaries": {}
+    },
+    {
+      "file": "packages/near-kit/src/utils/index.ts",
+      "physicalLines": 43,
+      "nonblankWithoutComments": 34,
+      "classes": [],
+      "asyncFunctions": 0,
+      "weakMaps": 0,
+      "boundaries": {}
+    },
+    {
+      "file": "packages/near-kit/src/utils/key.ts",
+      "physicalLines": 699,
+      "nonblankWithoutComments": 365,
+      "classes": [
+        {
+          "name": "Ed25519KeyPair",
+          "super": null
+        },
+        {
+          "name": "Secp256k1KeyPair",
+          "super": null
+        },
+        {
+          "name": "MlDsa65KeyPair",
+          "super": null
+        }
+      ],
+      "asyncFunctions": 0,
+      "weakMaps": 0,
+      "boundaries": {}
+    },
+    {
+      "file": "packages/near-kit/src/utils/nep413.ts",
+      "physicalLines": 336,
+      "nonblankWithoutComments": 142,
+      "classes": [],
+      "asyncFunctions": 0,
+      "weakMaps": 0,
+      "boundaries": {
+        "runPromise": 1,
+        "fromPromise": 1
+      }
+    },
+    {
+      "file": "packages/near-kit/src/utils/state-init.ts",
+      "physicalLines": 221,
+      "nonblankWithoutComments": 81,
+      "classes": [],
+      "asyncFunctions": 0,
+      "weakMaps": 0,
+      "boundaries": {}
+    },
+    {
+      "file": "packages/near-kit/src/utils/validation.ts",
+      "physicalLines": 265,
+      "nonblankWithoutComments": 106,
+      "classes": [],
+      "asyncFunctions": 0,
+      "weakMaps": 0,
+      "boundaries": {}
+    },
+    {
+      "file": "packages/near-kit/src/wallets/adapters.ts",
+      "physicalLines": 423,
+      "nonblankWithoutComments": 314,
+      "classes": [],
+      "asyncFunctions": 0,
+      "weakMaps": 0,
+      "boundaries": {
+        "fromPromise": 8,
+        "fromSync": 1
+      }
+    },
+    {
+      "file": "packages/near-kit/src/wallets/index.ts",
+      "physicalLines": 14,
+      "nonblankWithoutComments": 6,
+      "classes": [],
+      "asyncFunctions": 0,
+      "weakMaps": 0,
+      "boundaries": {}
+    },
+    {
+      "file": "packages/near-kit/src/wallets/types.ts",
+      "physicalLines": 202,
+      "nonblankWithoutComments": 143,
+      "classes": [],
+      "asyncFunctions": 0,
+      "weakMaps": 0,
+      "boundaries": {}
+    },
+    {
+      "file": "packages/react/src/account.tsx",
+      "physicalLines": 61,
+      "nonblankWithoutComments": 30,
+      "classes": [],
+      "asyncFunctions": 1,
+      "weakMaps": 0,
+      "boundaries": {}
+    },
+    {
+      "file": "packages/react/src/contract.tsx",
+      "physicalLines": 35,
+      "nonblankWithoutComments": 7,
+      "classes": [],
+      "asyncFunctions": 0,
+      "weakMaps": 0,
+      "boundaries": {}
+    },
+    {
+      "file": "packages/react/src/effect-state.ts",
+      "physicalLines": 219,
+      "nonblankWithoutComments": 203,
+      "classes": [],
+      "asyncFunctions": 0,
+      "weakMaps": 0,
+      "boundaries": {
+        "tryPromise": 1,
+        "runFork": 3,
+        "runSync": 5,
+        "runPromise": 2
+      }
+    },
+    {
+      "file": "packages/react/src/hooks.tsx",
+      "physicalLines": 147,
+      "nonblankWithoutComments": 66,
+      "classes": [],
+      "asyncFunctions": 0,
+      "weakMaps": 0,
+      "boundaries": {}
+    },
+    {
+      "file": "packages/react/src/index.ts",
+      "physicalLines": 39,
+      "nonblankWithoutComments": 21,
+      "classes": [],
+      "asyncFunctions": 0,
+      "weakMaps": 0,
+      "boundaries": {}
+    },
+    {
+      "file": "packages/react/src/mutations.tsx",
+      "physicalLines": 138,
+      "nonblankWithoutComments": 58,
+      "classes": [],
+      "asyncFunctions": 0,
+      "weakMaps": 0,
+      "boundaries": {}
+    },
+    {
+      "file": "packages/react/src/provider.tsx",
+      "physicalLines": 105,
+      "nonblankWithoutComments": 49,
+      "classes": [],
+      "asyncFunctions": 0,
+      "weakMaps": 0,
+      "boundaries": {}
+    }
+  ]
+}
