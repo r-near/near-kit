@@ -10,9 +10,7 @@ No public RPC, real accounts, funded keys or wallet extensions are used.
 CSP allows HTTP only to the fixture origin and WebSockets only to the two fixed
 loopback Vite ports. HMR is fixture tooling, not an SDK transport; requests are
 observed passively, never intercepted or fulfilled by Playwright.
-Browser requests use ordinary fetch without Playwright routing interception.
-The fixture disables HMR and enforces `connect-src 'self'`. Passive browser
-observations and server HTTP delivery records are attached for failed tests and
+Passive browser observations and server HTTP delivery records are attached for failed tests and
 lost-response scenarios, so browser-internal replay is visible without changing
 the transport. A matching nonce error never permits a newly signed commitment.
 
