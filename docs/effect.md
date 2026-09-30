@@ -15,9 +15,10 @@ const balance = await near.getBalance("alice.testnet")
 ```
 
 Existing fluent transactions, contracts, wallet connectors, key-store interfaces,
-error classes, explicit nonces, and wire encodings are retained. Use explicit transport and service injection for customization; arbitrary
-mutation of built-in methods is not a supported interception mechanism. Internally, `NonceManager` and the
-old RPC implementation class have been removed. The only Promise conversions are
+error classes, explicit nonces, and wire encodings are retained. Use explicit
+transport and service injection for customization; arbitrary mutation of built-in
+methods is not a supported interception mechanism. Internal `NonceManager` and
+the old RPC implementation class have been removed. The only Promise conversions are
 public compatibility boundaries and integrations that themselves expose Promises.
 
 ## Native programs
@@ -71,22 +72,81 @@ The Promise API keeps its shared default allocator. Explicit native layers can
 supply a deliberately shared allocator; reservation state is not a TTL cache and
 must not be evicted like ordinary reads.
 
-Native transaction terminal methods return Effects:
+## Transaction values
+
+Native transactions are data plans rather than a second fluent builder. The
+public `near.transaction(...).transfer(...).send()` API stays unchanged.
 
 ```ts
+import * as Effect from "effect/Effect"
+import { Actions, Near, transactionPlan } from "near-kit/effect"
+
 const program = Effect.gen(function* () {
   const near = yield* Near
-  return yield* near
-    .transaction("alice.testnet")
-    .transfer("bob.testnet", "1 NEAR")
-    .sign()
+  const plan = transactionPlan({
+    signerId: "alice.testnet",
+    receiverId: "bob.testnet",
+    actions: [Actions.transfer(10n ** 24n)], // one NEAR, in yoctoNEAR
+  })
+  const signed = yield* near.transactions.sign(plan)
+  return { hash: signed.hash, bytes: signed.serialize() }
 })
 ```
 
-Signing does not broadcast. Calling `.send()` builds an Effect that broadcasts
-when executed. Pure fluent construction and pure cryptographic/wire algorithms
-remain ordinary synchronous operations; high-level Effect operations classify
-expected input/encoding failures in their failure channel.
+`near.transactions` provides `build`, `sign`, `send`, `broadcast`, `delegate` and
+`delegateV2`. Native `build` returns a version-tagged unsigned snapshot:
+`{ version: 0, transaction }` or `{ version: 1, transaction }`. It honors strict
+and gas-slot nonce modes. A later `sign(plan)` performs fresh preparation; build
+is not an implicit build-to-sign handoff. The public builder's `build()` keeps its
+historical shape. Delegate options separately own delegate nonce, expiry and slot;
+ordinary transaction mode fields do not implicitly select a delegate format.
+
+Signing returns a stable signed commitment without broadcasting;
+`broadcast(signed)` uses its captured bytes. `send(plan)` can re-sign only after a
+proven submission nonce failure, with bounded retries. Each execution snapshots
+its inputs. Returned unsigned data and serialized bytes do not alias builder or
+signed state. Editing a public builder invalidates its signature cache, including
+pending completions for the old plan.
+
+### Submission safety
+
+A lost response does not prove that a transaction failed. Transport retries reuse
+the exact signed bytes. Automatic fresh-nonce signing requires a decoded,
+correlated nonce rejection and no earlier potentially accepted attempt for that
+commitment. This history survives repeated sends of the same public builder and
+concurrent broadcasts of the same signed value.
+
+Ambiguous high-level submissions look up the original hash. A confirmed result
+returns that transaction; an unavailable or unknown status raises
+`TRANSACTION_OUTCOME_UNKNOWN` with `retryable: false` and the hash, sender and
+underlying cause in `error.data`. An unknown status on a lagging node is not proof
+of non-execution. Do not blindly retry `near.send(...)` or `send(plan)` with a new
+commitment after this error. Check the original hash; if rebroadcasting, retain
+and reuse the original signed bytes. Interrupting a submission cannot undo it.
+
+A native `TransactionSigner` returns an Effect and stays in the caller's fiber.
+Resolve any application services before supplying it through native runtime
+configuration or a plan. Promise signers are adapted only at the public boundary.
+Pure action factories, amount parsing and cryptographic/wire algorithms stay
+synchronous; native execution classifies expected input/encoding failures in its
+failure channel. Use `Effect.all` for native concurrency; public `near.batch`
+only joins the Promises it receives.
+
+## Optional Effect HTTP integration
+
+Ordinary clients use the lightweight fetch transport. Applications with an Effect
+HTTP stack can explicitly provide the optional adapter and its middleware:
+
+```ts
+import * as Layer from "effect/Layer"
+import { FetchHttpClient } from "effect/http"
+import { Rpc, rpcTransportHttpClient } from "near-kit/effect"
+
+const rpc = Rpc.layer({ url: "https://rpc.testnet.near.org" }).pipe(
+  Layer.provide(rpcTransportHttpClient),
+  Layer.provide(FetchHttpClient.layer),
+)
+```
 
 ## Native message verification
 
@@ -134,8 +194,8 @@ native scope. Snapshots preserve current gas-key permissions and extra nearcore
 fields.
 
 React consumes the native programs owned by its `Near` client. Superseded and
-unmounted read requests are interrupted; React owns visible state, while one Effect fiber owns each active read and its
-resource finalizers. Mutation Promises retain their own results, while only the
+unmounted read requests are interrupted. React owns visible state; one Effect
+fiber owns each active read and its resource finalizers. Mutation Promises retain their own results, while only the
 newest active request can update the mounted UI. Unmounting disconnects UI state;
 it does not pretend to undo a submitted transaction. Replacing a configured signer,
 key store, or wallet takes effect by object/function identity; authority-bearing
@@ -147,8 +207,12 @@ Existing Zod schemas under `near-kit/schemas` and credential schemas under
 `near-kit/keys` remain genuinely Zod-composable. Their runtime imports are isolated
 from the root and native core entrypoints. Native RPC codecs
 use one Effect Schema owner and preserve accepted wire defaults and unknown-field
-behavior. Internal config/RPC diagnostics no longer replay a duplicate Zod decoder. Amount, Borsh, crypto, and signed-transaction commitments are
-covered by independent unchanged vectors.
+behavior. Internal config/RPC diagnostics no longer replay a duplicate Zod
+decoder. Node credential storage uses the existing credential codec at its Effect
+I/O boundary. Amount, Borsh, crypto and signed-transaction commitments are covered
+by independent unchanged vectors. A `keyStore` must be a real store or account-key
+record; a path string is rejected. For file storage, supply `FileKeyStore` from
+`near-kit/keys/file`.
 
 ## Toolchain and validation
 

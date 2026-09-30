@@ -136,14 +136,26 @@ The library is built around a main `Near` class with three interaction patterns:
 **`core/transaction.ts` - TransactionBuilder**
 
 - Fluent API for chaining actions: `transfer()`, `functionCall()`, `createAccount()`, etc.
-- Signing pipeline: `.build()` → `.sign()` → `.send()`
-- Automatic nonce management with retry logic (3x for InvalidNonceError)
+- Edits one transaction plan; Promise terminals project the native transaction engine
+- Signed cache belongs to the captured plan, never to aliased mutable action data
+- Public `.build()` retains its legacy unsigned shape; `.sign()` and `.send()` prepare their own snapshots
 - Supports delegate actions (NEP-366) via `.delegate()`
+
+**`effect/transaction.ts` - Transaction Values and Execution**
+
+- Native data plans and module operations, without a second fluent builder
+- Captures canonical unsigned bytes before invoking external signers
+- Owns signing, versioned unsigned snapshots, submission and delegate preparation
+- Bounded fresh-nonce recovery requires correlated node rejection of every attempt
+- Ambiguous submission reconciles the original hash; unknown status never authorizes fresh signing
+- Submission history is private to each signed commitment and survives repeated sends
 
 **`core/rpc/` - RPC Client**
 
 - Low-level NEAR JSON-RPC interface
-- Automatic retries with exponential backoff (default: 4 retries, 1s initial delay)
+- Bounded schedules with exponential backoff (default: 4 retries, 1s initial delay)
+- Submission retries retain exact bytes and sticky uncertainty; read retries stay independent
+- Optional Effect HttpClient integration is isolated from ordinary fetch clients
 - Error classification and mapping to typed exceptions
 - One Effect Schema protocol owner; response types are inferred from it
 - Named operations are module-scoped; construction binds dependencies once

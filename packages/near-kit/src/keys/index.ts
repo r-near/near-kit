@@ -10,7 +10,15 @@
  * - `FileKeyStore` for NEAR-CLI compatible disk storage: `import { FileKeyStore } from "near-kit/keys/file"`
  * - `NativeKeyStore` for OS keyring integration: `import { NativeKeyStore } from "near-kit/keys/native"`
  */
-export * from "./credential-schemas.js"
+export {
+  NearCliCredentialSchema,
+  LegacyCredentialSchema,
+  NetworkSchema,
+  parseCredentialFile,
+  type NearCliCredential,
+  type LegacyCredential,
+  type Network,
+} from "./credential-schemas.js"
 export * from "./in-memory-keystore.js"
 export * from "./rotating-keystore.js"
 
