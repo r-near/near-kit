@@ -1,7 +1,10 @@
 "use client"
 
+import { Effect } from "effect"
+import { external, useMutation } from "./effect-state.js"
+
 import type { CallOptions, NearError } from "near-kit"
-import { useCallback, useRef, useState } from "react"
+import { useCallback } from "react"
 import { useNear } from "./provider.js"
 
 /**
@@ -70,72 +73,16 @@ export function useCall<TArgs extends object = object, TResult = unknown>(
 ): UseCallResult<TArgs, TResult> {
   const { contractId, method, options: defaultOptions } = params
   const near = useNear()
-
-  const [data, setData] = useState<TResult | undefined>(undefined)
-  const [error, setError] = useState<NearError | Error | undefined>(undefined)
-  const [isPending, setIsPending] = useState(false)
-  const [isSuccess, setIsSuccess] = useState(false)
-  const [isError, setIsError] = useState(false)
-
-  // Track the latest mutation to handle parallel calls (last write wins)
-  const mutationIdRef = useRef(0)
-
-  const mutate = useCallback(
-    async (args: TArgs, options?: CallOptions): Promise<TResult> => {
-      const currentMutationId = ++mutationIdRef.current
-      setIsPending(true)
-      setIsSuccess(false)
-      setIsError(false)
-      setError(undefined)
-
-      try {
-        const mergedOptions: CallOptions = {
-          ...defaultOptions,
-          ...options,
-        }
-
-        const result = await near.call<TResult>(
-          contractId,
-          method,
-          args,
-          mergedOptions,
-        )
-
-        // Only update state if this is still the latest mutation
-        if (currentMutationId === mutationIdRef.current) {
-          setData(result)
-          setIsSuccess(true)
-          setIsPending(false)
-        }
-
-        return result
-      } catch (err) {
-        const normalizedError =
-          err instanceof Error ? err : new Error(String(err))
-
-        // Only update state if this is still the latest mutation
-        if (currentMutationId === mutationIdRef.current) {
-          setError(normalizedError)
-          setIsError(true)
-          setIsPending(false)
-        }
-
-        throw normalizedError
-      }
+  const operation = useCallback(
+    (args: TArgs, options?: CallOptions) => {
+      const merged = { ...defaultOptions, ...options }
+      return near.effects?.call
+        ? near.effects.call<TResult>(contractId, method, args, merged)
+        : external(() => near.call<TResult>(contractId, method, args, merged))
     },
     [near, contractId, method, defaultOptions],
   )
-
-  const reset = useCallback(() => {
-    setData(undefined)
-    setError(undefined)
-    setIsPending(false)
-    setIsSuccess(false)
-    setIsError(false)
-    mutationIdRef.current++
-  }, [])
-
-  return { mutate, data, error, isPending, isSuccess, isError, reset }
+  return useMutation(operation)
 }
 
 /**
@@ -178,52 +125,14 @@ export interface UseSendResult {
  */
 export function useSend(): UseSendResult {
   const near = useNear()
-
-  const [error, setError] = useState<NearError | Error | undefined>(undefined)
-  const [isPending, setIsPending] = useState(false)
-  const [isSuccess, setIsSuccess] = useState(false)
-  const [isError, setIsError] = useState(false)
-
-  const mutationIdRef = useRef(0)
-
-  const mutate = useCallback(
-    async (to: string, amount: AmountInput): Promise<void> => {
-      const currentMutationId = ++mutationIdRef.current
-      setIsPending(true)
-      setIsSuccess(false)
-      setIsError(false)
-      setError(undefined)
-
-      try {
-        await near.send(to, amount)
-
-        if (currentMutationId === mutationIdRef.current) {
-          setIsSuccess(true)
-          setIsPending(false)
-        }
-      } catch (err) {
-        const normalizedError =
-          err instanceof Error ? err : new Error(String(err))
-
-        if (currentMutationId === mutationIdRef.current) {
-          setError(normalizedError)
-          setIsError(true)
-          setIsPending(false)
-        }
-
-        throw normalizedError
-      }
-    },
+  const operation = useCallback(
+    (to: string, amount: AmountInput) =>
+      (near.effects?.send
+        ? near.effects.send(to, amount)
+        : external(() => near.send(to, amount))
+      ).pipe(Effect.asVoid),
     [near],
   )
-
-  const reset = useCallback(() => {
-    setError(undefined)
-    setIsPending(false)
-    setIsSuccess(false)
-    setIsError(false)
-    mutationIdRef.current++
-  }, [])
-
-  return { mutate, error, isPending, isSuccess, isError, reset }
+  const { data: _data, ...state } = useMutation(operation)
+  return state
 }

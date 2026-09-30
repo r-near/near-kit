@@ -178,12 +178,14 @@ describe("useCall", () => {
 
     // Start first mutation
     act(() => {
-      result.current.mutate({})
+      // Deliberately concurrent: completion and stale-result behavior are asserted below.
+      void result.current.mutate({})
     })
 
     // Start second mutation while first is pending
     act(() => {
-      result.current.mutate({})
+      // Deliberately concurrent: completion and stale-result behavior are asserted below.
+      void result.current.mutate({})
     })
 
     expect(result.current.isPending).toBe(true)

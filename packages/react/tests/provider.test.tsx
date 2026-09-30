@@ -36,8 +36,8 @@ describe("NearProvider", () => {
     const { result } = renderHook(() => useNear(), { wrapper })
 
     expect(result.current).toBeDefined()
-    expect(result.current.view).toBeDefined()
-    expect(result.current.call).toBeDefined()
+    expect(result.current).toHaveProperty("view", expect.any(Function))
+    expect(result.current).toHaveProperty("call", expect.any(Function))
   })
 
   it("provides existing Near instance", () => {

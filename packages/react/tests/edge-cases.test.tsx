@@ -373,7 +373,8 @@ describe("mutation stale handling", () => {
 
       // Start second mutation
       act(() => {
-        result.current.mutate({})
+        // Deliberately concurrent: completion and stale-result behavior are asserted below.
+        void result.current.mutate({})
       })
 
       // Resolve second first
@@ -443,12 +444,14 @@ describe("mutation stale handling", () => {
 
       // Start first send
       act(() => {
-        result.current.mutate("alice.testnet", "1 NEAR")
+        // Deliberately concurrent: completion and stale-result behavior are asserted below.
+        void result.current.mutate("alice.testnet", "1 NEAR")
       })
 
       // Start second send
       act(() => {
-        result.current.mutate("bob.testnet", "2 NEAR")
+        // Deliberately concurrent: completion and stale-result behavior are asserted below.
+        void result.current.mutate("bob.testnet", "2 NEAR")
       })
 
       expect(result.current.isPending).toBe(true)
@@ -498,7 +501,8 @@ describe("mutation stale handling", () => {
 
       // Start second send
       act(() => {
-        result.current.mutate("bob.testnet", "2 NEAR")
+        // Deliberately concurrent: completion and stale-result behavior are asserted below.
+        void result.current.mutate("bob.testnet", "2 NEAR")
       })
 
       // Resolve second first

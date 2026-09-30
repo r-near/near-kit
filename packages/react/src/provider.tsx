@@ -1,5 +1,7 @@
 "use client"
 
+import { useStableInput } from "./effect-state.js"
+
 import { Near, type NearConfig } from "near-kit"
 import { createContext, type ReactNode, useContext, useMemo } from "react"
 
@@ -52,9 +54,10 @@ export function NearProvider(props: NearProviderProps): ReactNode {
 
   // Extract the Near instance or config for stable dependency tracking
   const nearProp = "near" in props ? props.near : undefined
-  const configProp = "config" in props ? props.config : undefined
+  const configProp = useStableInput(
+    "config" in props ? props.config : undefined,
+  )
   // Serialize config for dependency comparison (only used when config is provided)
-  const configKey = configProp ? JSON.stringify(configProp) : undefined
 
   // Create or use the provided Near instance
   // biome-ignore lint/correctness/useExhaustiveDependencies: configKey is derived from configProp for stable comparison
@@ -66,7 +69,7 @@ export function NearProvider(props: NearProviderProps): ReactNode {
       return new Near(configProp)
     }
     throw new Error("NearProvider requires either 'near' or 'config' prop")
-  }, [nearProp, configKey])
+  }, [nearProp, configProp])
 
   return (
     <NearProviderDetectionContext.Provider value={true}>
