@@ -38,6 +38,9 @@ jobs:
       - name: Typecheck examples
         run: bun run typecheck:examples
 
+      - name: Typecheck browser tests
+        run: bun run typecheck:browser
+
       - name: Run lint
         run: bun run lint
 
@@ -77,3 +80,45 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./packages/near-kit/coverage/lcov.info
           fail_ci_if_error: false
+
+  browser-tests:
+    runs-on: arc-runner-set
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    # Keep this version aligned with @playwright/test in package.json.
+    # The official image includes browser OS libraries, avoiding privileged installs.
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.2"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Test built SDK in Chromium, Firefox and WebKit with React 18 and 19
+        run: bun run test:browser
+
+      - name: Upload browser failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: playwright-failure-artifacts
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14
+          if-no-files-found: ignore
