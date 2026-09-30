@@ -1,4 +1,5 @@
 import { Effect, Layer } from "effect"
+import { version as reactVersion } from "react"
 import {
   Near,
   InMemoryKeyStore,
@@ -53,6 +54,7 @@ const kit = {
       buffer: typeof Reflect.get(globalThis, "Buffer"),
       process: typeof Reflect.get(globalThis, "process"),
       secure: isSecureContext,
+      reactVersion,
     }
   },
   async reads(url: string) {

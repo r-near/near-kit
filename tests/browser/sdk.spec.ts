@@ -6,11 +6,14 @@ import { inspectSignedTransaction, verifyMessage } from "./wire-oracle.js"
 test("root and native package exports read through real HTTP and injected RPC", async ({
   page,
   rpc,
-}) => {
+}, testInfo) => {
   expect(await page.evaluate(() => window.kit.environment())).toEqual({
     buffer: "undefined",
     process: "undefined",
     secure: true,
+    reactVersion: testInfo.project.name.endsWith("react18")
+      ? "18.0.0"
+      : "19.2.7",
   })
   expect(await page.evaluate((url) => window.kit.reads(url), rpc.url)).toEqual({
     publicBalance: "2.00",
