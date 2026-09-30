@@ -5,6 +5,7 @@ import { testRpcClient } from "../helpers/rpc.js"
 import { ActionSchema } from "../../src/core/schema.js"
 import { TransactionBuilder } from "../../src/core/transaction.js"
 import { InMemoryKeyStore } from "../../src/keys/index.js"
+import { generateKey } from "../../src/utils/key.js"
 
 describe("Global Contracts API", () => {
   test("publishContract creates updatable contract action by default", () => {
@@ -205,51 +206,56 @@ describe("Global Contracts - Transaction Builder Integration", () => {
   // Helper to create a transaction builder for testing
   function createBuilder(): TransactionBuilder {
     const rpc = testRpcClient("https://rpc.testnet.fastnear.com")
-    const keyStore = new InMemoryKeyStore()
-    return new TransactionBuilder("alice.near", rpc, keyStore)
+    rpc.getBlock = async () =>
+      ({ header: { hash: "11111111111111111111111111111111" } }) as never
+    const keyStore = new InMemoryKeyStore({
+      "alice.near": generateKey().secretKey,
+    })
+    return new TransactionBuilder("alice.near", rpc, keyStore).nonce(42n)
   }
 
-  test("publishContract integrates with transaction builder (default account mode)", () => {
+  test("publishContract integrates with transaction builder (default account mode)", async () => {
     const code = new Uint8Array([0x00, 0x61, 0x73, 0x6d])
     const builder = createBuilder().publishContract(code)
 
     expect(builder).toBeInstanceOf(TransactionBuilder)
-    // @ts-expect-error - accessing private field for testing
-    expect(builder.actions.length).toBe(1)
-    // @ts-expect-error - accessing private field for testing
-    expect(builder.actions[0].deployGlobalContract).toBeDefined()
-    // @ts-expect-error - accessing private field for testing
-    expect(builder.actions[0].deployGlobalContract.code).toEqual(code)
-    // @ts-expect-error - accessing private field for testing
-    expect(builder.actions[0].deployGlobalContract.deployMode).toEqual({
+    expect((await builder.build()).actions.length).toBe(1)
+    expect(
+      (await builder.build()).actions[0].deployGlobalContract,
+    ).toBeDefined()
+    expect(
+      (await builder.build()).actions[0].deployGlobalContract.code,
+    ).toEqual(code)
+    expect(
+      (await builder.build()).actions[0].deployGlobalContract.deployMode,
+    ).toEqual({
       AccountId: {},
     })
   })
 
-  test("publishContract with hash mode integrates with transaction builder", () => {
+  test("publishContract with hash mode integrates with transaction builder", async () => {
     const code = new Uint8Array([0x00, 0x61, 0x73, 0x6d])
     const builder = createBuilder().publishContract(code, {
       identifiedBy: "hash",
     })
 
-    // @ts-expect-error - accessing private field for testing
-    expect(builder.actions[0].deployGlobalContract.deployMode).toEqual({
+    expect(
+      (await builder.build()).actions[0].deployGlobalContract.deployMode,
+    ).toEqual({
       CodeHash: {},
     })
   })
 
-  test("deployFromPublished integrates with transaction builder", () => {
+  test("deployFromPublished integrates with transaction builder", async () => {
     const codeHash = new Uint8Array(32).fill(0xab)
     const builder = createBuilder().deployFromPublished({ codeHash })
 
     expect(builder).toBeInstanceOf(TransactionBuilder)
-    // @ts-expect-error - accessing private field for testing
-    expect(builder.actions.length).toBe(1)
-    // @ts-expect-error - accessing private field for testing
-    expect(builder.actions[0].useGlobalContract).toBeDefined()
+    expect((await builder.build()).actions.length).toBe(1)
+    expect((await builder.build()).actions[0].useGlobalContract).toBeDefined()
   })
 
-  test("combines global contract actions with other actions", () => {
+  test("combines global contract actions with other actions", async () => {
     const code = new Uint8Array([0x00, 0x61, 0x73, 0x6d])
     const codeHash = new Uint8Array(32).fill(0xab)
 
@@ -258,14 +264,12 @@ describe("Global Contracts - Transaction Builder Integration", () => {
       .publishContract(code)
       .deployFromPublished({ codeHash })
 
-    // @ts-expect-error - accessing private field for testing
-    expect(builder.actions.length).toBe(3)
-    // @ts-expect-error - accessing private field for testing
-    expect(builder.actions[0].transfer).toBeDefined()
-    // @ts-expect-error - accessing private field for testing
-    expect(builder.actions[1].deployGlobalContract).toBeDefined()
-    // @ts-expect-error - accessing private field for testing
-    expect(builder.actions[2].useGlobalContract).toBeDefined()
+    expect((await builder.build()).actions.length).toBe(3)
+    expect((await builder.build()).actions[0].transfer).toBeDefined()
+    expect(
+      (await builder.build()).actions[1].deployGlobalContract,
+    ).toBeDefined()
+    expect((await builder.build()).actions[2].useGlobalContract).toBeDefined()
   })
 
   test("chaining returns same builder instance", () => {

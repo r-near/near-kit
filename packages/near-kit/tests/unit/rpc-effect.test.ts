@@ -13,7 +13,7 @@ import { afterEach, describe, expect, test, vi } from "vitest"
 import * as Schema from "effect/Schema"
 import {
   type RpcFetch,
-  rpcFromPromises,
+  transactionRpcFromPromises,
   rpcToPromises,
 } from "../../src/core/rpc/rpc.js"
 import {
@@ -347,10 +347,10 @@ describe("native RPC programs", () => {
     const rejection = { reason: "external provider rejection" }
     const externalRpc = {
       ...publicRpc,
-      getGasPrice: () => Promise.reject(rejection),
+      getStatus: () => Promise.reject(rejection),
     }
     await expect(
-      runPromise(rpcFromPromises(externalRpc).getGasPrice()),
+      runPromise(transactionRpcFromPromises(externalRpc).getStatus()),
     ).rejects.toBe(rejection)
   })
 

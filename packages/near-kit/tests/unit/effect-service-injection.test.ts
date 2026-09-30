@@ -54,10 +54,11 @@ describe("native client dependency ownership", () => {
     const unsigned = await Effect.runPromise(
       Effect.gen(function* () {
         const client = yield* Near
-        return yield* client
-          .transaction("alice.near")
-          .transfer("bob.near", "1 NEAR")
-          .build()
+        return yield* client.transactions.build({
+          signerId: "alice.near",
+          receiverId: "bob.near",
+          actions: [{ transfer: { deposit: 10n ** 24n } }],
+        })
       }).pipe(Effect.provide(layer)),
     )
     expect(unsigned.publicKey.toString()).toBe(key.publicKey.toString())

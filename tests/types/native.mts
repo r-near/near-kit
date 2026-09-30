@@ -3,6 +3,8 @@ import { Effect, Layer } from "effect"
 import type { Contract, DelegateActionResult } from "near-kit"
 import {
   Near,
+  Actions,
+  type TransactionPlan,
   Rpc,
   KeyStore,
   NonceReservation,
@@ -43,17 +45,22 @@ export type ReadRequirements = Must<Equal<Effect.Services<typeof read>, Near>>
 export type ReadError = Must<Equal<Effect.Error<typeof read>, RpcFailure>>
 
 export function consumeNative(near: NearService) {
-  const tx = near.transaction("alice.near").transfer("bob.near", "1 NEAR")
+  const plan: TransactionPlan = {
+    signerId: "alice.near",
+    receiverId: "bob.near",
+    actions: [Actions.transfer(10n ** 24n)],
+  }
+  const tx = near.transactions
   const bytes: Effect.Effect<
     DelegateActionResult<"bytes">,
     NearFailure
-  > = tx.delegate({ payloadFormat: "bytes" })
+  > = tx.delegate(plan, { payloadFormat: "bytes" })
   const base64: Effect.Effect<
     DelegateActionResult<"base64">,
     NearFailure
-  > = tx.delegate()
-  const none = tx.send({ waitUntil: "NONE" })
-  const final = tx.send({ waitUntil: "FINAL" })
+  > = tx.delegate(plan)
+  const none = tx.send(plan, { waitUntil: "NONE" })
+  const final = tx.send(plan, { waitUntil: "FINAL" })
   const noneIsNarrow: Must<
     Equal<Effect.Success<typeof none>["final_execution_status"], "NONE">
   > = true
@@ -81,7 +88,7 @@ export function consumeNative(near: NearService) {
   // @ts-expect-error The client service must be supplied before running.
   const missingService = Effect.runPromise(read)
   // @ts-expect-error Wait levels must remain protocol literals.
-  const invalidWait = tx.send({ waitUntil: "ALMOST_FINAL" })
+  const invalidWait = tx.send(plan, { waitUntil: "ALMOST_FINAL" })
   return {
     bytes,
     base64,

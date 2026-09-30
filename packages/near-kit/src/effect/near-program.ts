@@ -6,7 +6,8 @@ import type { BlockReference } from "../core/config-schemas.js"
 import { STORAGE_AMOUNT_PER_BYTE } from "../core/constants.js"
 import type { RpcPrograms } from "../core/rpc/rpc-program.js"
 import type { FinalExecutionOutcome } from "../effect/protocol-schemas.js"
-import type { TransactionBuilder } from "../core/transaction.js"
+import { functionCallAction, type transactions } from "./transaction.js"
+import * as actions from "../core/actions.js"
 import type {
   CallOptions,
   GlobalContractReference,
@@ -19,7 +20,7 @@ import {
 } from "../errors/index.js"
 import { formatAmount } from "../utils/amount.js"
 import { generateNonce } from "../utils/nep413.js"
-import type { Amount } from "../utils/validation.js"
+import { normalizeAmount, type Amount } from "../utils/validation.js"
 import type { KeyStoreService } from "./keys.js"
 import type { WalletService } from "./wallet.js"
 import {
@@ -35,7 +36,7 @@ export interface NearProgramDependencies {
   readonly wallet: WalletService | undefined
   readonly defaultSignerId: string | undefined
   readonly ready: Effect.Effect<void, NearFailure>
-  readonly transaction: (signerId: string) => TransactionBuilder
+  readonly transactions: ReturnType<typeof transactions>
 }
 
 const signerId = Effect.fn("Near.signerId")(function* (
@@ -84,17 +85,16 @@ const call = Effect.fn("Near.call")(function* <T = FinalExecutionOutcome>(
   options: CallOptions = {},
 ) {
   const id = yield* signerId(context, options.signerId)
-  const builder = yield* inputEffect(
-    () =>
-      context.transaction(id).functionCall(contractId, method, args, {
-        ...(options.gas !== undefined ? { gas: options.gas } : {}),
-        ...(options.attachedDeposit !== undefined
-          ? { attachedDeposit: options.attachedDeposit }
-          : {}),
-      }),
+  const plan = yield* inputEffect(
+    () => ({
+      signerId: id,
+      receiverId: contractId,
+      actions: [functionCallAction(method, args, options)],
+    }),
     "Near.call.arguments",
   )
-  return (yield* builder.sendEffect(
+  return (yield* context.transactions.send(
+    plan,
     options.waitUntil ? { waitUntil: options.waitUntil } : {},
   )) as T
 })
@@ -105,11 +105,15 @@ const send = Effect.fn("Near.send")(function* (
   amount: Amount,
 ) {
   const id = yield* signerId(context)
-  const builder = yield* inputEffect(
-    () => context.transaction(id).transfer(receiverId, amount),
+  const plan = yield* inputEffect(
+    () => ({
+      signerId: id,
+      receiverId,
+      actions: [actions.transfer(BigInt(normalizeAmount(amount)))],
+    }),
     "Near.send.amount",
   )
-  return yield* builder.sendEffect()
+  return yield* context.transactions.send(plan)
 })
 
 const signMessage = Effect.fn("Near.signMessage")(function* (

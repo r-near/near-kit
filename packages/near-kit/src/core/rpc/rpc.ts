@@ -1,5 +1,4 @@
 /** The sole Promise boundary for the public Near.rpc API. */
-import * as Effect from "effect/Effect"
 import * as Stream from "effect/Stream"
 import type { SchemaError } from "effect/Schema"
 import { ExternalError, fromPromise, runPromise } from "../../effect/runtime.js"
@@ -160,101 +159,31 @@ export function rpcToPromises(programs: RpcPrograms): RpcClient {
   }
 }
 
-/** Adapt a caller-supplied Promise provider only at a supported extension boundary. */
-export function rpcFromPromises(client: RpcClient): RpcPrograms {
+/** Adapt only the six capabilities consumed by a detached public transaction. */
+export function transactionRpcFromPromises(
+  client: RpcClient,
+): import("../../effect/transaction.js").TransactionRpc {
   return {
     call: (method, params) =>
       fromPromise(() => client.call(method, params), "Rpc.external.call"),
-    query: (path, data) =>
-      fromPromise(() => client.query(path, data), "Rpc.external.query"),
-    viewFunction: (contractId, methodName, args, options) =>
-      fromPromise(
-        () => client.viewFunction(contractId, methodName, args, options),
-        "Rpc.external.viewFunction",
-      ),
-    getAccount: (accountId, options) =>
-      fromPromise(
-        () => client.getAccount(accountId, options),
-        "Rpc.external.getAccount",
-      ),
-    viewCode: (accountId, options) =>
-      fromPromise(
-        () => client.viewCode(accountId, options),
-        "Rpc.external.viewCode",
-      ),
-    viewGlobalContractCode: (contract, options) =>
-      fromPromise(
-        () => client.viewGlobalContractCode(contract, options),
-        "Rpc.external.viewGlobalContractCode",
-      ),
     getAccessKey: (accountId, publicKey, options) =>
       fromPromise(
         () => client.getAccessKey(accountId, publicKey, options),
         "Rpc.external.getAccessKey",
       ),
-    getAccessKeys: (accountId, options) =>
-      fromPromise(
-        () => client.getAccessKeys(accountId, options),
-        "Rpc.external.getAccessKeys",
-      ),
-    getGasKeyNonces: (accountId, publicKey, options) =>
-      fromPromise(
-        () => client.getGasKeyNonces(accountId, publicKey, options),
-        "Rpc.external.getGasKeyNonces",
-      ),
-    sendTransaction: (signedTransaction, waitUntil) =>
-      fromPromise(
-        () => client.sendTransaction(signedTransaction, waitUntil),
-        "Rpc.external.sendTransaction",
-      ),
-    getTransactionStatus: (txHash, senderAccountId, waitUntil) =>
-      fromPromise(
-        () => client.getTransactionStatus(txHash, senderAccountId, waitUntil),
-        "Rpc.external.getTransactionStatus",
-      ),
-    receiptToTx: (receiptId) =>
-      fromPromise(
-        () => client.receiptToTx(receiptId),
-        "Rpc.external.receiptToTx",
-      ),
-    getStatus: () =>
-      fromPromise(() => client.getStatus(), "Rpc.external.getStatus"),
     getBlock: (options) =>
       fromPromise(() => client.getBlock(options), "Rpc.external.getBlock"),
-    getGasPrice: (blockId) =>
+    getStatus: () =>
+      fromPromise(() => client.getStatus(), "Rpc.external.getStatus"),
+    sendTransaction: (bytes, waitUntil) =>
       fromPromise(
-        () => client.getGasPrice(blockId),
-        "Rpc.external.getGasPrice",
+        () => client.sendTransaction(bytes, waitUntil),
+        "Rpc.external.sendTransaction",
       ),
-    viewState: (accountId, options) =>
+    getTransactionStatus: (hash, signerId, waitUntil) =>
       fromPromise(
-        () => client.viewState(accountId, options),
-        "Rpc.external.viewState",
-      ),
-    blockEffects: (options) =>
-      fromPromise(
-        () => client.blockEffects(options),
-        "Rpc.external.blockEffects",
-      ),
-    genesisConfig: () =>
-      fromPromise(() => client.genesisConfig(), "Rpc.external.genesisConfig"),
-    maintenanceWindows: (accountId) =>
-      fromPromise(
-        () => client.maintenanceWindows(accountId),
-        "Rpc.external.maintenanceWindows",
-      ),
-    viewStateAll: (accountId, options) =>
-      Stream.unwrap(
-        Effect.try({
-          try: () =>
-            Stream.fromAsyncIterable(
-              client.viewStateAll(accountId, options),
-              (cause) =>
-                new ExternalError({ operation: "Rpc.viewStateAll", cause }),
-            ),
-          catch: (cause) =>
-            new ExternalError({ operation: "Rpc.viewStateAll", cause }),
-        }),
+        () => client.getTransactionStatus(hash, signerId, waitUntil),
+        "Rpc.external.getTransactionStatus",
       ),
   }
 }

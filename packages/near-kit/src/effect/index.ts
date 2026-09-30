@@ -14,7 +14,13 @@ export {
   walletConnection,
   type WalletService,
 } from "./wallet.js"
-export { transaction, EffectTransactionBuilder } from "./transaction.js"
+export { make as transactionPlan } from "./transaction.js"
+export * as Actions from "../core/actions.js"
+export type {
+  TransactionPlan,
+  TransactionSigner,
+  SignedTransactionValue,
+} from "./transaction.js"
 export {
   createEffectContract,
   type EffectContract,

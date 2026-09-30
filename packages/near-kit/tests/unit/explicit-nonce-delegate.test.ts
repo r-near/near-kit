@@ -210,7 +210,7 @@ test("delegate still prompts a wallet when no transaction nonce is set", async (
   const { builder, expectNoSideEffects } = await setup(wallet)
   const result = await builder().transfer("bob.near", "1 NEAR").delegate()
 
-  expect(result.signedDelegateAction).toBe(signedDelegateAction)
+  expect(result.signedDelegateAction).toEqual(signedDelegateAction)
   expect(wallet.signDelegateActions).toHaveBeenCalledTimes(1)
   expectNoSideEffects()
 })

@@ -15,10 +15,10 @@ import {
   makeRpcPrograms,
   type RpcPrograms,
 } from "../core/rpc/rpc-program.js"
-import {
-  TransactionBuilder,
-  type TransactionDependencies,
-} from "../core/transaction.js"
+import type {
+  TransactionDependencies,
+  TransactionSigner,
+} from "./transaction.js"
 import { parseKey } from "../utils/key.js"
 import { createEffectContract } from "../contracts/contract.js"
 import { makeMemoryStorage } from "./key-storage.js"
@@ -31,11 +31,12 @@ import {
 } from "./nonce.js"
 import { Wallet, walletService, type WalletService } from "./wallet.js"
 import { Rpc } from "./rpc.js"
-import { inputEffect, type NearFailure } from "./runtime.js"
-import { transaction } from "./transaction.js"
+import { fromPromise, inputEffect, type NearFailure } from "./runtime.js"
+import { transactions } from "./transaction.js"
 
 /** Resolved native capabilities, supplied without Promise conversion. */
 export interface NearRuntime {
+  readonly signer?: TransactionSigner
   readonly rpc?: RpcPrograms
   readonly keyStore?: KeyStoreService
   readonly wallet?: WalletService
@@ -87,6 +88,7 @@ export const acquireClient = Effect.fn("Near.acquire")(function* (
     key && accountId
       ? yield* Effect.cached(keyStore.add(accountId, key))
       : Effect.void
+  const configuredSigner = validated.signer
   const dependencies: TransactionDependencies = {
     rpc,
     keyStore,
@@ -94,22 +96,29 @@ export const acquireClient = Effect.fn("Near.acquire")(function* (
     nonces: runtime.nonceReservation ?? sharedNonceReservation,
     defaultWaitUntil: validated.defaultWaitUntil ?? "EXECUTED_OPTIMISTIC",
     ...(wallet ? { wallet } : {}),
-    ...(validated.signer ? { signer: validated.signer } : {}),
+    ...(runtime.signer
+      ? { signer: runtime.signer }
+      : configuredSigner
+        ? {
+            signer: (digest) =>
+              fromPromise(() => configuredSigner(digest), "Near.signer"),
+          }
+        : {}),
   }
-  const builder = (id: string) => new TransactionBuilder(id, dependencies)
+  const transactionPrograms = transactions(dependencies)
   const programs = makeNearPrograms({
     rpc,
     keyStore,
     ready,
     wallet,
     defaultSignerId: validated.defaultSignerId || undefined,
-    transaction: builder,
+    transactions: transactionPrograms,
   })
   const service = {
     ...programs,
     rpc,
     viewStateAll: rpc.viewStateAll,
-    transaction: (id: string) => transaction(builder(id)),
+    transactions: transactionPrograms,
     contract: <T extends ContractMethods>(id: string) =>
       createEffectContract<T>(programs, id),
   }

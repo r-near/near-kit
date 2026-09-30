@@ -1,7 +1,11 @@
 import { Cause, Deferred, Effect, Exit } from "effect"
 import { describe, expect, test } from "vitest"
 import { Near } from "../../src/core/near.js"
-import { TransactionBuilder } from "../../src/core/transaction.js"
+import { send as sendTransaction } from "../../src/effect/transaction.js"
+import { transactionRpcFromPromises } from "../../src/core/rpc/rpc.js"
+import { keyStoreService } from "../../src/effect/keys.js"
+import { makeNonceReservation } from "../../src/effect/nonce.js"
+import { walletService } from "../../src/effect/wallet.js"
 import { InMemoryKeyStore } from "../../src/keys/in-memory-keystore.js"
 import { walletConnection } from "../../src/effect/wallet.js"
 import { AccessKeyDoesNotExistError } from "../../src/errors/index.js"
@@ -30,16 +34,23 @@ describe("migration acceptance boundaries", () => {
           })
         }).pipe(Effect.ensuring(Deferred.succeed(finalized, undefined))),
     })
-    const tx = new TransactionBuilder(
-      "alice.near",
-      testRpcClient("https://unused.invalid"),
-      new InMemoryKeyStore(),
-      undefined,
-      "EXECUTED_OPTIMISTIC",
-      wallet,
-    ).transfer("bob.near", "1 NEAR")
+    const tx = sendTransaction(
+      {
+        signerId: "alice.near",
+        receiverId: "bob.near",
+        actions: [{ transfer: { deposit: 10n ** 24n } }],
+      },
+      {
+        rpc: transactionRpcFromPromises(
+          testRpcClient("https://unused.invalid"),
+        ),
+        keyStore: keyStoreService(new InMemoryKeyStore()),
+        nonces: Effect.runSync(makeNonceReservation),
+        wallet: walletService(wallet),
+      },
+    )
     const controller = new AbortController()
-    const running = Effect.runPromiseExit(tx.sendEffect(), {
+    const running = Effect.runPromiseExit(tx, {
       signal: controller.signal,
     })
     await Effect.runPromise(Deferred.await(started))

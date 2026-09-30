@@ -1,3 +1,4 @@
+import { TransactionV1Schema } from "../../src/core/schema.js"
 /**
  * Unit tests for TransactionBuilder.nonce() — signing at a caller-chosen nonce.
  */
@@ -119,14 +120,12 @@ describe("TransactionBuilder.nonce()", () => {
       .sign()
 
     expect(signed.getHash()).toBeTruthy()
-    // The underlying u64 nonce is exposed on the V0-shaped signed transaction.
-    expect(
-      (
-        signed as unknown as {
-          cachedSignedTx: { signedTx: { transaction: { nonce: bigint } } }
-        }
-      ).cachedSignedTx.signedTx.transaction.nonce,
-    ).toBe(777n)
+    const decoded = TransactionV1Schema.deserialize(
+      signed.serialize().slice(1, -65),
+    )
+    expect(decoded.nonce).toEqual({
+      gasKeyNonce: { nonce: 777n, nonceIndex: 2 },
+    })
     // One slot-existence check; the slot's on-chain nonce is not used.
     expect(counters.gasKeyNonceCalls).toBe(1)
     expect(counters.accessKeyCalls).toBe(0)
@@ -136,10 +135,10 @@ describe("TransactionBuilder.nonce()", () => {
     const { builder } = await setup()
     let signerCalls = 0
     const tx = builder()
-    ;(tx as unknown as { signer: unknown }).signer = async () => {
+    tx.signWith(async () => {
       signerCalls++
       throw new Error("must not sign")
-    }
+    })
 
     // The mock key has 4 slots (0..3).
     await expect(
