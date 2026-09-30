@@ -1,8 +1,13 @@
-import type * as Effect from "effect/Effect"
 import * as Context from "effect/Context"
+import * as Deferred from "effect/Deferred"
+import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
-import type { WalletConnection } from "../core/types.js"
-import { fromPromise, runPromise, type ExternalError } from "./runtime.js"
+import * as Result from "effect/Result"
+import type * as Scope from "effect/Scope"
+import * as Stream from "effect/Stream"
+import * as SubscriptionRef from "effect/SubscriptionRef"
+import type { WalletAccount, WalletConnection } from "../core/types.js"
+import { ExternalError, fromPromise, fromSync, runPromise } from "./runtime.js"
 
 type NativeMethod<F> = F extends (...args: infer A) => Promise<infer R>
   ? (...args: A) => Effect.Effect<R, ExternalError>
@@ -10,6 +15,12 @@ type NativeMethod<F> = F extends (...args: infer A) => Promise<infer R>
 
 export interface WalletService {
   readonly getAccounts: NativeMethod<WalletConnection["getAccounts"]>
+  /** Optional live account capability. Its owner must retain the acquired scope. */
+  readonly observeAccounts?: () => Effect.Effect<
+    WalletAccountObservation,
+    never,
+    Scope.Scope
+  >
   readonly signAndSendTransaction: NativeMethod<
     WalletConnection["signAndSendTransaction"]
   >
@@ -20,6 +31,87 @@ export interface WalletService {
     NonNullable<WalletConnection["signDelegateActions"]>
   >
 }
+
+/** Account observation is independent of client readiness and signing failures. */
+export type WalletAccountState =
+  | { readonly _tag: "Loading" }
+  | {
+      readonly _tag: "Ready"
+      readonly accounts: ReadonlyArray<Readonly<WalletAccount>>
+    }
+  | { readonly _tag: "Failed"; readonly error: ExternalError }
+
+export interface WalletAccountObservation {
+  // oxlint-disable-next-line effecttsgo/lazy-effect -- Keep named service operations consistent with the native wallet API.
+  readonly get: () => Effect.Effect<WalletAccountState>
+  readonly changes: Stream.Stream<WalletAccountState>
+  /** Completes after the first account result or observation failure. */
+  readonly ready: Effect.Effect<void>
+}
+
+/** Share a scoped source once; consumers cannot mutate the observed snapshot. */
+export const observeAccountStream = Effect.fn("Wallet.observeAccountStream")(
+  function* (
+    source: Stream.Stream<
+      Result.Result<ReadonlyArray<WalletAccount>, ExternalError>,
+      ExternalError
+    >,
+  ) {
+    const state = yield* SubscriptionRef.make<WalletAccountState>(
+      Object.freeze({ _tag: "Loading" }),
+    )
+    const ready = yield* Deferred.make<void>()
+    const publish = (value: WalletAccountState) =>
+      SubscriptionRef.set(state, Object.freeze(value)).pipe(
+        Effect.andThen(Deferred.succeed(ready, undefined)),
+      )
+    const fail = (error: ExternalError) =>
+      publish({
+        _tag: "Failed",
+        error: new ExternalError({
+          operation: "wallet.observeAccounts",
+          cause: error.cause,
+        }),
+      })
+    yield* source.pipe(
+      Stream.runForEach((result) => {
+        if (Result.isFailure(result)) return fail(result.failure)
+        return fromSync(
+          () =>
+            Object.freeze(
+              result.success.map(({ accountId, publicKey }) =>
+                Object.freeze({
+                  accountId,
+                  ...(publicKey !== undefined ? { publicKey } : {}),
+                }),
+              ),
+            ),
+          "wallet.observeAccounts",
+        ).pipe(
+          Effect.flatMap((accounts) => publish({ _tag: "Ready", accounts })),
+          Effect.catch(fail),
+        )
+      }),
+      Effect.catch(fail),
+      Effect.forkScoped,
+    )
+    return {
+      get: Effect.fn("Wallet.accounts.get")(() => SubscriptionRef.get(state)),
+      changes: SubscriptionRef.changes(state),
+      ready: Deferred.await(ready),
+    } satisfies WalletAccountObservation
+  },
+)
+
+/** Acquire once in a client scope, including a snapshot for legacy wallets. */
+export const acquireWalletAccounts = Effect.fn("Wallet.acquireAccounts")(
+  (wallet: WalletService) =>
+    wallet.observeAccounts
+      ? wallet.observeAccounts()
+      : observeAccountStream(
+          Stream.fromEffect(Effect.result(wallet.getAccounts())),
+        ),
+)
 
 const nativeWallet = Symbol.for("near-kit/NativeWallet")
 type NativeConnection = WalletConnection & {
@@ -85,6 +177,7 @@ export const walletService = (connection: NativeConnection): WalletService => {
   })
 }
 
+// oxlint-disable-next-line effecttsgo/lazy-effect -- Operations remain functions; observation acquisition is only executed by the scoped owner.
 export class Wallet extends Context.Service<Wallet, WalletService>()(
   "near-kit/Wallet",
 ) {

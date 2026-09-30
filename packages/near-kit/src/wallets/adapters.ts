@@ -15,6 +15,9 @@
 import { sha256 } from "@noble/hashes/sha2.js"
 import { base58, base64 } from "@scure/base"
 import * as Effect from "effect/Effect"
+import * as Queue from "effect/Queue"
+import * as Result from "effect/Result"
+import * as Stream from "effect/Stream"
 import { decodeSignedDelegateAction } from "../core/schema.js"
 import type {
   Action,
@@ -26,11 +29,12 @@ import type {
   WalletConnection,
 } from "../core/types.js"
 import { ExternalError, fromPromise, fromSync } from "../effect/runtime.js"
-import { walletConnection } from "../effect/wallet.js"
+import { observeAccountStream, walletConnection } from "../effect/wallet.js"
 import type {
   NearConnectAction,
   NearConnectAddKeyPermission,
   NearConnectConnector,
+  NearConnectAccountEvents,
 } from "./types.js"
 
 // Wallet interface types based on @near-wallet-selector/core v10.x (deprecated).
@@ -239,8 +243,16 @@ export function fromNearConnect(
     )
   }
 
+  const on = connector.on?.bind(connector)
+  const off = connector.off?.bind(connector)
   return walletConnection({
     getAccounts: () => connectAccounts(connector),
+    ...(on && off
+      ? {
+          observeAccounts: () =>
+            observeAccountStream(connectAccountChanges(connector, on, off)),
+        }
+      : {}),
     signAndSendTransaction: (params) => connectTransaction(connector, params),
     signMessage: (params) => connectMessage(connector, params),
     signDelegateActions: (params) => connectDelegates(connector, params),
@@ -316,6 +328,68 @@ const connectAccounts = Effect.fn("NearConnect.getAccounts")(function* (
     yield* fromPromise(() => wallet.getAccounts(), "near-connect.getAccounts"),
   )
 })
+
+/** The installed connector emits accounts on sign-in and no accounts on sign-out. */
+const connectAccountChanges = (
+  connector: NearConnectConnector,
+  on: NonNullable<NearConnectConnector["on"]>,
+  off: NonNullable<NearConnectConnector["off"]>,
+): Stream.Stream<
+  Result.Result<ReadonlyArray<WalletAccount>, ExternalError>,
+  ExternalError
+> =>
+  Stream.callback((queue) =>
+    Effect.gen(function* () {
+      let revision = 0
+      const signIn = (event: NearConnectAccountEvents["wallet:signIn"]) => {
+        if (!event.success) return
+        revision++
+        Queue.offerUnsafe(
+          queue,
+          Result.succeed(normalizeAccounts(event.accounts)),
+        )
+      }
+      const signOut = () => {
+        revision++
+        Queue.offerUnsafe(queue, Result.succeed([]))
+      }
+      // Each finalizer is installed before registration, including an on() that
+      // throws after adding its callback. The stream scope closes on failure.
+      yield* Effect.addFinalizer(() =>
+        Effect.sync(() => off("wallet:signIn", signIn)),
+      )
+      yield* fromSync(
+        () => on("wallet:signIn", signIn),
+        "wallet.observeAccounts",
+      )
+      yield* Effect.addFinalizer(() =>
+        Effect.sync(() => off("wallet:signOut", signOut)),
+      )
+      yield* fromSync(
+        () => on("wallet:signOut", signOut),
+        "wallet.observeAccounts",
+      )
+      yield* connectAccounts(connector).pipe(
+        Effect.catchIf(
+          (error) =>
+            error.operation === "near-connect.wallet" &&
+            error.cause instanceof Error &&
+            error.cause.message === "No accounts found",
+          () => Effect.succeed([]),
+        ),
+        Effect.match({
+          onSuccess: (accounts) => {
+            if (revision === 0)
+              Queue.offerUnsafe(queue, Result.succeed(accounts))
+          },
+          onFailure: (error) => {
+            if (revision === 0) Queue.offerUnsafe(queue, Result.fail(error))
+          },
+        }),
+        Effect.forkScoped,
+      )
+    }).pipe(Effect.catch((error) => Queue.fail(queue, error))),
+  )
 const connectTransaction = Effect.fn("NearConnect.signAndSendTransaction")(
   function* (connector: NearConnectConnector, params: TransactionParams) {
     const wallet = yield* connected(connector)
