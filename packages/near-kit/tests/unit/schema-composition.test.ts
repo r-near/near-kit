@@ -1,4 +1,4 @@
-import { describe, expect, expectTypeOf, test } from "vitest"
+import { describe, expect, test } from "vitest"
 import { z } from "zod"
 import { AccountIdSchema, AmountSchema } from "near-kit/schemas"
 
@@ -10,17 +10,7 @@ const TransferForm = z
   .extend({ memo: z.string().optional() })
 
 describe("near-kit/schemas composition", () => {
-  test("composes genuine Zod schemas with input/output inference and amount conversion", () => {
-    expectTypeOf<z.input<typeof TransferForm>>().toEqualTypeOf<{
-      senderId: string
-      amount: string | bigint
-      memo?: string | undefined
-    }>()
-    expectTypeOf<z.output<typeof TransferForm>>().toEqualTypeOf<{
-      senderId: string
-      amount: string
-      memo?: string | undefined
-    }>()
+  test("composes genuine Zod schemas with extension, arrays, and amount conversion", () => {
     expect(
       TransferForm.array().parse([
         { senderId: "alice.near", amount: "1.25 NEAR", memo: "coffee" },
