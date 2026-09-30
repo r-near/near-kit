@@ -5,6 +5,9 @@ import { NodeFileSystem } from "@effect/platform-node"
 import { Effect, Layer } from "effect"
 import { afterEach, describe, expect, test, vi } from "vitest"
 import { ZodError } from "zod"
+import type { KeyPair } from "../../src/core/types.js"
+import { getKeyEffect } from "../../src/effect/keys.js"
+import { FileKeyStore } from "../../src/keys/file-keystore.js"
 import { FileStorage } from "../../src/effect/file-keystore.js"
 import { NativeStorage } from "../../src/effect/native-keystore.js"
 import { ExternalError } from "../../src/effect/runtime.js"
@@ -42,6 +45,59 @@ afterEach(() => {
   keyring.value = null
   keyring.error = undefined
 })
+
+describe.each(["file", "native"] as const)(
+  "%s Promise extension boundaries",
+  (kind) => {
+    test("native lookup honors policy overrides, errors, and calls through super", async () => {
+      const directory = await fs.mkdtemp(
+        path.join(os.tmpdir(), "near-policy-store-"),
+      )
+      const key = generateKey()
+      const alternate = generateKey()
+      const denied = new Error("signing policy denied access")
+      let policy: "alternate" | "denied" | "stored" = "alternate"
+      const applyPolicy = async (read: () => Promise<KeyPair | null>) => {
+        if (policy === "denied") throw denied
+        if (policy === "alternate") return alternate
+        return read()
+      }
+      class PolicyFileStore extends FileKeyStore {
+        override get(id: string) {
+          return applyPolicy(() => super.get(id))
+        }
+      }
+      class PolicyNativeStore extends NativeKeyStore {
+        override get(id: string) {
+          return applyPolicy(() => super.get(id))
+        }
+      }
+      const store =
+        kind === "file"
+          ? new PolicyFileStore(directory)
+          : new PolicyNativeStore("Policy test")
+      try {
+        await store.add("alice.testnet", key)
+        expect(
+          await Effect.runPromise(getKeyEffect(store, "alice.testnet")),
+        ).toBe(alternate)
+        policy = "denied"
+        const error = await Effect.runPromise(
+          getKeyEffect(store, "alice.testnet").pipe(Effect.flip),
+        )
+        expect(error).toBeInstanceOf(ExternalError)
+        expect(error.cause).toBe(denied)
+        policy = "stored"
+        expect(
+          (await Effect.runPromise(getKeyEffect(store, "alice.testnet")))
+            ?.secretKey,
+        ).toBe(key.secretKey)
+      } finally {
+        await fs.rm(directory, { recursive: true, force: true })
+      }
+    })
+  },
+)
 
 describe("native resource key-store boundaries", () => {
   // Existing FileKeyStore tests own disk format compatibility. This guards the
