@@ -1,17 +1,30 @@
-import { Cause, Clock, Effect, Exit, Fiber, Layer, Stream } from "effect"
+import {
+  Cause,
+  Clock,
+  ConfigProvider,
+  Effect,
+  Exit,
+  Fiber,
+  Layer,
+  Stream,
+} from "effect"
+import { HttpClient, HttpClientResponse } from "effect/http"
 import { TestClock } from "effect/testing"
 import { afterEach, describe, expect, test, vi } from "vitest"
 import { ZodError } from "zod"
-import { RpcClient, type RpcFetch } from "../../src/core/rpc/rpc.js"
+import {
+  type RpcFetch,
+  rpcFromPromises,
+  rpcToPromises,
+} from "../../src/core/rpc/rpc.js"
 import { Rpc, RpcTransport } from "../../src/effect/rpc.js"
 import { runPromise } from "../../src/effect/runtime.js"
 import {
-  AccessKeyDoesNotExistError,
   AccountDoesNotExistError,
   FunctionCallError,
-  GlobalContractNotFoundError,
   NetworkError,
 } from "../../src/errors/index.js"
+import { testRpcPrograms } from "../helpers/rpc.js"
 
 function result(value: unknown): Response {
   return Response.json({ jsonrpc: "2.0", id: 1, result: value })
@@ -83,16 +96,79 @@ describe("native RPC programs", () => {
     }
   })
 
-  test("keeps effects lazy and re-execution allocates distinct request IDs", async () => {
+  /* oxlint-disable effecttsgo/unstable-api-usage -- Independent lifecycle proof for the explicit pinned Effect HTTP integration. */
+  test("composes an injected HttpClient and closes each request scope on success and failure", async () => {
+    const signals: AbortSignal[] = []
+    const http = HttpClient.make((request, _url, signal) =>
+      Effect.sync(() => {
+        signals.push(signal)
+        return HttpClientResponse.fromWeb(
+          request,
+          signals.length === 1
+            ? result({ gas_price: "10" })
+            : new Response("bad request", { status: 400 }),
+        )
+      }),
+    )
+    const rpcLayer = Rpc.layer({
+      url: "https://rpc.test",
+      retry: { maxRetries: 2, initialDelayMs: 0 },
+    }).pipe(
+      Layer.provide(RpcTransport.layerHttpClient),
+      Layer.provide(Layer.succeed(HttpClient.HttpClient, http)),
+    )
+    await runPromise(
+      Effect.gen(function* () {
+        const rpc = yield* Rpc
+        expect(yield* rpc.getGasPrice()).toEqual({ gas_price: "10" })
+        expect(signals[0]?.aborted).toBe(true)
+        const failure = yield* rpc.getGasPrice().pipe(Effect.flip)
+        expect(failure).toMatchObject({
+          code: "NETWORK_ERROR",
+          statusCode: 400,
+          retryable: false,
+        })
+        expect(signals).toHaveLength(2)
+        expect(signals[1]?.aborted).toBe(true)
+      }).pipe(Effect.provide(rpcLayer)),
+    )
+  })
+
+  test.each(["true", "TRUE", "yes"])(
+    "reads the exact debug flag from ConfigProvider: %s",
+    async (flag) => {
+      const log = vi.spyOn(console, "log").mockImplementation(() => {})
+      const rpc = testRpcPrograms("https://rpc.test", async () =>
+        result({ gas_price: "10" }),
+      )
+      await runPromise(
+        rpc
+          .getGasPrice()
+          .pipe(
+            Effect.provide(
+              ConfigProvider.layer(
+                ConfigProvider.fromUnknown({ NEAR_RPC_DEBUG: flag }),
+              ),
+            ),
+          ),
+      )
+      expect(log.mock.calls.map(([prefix]) => prefix)).toEqual(
+        flag === "true" ? ["[RPC Request]", "[RPC Response]"] : [],
+      )
+    },
+  )
+
+  test("keeps effects lazy and concurrent re-execution allocates distinct request IDs", async () => {
     const requests: unknown[] = []
-    const rpc = RpcClient.withTransport("https://rpc.test", async (_, init) => {
+    const rpc = testRpcPrograms("https://rpc.test", async (_, init) => {
       requests.push(init.body)
       return result({ gas_price: "10" })
     })
-    const program = rpc.getGasPriceEffect()
+    const program = rpc.getGasPrice()
     expect(requests).toEqual([])
-    await runPromise(program)
-    await runPromise(program)
+    await runPromise(
+      Effect.all([program, program], { concurrency: "unbounded" }),
+    )
     expect(requests).toEqual(
       [1, 2].map((id) =>
         JSON.stringify({
@@ -110,7 +186,7 @@ describe("native RPC programs", () => {
       Effect.gen(function* () {
         const clock = yield* Clock.Clock
         const attempts: Array<{ at: number; body: unknown }> = []
-        const rpc = RpcClient.withTransport(
+        const rpc = testRpcPrograms(
           "https://rpc.test",
           async (_, init) => {
             attempts.push({
@@ -123,7 +199,7 @@ describe("native RPC programs", () => {
           { maxRetries: 2, initialDelayMs: 100 },
         )
         const fiber = yield* rpc
-          .sendTransactionEffect(new Uint8Array([1, 2, 3]), "NONE")
+          .sendTransaction(new Uint8Array([1, 2, 3]), "NONE")
           .pipe(Effect.forkChild)
         yield* TestClock.adjust(99)
         expect(attempts.map(({ at }) => at)).toEqual([0])
@@ -153,7 +229,7 @@ describe("native RPC programs", () => {
     await runPromise(
       Effect.gen(function* () {
         let attempts = 0
-        const rpc = RpcClient.withTransport(
+        const rpc = testRpcPrograms(
           "https://rpc.test",
           async () => {
             attempts++
@@ -162,7 +238,7 @@ describe("native RPC programs", () => {
           undefined,
           { maxRetries: 4, initialDelayMs: 100 },
         )
-        const fiber = yield* rpc.callEffect("status", []).pipe(Effect.forkChild)
+        const fiber = yield* rpc.call("status", []).pipe(Effect.forkChild)
         yield* TestClock.adjust(1)
         expect(attempts).toBe(1)
         yield* Fiber.interrupt(fiber)
@@ -176,73 +252,75 @@ describe("native RPC programs", () => {
     )
   })
 
-  test.each([
-    "fetch",
-    "body",
-  ] as const)("cancels the transport while awaiting %s without retrying", async (phase) => {
-    const started = Promise.withResolvers<void>()
-    const pending = Promise.withResolvers<Response>()
-    const body = Promise.withResolvers<unknown>()
-    const controller = new AbortController()
-    let calls = 0
-    let transportSignal: AbortSignal | undefined
-    class PendingBody extends Response {
-      override json(): Promise<unknown> {
-        started.resolve()
-        return body.promise
-      }
-    }
-    const rpc = RpcClient.withTransport(
-      "https://rpc.test",
-      (_, init) => {
-        calls++
-        transportSignal = init.signal
-        init.signal.addEventListener(
-          "abort",
-          () => {
-            const error = new DOMException("cancelled", "AbortError")
-            if (phase === "fetch") pending.reject(error)
-            else body.reject(error)
-          },
-          { once: true },
-        )
-        if (phase === "fetch") {
+  test.each(["fetch", "body"] as const)(
+    "cancels the transport while awaiting %s without retrying",
+    async (phase) => {
+      const started = Promise.withResolvers<void>()
+      const pending = Promise.withResolvers<Response>()
+      const body = Promise.withResolvers<unknown>()
+      const controller = new AbortController()
+      let calls = 0
+      let transportSignal: AbortSignal | undefined
+      class PendingBody extends Response {
+        override json(): Promise<unknown> {
           started.resolve()
-          return pending.promise
+          return body.promise
         }
-        return Promise.resolve(new PendingBody())
-      },
-      undefined,
-      { maxRetries: 4, initialDelayMs: 0 },
-    )
-    const exitPromise = Effect.runPromiseExit(rpc.callEffect("status", []), {
-      signal: controller.signal,
-    })
-    await started.promise
-    controller.abort()
-    const exit = await exitPromise
-    expect(transportSignal?.aborted).toBe(true)
-    expect(Exit.isFailure(exit) && Cause.hasInterrupts(exit.cause)).toBe(true)
-    expect(calls).toBe(1)
-  })
+      }
+      const rpc = testRpcPrograms(
+        "https://rpc.test",
+        (_, init) => {
+          calls++
+          transportSignal = init.signal
+          init.signal.addEventListener(
+            "abort",
+            () => {
+              const error = new DOMException("cancelled", "AbortError")
+              if (phase === "fetch") pending.reject(error)
+              else body.reject(error)
+            },
+            { once: true },
+          )
+          if (phase === "fetch") {
+            started.resolve()
+            return pending.promise
+          }
+          return Promise.resolve(new PendingBody())
+        },
+        undefined,
+        { maxRetries: 4, initialDelayMs: 0 },
+      )
+      const exitPromise = Effect.runPromiseExit(rpc.call("status", []), {
+        signal: controller.signal,
+      })
+      await started.promise
+      controller.abort()
+      const exit = await exitPromise
+      expect(transportSignal?.aborted).toBe(true)
+      expect(Exit.isFailure(exit) && Cause.hasInterrupts(exit.cause)).toBe(true)
+      expect(calls).toBe(1)
+    },
+  )
 
   test("preserves typed failures for Effect recovery and the Promise boundary", async () => {
     const failure = new FunctionCallError("app.near", "check", "rejected", [
       "contract log",
     ])
-    const rpc = RpcClient.withTransport("https://rpc.test", () =>
+    const rpc = testRpcPrograms("https://rpc.test", () =>
       Promise.reject(failure),
     )
     const recovered = await runPromise(
-      rpc.viewFunctionEffect("app.near", "check").pipe(Effect.flip),
+      rpc.viewFunction("app.near", "check").pipe(Effect.flip),
     )
     expect(recovered).toBe(failure)
-    await expect(rpc.viewFunction("app.near", "check")).rejects.toBe(failure)
+    await expect(
+      rpcToPromises(rpc).viewFunction("app.near", "check"),
+    ).rejects.toBe(failure)
   })
 
   test("recovers an RPC-level account failure as the original domain class", async () => {
     let requests = 0
-    const rpc = RpcClient.withTransport("https://rpc.test", async () => {
+    const rpc = testRpcPrograms("https://rpc.test", async () => {
       requests++
       return Response.json({
         jsonrpc: "2.0",
@@ -259,7 +337,7 @@ describe("native RPC programs", () => {
       })
     })
     const missing = await runPromise(
-      rpc.getAccountEffect("missing.near").pipe(
+      rpc.getAccount("missing.near").pipe(
         Effect.catchIf(
           (error): error is AccountDoesNotExistError =>
             error instanceof AccountDoesNotExistError,
@@ -271,39 +349,83 @@ describe("native RPC programs", () => {
     expect(requests).toBe(1)
   })
 
-  test("honors public decorations that call the original method without recursion", async () => {
-    const rpc = RpcClient.withTransport("https://rpc.test", async () =>
-      result({ gas_price: "10" }),
-    )
-    const original = rpc.getGasPrice.bind(rpc)
-    vi.spyOn(RpcClient.prototype, "getGasPrice").mockImplementation(
-      async function (this: RpcClient, blockId) {
-        const value = await original(blockId)
-        return { gas_price: `${value.gas_price}0` }
-      },
-    )
-    expect(await runPromise(rpc.getGasPriceEffect())).toEqual({
-      gas_price: "100",
+  test("shares request state across public and native APIs and preserves external rejection values", async () => {
+    const requests: unknown[] = []
+    const programs = testRpcPrograms("https://rpc.test", async (_, init) => {
+      requests.push(init.body)
+      return result({ gas_price: "10" })
     })
+    const publicRpc = rpcToPromises(programs)
+    await runPromise(programs.getGasPrice())
+    await publicRpc.getGasPrice()
+    await runPromise(rpcFromPromises(publicRpc).getGasPrice())
+    expect(requests).toEqual(
+      [1, 2, 3].map((id) =>
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id,
+          method: "gas_price",
+          params: [null],
+        }),
+      ),
+    )
     const rejection = { reason: "external provider rejection" }
-    rpc.getGasPrice = () => Promise.reject(rejection)
-    await expect(runPromise(rpc.getGasPriceEffect())).rejects.toBe(rejection)
+    const externalRpc = {
+      ...publicRpc,
+      getGasPrice: () => Promise.reject(rejection),
+    }
+    await expect(
+      runPromise(rpcFromPromises(externalRpc).getGasPrice()),
+    ).rejects.toBe(rejection)
   })
-  test("retains legacy method fallback and contextual errors through overridden calls", async () => {
+
+  test("retains experimental fallback and caller-known contextual errors at the transport boundary", async () => {
     const methods: unknown[] = []
-    const rpc = RpcClient.withTransport("https://rpc.test", async (_, init) => {
-      methods.push(init.body)
-      return result({
-        protocol_version: 90,
-        chain_id: "testnet",
-        genesis_height: 0,
-      })
-    })
-    const original = rpc.call.bind(rpc)
-    rpc.call = (method, params) =>
-      method === "genesis_config"
-        ? Promise.reject(new NetworkError("Method not found", -32601, false))
-        : original(method, params)
+    const replies: unknown[] = [
+      {
+        error: {
+          name: "REQUEST_VALIDATION_ERROR",
+          code: -32601,
+          message: "Method not found",
+          cause: { name: "METHOD_NOT_FOUND" },
+        },
+      },
+      {
+        result: {
+          protocol_version: 90,
+          chain_id: "testnet",
+          genesis_height: 0,
+        },
+      },
+      {
+        error: {
+          name: "HANDLER_ERROR",
+          code: -32000,
+          message: "No global contract",
+          cause: {
+            name: "NO_GLOBAL_CONTRACT_CODE",
+            info: { identifier: { AccountId: "unknown.near" } },
+          },
+        },
+      },
+      {
+        error: {
+          name: "HANDLER_ERROR",
+          code: -32000,
+          message: "Unknown gas key",
+          cause: {
+            name: "UNKNOWN_GAS_KEY",
+            info: { public_key: "ed25519:unknown" },
+          },
+        },
+      },
+    ]
+    const rpc = rpcToPromises(
+      testRpcPrograms("https://rpc.test", async (_, init) => {
+        methods.push(init.body)
+        return Response.json(replies.shift())
+      }),
+    )
     expect(await rpc.genesisConfig()).toEqual({
       protocol_version: 90,
       chain_id: "testnet",
@@ -313,21 +435,19 @@ describe("native RPC programs", () => {
       JSON.stringify({
         jsonrpc: "2.0",
         id: 1,
+        method: "genesis_config",
+        params: [],
+      }),
+      JSON.stringify({
+        jsonrpc: "2.0",
+        id: 2,
         method: "EXPERIMENTAL_genesis_config",
         params: [],
       }),
     ])
-    rpc.call = () =>
-      Promise.reject(
-        new GlobalContractNotFoundError({ accountId: "unknown.near" }),
-      )
     await expect(
       rpc.viewGlobalContractCode({ accountId: "publisher.near" }),
     ).rejects.toMatchObject({ identifier: { accountId: "publisher.near" } })
-    rpc.call = () =>
-      Promise.reject(
-        new AccessKeyDoesNotExistError("unknown.near", "ed25519:unknown"),
-      )
     await expect(
       rpc.getGasKeyNonces("alice.near", "ed25519:actual"),
     ).rejects.toMatchObject({
@@ -338,7 +458,7 @@ describe("native RPC programs", () => {
 
   test("releases failed HTTP response bodies before retrying and retains the HTTP error", async () => {
     const events: string[] = []
-    const rpc = RpcClient.withTransport(
+    const rpc = testRpcPrograms(
       "https://rpc.test",
       async () => {
         events.push("fetch")
@@ -355,7 +475,7 @@ describe("native RPC programs", () => {
       undefined,
       { maxRetries: 1, initialDelayMs: 0 },
     )
-    await expect(rpc.call("status", [])).rejects.toMatchObject({
+    await expect(runPromise(rpc.call("status", []))).rejects.toMatchObject({
       message: "HTTP 503: Unavailable",
       statusCode: 503,
     })
@@ -365,7 +485,7 @@ describe("native RPC programs", () => {
 
 describe("native protocol decoding", () => {
   test("strips ordinary extra fields while retaining optional nulls and genesis extensions", async () => {
-    const accountRpc = RpcClient.withTransport("https://rpc.test", async () =>
+    const accountRpc = testRpcPrograms("https://rpc.test", async () =>
       result({
         ...account,
         global_contract_hash: null,
@@ -373,7 +493,7 @@ describe("native protocol decoding", () => {
         future_field: true,
       }),
     )
-    expect(await accountRpc.getAccount("alice.near")).toEqual({
+    expect(await runPromise(accountRpc.getAccount("alice.near"))).toEqual({
       ...account,
       global_contract_hash: null,
       global_contract_account_id: "publisher.near",
@@ -384,20 +504,20 @@ describe("native protocol decoding", () => {
       genesis_height: 0,
       runtime_config: { storage_amount_per_byte: "100" },
     }
-    const genesisRpc = RpcClient.withTransport("https://rpc.test", async () =>
+    const genesisRpc = testRpcPrograms("https://rpc.test", async () =>
       result(genesis),
     )
-    expect(await runPromise(genesisRpc.genesisConfigEffect())).toEqual(genesis)
+    expect(await runPromise(genesisRpc.genesisConfig())).toEqual(genesis)
   })
 
   test("rejects malformed typed payloads as ZodError without retrying transport", async () => {
     let requests = 0
-    const rpc = RpcClient.withTransport("https://rpc.test", async () => {
+    const rpc = testRpcPrograms("https://rpc.test", async () => {
       requests++
       return result({ ...account, storage_usage: "12" })
     })
     const failure = await runPromise(
-      rpc.getAccountEffect("alice.near").pipe(Effect.flip),
+      rpc.getAccount("alice.near").pipe(Effect.flip),
     )
     expect(failure).toBeInstanceOf(ZodError)
     if (!(failure instanceof ZodError))
@@ -413,7 +533,7 @@ describe("native protocol decoding", () => {
 
   test("pulls state pages lazily and stops requesting after consumer termination", async () => {
     const requests: unknown[] = []
-    const rpc = RpcClient.withTransport("https://rpc.test", async (_, init) => {
+    const rpc = testRpcPrograms("https://rpc.test", async (_, init) => {
       requests.push(init.body)
       return result(
         requests.length === 1
@@ -421,7 +541,7 @@ describe("native protocol decoding", () => {
           : { values: [{ key: "Yg==", value: "Mg==" }], last_key: "Yg==" },
       )
     })
-    const stream = rpc.viewStateAllStream("app.near", { limit: 1 })
+    const stream = rpc.viewStateAll("app.near", { limit: 1 })
     expect(requests).toEqual([])
     const entries = await runPromise(
       stream.pipe(Stream.take(2), Stream.runCollect),

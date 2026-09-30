@@ -3,12 +3,13 @@
  */
 
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
-import { RpcClient } from "../../src/core/rpc/rpc.js"
+import type { RpcClient } from "../../src/core/rpc/rpc.js"
 import { TransactionBuilder } from "../../src/core/transaction.js"
 import type { AccessKeyView, StatusResponse } from "../../src/core/types.js"
 import { InvalidNonceError, NetworkError } from "../../src/errors/index.js"
 import { InMemoryKeyStore } from "../../src/keys/index.js"
 import { generateKey } from "../../src/utils/key.js"
+import { testRpcClient } from "../helpers/rpc.js"
 
 describe("RPC Retry Logic", () => {
   let originalFetch: typeof global.fetch
@@ -45,7 +46,7 @@ describe("RPC Retry Logic", () => {
 
     global.fetch = mockFetch as unknown as typeof global.fetch
 
-    const rpc = new RpcClient(
+    const rpc = testRpcClient(
       "https://test.rpc.near.org",
       {},
       { maxRetries: 4, initialDelayMs: 100 },
@@ -70,7 +71,7 @@ describe("RPC Retry Logic", () => {
 
     global.fetch = mockFetch as unknown as typeof global.fetch
 
-    const rpc = new RpcClient(
+    const rpc = testRpcClient(
       "https://test.rpc.near.org",
       {},
       { maxRetries: 3, initialDelayMs: 50 },
@@ -97,7 +98,7 @@ describe("RPC Retry Logic", () => {
 
     global.fetch = mockFetch as unknown as typeof global.fetch
 
-    const rpc = new RpcClient(
+    const rpc = testRpcClient(
       "https://test.rpc.near.org",
       {},
       { maxRetries: 3, initialDelayMs: 50 },
@@ -135,7 +136,7 @@ describe("RPC Retry Logic", () => {
 
     global.fetch = mockFetch as unknown as typeof global.fetch
 
-    const rpc = new RpcClient(
+    const rpc = testRpcClient(
       "https://test.rpc.near.org",
       {},
       { maxRetries: 3, initialDelayMs: 50 },
@@ -170,7 +171,7 @@ describe("RPC Retry Logic", () => {
 
     global.fetch = mockFetch as unknown as typeof global.fetch
 
-    const rpc = new RpcClient(
+    const rpc = testRpcClient(
       "https://test.rpc.near.org",
       {},
       { maxRetries: 3, initialDelayMs: 50 },
@@ -202,7 +203,7 @@ describe("RPC Retry Logic", () => {
 
     global.fetch = mockFetch as unknown as typeof global.fetch
 
-    const rpc = new RpcClient(
+    const rpc = testRpcClient(
       "https://test.rpc.near.org",
       {},
       { maxRetries: 3, initialDelayMs: 50 },
@@ -227,7 +228,7 @@ describe("RPC Retry Logic", () => {
     global.fetch = mockFetch as unknown as typeof global.fetch
 
     // Custom config: max 2 retries, 25ms initial delay
-    const rpc = new RpcClient(
+    const rpc = testRpcClient(
       "https://test.rpc.near.org",
       {},
       { maxRetries: 2, initialDelayMs: 25 },
@@ -258,7 +259,7 @@ describe("RPC Retry Logic", () => {
 
     global.fetch = mockFetch as unknown as typeof global.fetch
 
-    const rpc = new RpcClient(
+    const rpc = testRpcClient(
       "https://test.rpc.near.org",
       {},
       { maxRetries: 3, initialDelayMs: 50 },
@@ -295,7 +296,7 @@ describe("RPC Retry Logic", () => {
 
     global.fetch = mockFetch as unknown as typeof global.fetch
 
-    const rpc = new RpcClient(
+    const rpc = testRpcClient(
       "https://test.rpc.near.org",
       {},
       { maxRetries: 3, initialDelayMs: 50 },
@@ -328,7 +329,7 @@ describe("RPC Retry Logic", () => {
 
     global.fetch = mockFetch as unknown as typeof global.fetch
 
-    const rpc = new RpcClient(
+    const rpc = testRpcClient(
       "https://test.rpc.near.org",
       {},
       { maxRetries: 3, initialDelayMs: 50 },
@@ -370,7 +371,7 @@ describe("RPC Retry Logic", () => {
 
     global.fetch = mockFetch as unknown as typeof global.fetch
 
-    const rpc = new RpcClient(
+    const rpc = testRpcClient(
       "https://test.rpc.near.org",
       {},
       { maxRetries: 4, initialDelayMs: 100 },

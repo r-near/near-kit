@@ -1,90 +1,131 @@
-/** Injectable native RPC services. The Promise client remains an API boundary. */
+/** Context-owned native RPC service and explicitly selected HTTP transports. */
 import { Context, Effect, Layer } from "effect"
-import type { RpcRetryConfigInput } from "../core/config-schemas.js"
-import { RpcClient, type RpcFetch } from "../core/rpc/rpc.js"
+import {
+  HttpBody,
+  HttpClient,
+  type HttpClientError,
+  HttpClientRequest,
+} from "effect/http"
+import {
+  type RpcClient,
+  type RpcFetch,
+  rpcFromPromises,
+  rpcToPromises,
+} from "../core/rpc/rpc.js"
+import { isRetryableStatus } from "../core/rpc/rpc-error-handler.js"
+import {
+  fetchTransport,
+  makeRpcPrograms,
+  type RpcProgramConfig,
+  type RpcPrograms,
+  type RpcTransportService,
+  transportError,
+} from "../core/rpc/rpc-program.js"
+import { NetworkError } from "../errors/index.js"
 
-export interface RpcLayerConfig {
-  readonly url: string
-  readonly headers?: Record<string, string>
-  readonly retry?: RpcRetryConfigInput
-}
+export type RpcLayerConfig = RpcProgramConfig
 
-/** The HTTP boundary is explicit so environments can supply their own transport. */
 export class RpcTransport extends Context.Service<
   RpcTransport,
-  { readonly fetch: RpcFetch }
+  RpcTransportService
 >()("near-kit/RpcTransport") {
+  /** Exact fetch semantics for existing public clients and custom transports. */
   static layer(fetch: RpcFetch): Layer.Layer<RpcTransport> {
-    return Layer.succeed(RpcTransport, RpcTransport.of({ fetch }))
+    return Layer.effect(
+      RpcTransport,
+      Effect.sync(() => RpcTransport.of(fetchTransport(fetch))),
+    )
   }
 
   static readonly layerFetch = RpcTransport.layer((url, init) =>
     globalThis.fetch(url, init),
   )
+
+  /* oxlint-disable effecttsgo/unstable-api-usage -- This opt-in adapter deliberately targets the pinned Effect 4.0.0-rc.118 HTTP stack, covered by scoped lifecycle tests. */
+  /** Use an application's Effect HTTP stack, including its middleware and tracing. */
+  static readonly layerHttpClient: Layer.Layer<
+    RpcTransport,
+    never,
+    HttpClient.HttpClient
+  > = Layer.effect(
+    this,
+    Effect.gen(function* () {
+      const http = HttpClient.withScope(yield* HttpClient.HttpClient)
+      return RpcTransport.of({
+        execute: Effect.fn("RpcTransport.http")(function* (
+          url,
+          headers,
+          request,
+        ) {
+          const body = yield* Effect.try({
+            try: () => JSON.stringify(request),
+            catch: transportError,
+          })
+          const response = yield* http
+            .execute(
+              HttpClientRequest.post(url, {
+                headers: { "Content-Type": "application/json", ...headers },
+              }).pipe(HttpClientRequest.setBody(HttpBody.raw(body))),
+            )
+            .pipe(Effect.mapError(httpFailure))
+          if (response.status < 200 || response.status >= 300) {
+            return yield* Effect.fail(
+              new NetworkError(
+                `HTTP ${response.status}`,
+                response.status,
+                isRetryableStatus(response.status),
+              ),
+            )
+          }
+          const data = yield* response.json.pipe(Effect.mapError(httpFailure))
+          return { status: response.status, data }
+        }, Effect.scoped),
+      })
+    }),
+  )
+  /* oxlint-enable effecttsgo/unstable-api-usage */
 }
 
-/** Same protocol operations as RpcClient, returning Effects rather than Promises. */
-export type RpcService = {
-  readonly [K in keyof RpcClient as K extends `${infer Name}Effect`
-    ? Name
-    : never]: RpcClient[K]
-} & {
+export interface RpcService extends RpcPrograms {
+  /** The same programs exposed at the public Near.rpc Promise boundary. */
   readonly client: RpcClient
-  readonly viewStateAll: RpcClient["viewStateAllStream"]
 }
 
-// oxlint-disable-next-line effecttsgo/lazy-effect -- Uniform operation methods preserve the RpcClient adapter contract and Kit service conventions.
+// oxlint-disable-next-line effecttsgo/lazy-effect -- Uniform operation methods match Kit's explicit service-method convention.
 export class Rpc extends Context.Service<Rpc, RpcService>()("near-kit/Rpc") {
-  /** Requires an explicitly supplied transport. */
   static layer(config: RpcLayerConfig): Layer.Layer<Rpc, never, RpcTransport> {
     return Layer.effect(
       Rpc,
       Effect.gen(function* () {
         const transport = yield* RpcTransport
-        const client = RpcClient.withTransport(
-          config.url,
-          transport.fetch,
-          config.headers,
-          config.retry,
-        )
-        return serviceFromClient(client)
+        const programs = yield* makeRpcPrograms(config, transport)
+        return Rpc.of({ ...programs, client: rpcToPromises(programs) })
       }),
     )
   }
 
-  /** Use the platform's fetch implementation. */
   static layerFetch(config: RpcLayerConfig): Layer.Layer<Rpc> {
     return Rpc.layer(config).pipe(Layer.provide(RpcTransport.layerFetch))
   }
 
-  /** Reuse an already configured client and its request-id sequence. */
+  /** Explicit boundary for an existing or caller-supplied Promise RPC provider. */
   static layerClient(client: RpcClient): Layer.Layer<Rpc> {
-    return Layer.succeed(Rpc, serviceFromClient(client))
+    return Layer.succeed(Rpc, Rpc.of({ ...rpcFromPromises(client), client }))
   }
 }
 
-function serviceFromClient(client: RpcClient): RpcService {
-  return Rpc.of({
-    client,
-    call: client.callEffect.bind(client),
-    query: client.queryEffect.bind(client),
-    viewFunction: client.viewFunctionEffect.bind(client),
-    getAccount: client.getAccountEffect.bind(client),
-    viewCode: client.viewCodeEffect.bind(client),
-    viewGlobalContractCode: client.viewGlobalContractCodeEffect.bind(client),
-    getAccessKey: client.getAccessKeyEffect.bind(client),
-    getAccessKeys: client.getAccessKeysEffect.bind(client),
-    getGasKeyNonces: client.getGasKeyNoncesEffect.bind(client),
-    sendTransaction: client.sendTransactionEffect.bind(client),
-    getTransactionStatus: client.getTransactionStatusEffect.bind(client),
-    receiptToTx: client.receiptToTxEffect.bind(client),
-    getStatus: client.getStatusEffect.bind(client),
-    getBlock: client.getBlockEffect.bind(client),
-    getGasPrice: client.getGasPriceEffect.bind(client),
-    viewState: client.viewStateEffect.bind(client),
-    viewStateAll: client.viewStateAllStream.bind(client),
-    blockEffects: client.blockEffectsEffect.bind(client),
-    genesisConfig: client.genesisConfigEffect.bind(client),
-    maintenanceWindows: client.maintenanceWindowsEffect.bind(client),
-  })
+/* oxlint-disable effecttsgo/unstable-api-usage -- Error mapping belongs to the opt-in pinned HTTP adapter above. */
+function httpFailure(
+  error: HttpClientError.HttpClientError,
+): NetworkError | import("../errors/index.js").NearError {
+  if (error.reason._tag === "StatusCodeError") {
+    return new NetworkError(
+      `HTTP ${error.reason.response.status}`,
+      error.reason.response.status,
+      isRetryableStatus(error.reason.response.status),
+    )
+  }
+  return transportError("cause" in error.reason ? error.reason.cause : error)
 }
+
+/* oxlint-enable effecttsgo/unstable-api-usage */

@@ -11,7 +11,7 @@ import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { afterAll, beforeAll, describe, expect, test } from "vitest"
 import { Near } from "../../src/core/near.js"
-import { RpcClient } from "../../src/core/rpc/rpc.js"
+import type { RpcClient } from "../../src/core/rpc/rpc.js"
 import {
   AccessKeyDoesNotExistError,
   AccountDoesNotExistError,
@@ -42,6 +42,7 @@ import {
 } from "../../src/errors/index.js"
 import { Sandbox } from "../../src/sandbox/sandbox.js"
 import { generateKey } from "../../src/utils/key.js"
+import { testRpcClient } from "../helpers/rpc.js"
 
 describe("RPC Error Handling - Comprehensive Tests", () => {
   let sandbox: Sandbox
@@ -58,7 +59,7 @@ describe("RPC Error Handling - Comprehensive Tests", () => {
         [sandbox.rootAccount.id]: sandbox.rootAccount.secretKey,
       },
     })
-    rpc = new RpcClient(sandbox.rpcUrl)
+    rpc = testRpcClient(sandbox.rpcUrl)
 
     // Deploy guestbook contract for testing
     contractId = `error-test-${Date.now()}.${sandbox.rootAccount.id}`

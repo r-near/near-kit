@@ -8,8 +8,8 @@
  */
 
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
-import { RpcClient } from "../../src/core/rpc/rpc.js"
 import { InvalidTransactionError } from "../../src/errors/index.js"
+import { testRpcClient } from "../helpers/rpc.js"
 
 const outcomeWithId = (executorId: string, failure = false) => ({
   id: "11111111111111111111111111111111",
@@ -80,7 +80,7 @@ describe("RpcClient.getTransactionStatus - early wait levels", () => {
       receipts: [receipt("bob.near")],
     }) as unknown as typeof global.fetch
 
-    const rpc = new RpcClient("https://test.rpc.near.org")
+    const rpc = testRpcClient("https://test.rpc.near.org")
     const status = await rpc.getTransactionStatus(
       "55555555555555555555555555555555",
       "alice.near",
@@ -105,7 +105,7 @@ describe("RpcClient.getTransactionStatus - early wait levels", () => {
       receipts: [receipt("bob.near")],
     }) as unknown as typeof global.fetch
 
-    const rpc = new RpcClient("https://test.rpc.near.org")
+    const rpc = testRpcClient("https://test.rpc.near.org")
 
     await expect(
       rpc.getTransactionStatus(
@@ -124,7 +124,7 @@ describe("RpcClient.getTransactionStatus - early wait levels", () => {
       receipts: [],
     }) as unknown as typeof global.fetch
 
-    const rpc = new RpcClient("https://test.rpc.near.org")
+    const rpc = testRpcClient("https://test.rpc.near.org")
     const status = await rpc.getTransactionStatus(
       "55555555555555555555555555555555",
       "alice.near",

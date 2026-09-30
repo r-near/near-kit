@@ -9,7 +9,7 @@ import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { afterAll, beforeAll, describe, expect, test } from "vitest"
 import { Near } from "../../src/core/near.js"
-import { RpcClient } from "../../src/core/rpc/rpc.js"
+import type { RpcClient } from "../../src/core/rpc/rpc.js"
 import {
   AccessKeyDoesNotExistError,
   AccountDoesNotExistError,
@@ -18,6 +18,7 @@ import {
 } from "../../src/errors/index.js"
 import { Sandbox } from "../../src/sandbox/sandbox.js"
 import { generateKey } from "../../src/utils/key.js"
+import { testRpcClient } from "../helpers/rpc.js"
 
 let sandbox: Sandbox
 let rpc: RpcClient
@@ -46,7 +47,7 @@ beforeAll(async () => {
     .deployContract(contractId, contractWasm)
     .send({ waitUntil: "FINAL" })
 
-  rpc = new RpcClient(sandbox.rpcUrl)
+  rpc = testRpcClient(sandbox.rpcUrl)
 
   console.log(`✓ Sandbox started: ${sandbox.rpcUrl}`)
   console.log(`✓ Contract deployed: ${contractId}`)
@@ -212,7 +213,7 @@ describe("Error Handling - Network Errors", () => {
   // are disabled here (maxRetries: 0) — otherwise each getStatus() burns the
   // full backoff budget (~15s) and this suite would take ~30s. With retries off
   // it fails in milliseconds while still exercising the NetworkError path.
-  const invalidRpc = new RpcClient("http://127.0.0.1:1", undefined, {
+  const invalidRpc = testRpcClient("http://127.0.0.1:1", undefined, {
     maxRetries: 0,
   })
 
