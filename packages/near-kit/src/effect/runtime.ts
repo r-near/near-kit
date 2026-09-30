@@ -1,11 +1,16 @@
 /** Effect programs and the backwards-compatible Promise boundary. */
-import { Data, Effect } from "effect"
+import { Effect, Schema } from "effect"
+import type { ZodError } from "zod"
+import type { NearError } from "../errors/index.js"
 
 /** A failure reported by a Promise-only extension such as a wallet or signer. */
-export class ExternalError extends Data.TaggedError("ExternalError")<{
-  readonly operation: string
-  readonly cause: unknown
-}> {}
+export class ExternalError extends Schema.TaggedError<ExternalError>()(
+  "ExternalError",
+  {
+    operation: Schema.String,
+    cause: Schema.Unknown,
+  },
+) {}
 
 /**
  * Execute an SDK program at its Promise boundary. Effect 4 preserves its own
@@ -34,3 +39,6 @@ export const fromPromise = <A>(
     try: operation,
     catch: (cause) => new ExternalError({ operation: name, cause }),
   })
+
+/** Public operational failures of composed SDK programs. */
+export type NearFailure = NearError | ZodError | ExternalError

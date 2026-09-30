@@ -1,8 +1,14 @@
+import { Effect } from "effect"
 /**
  * In-memory key store implementation.
  */
 import type { KeyPair, KeyStore } from "../core/types.js"
-import { parseKey } from "../utils/key.js"
+import { makeMemoryStorage } from "../effect/key-storage.js"
+import {
+  type ExternalError,
+  fromPromise,
+  runPromise,
+} from "../effect/runtime.js"
 
 /**
  * In-memory key store.
@@ -23,7 +29,7 @@ import { parseKey } from "../utils/key.js"
  * ```
  */
 export class InMemoryKeyStore implements KeyStore {
-  private keys: Map<string, KeyPair>
+  private readonly storage: Effect.Success<ReturnType<typeof makeMemoryStorage>>
 
   /**
    * Create a new in-memory keystore.
@@ -38,14 +44,7 @@ export class InMemoryKeyStore implements KeyStore {
    * ```
    */
   constructor(initialKeys?: Record<string, string>) {
-    this.keys = new Map()
-
-    if (initialKeys) {
-      for (const [accountId, keyString] of Object.entries(initialKeys)) {
-        const keyPair = parseKey(keyString)
-        this.keys.set(accountId, keyPair)
-      }
-    }
+    this.storage = Effect.runSync(makeMemoryStorage(initialKeys))
   }
 
   /**
@@ -54,8 +53,24 @@ export class InMemoryKeyStore implements KeyStore {
    * @param accountId - NEAR account ID
    * @param key - Key pair to store
    */
-  async add(accountId: string, key: KeyPair): Promise<void> {
-    this.keys.set(accountId, key)
+  add(accountId: string, key: KeyPair): Promise<void> {
+    return runPromise(this.addProgram(accountId, key))
+  }
+
+  addEffect(
+    accountId: string,
+    key: KeyPair,
+  ): Effect.Effect<void, ExternalError> {
+    if (this.add !== originalMethods.add)
+      return fromPromise(() => this.add(accountId, key), "InMemoryKeyStore.add")
+    return this.addProgram(accountId, key)
+  }
+
+  private addProgram(
+    accountId: string,
+    key: KeyPair,
+  ): Effect.Effect<void, ExternalError> {
+    return this.storage.add(accountId, key)
   }
 
   /**
@@ -64,8 +79,20 @@ export class InMemoryKeyStore implements KeyStore {
    * @param accountId - NEAR account ID
    * @returns Key pair if found, null otherwise
    */
-  async get(accountId: string): Promise<KeyPair | null> {
-    return this.keys.get(accountId) ?? null
+  get(accountId: string): Promise<KeyPair | null> {
+    return runPromise(this.getProgram(accountId))
+  }
+
+  getEffect(accountId: string): Effect.Effect<KeyPair | null, ExternalError> {
+    if (this.get !== originalMethods.get)
+      return fromPromise(() => this.get(accountId), "InMemoryKeyStore.get")
+    return this.getProgram(accountId)
+  }
+
+  private getProgram(
+    accountId: string,
+  ): Effect.Effect<KeyPair | null, ExternalError> {
+    return this.storage.get(accountId)
   }
 
   /**
@@ -73,8 +100,21 @@ export class InMemoryKeyStore implements KeyStore {
    *
    * @param accountId - NEAR account ID
    */
-  async remove(accountId: string): Promise<void> {
-    this.keys.delete(accountId)
+  remove(accountId: string): Promise<void> {
+    return runPromise(this.removeProgram(accountId))
+  }
+
+  removeEffect(accountId: string): Effect.Effect<void, ExternalError> {
+    if (this.remove !== originalMethods.remove)
+      return fromPromise(
+        () => this.remove(accountId),
+        "InMemoryKeyStore.remove",
+      )
+    return this.removeProgram(accountId)
+  }
+
+  private removeProgram(accountId: string): Effect.Effect<void, ExternalError> {
+    return this.storage.remove(accountId)
   }
 
   /**
@@ -82,8 +122,18 @@ export class InMemoryKeyStore implements KeyStore {
    *
    * @returns Array of account IDs
    */
-  async list(): Promise<string[]> {
-    return Array.from(this.keys.keys())
+  list(): Promise<string[]> {
+    return runPromise(this.listProgram())
+  }
+
+  listEffect(): Effect.Effect<string[], ExternalError> {
+    if (this.list !== originalMethods.list)
+      return fromPromise(() => this.list(), "InMemoryKeyStore.list")
+    return this.listProgram()
+  }
+
+  private listProgram(): Effect.Effect<string[], ExternalError> {
+    return this.storage.list()
   }
 
   /**
@@ -92,6 +142,15 @@ export class InMemoryKeyStore implements KeyStore {
    * Useful for testing cleanup.
    */
   clear(): void {
-    this.keys.clear()
+    Effect.runSync(this.storage.clear())
   }
+}
+
+// Preserve supported Promise-method overrides without crossing a runtime boundary
+// in the built-in Effect implementation.
+const originalMethods = {
+  add: InMemoryKeyStore.prototype.add,
+  get: InMemoryKeyStore.prototype.get,
+  remove: InMemoryKeyStore.prototype.remove,
+  list: InMemoryKeyStore.prototype.list,
 }

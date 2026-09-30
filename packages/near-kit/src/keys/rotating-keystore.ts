@@ -1,8 +1,14 @@
+import { Effect } from "effect"
 /**
  * Rotating key store implementation for concurrent transaction handling.
  */
 import type { KeyPair, KeyStore } from "../core/types.js"
-import { parseKey } from "../utils/key.js"
+import { makeRotatingStorage } from "../effect/key-storage.js"
+import {
+  type ExternalError,
+  fromPromise,
+  runPromise,
+} from "../effect/runtime.js"
 
 /**
  * Rotating key store that cycles through multiple keys per account.
@@ -65,8 +71,9 @@ import { parseKey } from "../utils/key.js"
  * ```
  */
 export class RotatingKeyStore implements KeyStore {
-  private keys: Map<string, KeyPair[]>
-  private counters: Map<string, number>
+  private readonly storage: Effect.Success<
+    ReturnType<typeof makeRotatingStorage>
+  >
 
   /**
    * Create a new rotating keystore.
@@ -83,19 +90,7 @@ export class RotatingKeyStore implements KeyStore {
    * ```
    */
   constructor(initialKeys?: Record<string, string[]>) {
-    this.keys = new Map()
-    this.counters = new Map()
-
-    if (initialKeys) {
-      for (const [accountId, keyStrings] of Object.entries(initialKeys)) {
-        for (const keyString of keyStrings) {
-          const keyPair = parseKey(keyString)
-          const existing = this.keys.get(accountId) ?? []
-          existing.push(keyPair)
-          this.keys.set(accountId, existing)
-        }
-      }
-    }
+    this.storage = Effect.runSync(makeRotatingStorage(initialKeys))
   }
 
   /**
@@ -117,19 +112,20 @@ export class RotatingKeyStore implements KeyStore {
    * const key4 = await keyStore.get("alice.near") // Back to key1
    * ```
    */
-  async get(accountId: string): Promise<KeyPair | null> {
-    const accountKeys = this.keys.get(accountId)
-    if (!accountKeys || accountKeys.length === 0) {
-      return null
-    }
+  get(accountId: string): Promise<KeyPair | null> {
+    return runPromise(this.getProgram(accountId))
+  }
 
-    // Get current counter and increment for next call
-    const counter = this.counters.get(accountId) ?? 0
-    const key = accountKeys[counter % accountKeys.length]
-    this.counters.set(accountId, counter + 1)
+  getEffect(accountId: string): Effect.Effect<KeyPair | null, ExternalError> {
+    if (this.get !== originalMethods.get)
+      return fromPromise(() => this.get(accountId), "RotatingKeyStore.get")
+    return this.getProgram(accountId)
+  }
 
-    // We know key exists because we checked accountKeys.length > 0 above
-    return key ?? null
+  private getProgram(
+    accountId: string,
+  ): Effect.Effect<KeyPair | null, ExternalError> {
+    return this.storage.get(accountId)
   }
 
   /**
@@ -148,7 +144,7 @@ export class RotatingKeyStore implements KeyStore {
    * await keyStore.add("alice.near", keyPair2) // Now rotates between both
    * ```
    */
-  async add(
+  add(
     accountId: string,
     key: KeyPair,
     _options?: {
@@ -157,9 +153,36 @@ export class RotatingKeyStore implements KeyStore {
       implicitAccountId?: string
     },
   ): Promise<void> {
-    const existing = this.keys.get(accountId) ?? []
-    existing.push(key)
-    this.keys.set(accountId, existing)
+    return runPromise(this.addProgram(accountId, key, _options))
+  }
+
+  addEffect(
+    accountId: string,
+    key: KeyPair,
+    _options?: {
+      seedPhrase?: string
+      derivationPath?: string
+      implicitAccountId?: string
+    },
+  ): Effect.Effect<void, ExternalError> {
+    if (this.add !== originalMethods.add)
+      return fromPromise(
+        () => this.add(accountId, key, _options),
+        "RotatingKeyStore.add",
+      )
+    return this.addProgram(accountId, key, _options)
+  }
+
+  private addProgram(
+    accountId: string,
+    key: KeyPair,
+    _options?: {
+      seedPhrase?: string
+      derivationPath?: string
+      implicitAccountId?: string
+    },
+  ): Effect.Effect<void, ExternalError> {
+    return this.storage.add(accountId, key)
   }
 
   /**
@@ -174,9 +197,21 @@ export class RotatingKeyStore implements KeyStore {
    * await keyStore.remove("alice.near")
    * ```
    */
-  async remove(accountId: string): Promise<void> {
-    this.keys.delete(accountId)
-    this.counters.delete(accountId)
+  remove(accountId: string): Promise<void> {
+    return runPromise(this.removeProgram(accountId))
+  }
+
+  removeEffect(accountId: string): Effect.Effect<void, ExternalError> {
+    if (this.remove !== originalMethods.remove)
+      return fromPromise(
+        () => this.remove(accountId),
+        "RotatingKeyStore.remove",
+      )
+    return this.removeProgram(accountId)
+  }
+
+  private removeProgram(accountId: string): Effect.Effect<void, ExternalError> {
+    return this.storage.remove(accountId)
   }
 
   /**
@@ -190,8 +225,18 @@ export class RotatingKeyStore implements KeyStore {
    * console.log(`Managing keys for: ${accounts.join(", ")}`)
    * ```
    */
-  async list(): Promise<string[]> {
-    return Array.from(this.keys.keys())
+  list(): Promise<string[]> {
+    return runPromise(this.listProgram())
+  }
+
+  listEffect(): Effect.Effect<string[], ExternalError> {
+    if (this.list !== originalMethods.list)
+      return fromPromise(() => this.list(), "RotatingKeyStore.list")
+    return this.listProgram()
+  }
+
+  private listProgram(): Effect.Effect<string[], ExternalError> {
+    return this.storage.list()
   }
 
   /**
@@ -209,8 +254,23 @@ export class RotatingKeyStore implements KeyStore {
    * console.log(`Account has ${keys.length} keys in rotation`)
    * ```
    */
-  async getAll(accountId: string): Promise<KeyPair[]> {
-    return this.keys.get(accountId) ?? []
+  getAll(accountId: string): Promise<KeyPair[]> {
+    return runPromise(this.getAllProgram(accountId))
+  }
+
+  getAllEffect(accountId: string): Effect.Effect<KeyPair[], ExternalError> {
+    if (this.getAll !== originalMethods.getAll)
+      return fromPromise(
+        () => this.getAll(accountId),
+        "RotatingKeyStore.getAll",
+      )
+    return this.getAllProgram(accountId)
+  }
+
+  private getAllProgram(
+    accountId: string,
+  ): Effect.Effect<KeyPair[], ExternalError> {
+    return this.storage.getAll(accountId)
   }
 
   /**
@@ -229,7 +289,7 @@ export class RotatingKeyStore implements KeyStore {
    * ```
    */
   getCurrentIndex(accountId: string): number {
-    return this.counters.get(accountId) ?? 0
+    return Effect.runSync(this.storage.getCurrentIndex(accountId))
   }
 
   /**
@@ -246,7 +306,7 @@ export class RotatingKeyStore implements KeyStore {
    * ```
    */
   resetCounter(accountId: string): void {
-    this.counters.set(accountId, 0)
+    Effect.runSync(this.storage.resetCounter(accountId))
   }
 
   /**
@@ -260,7 +320,16 @@ export class RotatingKeyStore implements KeyStore {
    * ```
    */
   clear(): void {
-    this.keys.clear()
-    this.counters.clear()
+    Effect.runSync(this.storage.clear())
   }
+}
+
+// Preserve supported Promise-method overrides without crossing a runtime boundary
+// in the built-in Effect implementation.
+const originalMethods = {
+  get: RotatingKeyStore.prototype.get,
+  add: RotatingKeyStore.prototype.add,
+  remove: RotatingKeyStore.prototype.remove,
+  list: RotatingKeyStore.prototype.list,
+  getAll: RotatingKeyStore.prototype.getAll,
 }
