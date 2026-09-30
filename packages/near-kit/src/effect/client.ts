@@ -37,6 +37,22 @@ export interface ClientValue extends ReturnType<typeof bindClient> {
   readonly walletAccounts?: WalletAccountObservation
 }
 
+const observedAccounts = /* @__PURE__ */ Effect.fn("Client.walletAccounts")(
+  function* (observation: WalletAccountObservation) {
+    yield* observation.ready
+    const state = yield* observation.get()
+    if (state._tag === "Ready")
+      return state.accounts.map((account) => ({ ...account }))
+    if (state._tag === "Failed") return yield* state.error
+    return yield* new ExternalError({
+      operation: "wallet.observeAccounts",
+      cause: new Error(
+        "Wallet observation completed readiness without an account result",
+      ),
+    })
+  },
+)
+
 /** Acquire once inside the scope which owns the supplied capability layers. */
 export const acquire = /* @__PURE__ */ Effect.fn("Client.acquire")(function* (
   config: NearConfig,
@@ -72,19 +88,7 @@ const observedClient = /* @__PURE__ */ Effect.fn("Client.bindObservation")(
                       wallet.signDelegateActions.bind(wallet),
                   }
                 : {}),
-              getAccounts: Effect.fn("Client.walletAccounts")(function* () {
-                yield* walletAccounts.ready
-                const state = yield* walletAccounts.get()
-                if (state._tag === "Ready")
-                  return state.accounts.map((account) => ({ ...account }))
-                if (state._tag === "Failed") return yield* state.error
-                return yield* new ExternalError({
-                  operation: "wallet.observeAccounts",
-                  cause: new Error(
-                    "Wallet observation completed readiness without an account result",
-                  ),
-                })
-              }),
+              getAccounts: () => observedAccounts(walletAccounts),
             }),
             "Client.wallet",
           )

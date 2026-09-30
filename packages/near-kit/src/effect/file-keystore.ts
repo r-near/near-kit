@@ -66,16 +66,8 @@ export const makeFileStorage = Effect.fn("FileStorage.make")(function* (
 
   const readKey = Effect.fn("FileStorage.readKey")(function* (file: string) {
     const content = yield* fs.readFileString(file)
-    const json = yield* Effect.try({
-      try: () => JSON.parse(content) as unknown,
-      catch: storageError("FileKeyStore.get"),
-    })
-    const credential = yield* Effect.try({
-      try: () => parseCredentialFile(json),
-      catch: storageError("FileKeyStore.get"),
-    })
     return yield* Effect.try({
-      try: () => parseKey(credential.private_key),
+      try: () => parseKey(parseCredentialFile(JSON.parse(content)).private_key),
       catch: storageError("FileKeyStore.get"),
     })
   })

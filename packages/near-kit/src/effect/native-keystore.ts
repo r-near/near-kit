@@ -10,10 +10,8 @@ import {
 import { parseKey } from "../utils/key.js"
 import type { FileStorageService } from "./file-keystore.js"
 import { KeyStore } from "./keys.js"
-import { ExternalError, fromPromise } from "./runtime.js"
+import { type ExternalError, fromPromise, fromSync } from "./runtime.js"
 
-const keyringError = (operation: string) => (cause: unknown) =>
-  new ExternalError({ operation, cause })
 const notFound = (error: ExternalError) =>
   error.cause instanceof Error && error.cause.message.includes("not found")
 
@@ -26,10 +24,10 @@ export const makeNativeStorage = Effect.fn("NativeStorage.make")(function* (
   )
   const entry = Effect.fn("NativeStorage.entry")(function* (accountId: string) {
     const { Entry } = yield* module
-    return yield* Effect.try({
-      try: () => new Entry(service, accountId),
-      catch: keyringError("NativeKeyStore.entry"),
-    })
+    return yield* fromSync(
+      () => new Entry(service, accountId),
+      "NativeKeyStore.entry",
+    )
   })
 
   return {
@@ -39,44 +37,30 @@ export const makeNativeStorage = Effect.fn("NativeStorage.make")(function* (
       metadata?: CredentialMetadata,
     ) {
       const target = yield* entry(id)
-      yield* Effect.try({
-        try: () =>
+      yield* fromSync(
+        () =>
           target.setPassword(JSON.stringify(makeCredential(id, key, metadata))),
-        catch: keyringError("NativeKeyStore.add"),
-      })
+        "NativeKeyStore.add",
+      )
     }),
     get: Effect.fn("NativeStorage.get")(
       function* (id: string) {
         const target = yield* entry(id)
-        const stored = yield* Effect.try({
-          try: () => target.getPassword(),
-          catch: keyringError("NativeKeyStore.get"),
-        })
-        if (!stored) return null
-        const json = yield* Effect.try({
-          try: () => JSON.parse(stored) as unknown,
-          catch: keyringError("NativeKeyStore.get"),
-        })
-        const credential = yield* Effect.try({
-          try: () => parseCredentialFile(json),
-          catch: keyringError("NativeKeyStore.get"),
-        })
-        return yield* Effect.try({
-          try: () => parseKey(credential.private_key),
-          catch: keyringError("NativeKeyStore.get"),
-        })
+        return yield* fromSync(() => {
+          const stored = target.getPassword()
+          return stored
+            ? parseKey(parseCredentialFile(JSON.parse(stored)).private_key)
+            : null
+        }, "NativeKeyStore.get")
       },
       Effect.catchIf(notFound, () => Effect.succeed(null)),
     ),
     remove: Effect.fn("NativeStorage.remove")(
       function* (id: string) {
         const target = yield* entry(id)
-        yield* Effect.try({
-          try: () => {
-            target.deletePassword()
-          },
-          catch: keyringError("NativeKeyStore.remove"),
-        })
+        yield* fromSync(() => {
+          target.deletePassword()
+        }, "NativeKeyStore.remove")
       },
       Effect.catchIf(notFound, () => Effect.void),
     ),

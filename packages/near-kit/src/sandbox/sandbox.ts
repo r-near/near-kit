@@ -1,6 +1,8 @@
 /* oxlint-disable effecttsgo/unstable-api-usage -- Uses the matching pinned Effect 4 FetchHttpClient platform layer. */
 /** NEAR Sandbox: the simple Promise API over scope-owned native resources. */
-import * as NodeServices from "@effect/platform-node/NodeServices"
+import * as NodeChildProcessSpawner from "@effect/platform-node/NodeChildProcessSpawner"
+import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem"
+import * as NodePath from "@effect/platform-node/NodePath"
 import * as ConfigProvider from "effect/ConfigProvider"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
@@ -15,7 +17,12 @@ export { getPlatformId } from "./platform.js"
 export { EMPTY_CODE_HASH } from "./types.js"
 export type { SandboxOptions, StateRecord, StateSnapshot } from "./types.js"
 
-const platform = Layer.merge(NodeServices.layer, FetchHttpClient.layer)
+const platform = Layer.merge(
+  NodeChildProcessSpawner.layer.pipe(
+    Layer.provideMerge(Layer.merge(NodeFileSystem.layer, NodePath.layer)),
+  ),
+  FetchHttpClient.layer,
+)
 
 /**
  * A local NEAR node. Call stop() to release its process and temporary files.

@@ -48,23 +48,50 @@ wallet approval or submitted blockchain transaction was rolled back.
 `NonceReservation`; those injected services actually own RPC, key lookup, and nonce
 allocation. `Near.layerWithWallet(config)` also requires `Wallet`.
 
-```ts
-import * as Layer from "effect/Layer"
-import { InMemoryKeyStore } from "near-kit"
-import { KeyStore, Near, NonceReservation, Rpc } from "near-kit/effect"
+## Application-owned client
 
-const client = Near.layerWithServices({
+Use `Client.layer` around an application's complete native workflow. It provides
+both `Client` and `Near`, waits for configured-key readiness, and acquires supported
+wallet account observation in the layer's scope. Reads, streams and finalizers
+compose in the caller's fiber without projecting through Promises.
+
+```ts
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import { Client, KeyStore, Near, NonceReservation, Rpc } from "near-kit/effect"
+
+const application = Client.layer({
   defaultSignerId: "alice.testnet",
 }).pipe(
   Layer.provide(
     Layer.mergeAll(
       Rpc.layerFetch({ url: "https://rpc.testnet.near.org" }),
-      KeyStore.layer(new InMemoryKeyStore()),
+      KeyStore.memory(),
       NonceReservation.layer,
     ),
   ),
 )
+
+const balance = await Effect.runPromise(
+  Effect.gen(function* () {
+    const near = yield* Near
+    return yield* near.getBalance("alice.testnet")
+  }).pipe(Effect.provide(application)),
+)
 ```
+
+Keep the owner open for the complete workflow instead of providing a new layer
+around every request. Reuse the same capability layers when clients deliberately
+share resources. `Near.fromClient(acquired)` lends that same client to Promise
+consumers without another acquisition or configured-key write. The projection
+does not close the owner or inherit a native caller's interruption and tracing
+context; finish already-started Promise work before disposing the owner. The
+paired examples in `examples/workflow-native.ts` and `examples/workflow-promise.ts`
+show these lifetime boundaries.
+
+React uses `prepareClient` to assemble without starting observation or key writes
+during render. Committed activation owns observation; replacement waits for the
+previous owner's cleanup. An externally supplied `Near` keeps caller ownership.
 
 Provide actual keys or a wallet before signing. Do not create independent nonce
 reservation domains for the same signing key while transactions are in flight.
@@ -159,7 +186,8 @@ HTTP stack can explicitly provide the optional adapter and its middleware:
 ```ts
 import * as Layer from "effect/Layer"
 import { FetchHttpClient } from "effect/http"
-import { Rpc, rpcTransportHttpClient } from "near-kit/effect"
+import { Rpc } from "near-kit/effect"
+import { rpcTransportHttpClient } from "near-kit/effect/http"
 
 const rpc = Rpc.layer({ url: "https://rpc.testnet.near.org" }).pipe(
   Layer.provide(rpcTransportHttpClient),

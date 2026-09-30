@@ -167,4 +167,34 @@ describe("native resource key-store boundaries", () => {
     await expect(store.get("alice.testnet")).resolves.toBeNull()
     await expect(store.remove("alice.testnet")).resolves.toBeUndefined()
   })
+
+  test.each([
+    { stage: "JSON", stored: "{", error: SyntaxError },
+    { stage: "schema", stored: "{}", error: ZodError },
+    {
+      stage: "key",
+      stored: JSON.stringify({ public_key: "unused", private_key: "invalid" }),
+      error: Error,
+    },
+  ])(
+    "keyring $stage decoding failures stay typed",
+    async ({ stored, error }) => {
+      keyring.value = stored
+      const exit = await Effect.runPromiseExit(
+        Effect.flatMap(makeNativeStorage(), (store) =>
+          store.get("alice.testnet"),
+        ),
+      )
+      expect(Exit.isFailure(exit)).toBe(true)
+      if (Exit.isFailure(exit)) {
+        expect(Cause.hasDies(exit.cause)).toBe(false)
+        const failure = Cause.squash(exit.cause)
+        expect(failure).toBeInstanceOf(ExternalError)
+        if (failure instanceof ExternalError) {
+          expect(failure.operation).toBe("NativeKeyStore.get")
+          expect(failure.cause).toBeInstanceOf(error)
+        }
+      }
+    },
+  )
 })
