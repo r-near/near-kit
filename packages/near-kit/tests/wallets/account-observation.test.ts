@@ -31,6 +31,101 @@ const connectorWithEvents = (accounts: WalletAccount[] = []) => {
 }
 
 describe("scoped wallet account observation", () => {
+  test("contains malformed sign-in callbacks and recovers on the next valid event", async () => {
+    const fixture = connectorWithEvents()
+    const rejection = new Error("account getter failed")
+    await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const observer = yield* acquireWalletAccounts(
+            walletService(fromNearConnect(fixture.connector)),
+          )
+          yield* observer.ready
+          expect(() =>
+            fixture.events.emit("wallet:signIn", {
+              success: true,
+              accounts: [
+                {
+                  accountId: "malformed.near",
+                  get publicKey(): string {
+                    throw rejection
+                  },
+                },
+              ],
+            }),
+          ).not.toThrow()
+          const failures = yield* observer.changes.pipe(
+            Stream.filter((state) => state._tag === "Failed"),
+            Stream.take(1),
+            Stream.runCollect,
+          )
+          expect(failures).toHaveLength(1)
+          const failure = failures[0]
+          if (failure?._tag !== "Failed")
+            throw new Error("missing observation failure")
+          expect(failure.error).toBeInstanceOf(ExternalError)
+          expect(failure.error.operation).toBe("wallet.observeAccounts")
+          expect(failure.error.cause).toBe(rejection)
+          fixture.events.emit("wallet:signIn", {
+            success: true,
+            accounts: [{ accountId: "recovered.near" }],
+          })
+          const recovery = yield* observer.changes.pipe(
+            Stream.filter((state) => state._tag === "Ready"),
+            Stream.take(1),
+            Stream.runCollect,
+          )
+          expect(recovery).toEqual([
+            { _tag: "Ready", accounts: [{ accountId: "recovered.near" }] },
+          ])
+        }),
+      ),
+    )
+  })
+
+  test("coalesces a synchronous event burst while retaining its newest account state", async () => {
+    const fixture = connectorWithEvents()
+    await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const observer = yield* acquireWalletAccounts(
+            walletService(fromNearConnect(fixture.connector)),
+          )
+          yield* observer.ready
+          const changes = yield* Queue.unbounded<WalletAccountState>()
+          yield* observer.changes.pipe(
+            Stream.runForEach((state) => Queue.offer(changes, state)),
+            Effect.forkScoped,
+          )
+          expect(yield* Queue.take(changes)).toEqual({
+            _tag: "Ready",
+            accounts: [],
+          })
+          for (let index = 0; index < 100; index++) {
+            fixture.events.emit("wallet:signIn", {
+              success: true,
+              accounts: [{ accountId: `account-${index}.near` }],
+            })
+          }
+          const observed = yield* Stream.fromQueue(changes).pipe(
+            Stream.takeUntil(
+              (state) =>
+                state._tag === "Ready" &&
+                state.accounts[0]?.accountId === "account-99.near",
+            ),
+            Stream.runCollect,
+          )
+          // One already-delivered state may precede the newest buffered state.
+          expect(observed.length).toBeLessThanOrEqual(2)
+          expect(observed.at(-1)).toEqual({
+            _tag: "Ready",
+            accounts: [{ accountId: "account-99.near" }],
+          })
+        }),
+      ),
+    )
+  })
+
   test("shares event snapshots and keeps a later sign-in when the initial read completes", async () => {
     const fixture = connectorWithEvents()
     const initialRead = Deferred.makeUnsafe<void>()

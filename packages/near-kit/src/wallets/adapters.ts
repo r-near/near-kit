@@ -338,57 +338,64 @@ const connectAccountChanges = (
   Result.Result<ReadonlyArray<WalletAccount>, ExternalError>,
   ExternalError
 > =>
-  Stream.callback((queue) =>
-    Effect.gen(function* () {
-      let revision = 0
-      const signIn = (event: NearConnectAccountEvents["wallet:signIn"]) => {
-        if (!event.success) return
-        revision++
-        Queue.offerUnsafe(
-          queue,
-          Result.succeed(normalizeAccounts(event.accounts)),
+  Stream.callback(
+    (queue) =>
+      Effect.gen(function* () {
+        let revision = 0
+        const signIn = (event: NearConnectAccountEvents["wallet:signIn"]) => {
+          let result: Result.Result<ReadonlyArray<WalletAccount>, ExternalError>
+          try {
+            if (!event.success) return
+            result = Result.succeed(normalizeAccounts(event.accounts))
+          } catch (cause) {
+            result = Result.fail(
+              new ExternalError({ operation: "wallet.observeAccounts", cause }),
+            )
+          }
+          revision++
+          Queue.offerUnsafe(queue, result)
+        }
+        const signOut = () => {
+          revision++
+          Queue.offerUnsafe(queue, Result.succeed([]))
+        }
+        // Each finalizer is installed before registration, including an on() that
+        // throws after adding its callback. The stream scope closes on failure.
+        yield* Effect.addFinalizer(() =>
+          Effect.sync(() => off("wallet:signIn", signIn)),
         )
-      }
-      const signOut = () => {
-        revision++
-        Queue.offerUnsafe(queue, Result.succeed([]))
-      }
-      // Each finalizer is installed before registration, including an on() that
-      // throws after adding its callback. The stream scope closes on failure.
-      yield* Effect.addFinalizer(() =>
-        Effect.sync(() => off("wallet:signIn", signIn)),
-      )
-      yield* fromSync(
-        () => on("wallet:signIn", signIn),
-        "wallet.observeAccounts",
-      )
-      yield* Effect.addFinalizer(() =>
-        Effect.sync(() => off("wallet:signOut", signOut)),
-      )
-      yield* fromSync(
-        () => on("wallet:signOut", signOut),
-        "wallet.observeAccounts",
-      )
-      yield* connectAccounts(connector).pipe(
-        Effect.catchIf(
-          (error) =>
-            error.operation === "near-connect.wallet" &&
-            error.cause instanceof Error &&
-            error.cause.message === "No accounts found",
-          () => Effect.succeed([]),
-        ),
-        Effect.match({
-          onSuccess: (accounts) => {
-            if (revision === 0)
-              Queue.offerUnsafe(queue, Result.succeed(accounts))
-          },
-          onFailure: (error) => {
-            if (revision === 0) Queue.offerUnsafe(queue, Result.fail(error))
-          },
-        }),
-        Effect.forkScoped,
-      )
-    }).pipe(Effect.catch((error) => Queue.fail(queue, error))),
+        yield* fromSync(
+          () => on("wallet:signIn", signIn),
+          "wallet.observeAccounts",
+        )
+        yield* Effect.addFinalizer(() =>
+          Effect.sync(() => off("wallet:signOut", signOut)),
+        )
+        yield* fromSync(
+          () => on("wallet:signOut", signOut),
+          "wallet.observeAccounts",
+        )
+        yield* connectAccounts(connector).pipe(
+          Effect.catchIf(
+            (error) =>
+              error.operation === "near-connect.wallet" &&
+              error.cause instanceof Error &&
+              error.cause.message === "No accounts found",
+            () => Effect.succeed([]),
+          ),
+          Effect.match({
+            onSuccess: (accounts) => {
+              if (revision === 0)
+                Queue.offerUnsafe(queue, Result.succeed(accounts))
+            },
+            onFailure: (error) => {
+              if (revision === 0) Queue.offerUnsafe(queue, Result.fail(error))
+            },
+          }),
+          Effect.forkScoped,
+        )
+      }).pipe(Effect.catch((error) => Queue.fail(queue, error))),
+    { bufferSize: 1, strategy: "sliding" },
   )
 const connectTransaction = Effect.fn("NearConnect.signAndSendTransaction")(
   function* (connector: NearConnectConnector, params: TransactionParams) {
