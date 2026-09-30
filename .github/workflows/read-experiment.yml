@@ -1,0 +1,53 @@
+name: Read experiment
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "experiments/read-client/**"
+      - ".github/workflows/read-experiment.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Node ${{ matrix.node }} read checks
+    runs-on: arc-runner-set
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24]
+    defaults:
+      run:
+        working-directory: experiments/read-client
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run check
+      - name: Pack the actual consumer artifact
+        run: npm pack --dry-run
+
+  docker-capability:
+    name: Inspect Docker capability (no sandbox claim)
+    runs-on: arc-runner-set
+    timeout-minutes: 5
+    steps:
+      - name: Inspect the existing authorized runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'Runner OS: '; uname -srm
+          printf 'Runner UID: '; id -u
+          printf 'Hard descriptor limit: '; ulimit -Hn
+          command -v docker
+          docker version --format 'Client={{.Client.Version}} Server={{.Server.Version}}'
+          docker info --format 'Driver={{.Driver}} CgroupDriver={{.CgroupDriver}} SecurityOptions={{json .SecurityOptions}}'
