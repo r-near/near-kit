@@ -37,42 +37,48 @@
     },
     {
       "id": "tooling",
-      "state": "integrated-awaiting-final-acceptance",
+      "state": "verified",
       "dependsOn": ["baseline"],
       "checks": {
         "nativeBuild": "passed",
         "effectDiagnostics": "verified operational",
         "strictLint": "passed"
-      }
+      },
+      "commits": ["40f11c6", "b1979fa"]
     },
     {
       "id": "rpc",
-      "state": "integrated-awaiting-final-acceptance",
-      "dependsOn": ["runtime-and-reservations", "tooling"]
+      "state": "verified",
+      "dependsOn": ["runtime-and-reservations", "tooling"],
+      "commits": ["015d57c", "8d16b9e", "5a505d8", "fe454a2", "a39d1aa"]
     },
     {
       "id": "transactions",
-      "state": "integrated-awaiting-final-acceptance",
-      "dependsOn": ["rpc", "runtime-and-reservations"]
+      "state": "verified",
+      "dependsOn": ["rpc", "runtime-and-reservations"],
+      "commits": ["b5b27cf", "5a505d8", "fe454a2"]
     },
     {
       "id": "client-wallets-stores",
-      "state": "integrated-awaiting-final-acceptance",
-      "dependsOn": ["rpc", "transactions"]
+      "state": "verified",
+      "dependsOn": ["rpc", "transactions"],
+      "commits": ["eec5256", "5a505d8", "fe454a2"]
     },
     {
       "id": "filesystem-and-sandbox",
-      "state": "integrated-awaiting-final-acceptance",
-      "dependsOn": ["rpc", "client-wallets-stores"]
+      "state": "verified",
+      "dependsOn": ["rpc", "client-wallets-stores"],
+      "commits": ["0156da1", "ff5489b", "cdfabb6", "906f646", "fe454a2"]
     },
     {
       "id": "react",
-      "state": "integrated-awaiting-final-acceptance",
-      "dependsOn": ["client-wallets-stores"]
+      "state": "verified",
+      "dependsOn": ["client-wallets-stores"],
+      "commits": ["cdbba6a", "5a505d8"]
     },
     {
       "id": "final-acceptance",
-      "state": "pending",
+      "state": "verified-with-documented-environment-limitations",
       "dependsOn": [
         "tooling",
         "rpc",
@@ -92,7 +98,10 @@
         "all original tests",
         "independent test audit",
         "exact final commit CI"
-      ]
+      ],
+      "sourceCommit": "a39d1aa517fe3d3b90d16b19c8da957f4172a3d8",
+      "ci": "https://github.com/r-near/near-kit/actions/runs/36664462378",
+      "report": "acceptance/acceptance-report.md"
     },
     {
       "id": "core-checkpoint-2",
@@ -126,7 +135,7 @@
     },
     {
       "id": "integrated-candidate",
-      "state": "local-verified-awaiting-independent-exact-commit-gate",
+      "state": "verified",
       "dependsOn": [
         "tooling",
         "rpc",
@@ -141,11 +150,11 @@
         "consumerTypes": "passed",
         "examples": "passed",
         "lint": "passed",
-        "coreAndWallet": "1318 passed",
+        "coreAndWallet": "1329 passed",
         "react": "52 passed",
         "localIntegration": "blocked: hard nofile 16384; nearcore requires 65535",
-        "independentFinalAudit": "pending",
-        "finalCi": "pending"
+        "independentFinalAudit": "passed at documented boundaries; live browser navigation blocked",
+        "finalCi": "1615 near-kit +52 React passed; no skips"
       },
       "reviewRepairs": [
         "native wallet cancellation ownership",
@@ -156,11 +165,17 @@
         "key storage insertion order and empty pools",
         "sandbox stop/restart resource ownership"
       ],
-      "remaining": [
-        "final exact-commit acceptance",
-        "final bundle and performance measurements",
-        "exact-commit CI"
-      ]
+      "remaining": [],
+      "commits": ["b1979fa", "fe454a2", "a39d1aa"]
     }
+  ],
+  "sourceCandidate": "a39d1aa517fe3d3b90d16b19c8da957f4172a3d8",
+  "acceptanceReport": "acceptance/acceptance-report.md",
+  "exactSourceCi": "https://github.com/r-near/near-kit/actions/runs/36664462378",
+  "limitations": [
+    "Local nearcore execution blocked by hard nofile 16384; real integration passed in exact CI",
+    "Live cloud-browser localhost navigation blocked; browser bundles and standards-global VM smoke passed",
+    "No real OS keyring, wallet extension, multi-browser sweep or sustained load soak; see acceptance report",
+    "Effect4 is a pinned prerelease with measured size/runtime costs; no merge or release authorized"
   ]
 }

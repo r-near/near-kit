@@ -1,0 +1,16 @@
+{
+  "source": "a39d1aa517fe3d3b90d16b19c8da957f4172a3d8",
+  "baseline": "86cf14a2a9e0c7d3acaa8e3d40b5fb4c85ef172d",
+  "runId": 36664462378,
+  "url": "https://github.com/r-near/near-kit/actions/runs/36664462378",
+  "conclusion": "success",
+  "checkoutMerge": "2a1f768",
+  "nearKitFiles": 87,
+  "nearKitTests": 1615,
+  "integrationFiles": 25,
+  "integrationTests": 286,
+  "reactFiles": 7,
+  "reactTests": 52,
+  "skippedTests": 0,
+  "optionalCoverageUpload": "skipped"
+}

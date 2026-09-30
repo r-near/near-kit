@@ -126,7 +126,7 @@ covered by independent unchanged vectors.
 
 The added Effect runtime and native schemas have a measurable footprint. Final
 browser sizes, microbenchmark methodology, runtime versions, and baseline
-comparisons are recorded in the acceptance report. Synthetic no-network timings
+comparisons are recorded in the [acceptance report](acceptance/acceptance-report.md). Synthetic no-network timings
 are not production RPC latency. This experiment does not claim a performance
 improvement or a release recommendation.
 
@@ -141,6 +141,7 @@ filesystem users do not eagerly load unrelated Node HTTP implementations.
 bun install --frozen-lockfile
 bun run build
 bun run typecheck
+bun run typecheck:consumers
 bun run typecheck:examples
 bun run lint
 bun run format:check

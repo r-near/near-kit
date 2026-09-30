@@ -82,7 +82,7 @@ never mutate source/tests in a checkout while its Vitest process is running.
 - [x] Baseline recorded and public/native compile-only compatibility fixtures
 - [x] Effect/tooling version decision
 - [x] Implementation slices
-- [ ] Independent audit and exact-commit CI
+- [x] Independent audit and exact-source-commit CI (environment limits recorded below)
 
 ## Runtime version decision
 
@@ -106,7 +106,7 @@ Before integration, compare commit ancestry to avoid applying a completed slice
 twice. Green inherited tests are necessary but do not replace lifecycle, wire
 compatibility, and end-to-end acceptance evidence.
 
-## Core checkpoint 2
+## Core checkpoint 2 (historical)
 
 The native reservation service now replaces the internal NonceManager entirely.
 Its behavioral tests exercise the service directly; no old internal class is kept
@@ -141,10 +141,20 @@ Independent review found and reproduced cancellation, extension-policy dispatch,
 synchronous input error-channel, empty-action codec and gas-key snapshot parity
 regressions; fixes have owner-boundary tests. Focused imports avoid eagerly loading
 unrelated Effect modules. Strict compile-only consumers and examples are CI gates.
-The local aggregate behavioral run passes 1,318 core/wallet tests and 52 React tests.
-The full candidate still requires independent exact-commit acceptance, final
-bundle/performance measurements, and exact-commit CI. Local real-nearcore execution
-remains environment-blocked as described above, never counted as passing.
+The final source candidate is `a39d1aa517fe3d3b90d16b19c8da957f4172a3d8`.
+Local aggregate behavioral checks pass 1,329 core/wallet tests and 52 React tests.
+[Exact-source CI](https://github.com/r-near/near-kit/actions/runs/36664462378)
+passes 1,615 near-kit tests (including all 286 real nearcore integration tests)
+and 52 React tests, with no skipped tests. Source, public/native consumer and
+example typechecks, build, strict Oxc and formatting also pass.
+
+See the [independent acceptance report](acceptance/acceptance-report.md) for
+Node 22.19/24 and React 18/19 checks, codec differential testing, packaging,
+browser distribution, measured costs, and explicit limitations. Reproducible
+probes are included beside the report. Local real-nearcore execution remains
+environment-blocked as described above, never counted as passing. Live browser
+navigation was separately blocked; browser bundles and a standards-global VM
+smoke passed. The experiment remains a draft, without merge or release.
 
 The preceding published core checkpoint, `23612c5`, passed [full CI](https://github.com/r-near/near-kit/actions/runs/36658229951),
 including the real integration suite on its existing isolated runner.

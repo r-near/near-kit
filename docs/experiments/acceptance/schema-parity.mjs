@@ -1,0 +1,104 @@
+import { isDeepStrictEqual } from "node:util"
+import { createRequire } from "node:module"
+const root = (await import("node:path")).resolve(process.argv[2] ?? ".")
+const require = createRequire(root + "/package.json")
+const { z } = require("zod")
+const { Schema } = await import(require.resolve("effect"))
+const legacy = await import(
+  root + "/packages/near-kit/dist/core/rpc/rpc-schemas.js"
+)
+const native = await import(
+  root + "/packages/near-kit/dist/effect/protocol-schemas.js"
+)
+function sample(s, seed, depth = 0) {
+  if (depth > 18) return null
+  if (s.const !== undefined) return s.const
+  if (s.enum) return s.enum[seed % s.enum.length]
+  const union = s.anyOf ?? s.oneOf
+  if (union)
+    return sample(
+      union[seed % union.length],
+      Math.floor(seed / union.length) + 1,
+      depth + 1,
+    )
+  switch (s.type) {
+    case "object":
+      return Object.fromEntries(
+        Object.entries(s.properties ?? {})
+          .filter(([k]) => seed % 2 || s.required?.includes(k))
+          .map(([k, v]) => [k, sample(v, seed + 1, depth + 1)]),
+      )
+    case "array":
+      return seed % 3 ? [sample(s.items ?? {}, seed + 1, depth + 1)] : []
+    case "number":
+    case "integer":
+      return 7
+    case "string":
+      return "fixture"
+    case "null":
+      return null
+    case "boolean":
+      return true
+    default:
+      return "extension"
+  }
+}
+let cases = 0,
+  matched = 0,
+  valid = 0
+const differences = []
+for (const [name, schema] of Object.entries(legacy)) {
+  if (!native[name]) continue
+  matched++
+  const json = z.toJSONSchema(schema, { unrepresentable: "any" })
+  for (let seed = 0; seed < 120; seed++) {
+    const value = sample(json, seed)
+    const variants = [value, null, undefined, 0, {}, []]
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      variants.push({ ...value, extra: "retained-or-stripped" })
+      for (const key of Object.keys(value)) {
+        variants.push(
+          { ...value, [key]: null },
+          { ...value, [key]: undefined },
+          { ...value, [key]: { wrong: "type" } },
+        )
+        const omit = { ...value }
+        delete omit[key]
+        variants.push(omit)
+      }
+    }
+    for (const input of variants) {
+      cases++
+      const a = schema.safeParse(input)
+      let b,
+        ok = true
+      try {
+        b = Schema.decodeUnknownSync(native[name])(input)
+      } catch {
+        ok = false
+      }
+      if (a.success) valid++
+      if (a.success !== ok || (a.success && !isDeepStrictEqual(a.data, b)))
+        differences.push({
+          name,
+          seed,
+          input,
+          old: a.success ? a.data : "reject",
+          native: ok ? b : "reject",
+        })
+    }
+  }
+}
+console.log(
+  JSON.stringify(
+    {
+      matched,
+      cases,
+      valid,
+      differences: differences.slice(0, 20),
+      differenceCount: differences.length,
+    },
+    null,
+    2,
+  ),
+)
