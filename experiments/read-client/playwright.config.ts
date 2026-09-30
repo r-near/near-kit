@@ -7,7 +7,11 @@ export default defineConfig({
   retries: 0,
   timeout: 30_000,
   use: { baseURL: "http://127.0.0.1:4177", trace: "retain-on-failure" },
-  webServer: { command: "node scripts/browser-server.mjs", url: "http://127.0.0.1:4177", reuseExistingServer: false },
+  webServer: {
+    command: "node scripts/browser-server.mjs",
+    url: "http://127.0.0.1:4177",
+    reuseExistingServer: false,
+  },
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },
     { name: "firefox", use: { ...devices["Desktop Firefox"] } },

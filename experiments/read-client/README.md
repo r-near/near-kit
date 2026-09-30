@@ -23,7 +23,8 @@ npm install /path/to/near-kit-read-experiment-0.0.0-experimental.0.tgz effect@4.
 All examples import that private package, not published `near-kit`.
 
 ```ts
-import { Effect, Schema } from "effect"
+import * as Effect from "effect/Effect"
+import * as Schema from "effect/Schema"
 import { Near } from "@near-kit/read-experiment"
 
 const near = Near.make({ url: "https://rpc.testnet.near.org" })
@@ -54,6 +55,8 @@ node --experimental-strip-types read.mts RPC_URL ACCOUNT_ID
 ```
 
 For strict browser-only TypeScript projects without Node globals, include `ESNext.Disposable` alongside your target/DOM libs; Effect rc.118 declarations use the explicit resource-management types.
+
+Use the Effect module imports shown above in size-sensitive consumers. The root barrel materially increased this experiment's measured bundle; no API behavior or validation is removed by the module imports.
 
 ## One execution model
 

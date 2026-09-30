@@ -4,14 +4,8 @@
     "noEmit": true,
     "rootDir": ".",
     "jsx": "react-jsx",
-    "types": [
-      "node"
-    ],
-    "lib": [
-      "ES2023",
-      "DOM",
-      "DOM.Iterable"
-    ]
+    "types": ["node"],
+    "lib": ["ES2023", "DOM", "DOM.Iterable"]
   },
   "include": [
     "src/**/*.ts",

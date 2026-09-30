@@ -11,8 +11,8 @@ type Selection =
       readonly revision: number
     }
 
-import { Effect } from "effect"
 import { Near } from "@near-kit/read-experiment"
+import * as Effect from "effect/Effect"
 import { useEffect, useMemo, useState } from "react"
 
 async function readAccount(
@@ -46,16 +46,19 @@ type ReadState = { readonly identity: ReadIdentity } & (
 
 export function AccountBalance({ selection }: { selection: Selection }) {
   const rpcUrl = selection._tag === "Connected" ? selection.rpcUrl : undefined
-  const accountId = selection._tag === "Connected" ? selection.accountId : undefined
-  const revision = selection._tag === "Connected" ? selection.revision : undefined
+  const accountId =
+    selection._tag === "Connected" ? selection.accountId : undefined
+  const revision =
+    selection._tag === "Connected" ? selection.revision : undefined
   const client = useMemo(
-    () => rpcUrl === undefined ? undefined : Near.make({ url: rpcUrl }),
+    () => (rpcUrl === undefined ? undefined : Near.make({ url: rpcUrl })),
     [rpcUrl],
   )
   const identity = useMemo(
-    () => client === undefined || accountId === undefined || revision === undefined
-      ? undefined
-      : { client, accountId, revision },
+    () =>
+      client === undefined || accountId === undefined || revision === undefined
+        ? undefined
+        : { client, accountId, revision },
     [client, accountId, revision],
   )
   const [state, setState] = useState<ReadState>()
@@ -87,9 +90,8 @@ export function AccountBalance({ selection }: { selection: Selection }) {
 
   // Compare identity during render, not only after an effect has committed.
   // This prevents showing old data for one frame under new account/network props.
-  const current = state !== undefined && state.identity === identity
-    ? state
-    : undefined
+  const current =
+    state !== undefined && state.identity === identity ? state : undefined
   if (current === undefined) return <p>Reading account…</p>
   if (current._tag === "Defect") throw current.cause
   if (current._tag === "Failed") return <p>Could not read this account.</p>

@@ -1,5 +1,5 @@
-import { Effect } from "effect"
 import { Near } from "@near-kit/read-experiment"
+import * as Effect from "effect/Effect"
 
 const [url, accountId] = process.argv.slice(2)
 if (!url || !accountId) throw new Error("Usage: read.ts RPC_URL ACCOUNT_ID")
@@ -17,7 +17,11 @@ try {
     }).pipe(Effect.timeout("10 seconds"), Effect.provide(Near.fetchLayer)),
     { signal: controller.signal },
   )
-  console.log({ amount: account.amount.toString(), blockHash: account.blockHash, blockHeight: account.blockHeight })
+  console.log({
+    amount: account.amount.toString(),
+    blockHash: account.blockHash,
+    blockHeight: account.blockHeight,
+  })
 } finally {
   process.removeListener("SIGINT", interrupt)
 }

@@ -33,8 +33,8 @@ jobs:
           node-version: ${{ matrix.node }}
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npm run check
-      - name: Pack the actual consumer artifact
-        run: npm pack --dry-run
+      - name: Verify an isolated packed consumer
+        run: npm run test:packed
 
   sandbox-docker:
     name: Pinned nearcore Docker reads

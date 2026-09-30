@@ -27,7 +27,8 @@
     "test": "vitest run",
     "check": "npm run build && npm run typecheck && npm test",
     "test:browser": "playwright test",
-    "test:sandbox": "vitest run --config vitest.sandbox.config.ts"
+    "test:sandbox": "vitest run --config vitest.sandbox.config.ts",
+    "test:packed": "node scripts/check-packed.mjs"
   },
   "dependencies": {
     "effect": "4.0.0-rc.118"

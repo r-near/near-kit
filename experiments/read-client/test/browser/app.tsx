@@ -1,7 +1,8 @@
+import { Near } from "@near-kit/read-experiment"
+import * as Effect from "effect/Effect"
+import * as Schema from "effect/Schema"
 import { StrictMode, useRef, useState } from "react"
 import { createRoot } from "react-dom/client"
-import { Effect, Schema } from "effect"
-import { Near } from "@near-kit/read-experiment"
 import { AccountBalance } from "../../examples/account-balance.js"
 
 declare global {
@@ -24,20 +25,44 @@ function App() {
   const revision = useRef(0)
   const select = (accountId: string | null, network = "one") => {
     revision.current += 1
-    setSelection(accountId === null ? { _tag: "Disconnected" } : {
-      _tag: "Connected", accountId, rpcUrl: `${location.origin}/rpc/${network}`, revision: revision.current,
-    })
+    setSelection(
+      accountId === null
+        ? { _tag: "Disconnected" }
+        : {
+            _tag: "Connected",
+            accountId,
+            rpcUrl: `${location.origin}/rpc/${network}`,
+            revision: revision.current,
+          },
+    )
   }
   window.readDemo = {
     select,
-    batchABA: () => { select("b.testnet"); select("a.testnet") },
+    batchABA: () => {
+      select("b.testnet")
+      select("a.testnet")
+    },
     views: async () => {
       const near = Near.make({ url: `${location.origin}/immediate` })
-      const result = await Effect.runPromise(Effect.all({
-        json: near.view({ accountId: "fixture", method: "json", args: new Uint8Array([1]), schema: Schema.Struct({ count: Schema.Number }) }),
-        bytes: near.viewBytes({ accountId: "fixture", method: "binary", args: { json: true } }),
-      }).pipe(Effect.provide(Near.fetchLayer)))
-      return { count: result.json.value.count, bytes: Array.from(result.bytes.value) }
+      const result = await Effect.runPromise(
+        Effect.all({
+          json: near.view({
+            accountId: "fixture",
+            method: "json",
+            args: new Uint8Array([1]),
+            schema: Schema.Struct({ count: Schema.Number }),
+          }),
+          bytes: near.viewBytes({
+            accountId: "fixture",
+            method: "binary",
+            args: { json: true },
+          }),
+        }).pipe(Effect.provide(Near.fetchLayer)),
+      )
+      return {
+        count: result.json.value.count,
+        bytes: Array.from(result.bytes.value),
+      }
     },
   }
   return <AccountBalance selection={selection} />
@@ -45,4 +70,8 @@ function App() {
 
 const root = document.getElementById("root")
 if (root === null) throw new Error("Missing fixture root")
-createRoot(root).render(<StrictMode><App /></StrictMode>)
+createRoot(root).render(
+  <StrictMode>
+    <App />
+  </StrictMode>,
+)
