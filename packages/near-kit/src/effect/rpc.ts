@@ -19,10 +19,7 @@ export class RpcTransport extends Context.Service<
 >()("near-kit/RpcTransport") {
   /** Exact fetch semantics for existing public clients and custom transports. */
   static layer(fetch: RpcFetch): Layer.Layer<RpcTransport> {
-    return Layer.effect(
-      RpcTransport,
-      Effect.sync(() => RpcTransport.of(fetchTransport(fetch))),
-    )
+    return Layer.succeed(RpcTransport, fetchTransport(fetch))
   }
 
   static readonly layerFetch = RpcTransport.layer((url, init) =>
@@ -35,11 +32,9 @@ export class Rpc extends Context.Service<Rpc, RpcPrograms>()("near-kit/Rpc") {
   static layer(config: RpcLayerConfig): Layer.Layer<Rpc, never, RpcTransport> {
     return Layer.effect(
       Rpc,
-      Effect.gen(function* () {
-        const transport = yield* RpcTransport
-        const programs = yield* makeRpcPrograms(config, transport)
-        return Rpc.of(programs)
-      }),
+      Effect.flatMap(RpcTransport, (transport) =>
+        makeRpcPrograms(config, transport),
+      ),
     )
   }
 

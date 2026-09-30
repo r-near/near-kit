@@ -11,6 +11,8 @@ const fixtures = {
     'import { Near } from "near-kit"; export const read = (id) => new Near({network:"testnet"}).getBalance(id);',
   nativeRead:
     'import { make } from "near-kit/effect"; import * as Effect from "effect/Effect"; export const read = (id) => make({network:"testnet"}).pipe(Effect.flatMap(near => near.getBalance(id)));',
+  reactRead:
+    'import { createElement } from "react"; import { NearProvider, useAccount, useBalance } from "@near-kit/react"; const State = () => JSON.stringify({account:useAccount().accountId,balance:useBalance({accountId:"test.near"}).data}); export const read = () => createElement(NearProvider,{config:{network:"testnet"}},createElement(State));',
   sandbox: 'export { Sandbox } from "near-kit/sandbox";',
 }
 

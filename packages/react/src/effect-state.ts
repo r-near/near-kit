@@ -74,7 +74,7 @@ export const useQuery = <A, E>(
     return fiber
   }, [program, enabled])
   const refetch = useCallback(
-    () => Effect.runPromise(Fiber.await(start())).then(() => undefined),
+    () => Effect.runPromise(Fiber.await(start()).pipe(Effect.asVoid)),
     [start],
   )
   useEffect(() => {

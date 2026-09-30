@@ -5,7 +5,7 @@ import * as ConfigProvider from "effect/ConfigProvider"
 import * as Effect from "effect/Effect"
 import type { KeyPair, KeyStore } from "../core/types.js"
 import { makeFileStorage } from "../effect/file-keystore.js"
-import { runPromise } from "../effect/runtime.js"
+import { runPromise, runSync } from "../effect/runtime.js"
 import type { CredentialMetadata, Network } from "./credential-schemas.js"
 
 /**
@@ -20,7 +20,7 @@ export class FileKeyStore implements KeyStore {
   readonly [nativeKeyStore]: Effect.Success<ReturnType<typeof makeFileStorage>>
 
   constructor(basePath = "~/.near-credentials", network?: Network) {
-    this[nativeKeyStore] = Effect.runSync(
+    this[nativeKeyStore] = runSync(
       makeFileStorage({ basePath, ...(network ? { network } : {}) }).pipe(
         Effect.provide(NodeFileSystem.layer),
         Effect.provideService(

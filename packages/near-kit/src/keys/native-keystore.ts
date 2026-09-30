@@ -1,9 +1,9 @@
 import { nativeKeyStore } from "../effect/keys.js"
 /** Native OS credential storage using @napi-rs/keyring. Node.js/Bun only. */
-import * as Effect from "effect/Effect"
+import type * as Effect from "effect/Effect"
 import type { KeyPair, KeyStore } from "../core/types.js"
 import { makeNativeStorage } from "../effect/native-keystore.js"
-import { runPromise } from "../effect/runtime.js"
+import { runPromise, runSync } from "../effect/runtime.js"
 import type { CredentialMetadata } from "./credential-schemas.js"
 
 /**
@@ -17,7 +17,7 @@ export class NativeKeyStore implements KeyStore {
   >
 
   constructor(service = "NEAR Credentials") {
-    this[nativeKeyStore] = Effect.runSync(makeNativeStorage(service))
+    this[nativeKeyStore] = runSync(makeNativeStorage(service))
   }
 
   add(

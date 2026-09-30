@@ -1,5 +1,5 @@
 import * as Context from "effect/Context"
-import * as Effect from "effect/Effect"
+import type * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import type { KeyPair, KeyStore as PromiseKeyStore } from "../core/types.js"
 import { makeMemoryStorage } from "./key-storage.js"
@@ -44,8 +44,5 @@ export class KeyStore extends Context.Service<KeyStore, KeyStoreService>()(
   static layer = (store: PromiseKeyStore) =>
     Layer.succeed(KeyStore, keyStoreService(store))
   static memory = (initialKeys?: Record<string, string>) =>
-    Layer.effect(
-      KeyStore,
-      Effect.map(makeMemoryStorage(initialKeys), KeyStore.of),
-    )
+    Layer.effect(KeyStore, makeMemoryStorage(initialKeys))
 }

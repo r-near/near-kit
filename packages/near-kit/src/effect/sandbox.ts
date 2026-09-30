@@ -218,11 +218,11 @@ const decodeJson = <S extends Schema.Constraint>(schema: S, value: string) =>
 const ensureBinary = Effect.fn("Sandbox.ensureBinary")(
   function* (options: SandboxOptions) {
     const fs = yield* FileSystem.FileSystem
-    const client = HttpClient.withScope(yield* HttpClient.HttpClient)
-    const envPath = yield* Config.String("NEAR_SANDBOX_BIN_PATH").pipe(
-      Config.withDefault(""),
-    )
-    const explicit = options.binaryPath || envPath
+    const explicit =
+      options.binaryPath ||
+      (yield* Config.String("NEAR_SANDBOX_BIN_PATH").pipe(
+        Config.withDefault(""),
+      ))
     if (explicit) {
       if (!(yield* fs.exists(explicit)))
         return yield* failure(
@@ -244,6 +244,7 @@ const ensureBinary = Effect.fn("Sandbox.ensureBinary")(
       `${BINARY_NAME}-${version}`,
     )
     if (yield* fs.exists(dest)) return dest
+    const client = HttpClient.withScope(yield* HttpClient.HttpClient)
     const url = `${DOWNLOAD_BASE}/${system}-${arch}/${version}/${ARCHIVE_NAME}`
     return yield* Effect.gen(function* () {
       const temporary = yield* fs.makeTempDirectoryScoped({

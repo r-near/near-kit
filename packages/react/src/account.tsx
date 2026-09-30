@@ -47,7 +47,9 @@ export function useAccount(): AccountState {
   const program = useMemo(() => near.effects.getConnectedAccountId(), [near])
   const query = useQuery(program, !observation)
   const queryRefetch = query.refetch
-  const latest = useRef<symbol | undefined>(undefined)
+  const latest = useRef<{ source: WalletAccountObservation } | undefined>(
+    undefined,
+  )
   const [observed, setObserved] = useState<{
     source: WalletAccountObservation | undefined
     accountId: string | undefined
@@ -55,8 +57,8 @@ export function useAccount(): AccountState {
   }>({ source: undefined, accountId: undefined, isLoading: true })
   useEffect(() => {
     if (!observation) return
-    const id = Symbol()
-    latest.current = id
+    const owner = { source: observation }
+    latest.current = owner
     const fiber = Effect.runFork(
       observation.changes.pipe(
         Stream.mapEffect((state) =>
@@ -68,7 +70,7 @@ export function useAccount(): AccountState {
         ),
         Stream.runForEach((value) =>
           Effect.sync(() => {
-            if (latest.current === id)
+            if (latest.current === owner)
               setObserved({ source: observation, ...value })
           }),
         ),
@@ -81,11 +83,18 @@ export function useAccount(): AccountState {
   }, [observation, program])
   const refetch = useCallback(() => {
     if (!observation) return queryRefetch()
-    const id = latest.current
-    return Effect.runPromise(program).then((accountId) => {
-      if (id !== undefined && latest.current === id)
-        setObserved({ source: observation, accountId, isLoading: false })
-    })
+    const owner = latest.current
+    return Effect.runPromise(
+      program.pipe(
+        Effect.tap((accountId) =>
+          Effect.sync(() => {
+            if (owner?.source === observation && latest.current === owner)
+              setObserved({ source: observation, accountId, isLoading: false })
+          }),
+        ),
+        Effect.asVoid,
+      ),
+    )
   }, [observation, program, queryRefetch])
   const { accountId, isLoading } = observation
     ? observed.source === observation

@@ -616,18 +616,19 @@ const maintenanceWindows = Effect.fn("Rpc.maintenanceWindows")(function* (
 
 const callWithExperimentalFallback = Effect.fn(
   "Rpc.callWithExperimentalFallback",
-)(function* <T = unknown>(
-  state: RpcState,
-  method: string,
-  experimentalMethod: string,
-  params: unknown,
-): Effect.fn.Return<T, RpcFailure> {
-  return yield* call<T>(state, method, params).pipe(
-    Effect.catchIf(isMethodNotFound, () =>
-      call<T>(state, experimentalMethod, params),
+)(
+  <T = unknown>(
+    state: RpcState,
+    method: string,
+    experimentalMethod: string,
+    params: unknown,
+  ): Effect.Effect<T, RpcFailure> =>
+    call<T>(state, method, params).pipe(
+      Effect.catchIf(isMethodNotFound, () =>
+        call<T>(state, experimentalMethod, params),
+      ),
     ),
-  )
-})
+)
 
 const viewStateAll = (
   state: RpcState,
@@ -727,39 +728,40 @@ export const fetchTransport = (fetch: RpcFetch): RpcTransportService => ({
   execute: (...args) => executeFetch(fetch, ...args),
 })
 
-const executeFetch = Effect.fn("RpcTransport.fetch")(function* (
-  fetch: RpcFetch,
-  url: string,
-  headers: Record<string, string>,
-  request: RpcRequest,
-) {
-  return yield* Effect.tryPromise({
-    try: async (signal) => {
-      const response = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...headers },
-        body: JSON.stringify(request),
-        signal,
-      })
-      if (!response.ok) {
-        const error = new NetworkError(
-          `HTTP ${response.status}: ${response.statusText}`,
-          response.status,
-          isRetryableStatus(response.status),
-        )
-        try {
-          await response.body?.cancel()
-        } catch {
-          /* Preserve the primary HTTP failure. */
+const executeFetch = Effect.fn("RpcTransport.fetch")(
+  (
+    fetch: RpcFetch,
+    url: string,
+    headers: Record<string, string>,
+    request: RpcRequest,
+  ) =>
+    Effect.tryPromise({
+      try: async (signal) => {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...headers },
+          body: JSON.stringify(request),
+          signal,
+        })
+        if (!response.ok) {
+          const error = new NetworkError(
+            `HTTP ${response.status}: ${response.statusText}`,
+            response.status,
+            isRetryableStatus(response.status),
+          )
+          try {
+            await response.body?.cancel()
+          } catch {
+            /* Preserve the primary HTTP failure. */
+          }
+          throw error
         }
-        throw error
-      }
-      const data: unknown = await response.json()
-      return { status: response.status, data }
-    },
-    catch: transportError,
-  })
-})
+        const data: unknown = await response.json()
+        return { status: response.status, data }
+      },
+      catch: transportError,
+    }),
+)
 
 function blockReference(
   options: BlockReference | undefined,

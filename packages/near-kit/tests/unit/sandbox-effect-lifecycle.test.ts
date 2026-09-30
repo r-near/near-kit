@@ -4,7 +4,16 @@ import * as fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import * as NodeServices from "@effect/platform-node/NodeServices"
-import { Deferred, Effect, Exit, Fiber, FileSystem, Layer, Scope } from "effect"
+import {
+  ConfigProvider,
+  Deferred,
+  Effect,
+  Exit,
+  Fiber,
+  FileSystem,
+  Layer,
+  Scope,
+} from "effect"
 import { FetchHttpClient } from "effect/http"
 import { ChildProcessSpawner } from "effect/process"
 import { afterEach, describe, expect, test } from "vitest"
@@ -223,6 +232,16 @@ describe("sandbox scoped resource ownership", () => {
     const result = await Effect.runPromise(
       makeSandbox({ binaryPath: fixture.binary }).pipe(
         Effect.provide(platform),
+        Effect.provideService(
+          ConfigProvider.ConfigProvider,
+          ConfigProvider.make(() =>
+            Effect.fail(
+              new ConfigProvider.SourceError({
+                message: "environment unavailable",
+              }),
+            ),
+          ),
+        ),
         Effect.scoped,
       ),
     )

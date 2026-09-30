@@ -293,6 +293,12 @@ describe("provider-owned observation", () => {
     expect(first.counts.peak).toBe(1)
     expect(first.counts.directReads).toBe(0)
     const beforeEvent = first.counts.acquired
+    const staleRefetch = hook.result.current[0].refetch
+    await act(async () => {
+      expect(await staleRefetch()).toBeUndefined()
+    })
+    expect(first.counts.acquired).toBe(beforeEvent)
+    expect(first.counts.directReads).toBe(0)
     await act(async () => {
       await Effect.runPromise(
         SubscriptionRef.set(first.state, {
@@ -319,6 +325,13 @@ describe("provider-owned observation", () => {
     expect(first.counts.active).toBe(0)
     expect(first.counts.released).toBe(first.counts.acquired)
     expect(second.counts.active).toBe(1)
+    await act(async () => {
+      await staleRefetch()
+    })
+    expect(hook.result.current.map((value) => value.accountId)).toEqual([
+      "bob.near",
+      "bob.near",
+    ])
     hook.unmount()
     expect(second.counts.active).toBe(0)
     expect(second.counts.released).toBe(second.counts.acquired)
