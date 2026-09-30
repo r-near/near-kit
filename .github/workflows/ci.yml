@@ -112,6 +112,13 @@ jobs:
       - name: Test built SDK in Chromium, Firefox and WebKit with React 18 and 19
         run: bun run test:browser
 
+      - name: Repeat Chromium cancellation and commitment ownership races
+        run: >-
+          bunx --no-install playwright test
+          --project=chromium-react18 --project=chromium-react19
+          --grep='superseded|out-of-order|does not cancel|concurrent|repeating|replaying|StrictMode|captured'
+          --repeat-each=5 --retries=0
+
       - name: Upload browser failure artifacts
         if: failure()
         uses: actions/upload-artifact@v5
