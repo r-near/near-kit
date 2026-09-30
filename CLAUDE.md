@@ -31,7 +31,8 @@ near-kit/
 │   └── react/             # React bindings (planned)
 ├── package.json           # Root workspace config
 ├── tsconfig.json          # Shared TypeScript config
-└── biome.json             # Shared linting config
+├── .oxlintrc.json          # Oxlint + Effect type-aware diagnostics
+└── .oxfmtrc.json           # Shared formatting config
 ```
 
 ## Development Commands
@@ -64,7 +65,10 @@ bun run test:integration        # Integration tests only
 ```bash
 bun run build              # Build all packages
 bun run typecheck          # Type check all packages
-bun run lint               # Lint and format all packages with Biome
+bun run lint               # Oxlint + Effect type-aware diagnostics (read-only)
+bun run format             # Format all packages with Oxfmt
+bun run format:check       # Check formatting without writing
+bun run check              # Build, typecheck, lint, and formatting check
 ```
 
 ### Package-specific commands
@@ -273,6 +277,7 @@ describe("Feature", () => {
 Documentation lives in the `docs/` folder. When making changes to the library (especially API changes, new features, or configuration changes), update the corresponding docs in the same PR.
 
 Common scenarios requiring doc updates:
+
 - New public APIs or methods
 - Changes to configuration options
 - New features or capabilities

@@ -9,17 +9,29 @@
     "clean": "tsc --build --clean && rm -rf packages/*/dist",
     "dev": "bun run --filter '*' dev",
     "test": "bun run --filter '*' test",
-    "lint": "biome check . --write",
+    "lint": "oxlint .",
     "typecheck": "tsc --build --noEmit",
     "ci:version": "changeset version && bun update",
     "ci:publish": "bun run build && for dir in packages/*; do (cd \"$dir\" && PKG_NAME=$(jq -r .name package.json) && PKG_VERSION=$(jq -r .version package.json) && if npm view \"$PKG_NAME@$PKG_VERSION\" version 2>/dev/null; then echo \"$PKG_NAME@$PKG_VERSION already published, skipping\"; else bun pm pack && npm publish *.tgz --access public && rm *.tgz; fi); done && changeset tag",
     "release": "bun run ci:publish",
-    "lefthook": "lefthook install"
+    "lefthook": "lefthook install",
+    "prepare": "effect-tsgo patch --oxlint --no-force",
+    "lint:fix": "oxlint --fix .",
+    "format": "oxfmt --write .",
+    "format:check": "oxfmt --check .",
+    "check": "bun run build && bun run typecheck && bun run lint && bun run format:check"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.2",
     "@changesets/cli": "^2.31.1",
+    "@effect/tsgo": "0.47.0",
     "lefthook": "^2.1.14",
-    "typescript": "^6.0.3"
-  }
+    "oxfmt": "0.71.0",
+    "oxlint": "1.86.0",
+    "oxlint-tsgolint": "7.0.2003",
+    "typescript": "7.0.2"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "packageManager": "bun@1.4.2"
 }

@@ -2,6 +2,23 @@
   "name": "@near-kit/react",
   "version": "0.20.2",
   "description": "React bindings for near-kit - hooks and providers for NEAR Protocol",
+  "keywords": [
+    "blockchain",
+    "hooks",
+    "near",
+    "near-protocol",
+    "react",
+    "web3"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/r-near/near-kit",
+    "directory": "packages/react"
+  },
+  "files": [
+    "dist"
+  ],
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -13,45 +30,28 @@
       "default": "./dist/index.js"
     }
   },
-  "files": [
-    "dist"
-  ],
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
     "test": "vitest run",
-    "lint": "biome check . --write",
+    "lint": "oxlint .",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "bun run build"
   },
-  "keywords": [
-    "near",
-    "near-protocol",
-    "blockchain",
-    "react",
-    "hooks",
-    "web3"
-  ],
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/r-near/near-kit",
-    "directory": "packages/react"
-  },
   "dependencies": {
+    "effect": "4.0.0-rc.118",
     "near-kit": "workspace:*"
   },
-  "peerDependencies": {
-    "react": ">=18.0.0"
-  },
   "devDependencies": {
-    "@biomejs/biome": "2.5.2",
     "@testing-library/react": "^16.2.0",
     "@types/react": "^19.2.17",
     "jsdom": "^29.1.1",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
-    "typescript": "^6.0.3",
+    "typescript": "7.0.2",
     "vitest": "^4.1.9"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0"
   }
 }

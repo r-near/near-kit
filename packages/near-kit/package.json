@@ -2,6 +2,23 @@
   "name": "near-kit",
   "version": "0.20.2",
   "description": "A simple, intuitive TypeScript library for interacting with NEAR Protocol",
+  "keywords": [
+    "blockchain",
+    "near",
+    "near-protocol",
+    "typescript",
+    "web3"
+  ],
+  "license": "MIT",
+  "author": "",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/r-near/near-kit",
+    "directory": "packages/near-kit"
+  },
+  "files": [
+    "dist"
+  ],
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -33,9 +50,6 @@
       "types": "./dist/schemas/index.d.ts"
     }
   },
-  "files": [
-    "dist"
-  ],
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
@@ -44,23 +58,34 @@
     "test:unit": "vitest run tests/unit",
     "test:integration": "vitest run tests/integration",
     "test:wallets": "vitest run tests/wallets",
-    "lint": "biome check . --write",
+    "lint": "oxlint .",
     "typecheck": "tsc --noEmit --project tsconfig.typecheck.json",
     "prepublishOnly": "bun run build"
   },
-  "keywords": [
-    "near",
-    "near-protocol",
-    "blockchain",
-    "typescript",
-    "web3"
-  ],
-  "author": "",
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/r-near/near-kit",
-    "directory": "packages/near-kit"
+  "dependencies": {
+    "@napi-rs/keyring": "^1.3.0",
+    "@noble/curves": "^2.2.0",
+    "@noble/hashes": "^2.0.1",
+    "@noble/post-quantum": "^0.6.1",
+    "@scure/base": "^2.2.0",
+    "@scure/bip32": "^2.2.0",
+    "@scure/bip39": "^2.2.0",
+    "@zorsh/zorsh": "^0.5.1",
+    "effect": "4.0.0-rc.118",
+    "tar": "^7.5.20",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@hot-labs/near-connect": "^0.11.4",
+    "@near-js/transactions": "^2.5.1",
+    "@near-js/types": "^2.5.1",
+    "@near-wallet-selector/core": "^10.1.1",
+    "@types/bun": "^1.3.14",
+    "@types/tar": "^7.0.87",
+    "@vitest/coverage-v8": "^4.1.9",
+    "@vitest/ui": "^4.1.9",
+    "typescript": "7.0.2",
+    "vitest": "^4.1.9"
   },
   "peerDependencies": {
     "@hot-labs/near-connect": ">=0.11.0",
@@ -73,30 +98,5 @@
     "@near-wallet-selector/core": {
       "optional": true
     }
-  },
-  "devDependencies": {
-    "@hot-labs/near-connect": "^0.11.4",
-    "@near-js/transactions": "^2.5.1",
-    "@near-js/types": "^2.5.1",
-    "@near-wallet-selector/core": "^10.1.1",
-    "@types/bun": "^1.3.14",
-    "@types/tar": "^7.0.87",
-    "@vitest/coverage-v8": "^4.1.9",
-    "@vitest/ui": "^4.1.9",
-    "typescript": "^6.0.3",
-    "vitest": "^4.1.9"
-  },
-  "dependencies": {
-    "@napi-rs/keyring": "^1.3.0",
-    "@noble/curves": "^2.2.0",
-    "@noble/hashes": "^2.0.1",
-    "@noble/post-quantum": "^0.6.1",
-    "@scure/base": "^2.2.0",
-    "@scure/bip32": "^2.2.0",
-    "@scure/bip39": "^2.2.0",
-    "@zorsh/zorsh": "^0.5.1",
-    "tar": "^7.5.20",
-    "zod": "^4.4.3",
-    "effect": "4.0.0-rc.118"
   }
 }
