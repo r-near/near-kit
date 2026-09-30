@@ -171,11 +171,9 @@ describe("signed commitment submission history", () => {
     })
     expect(f.accepted).toHaveLength(1)
     expect(f.signatures()).toBe(1)
-    expect(
-      f.wires.every((wire) =>
-        Buffer.from(wire).equals(Buffer.from(f.wires[0]!)),
-      ),
-    ).toBe(true)
+    const firstWire = f.wires[0]
+    if (!firstWire) throw new Error("Expected a captured submission")
+    for (const wire of f.wires) expect(wire).toEqual(firstWire)
     f.knowStatus()
     const result = await f.builder.send({ waitUntil: "NONE" })
     expect(result.transaction?.hash).toBe(f.accepted[0])
