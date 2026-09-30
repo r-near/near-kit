@@ -105,3 +105,24 @@ failed checks before bounded repair attempts; preserve the failure evidence.
 Before integration, compare commit ancestry to avoid applying a completed slice
 twice. Green inherited tests are necessary but do not replace lifecycle, wire
 compatibility, and end-to-end acceptance evidence.
+
+## Core checkpoint 2
+
+The native reservation service now replaces the internal NonceManager entirely.
+Its behavioral tests exercise the service directly; no old internal class is kept
+just for tests. Memory key storage owns immutable state through Effect Ref.
+Insertion order and empty rotating pools retain existing behavior. Returned key
+arrays are snapshots, so mutating a result cannot mutate internal key storage.
+
+RPC and transaction workflows now use Effects for decoding, retry, interruption,
+and coordination. Independent review reproduced and repaired alias fallback, HTTP
+body cleanup, callback receiver, account ordering, and empty-pool regressions.
+The checkpoint passes build, typecheck, lint, 1,212 unit tests, 80 wallet tests, and
+49 React tests. Full exact-commit CI is pending.
+
+Further cleanup moves the remaining internal RPC implementation into a class-free
+native service, with only the public near.rpc Promise boundary retained. Client,
+wallet, filesystem, sandbox, React, and final acceptance work remains in progress.
+The native TypeScript/Oxc toolchain is validated separately and will land with its
+strict source/lifecycle corrections; this checkpoint keeps the passing existing
+gates rather than publishing known lint failures.

@@ -1,0 +1,125 @@
+{
+  "base": "86cf14a2a9e0c7d3acaa8e3d40b5fb4c85ef172d",
+  "branch": "experiment/effect-native-20260930",
+  "pullRequest": "https://github.com/r-near/near-kit/pull/252",
+  "effectVersion": "4.0.0-rc.118",
+  "completionRule": "Every subsystem must have behavioral acceptance evidence, independent review, and passing applicable checks. Missing or skipped checks are pending; environment limitations are blocked, never passing.",
+  "milestones": [
+    {
+      "id": "baseline",
+      "state": "verified",
+      "commits": ["2565579b80d5cd53c8b2e118e7e66a4988e4d1ad"],
+      "checks": {
+        "build": "passed",
+        "typecheck": "passed",
+        "lint": "passed",
+        "unit": "1170 passed",
+        "wallet": "80 passed",
+        "react": "49 passed",
+        "localIntegration": "blocked: hard nofile 16384; nearcore requires 65535"
+      }
+    },
+    {
+      "id": "runtime-and-reservations",
+      "state": "verified-checkpoint",
+      "dependsOn": ["baseline"],
+      "commits": ["ee68781", "3ac4157744c886b5316a2e8b6e13c5f6bb1f8709"],
+      "independentReview": "passed; queued-cancellation test strengthening requested",
+      "checks": {
+        "build": "passed",
+        "typecheck": "passed",
+        "lint": "passed",
+        "unit": "1180 passed",
+        "ci": "passed"
+      },
+      "ci": "https://github.com/r-near/near-kit/actions/runs/36655764093",
+      "next": "Move reservation ownership to Context.Service/Layer and Ref, retaining the validated nonce invariants"
+    },
+    {
+      "id": "tooling",
+      "state": "integration",
+      "dependsOn": ["baseline"],
+      "checks": {
+        "nativeBuild": "passed",
+        "effectDiagnostics": "verified operational",
+        "strictLint": "pending inherited and migration diagnostics"
+      }
+    },
+    {
+      "id": "rpc",
+      "state": "review-and-integration",
+      "dependsOn": ["runtime-and-reservations", "tooling"]
+    },
+    {
+      "id": "transactions",
+      "state": "review-and-integration",
+      "dependsOn": ["rpc", "runtime-and-reservations"]
+    },
+    {
+      "id": "client-wallets-stores",
+      "state": "implementation",
+      "dependsOn": ["rpc", "transactions"]
+    },
+    {
+      "id": "filesystem-and-sandbox",
+      "state": "pending",
+      "dependsOn": ["rpc", "client-wallets-stores"]
+    },
+    {
+      "id": "react",
+      "state": "pending",
+      "dependsOn": ["client-wallets-stores"]
+    },
+    {
+      "id": "final-acceptance",
+      "state": "pending",
+      "dependsOn": [
+        "tooling",
+        "rpc",
+        "transactions",
+        "client-wallets-stores",
+        "filesystem-and-sandbox",
+        "react"
+      ],
+      "requirements": [
+        "public API and declaration compatibility",
+        "deterministic wire vectors",
+        "retry and idempotency",
+        "interruption and scoped resource cleanup",
+        "injected service behavior",
+        "browser and React integration",
+        "bundle and performance measurements",
+        "all original tests",
+        "independent test audit",
+        "exact final commit CI"
+      ]
+    },
+    {
+      "id": "core-checkpoint-2",
+      "state": "local-verified-awaiting-ci",
+      "dependsOn": ["runtime-and-reservations"],
+      "checks": {
+        "build": "passed",
+        "typecheck": "passed",
+        "lint": "passed",
+        "unit": "1212 passed",
+        "wallet": "80 passed",
+        "react": "49 passed",
+        "independentReview": "nonce, RPC and memory-store review completed; three reproduced ordering/empty-pool regressions repaired"
+      },
+      "scope": [
+        "typed memory storage",
+        "RPC retry and decoding programs",
+        "transaction signing and byte compatibility",
+        "NonceReservation service; obsolete NonceManager removed"
+      ],
+      "remaining": [
+        "class-free native RPC cleanup",
+        "client and wallet services",
+        "platform filesystem and scoped sandbox",
+        "React native lifecycle",
+        "new Oxc toolchain and final acceptance"
+      ]
+    }
+  ]
+}
