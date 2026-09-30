@@ -11,6 +11,7 @@ import {
   Effect,
   Exit,
   FileSystem,
+  Fiber,
   Layer,
   PlatformError,
   Ref,
@@ -368,6 +369,7 @@ export const makeSandbox = Effect.fn("Sandbox.make")(
       const ports = yield* availablePorts()
       const rpcUrl = `http://127.0.0.1:${ports.rpc}`
       const running = yield* Ref.make<Scope.Closeable | undefined>(undefined)
+      const closed = yield* Ref.make(false)
       const lock = yield* Semaphore.make(1)
 
       const request = Effect.fn("Sandbox.request")(
@@ -520,7 +522,12 @@ export const makeSandbox = Effect.fn("Sandbox.make")(
       )
 
       yield* startProcess(ports.network)
-      yield* Effect.addFinalizer(() => Ref.set(running, undefined))
+      yield* Effect.addFinalizer(() =>
+        Effect.gen(function* () {
+          yield* Ref.set(closed, true)
+          yield* Ref.set(running, undefined)
+        }),
+      )
 
       const patchState = Effect.fn("Sandbox.patchState")(
         function* (records: StateRecord[]) {
@@ -695,6 +702,22 @@ export const makeSandbox = Effect.fn("Sandbox.make")(
             yield* startProcess(ports.network)
           },
           Semaphore.withPermits(lock, 1),
+          (restart) =>
+            Effect.gen(function* () {
+              if (yield* Ref.get(closed))
+                return yield* failure(
+                  "Sandbox.restart",
+                  "Sandbox is not running",
+                )
+              // Every restart belongs to the sandbox lifetime, including process
+              // acquisition and readiness. Closing the scope cancels and awaits
+              // it before returning; caller interruption does the same.
+              return yield* Effect.acquireUseRelease(
+                Effect.forkIn(restart, lifetime),
+                Fiber.join,
+                Fiber.interrupt,
+              )
+            }),
           Effect.mapError(sandboxError("Sandbox.restart")),
         ),
       })

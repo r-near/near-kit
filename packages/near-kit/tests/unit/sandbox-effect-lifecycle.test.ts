@@ -4,8 +4,9 @@ import * as fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { NodeServices } from "@effect/platform-node"
-import { Deferred, Effect, Fiber, FileSystem, Layer } from "effect"
+import { Deferred, Effect, Exit, Fiber, FileSystem, Layer, Scope } from "effect"
 import { FetchHttpClient } from "effect/http"
+import { ChildProcessSpawner } from "effect/process"
 import { afterEach, describe, expect, test } from "vitest"
 import { makeSandbox } from "../../src/effect/sandbox.js"
 import { Sandbox } from "../../src/sandbox/sandbox.js"
@@ -224,6 +225,55 @@ describe("sandbox scoped resource ownership", () => {
     expect(temporaryDirectories).toHaveLength(1)
     for (const temporary of temporaryDirectories) await absent(temporary)
     expect(await fs.readdir(directory)).toEqual([])
+  })
+
+  test("stop interrupts a restart suspended in process acquisition", async () => {
+    const fixture = await executable("normal")
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
+        const acquiring = yield* Deferred.make<void>()
+        const released = yield* Deferred.make<void>()
+        const blocked = yield* Deferred.make<void>()
+        const owner = yield* Scope.make()
+        let runs = 0
+        const service = yield* makeSandbox({
+          binaryPath: fixture.binary,
+          detached: false,
+        }).pipe(
+          Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, {
+            ...spawner,
+            spawn: Effect.fn("Test.spawn")(function* (command) {
+              if (
+                command._tag === "StandardCommand" &&
+                command.args.includes("run") &&
+                ++runs === 2
+              ) {
+                yield* Effect.gen(function* () {
+                  yield* Deferred.succeed(acquiring, undefined)
+                  yield* Deferred.await(blocked)
+                }).pipe(Effect.ensuring(Deferred.succeed(released, undefined)))
+              }
+              return yield* spawner.spawn(command)
+            }),
+          }),
+          Scope.provide(owner),
+        )
+        const restart = yield* service.restart().pipe(Effect.forkChild)
+        yield* Deferred.await(acquiring)
+        yield* Scope.close(owner, Exit.void)
+        // Scope closure must finish cancellation of the in-flight acquisition,
+        // without needing the external process boundary to make progress.
+        expect(yield* Deferred.isDone(released)).toBe(true)
+        expect(Exit.isFailure(yield* Fiber.await(restart))).toBe(true)
+        const error = yield* service.restart().pipe(Effect.flip)
+        expect(error.cause).toEqual(new Error("Sandbox is not running"))
+      }).pipe(Effect.provide(platform), Effect.scoped),
+    )
+    const { home, pid } = await waitForRecord(fixture.directory, "run.json")
+    homes.push(home)
+    stopped(pid)
+    await absent(home)
   })
 
   test("restart replaces the process, restores clean genesis, and stop is idempotent", async () => {
