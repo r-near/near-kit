@@ -162,18 +162,6 @@ export const makeRpcPrograms = Effect.fn("Rpc.make")(function* (
   return programsWithState(config, transport, requestIds, debug)
 })
 
-/** Synchronous construction only at the synchronous public Near constructor boundary. */
-export const makeRpcProgramsUnsafe = (
-  config: RpcProgramConfig,
-  transport: RpcTransportService,
-): RpcPrograms =>
-  programsWithState(
-    config,
-    transport,
-    Ref.makeUnsafe(0),
-    Effect.runSync(rpcDebug),
-  )
-
 interface RpcState {
   readonly config: RpcProgramConfig
   readonly transport: RpcTransportService

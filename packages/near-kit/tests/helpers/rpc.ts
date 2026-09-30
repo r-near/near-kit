@@ -1,8 +1,9 @@
+import { runSync } from "../../src/effect/runtime.js"
 import type { RpcRetryConfigInput } from "../../src/core/config-schemas.js"
 import { type RpcFetch, rpcToPromises } from "../../src/core/rpc/rpc.js"
 import {
   fetchTransport,
-  makeRpcProgramsUnsafe,
+  makeRpcPrograms,
 } from "../../src/core/rpc/rpc-program.js"
 
 export function testRpcPrograms(
@@ -11,9 +12,11 @@ export function testRpcPrograms(
   headers?: Record<string, string>,
   retry?: RpcRetryConfigInput,
 ) {
-  return makeRpcProgramsUnsafe(
-    { url, ...(headers ? { headers } : {}), ...(retry ? { retry } : {}) },
-    fetchTransport(transport),
+  return runSync(
+    makeRpcPrograms(
+      { url, ...(headers ? { headers } : {}), ...(retry ? { retry } : {}) },
+      fetchTransport(transport),
+    ),
   )
 }
 

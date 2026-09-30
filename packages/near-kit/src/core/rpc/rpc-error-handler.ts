@@ -308,6 +308,23 @@ export function parseQueryError(
   return new NetworkError(`Query error: ${errorMsg}`)
 }
 
+// Only fields passed to string/number domain constructors need these refinements.
+// Other cause details are retained by the wire codec for forward compatibility.
+const ErrorContextSchema = Schema.Struct({
+  public_key: Schema.optional(Schema.NullOr(Schema.String)),
+  account_id: Schema.optional(Schema.NullOr(Schema.String)),
+  contract_account_id: Schema.optional(Schema.NullOr(Schema.String)),
+  receipt_id: Schema.optional(Schema.NullOr(Schema.String)),
+  transaction_hash: Schema.optional(Schema.NullOr(Schema.String)),
+  shard_id: Schema.optional(
+    Schema.NullOr(Schema.Union([Schema.String, Schema.Finite])),
+  ),
+})
+const InvalidNonceSchema = Schema.Struct({
+  tx_nonce: Schema.Finite,
+  ak_nonce: Schema.Finite,
+})
+
 /**
  * Parse an RPC failure into the appropriate typed error.
  * Follows NEAR RPC error documentation.
@@ -338,6 +355,16 @@ export function parseRpcError(error: unknown, statusCode?: number): NearError {
   const parsedError = decoded.success
   const causeName = parsedError.cause?.name
   const causeInfo = parsedError.cause?.info || {}
+  const malformed = () =>
+    new NetworkError(
+      `RPC error: ${parsedError.message}`,
+      parsedError.code,
+      false,
+    )
+  if (
+    Result.isFailure(Schema.decodeUnknownResult(ErrorContextSchema)(causeInfo))
+  )
+    return malformed()
 
   // Handle errors based on ERROR_CAUSE (as per documentation)
   // This is more reliable than string matching on error messages
@@ -345,12 +372,13 @@ export function parseRpcError(error: unknown, statusCode?: number): NearError {
   // === General Errors (HANDLER_ERROR) ===
 
   if (causeName === "UNKNOWN_BLOCK") {
-    return new UnknownBlockError(
-      blockReferenceText(
-        causeInfo["block_reference"],
-        parsedError.data || parsedError.message,
-      ),
+    const reference = blockReferenceText(
+      causeInfo["block_reference"],
+      parsedError.data || parsedError.message,
     )
+    return Result.isFailure(reference)
+      ? malformed()
+      : new UnknownBlockError(reference.success)
   }
 
   if (causeName === "INVALID_ACCOUNT") {
@@ -427,25 +455,20 @@ export function parseRpcError(error: unknown, statusCode?: number): NearError {
   // === Block / Chunk Errors ===
 
   if (causeName === "UNKNOWN_CHUNK") {
-    // chunk_reference might be an object structure, or there may be a chunk_hash field
-    let chunkRef: string
-    const chunkHash = causeInfo["chunk_hash"]
-    const chunkReference = causeInfo["chunk_reference"]
-
-    if (typeof chunkHash === "string") {
-      chunkRef = chunkHash
-    } else if (typeof chunkReference === "string") {
-      chunkRef = chunkReference
-    } else if (chunkReference && typeof chunkReference === "object") {
-      // Extract chunk_id or similar field, fallback to data/message
-      const chunkId = (chunkReference as Record<string, unknown>)["chunk_id"]
-      chunkRef = chunkId
-        ? displayRpcValue(chunkId)
-        : parsedError.data || parsedError.message
-    } else {
-      chunkRef = parsedError.data || parsedError.message
-    }
-    return new UnknownChunkError(chunkRef)
+    const hash = causeInfo["chunk_hash"]
+    const reference = causeInfo["chunk_reference"]
+    const value =
+      typeof hash === "string"
+        ? hash
+        : typeof reference === "string"
+          ? reference
+          : field(reference, "chunk_id") ||
+            parsedError.data ||
+            parsedError.message
+    const text = rpcText(value)
+    return Result.isFailure(text)
+      ? malformed()
+      : new UnknownChunkError(text.success)
   }
 
   if (causeName === "INVALID_SHARD_ID") {
@@ -456,33 +479,32 @@ export function parseRpcError(error: unknown, statusCode?: number): NearError {
   // === Network Errors ===
 
   if (causeName === "UNKNOWN_EPOCH") {
-    return new UnknownEpochError(
-      blockReferenceText(
-        causeInfo["block_reference"],
-        parsedError.data || parsedError.message,
-      ),
+    const reference = blockReferenceText(
+      causeInfo["block_reference"],
+      parsedError.data || parsedError.message,
     )
+    return Result.isFailure(reference)
+      ? malformed()
+      : new UnknownEpochError(reference.success)
   }
 
   // === Transaction Errors ===
 
   if (causeName === "INVALID_TRANSACTION") {
-    // Check for InvalidNonce error in data field
-    if (parsedError.data && typeof parsedError.data === "object") {
-      // Navigate nested error structure: TxExecutionError.InvalidTxError.InvalidNonce
-      const txExecError = parsedError.data.TxExecutionError
-      const invalidTxError =
-        txExecError?.InvalidTxError || parsedError.data.InvalidTxError
-      const invalidNonce = invalidTxError?.InvalidNonce
-
-      if (
-        invalidNonce &&
-        "ak_nonce" in invalidNonce &&
-        "tx_nonce" in invalidNonce
-      ) {
+    const data: unknown = parsedError.data
+    const txExecError = field(data, "TxExecutionError")
+    const invalidTxError =
+      field(txExecError, "InvalidTxError") || field(data, "InvalidTxError")
+    const invalidNonce = field(invalidTxError, "InvalidNonce")
+    if (invalidNonce) {
+      if (typeof invalidNonce !== "object") return malformed()
+      if ("ak_nonce" in invalidNonce && "tx_nonce" in invalidNonce) {
+        const nonce =
+          Schema.decodeUnknownResult(InvalidNonceSchema)(invalidNonce)
+        if (Result.isFailure(nonce)) return malformed()
         return new InvalidNonceError(
-          invalidNonce.tx_nonce as number,
-          invalidNonce.ak_nonce as number,
+          nonce.success.tx_nonce,
+          nonce.success.ak_nonce,
         )
       }
     }
@@ -538,7 +560,17 @@ export function parseRpcError(error: unknown, statusCode?: number): NearError {
 
 /** Preserve the historical public error-message coercion, including nested objects. */
 function displayRpcValue(value: unknown): string {
-  return String(value)
+  const text = rpcText(value)
+  return Result.isSuccess(text) ? text.success : JSON.stringify(value)
+}
+
+/** String coercion is its own untrusted-input boundary, not a catch around classification. */
+const rpcText = (value: unknown) => Result.try(() => String(value))
+
+function field(value: unknown, key: string): unknown {
+  return value !== null && typeof value === "object"
+    ? (value as Record<string, unknown>)[key]
+    : undefined
 }
 
 /** Classify transaction/receipt execution failures without throwing through the runtime. */
@@ -590,12 +622,10 @@ export function parseExecutionError(
   return new InvalidTransactionError(errorMessage, failureDetails)
 }
 
-function blockReferenceText(reference: unknown, fallback: string): string {
-  if (typeof reference === "string") return reference
-  if (reference && typeof reference === "object") {
-    const block = reference as Record<string, unknown>
-    const id = block["block_id"] || block["BlockId"]
-    if (id) return displayRpcValue(id)
-  }
-  return fallback
+function blockReferenceText(reference: unknown, fallback: unknown) {
+  const value =
+    typeof reference === "string"
+      ? reference
+      : field(reference, "block_id") || field(reference, "BlockId") || fallback
+  return rpcText(value)
 }

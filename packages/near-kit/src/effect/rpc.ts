@@ -8,12 +8,7 @@ import {
   type HttpClientError,
   HttpClientRequest,
 } from "effect/http"
-import {
-  type RpcClient,
-  type RpcFetch,
-  rpcFromPromises,
-  rpcToPromises,
-} from "../core/rpc/rpc.js"
+import type { RpcFetch } from "../core/rpc/rpc.js"
 import { isRetryableStatus } from "../core/rpc/rpc-error-handler.js"
 import {
   fetchTransport,
@@ -88,31 +83,21 @@ export class RpcTransport extends Context.Service<
   /* oxlint-enable effecttsgo/unstable-api-usage */
 }
 
-export interface RpcService extends RpcPrograms {
-  /** The same programs exposed at the public Near.rpc Promise boundary. */
-  readonly client: RpcClient
-}
-
 // oxlint-disable-next-line effecttsgo/lazy-effect -- Uniform operation methods match Kit's explicit service-method convention.
-export class Rpc extends Context.Service<Rpc, RpcService>()("near-kit/Rpc") {
+export class Rpc extends Context.Service<Rpc, RpcPrograms>()("near-kit/Rpc") {
   static layer(config: RpcLayerConfig): Layer.Layer<Rpc, never, RpcTransport> {
     return Layer.effect(
       Rpc,
       Effect.gen(function* () {
         const transport = yield* RpcTransport
         const programs = yield* makeRpcPrograms(config, transport)
-        return Rpc.of({ ...programs, client: rpcToPromises(programs) })
+        return Rpc.of(programs)
       }),
     )
   }
 
   static layerFetch(config: RpcLayerConfig): Layer.Layer<Rpc> {
     return Rpc.layer(config).pipe(Layer.provide(RpcTransport.layerFetch))
-  }
-
-  /** Explicit boundary for an existing or caller-supplied Promise RPC provider. */
-  static layerClient(client: RpcClient): Layer.Layer<Rpc> {
-    return Layer.succeed(Rpc, Rpc.of({ ...rpcFromPromises(client), client }))
   }
 }
 

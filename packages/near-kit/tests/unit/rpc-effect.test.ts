@@ -636,3 +636,102 @@ test("debug encoding failures retain network error classification and bounded re
   })
   expect({ fetches, encodings }).toEqual({ fetches: 0, encodings: 3 })
 })
+
+test.each([
+  {
+    cause: "INVALID_TRANSACTION",
+    data: {
+      TxExecutionError: { InvalidTxError: { InvalidNonce: "malformed" } },
+    },
+    info: {},
+    code: "NETWORK_ERROR",
+  },
+  {
+    cause: "INVALID_TRANSACTION",
+    data: { TxExecutionError: { InvalidTxError: { InvalidNonce: 7 } } },
+    info: {},
+    code: "NETWORK_ERROR",
+  },
+  {
+    cause: "INVALID_TRANSACTION",
+    data: { TxExecutionError: { InvalidTxError: { InvalidNonce: true } } },
+    info: {},
+    code: "NETWORK_ERROR",
+  },
+  {
+    cause: "INVALID_TRANSACTION",
+    data: { TxExecutionError: { InvalidTxError: { InvalidNonce: null } } },
+    info: {},
+    code: "INVALID_TRANSACTION",
+  },
+  {
+    cause: "INVALID_TRANSACTION",
+    data: { TxExecutionError: { InvalidTxError: null } },
+    info: {},
+    code: "INVALID_TRANSACTION",
+  },
+  {
+    cause: "INVALID_TRANSACTION",
+    data: { TxExecutionError: null },
+    info: {},
+    code: "INVALID_TRANSACTION",
+  },
+  {
+    cause: "UNKNOWN_BLOCK",
+    data: undefined,
+    info: { block_reference: { block_id: { toString: 0, valueOf: 0 } } },
+    code: "NETWORK_ERROR",
+  },
+  {
+    cause: "UNKNOWN_CHUNK",
+    data: undefined,
+    info: { chunk_reference: { chunk_id: { toString: 0, valueOf: 0 } } },
+    code: "NETWORK_ERROR",
+  },
+  {
+    cause: "UNKNOWN_GAS_KEY",
+    data: undefined,
+    info: { public_key: { toString: 0, valueOf: 0 } },
+    code: "NETWORK_ERROR",
+  },
+  {
+    cause: "NO_CONTRACT_CODE",
+    data: undefined,
+    info: { account_id: { toString: 0, valueOf: 0 } },
+    code: "NETWORK_ERROR",
+  },
+  {
+    cause: "INVALID_SHARD_ID",
+    data: undefined,
+    info: { shard_id: { toString: 0, valueOf: 0 } },
+    code: "NETWORK_ERROR",
+  },
+])(
+  "keeps malformed $cause error details in the typed channel without retrying",
+  async ({ cause, data, info, code }) => {
+    const methods: string[] = []
+    const rpc = testRpcPrograms("https://rpc.test", async (_, init) => {
+      if (typeof init.body !== "string")
+        throw new Error("expected JSON request")
+      methods.push(JSON.parse(init.body).method)
+      return Response.json({
+        error: {
+          name: "HANDLER_ERROR",
+          code: -32000,
+          message: "invalid RPC error data",
+          cause: { name: cause, info },
+          data,
+        },
+      })
+    })
+    // flip only recovers typed failures, so a TypeError defect fails this test.
+    const failure = await runPromise(
+      rpc.call<void>("query", {}).pipe(Effect.flip),
+    )
+    expect(failure).toMatchObject({ code, retryable: false })
+    if (code === "NETWORK_ERROR") {
+      expect(failure.message).toBe("RPC error: invalid RPC error data")
+    }
+    expect(methods).toEqual(["query"])
+  },
+)
