@@ -23,95 +23,66 @@ export interface WalletService {
 
 const nativeWallet = Symbol.for("near-kit/NativeWallet")
 type NativeConnection = WalletConnection & {
-  [nativeWallet]?: {
-    readonly effects: WalletService
-    readonly methods: WalletConnection
-  }
+  readonly [nativeWallet]?: WalletService
 }
 
-/** Preserve the Promise connector shape while retaining native programs. */
+/** Project native operations into the documented Promise connection shape. */
 export const walletConnection = (effects: WalletService): WalletConnection => {
-  const connection: NativeConnection = {
+  const { signMessage, signDelegateActions } = effects
+  const connection: WalletConnection = {
     getAccounts: () => runPromise(effects.getAccounts()),
     signAndSendTransaction: (params) =>
       runPromise(effects.signAndSendTransaction(params)),
-    ...(effects.signMessage
+    ...(signMessage
       ? {
-          signMessage: (
-            params: Parameters<NonNullable<WalletConnection["signMessage"]>>[0],
-          ) => runPromise(effects.signMessage!(params)),
+          signMessage: (params: Parameters<typeof signMessage>[0]) =>
+            runPromise(signMessage.call(effects, params)),
         }
       : {}),
-    ...(effects.signDelegateActions
+    ...(signDelegateActions
       ? {
           signDelegateActions: (
-            params: Parameters<
-              NonNullable<WalletConnection["signDelegateActions"]>
-            >[0],
-          ) => runPromise(effects.signDelegateActions!(params)),
+            params: Parameters<typeof signDelegateActions>[0],
+          ) => runPromise(signDelegateActions.call(effects, params)),
         }
       : {}),
   }
-  Object.defineProperty(connection, nativeWallet, {
-    value: { effects, methods: { ...connection } },
-  })
+  Object.defineProperty(connection, nativeWallet, { value: effects })
   return connection
 }
 
-/** Application overrides are extension boundaries; built-in adapters stay native. */
-export const walletService = (connection: WalletConnection): WalletService => {
-  const native = (connection as NativeConnection)[nativeWallet]
-  return {
-    getAccounts:
-      native && connection.getAccounts === native.methods.getAccounts
-        ? native.effects.getAccounts
-        : () =>
-            fromPromise(() => connection.getAccounts(), "wallet.getAccounts"),
-    signAndSendTransaction:
-      native &&
-      connection.signAndSendTransaction ===
-        native.methods.signAndSendTransaction
-        ? native.effects.signAndSendTransaction
-        : (params) =>
+/** The sole boundary for structural application-provided Promise wallets. */
+export const walletService = (connection: NativeConnection): WalletService => {
+  const native = connection[nativeWallet]
+  if (native) return native
+  const signMessage = connection.signMessage?.bind(connection)
+  const signDelegateActions = connection.signDelegateActions?.bind(connection)
+  return Wallet.of({
+    getAccounts: () =>
+      fromPromise(() => connection.getAccounts(), "wallet.getAccounts"),
+    signAndSendTransaction: (params) =>
+      fromPromise(
+        () => connection.signAndSendTransaction(params),
+        "wallet.signAndSendTransaction",
+      ),
+    ...(signMessage
+      ? {
+          signMessage: (params: Parameters<typeof signMessage>[0]) =>
+            fromPromise(() => signMessage(params), "wallet.signMessage"),
+        }
+      : {}),
+    ...(signDelegateActions
+      ? {
+          signDelegateActions: (
+            params: Parameters<typeof signDelegateActions>[0],
+          ) =>
             fromPromise(
-              () => connection.signAndSendTransaction(params),
-              "wallet.signAndSendTransaction",
+              () => signDelegateActions(params),
+              "wallet.signDelegateActions",
             ),
-    ...(connection.signMessage
-      ? {
-          signMessage:
-            native && connection.signMessage === native.methods.signMessage
-              ? native.effects.signMessage!
-              : (
-                  params: Parameters<
-                    NonNullable<WalletConnection["signMessage"]>
-                  >[0],
-                ) =>
-                  fromPromise(
-                    () => connection.signMessage!(params),
-                    "wallet.signMessage",
-                  ),
         }
       : {}),
-    ...(connection.signDelegateActions
-      ? {
-          signDelegateActions:
-            native &&
-            connection.signDelegateActions ===
-              native.methods.signDelegateActions
-              ? native.effects.signDelegateActions!
-              : (
-                  params: Parameters<
-                    NonNullable<WalletConnection["signDelegateActions"]>
-                  >[0],
-                ) =>
-                  fromPromise(
-                    () => connection.signDelegateActions!(params),
-                    "wallet.signDelegateActions",
-                  ),
-        }
-      : {}),
-  }
+  })
 }
 
 export class Wallet extends Context.Service<Wallet, WalletService>()(
