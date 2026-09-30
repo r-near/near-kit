@@ -641,6 +641,26 @@ test.each([
   {
     cause: "INVALID_TRANSACTION",
     data: {
+      TxExecutionError: {
+        InvalidTxError: { InvalidNonce: { tx_nonce: "101", ak_nonce: 100 } },
+      },
+    },
+    info: {},
+    code: "NETWORK_ERROR",
+  },
+  {
+    cause: "INVALID_TRANSACTION",
+    data: {
+      TxExecutionError: {
+        InvalidTxError: { InvalidNonce: { tx_nonce: 101, ak_nonce: {} } },
+      },
+    },
+    info: {},
+    code: "NETWORK_ERROR",
+  },
+  {
+    cause: "INVALID_TRANSACTION",
+    data: {
       TxExecutionError: { InvalidTxError: { InvalidNonce: "malformed" } },
     },
     info: {},
@@ -710,28 +730,33 @@ test.each([
   "keeps malformed $cause error details in the typed channel without retrying",
   async ({ cause, data, info, code }) => {
     const methods: string[] = []
-    const rpc = testRpcPrograms("https://rpc.test", async (_, init) => {
-      if (typeof init.body !== "string")
-        throw new Error("expected JSON request")
-      methods.push(JSON.parse(init.body).method)
-      return Response.json({
-        error: {
-          name: "HANDLER_ERROR",
-          code: -32000,
-          message: "invalid RPC error data",
-          cause: { name: cause, info },
-          data,
-        },
-      })
-    })
+    const rpc = testRpcPrograms(
+      "https://rpc.test",
+      async (_, init) => {
+        if (typeof init.body !== "string")
+          throw new Error("expected JSON request")
+        methods.push(JSON.parse(init.body).method)
+        return Response.json({
+          error: {
+            name: "HANDLER_ERROR",
+            code: -32000,
+            message: "invalid RPC error data",
+            cause: { name: cause, info },
+            data,
+          },
+        })
+      },
+      undefined,
+      { maxRetries: 2, initialDelayMs: 0 },
+    )
     // flip only recovers typed failures, so a TypeError defect fails this test.
     const failure = await runPromise(
       rpc.call<void>("query", {}).pipe(Effect.flip),
     )
+    expect(methods).toEqual(["query"])
     expect(failure).toMatchObject({ code, retryable: false })
     if (code === "NETWORK_ERROR") {
       expect(failure.message).toBe("RPC error: invalid RPC error data")
     }
-    expect(methods).toEqual(["query"])
   },
 )
