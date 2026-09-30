@@ -3,6 +3,7 @@ import { sha256 } from "@noble/hashes/sha2.js"
 import { base58 } from "@scure/base"
 import * as Effect from "effect/Effect"
 import * as Schedule from "effect/Schedule"
+import * as Ref from "effect/Ref"
 import * as actions from "../core/actions.js"
 import {
   type ClassicAction,
@@ -40,8 +41,13 @@ import {
 } from "../utils/validation.js"
 import type { RpcPrograms } from "../core/rpc/rpc-program.js"
 import {
+  isDefinitiveNonceRejection,
+  transactionOutcomeUnknown,
+} from "../core/rpc/submission.js"
+import {
   InvalidKeyError,
-  InvalidNonceError,
+  FunctionCallError,
+  InvalidTransactionError,
   NearError,
 } from "../errors/index.js"
 import { parsePublicKey } from "../utils/key.js"
@@ -101,6 +107,27 @@ export interface SignedTransactionValue {
   readonly nonceIndex?: number
   readonly serialize: () => Uint8Array
 }
+
+// The commitment owns broadcast history across callers and fibers; no registry or TTL can erase it.
+const submissionHistory = Symbol("submissionHistory")
+type SubmissionHistory = { readonly started: number; readonly rejected: number }
+type TrackedCommitment = SignedTransactionValue & {
+  readonly [submissionHistory]: Ref.Ref<SubmissionHistory>
+}
+const historyOf = (signed: SignedTransactionValue) =>
+  (signed as Partial<TrackedCommitment>)[submissionHistory]
+const allRejected = (signed: SignedTransactionValue) => {
+  const history = historyOf(signed)
+  return history
+    ? Ref.get(history).pipe(
+        Effect.map(
+          ({ started, rejected }) => started > 0 && started === rejected,
+        ),
+      )
+    : Effect.succeed(false)
+}
+const originalCause = (failure: unknown) =>
+  failure instanceof ExternalError ? failure.cause : failure
 
 /** Delegate nonce and expiry belong to these options, not the outer transaction plan.
  * A plan nonce is rejected; plan strictNonce and nonceIndex do not select delegate policy. */
@@ -367,7 +394,7 @@ const signOwned = Effect.fn("Transaction.sign")(function* (
   plan: TransactionPlan,
   dependencies: TransactionDependencies,
   key?: Effect.Effect<KeyPair, NearFailure>,
-) {
+): Effect.fn.Return<SignedTransactionValue, NearFailure> {
   if (!plan.receiverId)
     return yield* Effect.fail(
       new NearError(
@@ -409,7 +436,12 @@ const signOwned = Effect.fn("Transaction.sign")(function* (
     signed.set(encodedSignature, bytes.length)
     return signed
   })
+  const history = yield* Ref.make<SubmissionHistory>({
+    started: 0,
+    rejected: 0,
+  })
   return Object.freeze({
+    [submissionHistory]: history,
     hash,
     signerId: transaction.signerId,
     receiverId: transaction.receiverId,
@@ -429,19 +461,10 @@ export const sign = Effect.fn("Transaction.acquireSign")(function* (
   return yield* signOwned(plan, dependencies, key)
 })
 
-export const broadcast = Effect.fn("Transaction.broadcast")(function* <
-  W extends keyof FinalExecutionOutcomeMap = "EXECUTED_OPTIMISTIC",
->(
+const withTransaction = <W extends keyof FinalExecutionOutcomeMap>(
   signed: SignedTransactionValue,
-  dependencies: TransactionDependencies,
-  options?: SendOptions<W>,
-): Effect.fn.Return<FinalExecutionOutcomeMap[W], NearFailure> {
-  const result = yield* dependencies.rpc.sendTransaction(
-    signed.serialize(),
-    (options?.waitUntil ??
-      dependencies.defaultWaitUntil ??
-      "EXECUTED_OPTIMISTIC") as W,
-  )
+  result: FinalExecutionOutcomeMap[W],
+): FinalExecutionOutcomeMap[W] => {
   return (
     "transaction" in result && result.transaction
       ? result
@@ -455,6 +478,70 @@ export const broadcast = Effect.fn("Transaction.broadcast")(function* <
           },
         }
   ) as FinalExecutionOutcomeMap[W]
+}
+
+const reconcile = Effect.fn("Transaction.reconcile")(function* <
+  W extends keyof FinalExecutionOutcomeMap,
+>(
+  signed: SignedTransactionValue,
+  dependencies: TransactionDependencies,
+  waitUntil: W,
+  failure: unknown,
+) {
+  return yield* dependencies.rpc
+    .getTransactionStatus(signed.hash, signed.signerId, waitUntil)
+    .pipe(
+      Effect.map((result) => withTransaction<W>(signed, result)),
+      Effect.mapError((lookupFailure) =>
+        transactionOutcomeUnknown(originalCause(failure), {
+          hash: signed.hash,
+          sender: signed.signerId,
+          lookupCause: originalCause(lookupFailure),
+        }),
+      ),
+    )
+})
+
+export const broadcast = Effect.fn("Transaction.broadcast")(function* <
+  W extends keyof FinalExecutionOutcomeMap = "EXECUTED_OPTIMISTIC",
+>(
+  signed: SignedTransactionValue,
+  dependencies: TransactionDependencies,
+  options?: SendOptions<W>,
+): Effect.fn.Return<FinalExecutionOutcomeMap[W], NearFailure> {
+  const waitUntil = (options?.waitUntil ??
+    dependencies.defaultWaitUntil ??
+    "EXECUTED_OPTIMISTIC") as W
+  const bytes = yield* transactionInput(() => signed.serialize())
+  const history = historyOf(signed)
+  if (history)
+    yield* Ref.update(history, ({ started, rejected }) => ({
+      started: started + 1,
+      rejected,
+    }))
+  const result = yield* dependencies.rpc.sendTransaction(bytes, waitUntil).pipe(
+    Effect.catch((failure) =>
+      Effect.gen(function* () {
+        const error = originalCause(failure)
+        if (isDefinitiveNonceRejection(error)) {
+          if (history)
+            yield* Ref.update(history, ({ started, rejected }) => ({
+              started,
+              rejected: rejected + 1,
+            }))
+          if (yield* allRejected(signed)) return yield* Effect.fail(failure)
+        }
+        // Preserve known execution failures, but their unmatched start still prevents future re-signing.
+        if (
+          error instanceof FunctionCallError ||
+          error instanceof InvalidTransactionError
+        )
+          return yield* Effect.fail(failure)
+        return yield* reconcile(signed, dependencies, waitUntil, failure)
+      }),
+    ),
+  )
+  return withTransaction(signed, result)
 })
 
 const reached: Record<TxExecutionStatus, readonly TxExecutionStatus[]> = {
@@ -538,10 +625,16 @@ export const submit = Effect.fn("Transaction.submit")(function* <
     return yield* broadcast(commitment, dependencies, { waitUntil }).pipe(
       Effect.catch((failure) =>
         Effect.gen(function* () {
-          const error =
-            failure instanceof ExternalError ? failure.cause : failure
-          if (!(error instanceof InvalidNonceError) || plan.nonce !== undefined)
+          const error = originalCause(failure)
+          if (!isDefinitiveNonceRejection(error) || plan.nonce !== undefined)
             return yield* Effect.fail(failure)
+          if (!(yield* allRejected(commitment)))
+            return yield* reconcile(
+              commitment,
+              dependencies,
+              waitUntil,
+              failure,
+            )
           if (!plan.strictNonce)
             yield* dependencies.nonces.updateAndGetNext(
               plan.signerId,
@@ -549,7 +642,7 @@ export const submit = Effect.fn("Transaction.submit")(function* <
               yield* transactionInput(() => BigInt(error.akNonce)),
             )
           signed = undefined
-          // Only a rejection from broadcast authorizes another signature.
+          // Every broadcast of this exact commitment was definitively rejected.
           return yield* Effect.fail({ _tag: "NonceRetry" as const, failure })
         }),
       ),

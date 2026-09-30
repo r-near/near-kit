@@ -905,6 +905,10 @@ export class TransactionBuilder {
    * If the transaction has already been signed (via `.sign()`), it will use the
    * cached signed transaction. Otherwise, it will sign the transaction automatically.
    *
+   * Ambiguous submissions are reconciled by their exact hash. If status is unknown,
+   * throws TRANSACTION_OUTCOME_UNKNOWN with the hash and original cause; it never
+   * automatically signs a fresh nonce for a potentially accepted transaction.
+   *
    * The response will always include `transaction.hash` for tracking, even when
    * using `waitUntil: "NONE"` which normally doesn't return transaction details.
    *

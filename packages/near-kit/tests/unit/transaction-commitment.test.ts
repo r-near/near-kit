@@ -2,11 +2,12 @@ import { sha256 } from "@noble/hashes/sha2.js"
 import { ed25519 } from "@noble/curves/ed25519.js"
 import { base58 } from "@scure/base"
 import { describe, expect, test, vi } from "vitest"
+import { Effect } from "effect"
 import { TransactionBuilder } from "../../src/core/transaction.js"
-import { InvalidNonceError, NetworkError } from "../../src/errors/index.js"
+import { NetworkError } from "../../src/errors/index.js"
 import { InMemoryKeyStore } from "../../src/keys/in-memory-keystore.js"
 import { generateKey, parseKey } from "../../src/utils/key.js"
-import { testRpcClient } from "../helpers/rpc.js"
+import { testRpcClient, testRpcPrograms } from "../helpers/rpc.js"
 
 // Deterministic, self-consistent Ed25519 fixture; verification is independent of
 // the SDK's parse/sign/serialization path rather than a captured byte-only key.
@@ -193,10 +194,43 @@ test("nonce rejection retries keep the selected rotating key and only rebuild af
     return { nonce: 1 } as never
   }
   const sent: Uint8Array[] = []
-  rpc.sendTransaction = async (bytes) => {
+  let requests = 0
+  const sender = testRpcPrograms(
+    "https://rpc.invalid",
+    async () => {
+      requests++
+      return Response.json(
+        requests === 1
+          ? {
+              jsonrpc: "2.0",
+              id: 1,
+              error: {
+                name: "HANDLER_ERROR",
+                code: -32000,
+                message: "nonce rejected",
+                cause: { name: "INVALID_TRANSACTION", info: {} },
+                data: {
+                  TxExecutionError: {
+                    InvalidTxError: {
+                      InvalidNonce: { tx_nonce: 2, ak_nonce: 10 },
+                    },
+                  },
+                },
+              },
+            }
+          : {
+              jsonrpc: "2.0",
+              id: 1,
+              result: { final_execution_status: "NONE" },
+            },
+      )
+    },
+    undefined,
+    { maxRetries: 0 },
+  )
+  rpc.sendTransaction = async (bytes, waitUntil) => {
     sent.push(bytes.slice())
-    if (sent.length === 1) throw new InvalidNonceError(2, 10)
-    return { final_execution_status: "NONE" } as never
+    return Effect.runPromise(sender.sendTransaction(bytes, waitUntil))
   }
   const store = {
     get: async () => keys[gets++ % keys.length] ?? null,
@@ -228,14 +262,20 @@ test("an ambiguous broadcast failure retains the exact signed bytes for caller r
   const { builder, rpc } = setup()
   builder.transfer("bob.near", "1 NEAR")
   const sent: Uint8Array[] = []
+  const loss = new NetworkError("submission result lost")
+  rpc.getTransactionStatus = async () => {
+    throw new Error("not yet visible")
+  }
   rpc.sendTransaction = async (bytes) => {
     sent.push(bytes.slice())
-    if (sent.length === 1) throw new NetworkError("submission result lost")
+    if (sent.length === 1) throw loss
     return { final_execution_status: "NONE" } as never
   }
-  await expect(builder.send({ waitUntil: "NONE" })).rejects.toThrow(
-    "submission result lost",
-  )
+  await expect(builder.send({ waitUntil: "NONE" })).rejects.toMatchObject({
+    code: "TRANSACTION_OUTCOME_UNKNOWN",
+    retryable: false,
+    data: { cause: loss },
+  })
   expect(builder.getHash()).not.toBeNull()
   await builder.send({ waitUntil: "NONE" })
   expect(sent).toHaveLength(2)

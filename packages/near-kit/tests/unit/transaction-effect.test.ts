@@ -495,9 +495,30 @@ test("malformed nonce-refresh hints fail recoverably without resubmission", asyn
   const { rpc, dependencies } = setup()
   rpc.getAccessKey = async () => ({ nonce: 1 }) as never
   let submissions = 0
-  rpc.sendTransaction = async () => {
+  const sender = testRpcPrograms(
+    "https://rpc.invalid",
+    async () =>
+      Response.json({
+        jsonrpc: "2.0",
+        id: 1,
+        error: {
+          name: "HANDLER_ERROR",
+          code: -32000,
+          message: "nonce rejected",
+          cause: { name: "INVALID_TRANSACTION", info: {} },
+          data: {
+            TxExecutionError: {
+              InvalidTxError: { InvalidNonce: { tx_nonce: 2, ak_nonce: 1.5 } },
+            },
+          },
+        },
+      }),
+    undefined,
+    { maxRetries: 0 },
+  )
+  rpc.sendTransaction = async (bytes, waitUntil) => {
     submissions++
-    throw new InvalidNonceError(2, 1.5)
+    return Effect.runPromise(sender.sendTransaction(bytes, waitUntil))
   }
   const exit = await Effect.runPromiseExit(
     Transaction.send(plan(), dependencies),
