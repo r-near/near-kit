@@ -287,7 +287,9 @@ const kit = {
         )
         // Admission is ordered so this checks parallel preparation, not node arrival order.
         return yield* Effect.forEach(
-          commitments,
+          [...commitments].sort((left, right) =>
+            left.nonce < right.nonce ? -1 : left.nonce > right.nonce ? 1 : 0,
+          ),
           (signed) =>
             near.effects.transactions
               .broadcast(signed)

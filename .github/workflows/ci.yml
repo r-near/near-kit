@@ -86,8 +86,6 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
-    env:
-      PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/playwright-browsers
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -109,6 +107,7 @@ jobs:
 
       - name: Inspect browser runner prerequisites
         run: |
+          printf 'PLAYWRIGHT_BROWSERS_PATH=%s/playwright-browsers\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
           uname -srm
           printf 'Runner UID: '
           id -u
