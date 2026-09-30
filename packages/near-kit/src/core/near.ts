@@ -1,6 +1,8 @@
 /** Public Promise projection of the native Near service. */
 import * as Effect from "effect/Effect"
 import * as ConfigProvider from "effect/ConfigProvider"
+import type { ClientValue } from "../effect/client.js"
+import type { WalletAccountObservation } from "../effect/wallet.js"
 import {
   acquireClient,
   type NearService,
@@ -49,26 +51,48 @@ import type {
  */
 export type { NearRuntime } from "../effect/near.js"
 
+function isAcquiredClient(
+  config: NearConfig | ClientValue,
+): config is ClientValue {
+  return "_tag" in config && config._tag === "NearClient"
+}
+
 export class Near {
   private readonly programs: NearService
   private readonly dependencies: TransactionDependencies
   private readonly _rpc: RpcClient
   readonly ready: Effect.Effect<void, NearFailure>
+  readonly walletAccounts: WalletAccountObservation | undefined
 
-  constructor(config: NearConfig = {}, runtime?: NearRuntime) {
-    const client = runSync(
-      acquireClient(config, runtime).pipe(
-        Effect.provideService(
-          ConfigProvider.ConfigProvider,
-          publicConfiguration(),
-        ),
-      ),
-    )
+  /** Prefer Near.fromClient for an explicitly owned native client. */
+  constructor(client: ClientValue)
+  constructor(config?: NearConfig, runtime?: NearRuntime)
+  constructor(config: NearConfig | ClientValue = {}, runtime?: NearRuntime) {
+    const projected = isAcquiredClient(config)
+    const client = projected
+      ? config
+      : runSync(
+          acquireClient(config, runtime).pipe(
+            Effect.provideService(
+              ConfigProvider.ConfigProvider,
+              publicConfiguration(),
+            ),
+          ),
+        )
     this.programs = client.service
     this.dependencies = client.dependencies
     this._rpc = rpcToPromises(client.service.rpc)
     this.ready = client.ready
-    if (this.ready !== Effect.void) Effect.runFork(this.ready)
+    this.walletAccounts = projected ? config.walletAccounts : undefined
+    if (!projected && this.ready !== Effect.void) Effect.runFork(this.ready)
+  }
+
+  /**
+   * Project an acquired native client without new I/O or resource acquisition.
+   * Its application-owned scope must remain open until all operations finish.
+   */
+  static fromClient(client: ClientValue): Near {
+    return new Near(client)
   }
 
   /**

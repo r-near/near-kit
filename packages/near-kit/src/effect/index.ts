@@ -1,5 +1,11 @@
 /** Native Effect services. This entrypoint is safe to import in browsers. */
 export { Near, make, type NearService } from "./near.js"
+export {
+  Client,
+  Signer,
+  type ClientValue,
+  type ClientRuntime,
+} from "./client.js"
 export { Rpc, RpcTransport, type RpcLayerConfig } from "./rpc.js"
 export { rpcTransportHttpClient } from "./rpc-http.js"
 export { KeyStore, keyStoreService, type KeyStoreService } from "./keys.js"
@@ -13,6 +19,8 @@ export {
   walletService,
   walletConnection,
   type WalletService,
+  type WalletAccountObservation,
+  type WalletAccountState,
 } from "./wallet.js"
 export { make as transactionPlan } from "./transaction.js"
 export * as Actions from "../core/actions.js"

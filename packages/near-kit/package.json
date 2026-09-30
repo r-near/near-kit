@@ -68,6 +68,11 @@
       "types": "./dist/effect/sandbox.d.ts",
       "import": "./dist/effect/sandbox.js",
       "default": "./dist/effect/sandbox.js"
+    },
+    "./effect/http": {
+      "types": "./dist/effect/rpc-http.d.ts",
+      "import": "./dist/effect/rpc-http.js",
+      "default": "./dist/effect/rpc-http.js"
     }
   },
   "scripts": {

@@ -44,7 +44,7 @@ export interface NearRuntime {
 }
 
 /** Configure once. No asynchronous key write runs until ready is executed. */
-export const acquireClient = Effect.fn("Near.acquire")(function* (
+export const resolveClient = Effect.fn("Near.configure")(function* (
   config: NearConfig = {},
   runtime: NearRuntime = {},
 ) {
@@ -89,29 +89,44 @@ export const acquireClient = Effect.fn("Near.acquire")(function* (
       ? yield* Effect.cached(keyStore.add(accountId, key))
       : Effect.void
   const configuredSigner = validated.signer
-  const dependencies: TransactionDependencies = {
-    rpc,
-    keyStore,
+  const dependencies: TransactionDependencies & { readonly rpc: RpcPrograms } =
+    {
+      rpc,
+      keyStore,
+      ready,
+      nonces: runtime.nonceReservation ?? (yield* getSharedNonceReservation),
+      defaultWaitUntil: validated.defaultWaitUntil ?? "EXECUTED_OPTIMISTIC",
+      ...(wallet ? { wallet } : {}),
+      ...(runtime.signer
+        ? { signer: runtime.signer }
+        : configuredSigner
+          ? {
+              signer: (digest) =>
+                fromPromise(() => configuredSigner(digest), "Near.signer"),
+            }
+          : {}),
+    }
+  return {
+    dependencies,
     ready,
-    nonces: runtime.nonceReservation ?? (yield* getSharedNonceReservation),
-    defaultWaitUntil: validated.defaultWaitUntil ?? "EXECUTED_OPTIMISTIC",
-    ...(wallet ? { wallet } : {}),
-    ...(runtime.signer
-      ? { signer: runtime.signer }
-      : configuredSigner
-        ? {
-            signer: (digest) =>
-              fromPromise(() => configuredSigner(digest), "Near.signer"),
-          }
-        : {}),
+    defaultSignerId: validated.defaultSignerId || undefined,
   }
+})
+
+/** Bind already acquired capabilities without I/O or a new runtime. */
+export const bindClient = ({
+  dependencies,
+  ready,
+  defaultSignerId,
+}: Effect.Success<ReturnType<typeof resolveClient>>) => {
+  const { rpc, keyStore, wallet } = dependencies
   const transactionPrograms = transactions(dependencies)
   const programs = makeNearPrograms({
     rpc,
     keyStore,
     ready,
     wallet,
-    defaultSignerId: validated.defaultSignerId || undefined,
+    defaultSignerId,
     transactions: transactionPrograms,
   })
   const service = {
@@ -123,7 +138,13 @@ export const acquireClient = Effect.fn("Near.acquire")(function* (
       createEffectContract<T>(programs, id),
   }
   return { service, dependencies, ready }
-})
+}
+
+/** Resource-free compatibility acquisition. Scoped applications use Client.layer. */
+export const acquireClient = Effect.fn("Near.acquire")(
+  (config: NearConfig = {}, runtime: NearRuntime = {}) =>
+    resolveClient(config, runtime).pipe(Effect.map(bindClient)),
+)
 
 /** Sandbox objects carry credentials in addition to the public network fields. */
 function rootAccount(
