@@ -1,7 +1,5 @@
 "use client"
 
-import { useStableInput } from "./effect-state.js"
-
 import { Near, type NearConfig } from "near-kit"
 import { createContext, type ReactNode, useContext, useMemo } from "react"
 
@@ -52,24 +50,54 @@ export function NearProvider(props: NearProviderProps): ReactNode {
     )
   }
 
-  // Extract the Near instance or config for stable dependency tracking
   const nearProp = "near" in props ? props.near : undefined
-  const configProp = useStableInput(
-    "config" in props ? props.config : undefined,
-  )
-  // Serialize config for dependency comparison (only used when config is provided)
-
-  // Create or use the provided Near instance
-  // biome-ignore lint/correctness/useExhaustiveDependencies: configKey is derived from configProp for stable comparison
+  const hasConfig = "config" in props && props.config !== undefined
+  const {
+    network,
+    rpcUrl,
+    headers,
+    keyStore,
+    signer,
+    privateKey,
+    wallet,
+    defaultSignerId,
+    defaultWaitUntil,
+    retryConfig,
+  } = ("config" in props ? props.config : undefined) ?? {}
+  const maxRetries = retryConfig?.maxRetries
+  const initialDelayMs = retryConfig?.initialDelayMs
+  // Capabilities carry authority and must be compared by identity, not JSON.
   const nearInstance = useMemo(() => {
-    if (nearProp) {
-      return nearProp
-    }
-    if (configProp) {
-      return new Near(configProp)
-    }
-    throw new Error("NearProvider requires either 'near' or 'config' prop")
-  }, [nearProp, configProp])
+    if (nearProp) return nearProp
+    if (!hasConfig)
+      throw new Error("NearProvider requires either 'near' or 'config' prop")
+    return new Near({
+      network,
+      rpcUrl,
+      headers,
+      keyStore,
+      signer,
+      wallet,
+      defaultSignerId,
+      defaultWaitUntil,
+      ...(privateKey !== undefined ? { privateKey } : {}),
+      retryConfig: { maxRetries, initialDelayMs },
+    })
+  }, [
+    nearProp,
+    hasConfig,
+    network,
+    rpcUrl,
+    headers,
+    keyStore,
+    signer,
+    privateKey,
+    wallet,
+    defaultSignerId,
+    defaultWaitUntil,
+    maxRetries,
+    initialDelayMs,
+  ])
 
   return (
     <NearProviderDetectionContext.Provider value={true}>
