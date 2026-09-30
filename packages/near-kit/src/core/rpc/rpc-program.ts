@@ -239,7 +239,15 @@ const requestRpc = Effect.fn("Rpc.request")(function* <T = unknown>(
   )
   if (envelope.error) {
     const error = parseRpcError(envelope.error, status)
-    if (request.method === "send_tx" && error instanceof InvalidNonceError) {
+    if (
+      request.method === "send_tx" &&
+      error instanceof InvalidNonceError &&
+      envelope.id === request.id &&
+      Number.isSafeInteger(error.txNonce) &&
+      Number.isSafeInteger(error.akNonce) &&
+      error.txNonce >= 0 &&
+      error.akNonce >= error.txNonce
+    ) {
       markDefinitiveNonceRejection(error)
       onDecodedNonceRejection?.(error)
     }
@@ -269,6 +277,7 @@ const call = Effect.fn("Rpc.call")(function* <T = unknown>(
   // A retry reuses the same signed bytes, but a lost response may hide acceptance.
   // Only a rejection decoded in this attempt can prove that it was not accepted.
   let uncertainSubmission = false
+  let rejectedNonce: number | undefined
   const attempt =
     method !== "send_tx"
       ? requestRpc<T>(state, request)
@@ -280,7 +289,20 @@ const call = Effect.fn("Rpc.call")(function* <T = unknown>(
             Effect.mapError((error) => {
               // A transport can throw a nonce error, even one marked by a prior
               // call. That is not rejection evidence for this submission attempt.
-              if (error !== decodedNonceRejection) uncertainSubmission = true
+              if (
+                decodedNonceRejection === undefined ||
+                error !== decodedNonceRejection
+              ) {
+                uncertainSubmission = true
+              } else if (
+                rejectedNonce !== undefined &&
+                decodedNonceRejection.txNonce !== rejectedNonce
+              ) {
+                // Identical signed bytes cannot attest different nonces.
+                uncertainSubmission = true
+              } else {
+                rejectedNonce = decodedNonceRejection.txNonce
+              }
               return error
             }),
           )
@@ -726,6 +748,9 @@ function isMethodNotFound(failure: unknown): boolean {
   return /method[\s_]not[\s_]found|-32601/i.test(message)
 }
 const RpcEnvelopeSchema = Schema.Struct({
+  // Reads retain historic envelope acceptance; submissions require correlation
+  // before treating an error as evidence that new signed bytes are safe.
+  id: Schema.optional(Schema.Unknown),
   result: Schema.optional(Schema.Unknown),
   // Error details retain the historic parser's malformed-error fallback.
   error: Schema.optional(Schema.Unknown),

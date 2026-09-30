@@ -7,10 +7,20 @@ import { testRpcPrograms } from "../helpers/rpc.js"
 
 const signedBytes = new Uint8Array([1, 2, 3])
 
-function nonceRejection(): Response {
+function nonceRejection(
+  {
+    id,
+    txNonce = 2,
+    akNonce = 2,
+  }: {
+    id: unknown
+    txNonce?: number
+    akNonce?: number
+  } = { id: 1 },
+): Response {
   return Response.json({
     jsonrpc: "2.0",
-    id: 1,
+    id,
     error: {
       name: "HANDLER_ERROR",
       code: -32000,
@@ -18,7 +28,9 @@ function nonceRejection(): Response {
       cause: { name: "INVALID_TRANSACTION", info: {} },
       data: {
         TxExecutionError: {
-          InvalidTxError: { InvalidNonce: { tx_nonce: 2, ak_nonce: 2 } },
+          InvalidTxError: {
+            InvalidNonce: { tx_nonce: txNonce, ak_nonce: akNonce },
+          },
         },
       },
     },
@@ -131,6 +143,100 @@ describe("RPC transaction submission provenance", () => {
     },
   )
 
+  test.each([
+    { evidence: "stale response ID", id: 0, txNonce: 2, akNonce: 2 },
+    { evidence: "missing response ID", id: undefined, txNonce: 2, akNonce: 2 },
+    {
+      evidence: "response ID with the wrong type",
+      id: "1",
+      txNonce: 2,
+      akNonce: 2,
+    },
+    { evidence: "negative transaction nonce", id: 1, txNonce: -1, akNonce: 2 },
+    {
+      evidence: "fractional transaction nonce",
+      id: 1,
+      txNonce: 1.5,
+      akNonce: 2,
+    },
+    {
+      evidence: "unsafe transaction nonce",
+      id: 1,
+      txNonce: Number.MAX_SAFE_INTEGER + 1,
+      akNonce: Number.MAX_SAFE_INTEGER + 1,
+    },
+    { evidence: "negative access-key nonce", id: 1, txNonce: 0, akNonce: -1 },
+    {
+      evidence: "fractional access-key nonce",
+      id: 1,
+      txNonce: 2,
+      akNonce: 2.5,
+    },
+    {
+      evidence: "unsafe access-key nonce",
+      id: 1,
+      txNonce: 2,
+      akNonce: Number.MAX_SAFE_INTEGER + 1,
+    },
+    {
+      evidence: "access-key nonce below transaction nonce",
+      id: 1,
+      txNonce: 2,
+      akNonce: 1,
+    },
+  ])(
+    "keeps $evidence uncertain even after a later matching rejection",
+    async ({ id, txNonce, akNonce }) => {
+      let attempts = 0
+      const rpc = testRpcPrograms(
+        "https://rpc.test",
+        async () => {
+          attempts++
+          return attempts === 1
+            ? nonceRejection({ id, txNonce, akNonce })
+            : nonceRejection()
+        },
+        undefined,
+        { maxRetries: 1, initialDelayMs: 0 },
+      )
+      const failure = await runPromise(
+        rpc.sendTransaction(signedBytes, "NONE").pipe(Effect.flip),
+      )
+      expect(failure).toMatchObject({
+        code: "TRANSACTION_OUTCOME_UNKNOWN",
+        retryable: false,
+      })
+      expect(isDefinitiveNonceRejection(failure)).toBe(false)
+      expect(attempts).toBe(2)
+    },
+  )
+
+  test("requires every same-byte rejection to attest the same transaction nonce", async () => {
+    let attempts = 0
+    const rpc = testRpcPrograms(
+      "https://rpc.test",
+      async () => {
+        attempts++
+        return nonceRejection({
+          id: 1,
+          txNonce: attempts === 1 ? 1 : 2,
+          akNonce: 2,
+        })
+      },
+      undefined,
+      { maxRetries: 1, initialDelayMs: 0 },
+    )
+    const failure = await runPromise(
+      rpc.sendTransaction(signedBytes, "NONE").pipe(Effect.flip),
+    )
+    expect(failure).toMatchObject({
+      code: "TRANSACTION_OUTCOME_UNKNOWN",
+      retryable: false,
+    })
+    expect(isDefinitiveNonceRejection(failure)).toBe(false)
+    expect(attempts).toBe(2)
+  })
+
   test("retains successful same-byte retries after a lost submission response", async () => {
     const requests: string[] = []
     const rpc = testRpcPrograms(
@@ -179,10 +285,12 @@ describe("RPC transaction submission provenance", () => {
     let attempts = 0
     const rpc = testRpcPrograms(
       "https://rpc.test",
-      async () => {
+      async (_, init) => {
         attempts++
         if (attempts === 1) throw new Error("response lost")
-        return nonceRejection()
+        if (typeof init.body !== "string")
+          throw new Error("expected JSON request")
+        return nonceRejection({ id: JSON.parse(init.body).id })
       },
       undefined,
       { maxRetries: 1, initialDelayMs: 0 },
