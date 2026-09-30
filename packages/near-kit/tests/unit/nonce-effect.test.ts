@@ -1,17 +1,20 @@
 import { Deferred, Effect, Fiber } from "effect"
 import { describe, expect, test } from "vitest"
-import { NonceManager } from "../../src/core/nonce-manager.js"
+import {
+  makeNonceReservation,
+  NonceReservation,
+} from "../../src/effect/nonce.js"
 
 // The public reservation boundary owns invalidation races: a fetch begun before
 // invalidation must never repopulate the cache or overwrite a newer chain nonce.
 // Existing tests invalidate only after a fetch has completed.
-describe("NonceManager in-flight invalidation", () => {
+describe("NonceReservation in-flight invalidation", () => {
   test.each([
     "invalidate",
     "clear",
     "advance",
   ] as const)("%s prevents a stale fetch from replacing newer nonce state", async (operation) => {
-    const manager = new NonceManager()
+    const manager = Effect.runSync(makeNonceReservation)
     const pending = Promise.withResolvers<bigint>()
     const started = Promise.withResolvers<void>()
     let fetchCount = 0
@@ -23,12 +26,20 @@ describe("NonceManager in-flight invalidation", () => {
       }
       return Promise.resolve(200n)
     }
-    const first = manager.getNextNonce("alice.near", "key", fetchNonce)
+    const first = Effect.runPromise(
+      manager.reserve("alice.near", "key", Effect.promise(fetchNonce)),
+    )
     await started.promise
-    if (operation === "invalidate") manager.invalidate("alice.near", "key")
-    else if (operation === "clear") manager.clear()
-    else expect(manager.updateAndGetNext("alice.near", "key", 500n)).toBe(501n)
-    const second = manager.getNextNonce("alice.near", "key", fetchNonce)
+    if (operation === "invalidate")
+      Effect.runSync(manager.invalidate("alice.near", "key"))
+    else if (operation === "clear") Effect.runSync(manager.clear())
+    else
+      expect(
+        Effect.runSync(manager.updateAndGetNext("alice.near", "key", 500n)),
+      ).toBe(501n)
+    const second = Effect.runPromise(
+      manager.reserve("alice.near", "key", Effect.promise(fetchNonce)),
+    )
     pending.resolve(100n)
     const reserved = await Promise.all([first, second])
     expect(reserved.sort((a, b) => Number(a - b))).toEqual(
@@ -40,15 +51,15 @@ describe("NonceManager in-flight invalidation", () => {
 
 // An interrupted lookup must release its per-key permit without cancelling
 // unrelated waiters. Promise-only coverage cannot exercise fiber interruption.
-describe("NonceManager fiber ownership", () => {
+describe("NonceReservation fiber ownership", () => {
   test("an interrupted fetch does not poison the next reservation", async () => {
-    const manager = new NonceManager()
     await Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
+          const service = yield* makeNonceReservation
           const started = yield* Deferred.make<void>()
-          const first = yield* manager
-            .getNextNonceEffect(
+          const first = yield* service
+            .reserve(
               "alice.near",
               "key",
               Effect.gen(function* () {
@@ -58,13 +69,13 @@ describe("NonceManager fiber ownership", () => {
             )
             .pipe(Effect.forkScoped)
           yield* Deferred.await(started)
-          const second = yield* manager
-            .getNextNonceEffect("alice.near", "key", Effect.succeed(200n))
+          const second = yield* service
+            .reserve("alice.near", "key", Effect.succeed(200n))
             .pipe(Effect.forkScoped)
           yield* Fiber.interrupt(first)
           expect(yield* Fiber.join(second)).toBe(201n)
           expect(
-            yield* manager.getNextNonceEffect(
+            yield* service.reserve(
               "alice.near",
               "key",
               Effect.die("must use existing reservation state"),
@@ -76,14 +87,14 @@ describe("NonceManager fiber ownership", () => {
   })
 
   test("cancelling a waiter leaves the active lookup and later reservations intact", async () => {
-    const manager = new NonceManager()
     await Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
+          const service = yield* makeNonceReservation
           const started = yield* Deferred.make<void>()
           const result = yield* Deferred.make<bigint>()
-          const first = yield* manager
-            .getNextNonceEffect(
+          const first = yield* service
+            .reserve(
               "alice.near",
               "key",
               Effect.gen(function* () {
@@ -93,18 +104,20 @@ describe("NonceManager fiber ownership", () => {
             )
             .pipe(Effect.forkScoped)
           yield* Deferred.await(started)
-          const waiter = yield* manager
-            .getNextNonceEffect(
+          const waiter = yield* service
+            .reserve(
               "alice.near",
               "key",
               Effect.die("must not start another lookup"),
             )
             .pipe(Effect.forkScoped)
+          // Let the waiter enter the semaphore queue before cancelling it.
+          yield* Effect.yieldNow
           yield* Fiber.interrupt(waiter)
           yield* Deferred.succeed(result, 100n)
           expect(yield* Fiber.join(first)).toBe(101n)
           expect(
-            yield* manager.getNextNonceEffect(
+            yield* service.reserve(
               "alice.near",
               "key",
               Effect.die("must use existing reservation state"),
@@ -113,5 +126,21 @@ describe("NonceManager fiber ownership", () => {
         }),
       ),
     )
+  })
+})
+
+// Unlike legacy globally shared clients, explicit native layers define their
+// own reservation domain. Test DI sharing and isolation at the service boundary.
+describe("NonceReservation service layers", () => {
+  test("shares reservations within one layer and isolates explicitly fresh layers", async () => {
+    const reserve = Effect.gen(function* () {
+      const service = yield* NonceReservation
+      return yield* service.reserve("alice.near", "key", Effect.succeed(50n))
+    })
+    const program = Effect.all([reserve, reserve, reserve], {
+      concurrency: "unbounded",
+    }).pipe(Effect.provide(NonceReservation.layer, { local: true }))
+    expect(await Effect.runPromise(program)).toEqual([51n, 52n, 53n])
+    expect(await Effect.runPromise(program)).toEqual([51n, 52n, 53n])
   })
 })

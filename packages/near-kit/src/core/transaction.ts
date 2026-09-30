@@ -32,6 +32,13 @@
 
 import { sha256 } from "@noble/hashes/sha2.js"
 import { base58 } from "@scure/base"
+import { Effect, Schedule } from "effect"
+import { getKeyEffect } from "../effect/keys.js"
+import {
+  type NonceReservationService,
+  sharedNonceReservation,
+} from "../effect/nonce.js"
+import { ExternalError, fromPromise, runPromise } from "../effect/runtime.js"
 import {
   InvalidKeyError,
   InvalidNonceError,
@@ -48,8 +55,7 @@ import {
 } from "../utils/validation.js"
 import * as actions from "./actions.js"
 import { DEFAULT_FUNCTION_CALL_GAS } from "./constants.js"
-import { NonceManager } from "./nonce-manager.js"
-import type { RpcClient } from "./rpc/rpc.js"
+import type { RpcClient, RpcFailure } from "./rpc/rpc.js"
 import {
   type AccessKeyPermissionBorsh,
   type ClassicAction,
@@ -107,6 +113,8 @@ export type AccessKeyPermission =
       receiverId: string
       methodNames?: string[]
     }
+
+export type TransactionError = RpcFailure
 
 type DelegateSigningOptions = {
   receiverId?: string
@@ -230,8 +238,7 @@ function toAccessKeyPermissionBorsh(
  * a single atomic transaction.
  */
 export class TransactionBuilder {
-  // Shared nonce manager across all TransactionBuilder instances
-  private static nonceManager = new NonceManager()
+  private readonly nonces: NonceReservationService
 
   private signerId: string
   private actions: Action[]
@@ -243,6 +250,7 @@ export class TransactionBuilder {
   private wallet?: WalletConnection
   private defaultWaitUntil: TxExecutionStatus
   private ensureKeyStoreReady?: () => Promise<void>
+  private ensureKeyStoreReadyEffect?: () => Effect.Effect<void, ExternalError>
   private cachedSignedTx?: {
     signedTx: SignedTransaction
     hash: string
@@ -266,7 +274,7 @@ export class TransactionBuilder {
   private strictNonce = false
   /**
    * Caller-supplied nonce set via {@link nonce}. When present it is used as-is
-   * and the shared {@link NonceManager} cache is neither read nor updated.
+   * and the shared {@link NonceReservation} cache is neither read nor updated.
    */
   private explicitNonce?: bigint
 
@@ -278,7 +286,12 @@ export class TransactionBuilder {
     defaultWaitUntil: TxExecutionStatus = "EXECUTED_OPTIMISTIC",
     wallet?: WalletConnection,
     ensureKeyStoreReady?: () => Promise<void>,
+    ensureKeyStoreReadyEffect?: () => Effect.Effect<void, ExternalError>,
+    nonces: NonceReservationService = sharedNonceReservation,
   ) {
+    if (ensureKeyStoreReadyEffect !== undefined)
+      this.ensureKeyStoreReadyEffect = ensureKeyStoreReadyEffect
+    this.nonces = nonces
     this.signerId = signerId
     this.actions = []
     this.rpc = rpc
@@ -306,26 +319,32 @@ export class TransactionBuilder {
   /**
    * Resolve the key pair for the current signer from either `signWith()` or keyStore.
    */
-  private async resolveKeyPair(): Promise<KeyPair> {
-    if (this.keyPair) {
-      return this.keyPair
-    }
-
-    if (this.ensureKeyStoreReady) {
-      await this.ensureKeyStoreReady()
-    }
-
-    const keyPair = await this.keyStore.get(this.signerId)
-    if (!keyPair) {
-      throw new InvalidKeyError(`No key found for account: ${this.signerId}`)
-    }
-
-    // Cache the resolved key pair to ensure keyStore.get() is only called once
-    // per TransactionBuilder instance. This is critical for RotatingKeyStore
-    // which returns a different key on each get() call.
-    this.keyPair = keyPair
-
-    return keyPair
+  private resolveKeyPairEffect(): Effect.Effect<KeyPair, TransactionError> {
+    return Effect.gen({ self: this }, function* () {
+      if (this.keyPair) {
+        return this.keyPair
+      }
+      if (this.ensureKeyStoreReadyEffect) {
+        yield* this.ensureKeyStoreReadyEffect()
+      } else if (this.ensureKeyStoreReady) {
+        const ready = this.ensureKeyStoreReady
+        yield* fromPromise(
+          () => ready.call(this),
+          "TransactionBuilder.ensureKeyStoreReady",
+        )
+      }
+      const keyPair = yield* getKeyEffect(this.keyStore, this.signerId)
+      if (!keyPair) {
+        return yield* Effect.fail(
+          new InvalidKeyError(`No key found for account: ${this.signerId}`),
+        )
+      }
+      // Cache the resolved key pair to ensure keyStore.get() is only called once
+      // per TransactionBuilder instance. This is critical for RotatingKeyStore
+      // which returns a different key on each get() call.
+      this.keyPair = keyPair
+      return keyPair
+    }).pipe(Effect.withSpan("TransactionBuilder.resolveKeyPair"))
   }
 
   /**
@@ -738,133 +757,172 @@ export class TransactionBuilder {
    *
    * @returns Structured delegate action plus an encoded payload (`base64` by default)
    */
-  async delegate<F extends DelegateActionPayloadFormat = "base64">(
+  delegate<F extends DelegateActionPayloadFormat = "base64">(
     options?: DelegateOptions<F>,
   ): Promise<DelegateActionResult<F>> {
-    if (this.explicitNonce !== undefined) {
-      throw new NearError(
-        ".nonce() sets the outer transaction nonce and cannot be used with delegate(). Use delegate({ nonce }) for local signing; wallets choose their own delegate nonce.",
-        "INVALID_TRANSACTION",
-      )
-    }
+    return runPromise(this.delegateProgram(options))
+  }
 
-    const opts = options ?? ({} as DelegateOptions<F>)
-    if (this.actions.length === 0) {
-      throw new NearError(
-        "Delegate action requires at least one action to perform",
-        "INVALID_TRANSACTION",
-      )
-    }
+  delegateEffect<F extends DelegateActionPayloadFormat = "base64">(
+    options?: DelegateOptions<F>,
+  ): Effect.Effect<DelegateActionResult<F>, TransactionError> {
+    return Effect.suspend(() => {
+      if (this.delegate !== originalDelegate)
+        return fromPromise(
+          () => this.delegate(options),
+          "TransactionBuilder.delegate",
+        )
+      return this.delegateProgram(options)
+    })
+  }
 
-    if (this.actions.some((action) => "signedDelegate" in action)) {
-      throw new NearError(
-        "Delegate actions cannot contain nested signed delegate actions",
-        "INVALID_TRANSACTION",
-      )
-    }
-
-    const receiverId = opts.receiverId ?? this.receiverId
-    if (!receiverId) {
-      throw new NearError(
-        "Delegate action requires a receiver. Set receiverId via the first action or provide it explicitly.",
-        "INVALID_TRANSACTION",
-      )
-    }
-
-    // Use wallet if available and it supports signDelegateActions
-    if (this.wallet?.signDelegateActions) {
-      const result = await this.wallet.signDelegateActions({
-        signerId: this.signerId,
-        delegateActions: [
-          {
-            actions: this.actions,
-            receiverId,
-          },
-        ],
-      })
-
-      const first = result.signedDelegateActions[0]
-      if (!first) {
-        throw new NearError(
-          "Wallet did not return a signed delegate action",
-          "WALLET_ERROR",
+  private delegateProgram<F extends DelegateActionPayloadFormat = "base64">(
+    options?: DelegateOptions<F>,
+  ): Effect.Effect<DelegateActionResult<F>, TransactionError> {
+    return Effect.gen({ self: this }, function* () {
+      if (this.explicitNonce !== undefined) {
+        return yield* Effect.fail(
+          new NearError(
+            ".nonce() sets the outer transaction nonce and cannot be used with delegate(). Use delegate({ nonce }) for local signing; wallets choose their own delegate nonce.",
+            "INVALID_TRANSACTION",
+          ),
         )
       }
-
-      const signedDelegateAction = first.signedDelegate
+      const opts = options ?? ({} as DelegateOptions<F>)
+      if (this.actions.length === 0) {
+        return yield* Effect.fail(
+          new NearError(
+            "Delegate action requires at least one action to perform",
+            "INVALID_TRANSACTION",
+          ),
+        )
+      }
+      if (this.actions.some((action) => "signedDelegate" in action)) {
+        return yield* Effect.fail(
+          new NearError(
+            "Delegate actions cannot contain nested signed delegate actions",
+            "INVALID_TRANSACTION",
+          ),
+        )
+      }
+      const receiverId = opts.receiverId ?? this.receiverId
+      if (!receiverId) {
+        return yield* Effect.fail(
+          new NearError(
+            "Delegate action requires a receiver. Set receiverId via the first action or provide it explicitly.",
+            "INVALID_TRANSACTION",
+          ),
+        )
+      }
+      // Use wallet if available and it supports signDelegateActions
+      const wallet = this.wallet
+      if (wallet?.signDelegateActions) {
+        const signDelegateActions = wallet.signDelegateActions.bind(wallet)
+        const result = yield* fromPromise(
+          () =>
+            signDelegateActions({
+              signerId: this.signerId,
+              delegateActions: [
+                {
+                  actions: this.actions,
+                  receiverId,
+                },
+              ],
+            }),
+          "this.wallet.signDelegateActions",
+        )
+        const first = result.signedDelegateActions[0]
+        if (!first) {
+          return yield* Effect.fail(
+            new NearError(
+              "Wallet did not return a signed delegate action",
+              "WALLET_ERROR",
+            ),
+          )
+        }
+        const signedDelegateAction = first.signedDelegate
+        const format = (opts.payloadFormat ?? "base64") as F
+        const payload = yield* transactionSync(() =>
+          encodeSignedDelegateAction(signedDelegateAction, format),
+        )
+        return {
+          signedDelegateAction,
+          payload,
+          format,
+        }
+      }
+      const keyPair = yield* this.resolveKeyPairEffect()
+      let delegatePublicKey: PublicKey
+      const requestedPublicKey = opts.publicKey
+      if (requestedPublicKey === undefined) {
+        delegatePublicKey = keyPair.publicKey
+      } else if (typeof requestedPublicKey === "string") {
+        delegatePublicKey = yield* transactionSync(() =>
+          parsePublicKey(requestedPublicKey),
+        )
+      } else {
+        delegatePublicKey = requestedPublicKey
+      }
+      if (!publicKeysEqual(delegatePublicKey, keyPair.publicKey)) {
+        return yield* Effect.fail(
+          new InvalidKeyError(
+            "Delegate action public key must match the signer key. Use signWith() when you need a different key.",
+          ),
+        )
+      }
+      let nonce: bigint
+      if (opts.nonce !== undefined) {
+        nonce = opts.nonce
+      } else {
+        const accessKey = yield* rpcOperation(
+          this.rpc.getAccessKeyEffect?.(
+            this.signerId,
+            delegatePublicKey.toString(),
+          ),
+          () =>
+            this.rpc.getAccessKey(this.signerId, delegatePublicKey.toString()),
+        )
+        nonce = BigInt(accessKey.nonce) + 1n
+      }
+      let maxBlockHeight: bigint
+      if (opts.maxBlockHeight !== undefined) {
+        maxBlockHeight = opts.maxBlockHeight
+      } else {
+        const status = yield* rpcOperation(this.rpc.getStatusEffect?.(), () =>
+          this.rpc.getStatus(),
+        )
+        const offset = BigInt(opts.blockHeightOffset ?? 200)
+        maxBlockHeight = BigInt(status.sync_info.latest_block_height) + offset
+      }
+      const delegateActions = this.actions.map(
+        (action) => action as ClassicAction,
+      )
+      const delegateAction = new actions.DelegateAction(
+        this.signerId,
+        receiverId,
+        delegateActions,
+        nonce,
+        maxBlockHeight,
+        delegatePublicKey,
+      )
+      const hash = sha256(
+        yield* transactionSync(() => serializeDelegateAction(delegateAction)),
+      )
+      const signature = yield* transactionSync(() => keyPair.sign(hash))
+      const signedDelegateAction = actions.signedDelegate(
+        delegateAction,
+        signature,
+      )
       const format = (opts.payloadFormat ?? "base64") as F
-      const payload = encodeSignedDelegateAction(signedDelegateAction, format)
-
+      const payload = yield* transactionSync(() =>
+        encodeSignedDelegateAction(signedDelegateAction, format),
+      )
       return {
         signedDelegateAction,
         payload,
         format,
       }
-    }
-
-    const keyPair = await this.resolveKeyPair()
-    let delegatePublicKey: PublicKey
-    if (opts.publicKey === undefined) {
-      delegatePublicKey = keyPair.publicKey
-    } else if (typeof opts.publicKey === "string") {
-      delegatePublicKey = parsePublicKey(opts.publicKey)
-    } else {
-      delegatePublicKey = opts.publicKey
-    }
-
-    if (!publicKeysEqual(delegatePublicKey, keyPair.publicKey)) {
-      throw new InvalidKeyError(
-        "Delegate action public key must match the signer key. Use signWith() when you need a different key.",
-      )
-    }
-
-    let nonce: bigint
-    if (opts.nonce !== undefined) {
-      nonce = opts.nonce
-    } else {
-      const accessKey = await this.rpc.getAccessKey(
-        this.signerId,
-        delegatePublicKey.toString(),
-      )
-      nonce = BigInt(accessKey.nonce) + 1n
-    }
-
-    let maxBlockHeight: bigint
-    if (opts.maxBlockHeight !== undefined) {
-      maxBlockHeight = opts.maxBlockHeight
-    } else {
-      const status = await this.rpc.getStatus()
-      const offset = BigInt(opts.blockHeightOffset ?? 200)
-      maxBlockHeight = BigInt(status.sync_info.latest_block_height) + offset
-    }
-
-    const delegateActions = this.actions.map(
-      (action) => action as ClassicAction,
-    )
-
-    const delegateAction = new actions.DelegateAction(
-      this.signerId,
-      receiverId,
-      delegateActions,
-      nonce,
-      maxBlockHeight,
-      delegatePublicKey,
-    )
-
-    const hash = sha256(serializeDelegateAction(delegateAction))
-    const signature = keyPair.sign(hash)
-    const signedDelegateAction = actions.signedDelegate(
-      delegateAction,
-      signature,
-    )
-    const format = (opts.payloadFormat ?? "base64") as F
-    const payload = encodeSignedDelegateAction(signedDelegateAction, format)
-
-    return {
-      signedDelegateAction,
-      payload,
-      format,
-    }
+    }).pipe(Effect.withSpan("TransactionBuilder.delegate"))
   }
 
   /**
@@ -879,120 +937,157 @@ export class TransactionBuilder {
    * @returns The structured V2 signed delegate action plus an encoded payload
    *   (`base64` by default).
    */
-  async delegateV2<F extends DelegateActionPayloadFormat = "base64">(
+  delegateV2<F extends DelegateActionPayloadFormat = "base64">(
     options?: DelegateV2Options<F>,
   ): Promise<DelegateV2ActionResult<F>> {
-    if (this.explicitNonce !== undefined) {
-      throw new NearError(
-        ".nonce() sets the outer transaction nonce and cannot be used with delegateV2(). Use delegateV2({ nonce }) for local signing, with nonceIndex for a gas-key slot.",
-        "INVALID_TRANSACTION",
-      )
-    }
+    return runPromise(this.delegateV2Program(options))
+  }
 
-    const opts = options ?? ({} as DelegateV2Options<F>)
-    if (this.actions.length === 0) {
-      throw new NearError(
-        "Delegate action requires at least one action to perform",
-        "INVALID_TRANSACTION",
-      )
-    }
+  delegateV2Effect<F extends DelegateActionPayloadFormat = "base64">(
+    options?: DelegateV2Options<F>,
+  ): Effect.Effect<DelegateV2ActionResult<F>, TransactionError> {
+    return Effect.suspend(() => {
+      if (this.delegateV2 !== originalDelegateV2)
+        return fromPromise(
+          () => this.delegateV2(options),
+          "TransactionBuilder.delegateV2",
+        )
+      return this.delegateV2Program(options)
+    })
+  }
 
-    if (
-      this.actions.some(
-        (action) => "signedDelegate" in action || "delegateV2" in action,
-      )
-    ) {
-      throw new NearError(
-        "Delegate actions cannot contain nested delegate actions",
-        "INVALID_TRANSACTION",
-      )
-    }
-
-    const receiverId = opts.receiverId ?? this.receiverId
-    if (!receiverId) {
-      throw new NearError(
-        "Delegate action requires a receiver. Set receiverId via the first action or provide it explicitly.",
-        "INVALID_TRANSACTION",
-      )
-    }
-
-    const keyPair = await this.resolveKeyPair()
-    let delegatePublicKey: PublicKey
-    if (opts.publicKey === undefined) {
-      delegatePublicKey = keyPair.publicKey
-    } else if (typeof opts.publicKey === "string") {
-      delegatePublicKey = parsePublicKey(opts.publicKey)
-    } else {
-      delegatePublicKey = opts.publicKey
-    }
-
-    if (!publicKeysEqual(delegatePublicKey, keyPair.publicKey)) {
-      throw new InvalidKeyError(
-        "Delegate action public key must match the signer key. Use signWith() when you need a different key.",
-      )
-    }
-
-    if (opts.nonceIndex !== undefined) {
-      TransactionBuilder.validateNonceIndex(opts.nonceIndex)
-    }
-
-    // Resolve the underlying u64 nonce, then wrap it as a TransactionNonce
-    // (GasKeyNonce when a slot index is given, plain Nonce otherwise).
-    const pkString = delegatePublicKey.toString()
-    let nonceValue: bigint
-    if (opts.nonce !== undefined) {
-      nonceValue = opts.nonce
-    } else if (opts.nonceIndex !== undefined) {
-      // Reserve the per-slot nonce through the shared NonceManager (keyed by
-      // `pk#index`), so concurrent gas-key delegate signings on the same slot
-      // get distinct nonces instead of all fetching the same chain value.
-      const index = opts.nonceIndex
-      nonceValue = await TransactionBuilder.nonceManager.getNextNonce(
+  private delegateV2Program<F extends DelegateActionPayloadFormat = "base64">(
+    options?: DelegateV2Options<F>,
+  ): Effect.Effect<DelegateV2ActionResult<F>, TransactionError> {
+    return Effect.gen({ self: this }, function* () {
+      if (this.explicitNonce !== undefined) {
+        return yield* Effect.fail(
+          new NearError(
+            ".nonce() sets the outer transaction nonce and cannot be used with delegateV2(). Use delegateV2({ nonce }) for local signing, with nonceIndex for a gas-key slot.",
+            "INVALID_TRANSACTION",
+          ),
+        )
+      }
+      const opts = options ?? ({} as DelegateV2Options<F>)
+      if (this.actions.length === 0) {
+        return yield* Effect.fail(
+          new NearError(
+            "Delegate action requires at least one action to perform",
+            "INVALID_TRANSACTION",
+          ),
+        )
+      }
+      if (
+        this.actions.some(
+          (action) => "signedDelegate" in action || "delegateV2" in action,
+        )
+      ) {
+        return yield* Effect.fail(
+          new NearError(
+            "Delegate actions cannot contain nested delegate actions",
+            "INVALID_TRANSACTION",
+          ),
+        )
+      }
+      const receiverId = opts.receiverId ?? this.receiverId
+      if (!receiverId) {
+        return yield* Effect.fail(
+          new NearError(
+            "Delegate action requires a receiver. Set receiverId via the first action or provide it explicitly.",
+            "INVALID_TRANSACTION",
+          ),
+        )
+      }
+      const keyPair = yield* this.resolveKeyPairEffect()
+      let delegatePublicKey: PublicKey
+      const requestedPublicKey = opts.publicKey
+      if (requestedPublicKey === undefined) {
+        delegatePublicKey = keyPair.publicKey
+      } else if (typeof requestedPublicKey === "string") {
+        delegatePublicKey = yield* transactionSync(() =>
+          parsePublicKey(requestedPublicKey),
+        )
+      } else {
+        delegatePublicKey = requestedPublicKey
+      }
+      if (!publicKeysEqual(delegatePublicKey, keyPair.publicKey)) {
+        return yield* Effect.fail(
+          new InvalidKeyError(
+            "Delegate action public key must match the signer key. Use signWith() when you need a different key.",
+          ),
+        )
+      }
+      const requestedNonceIndex = opts.nonceIndex
+      if (requestedNonceIndex !== undefined) {
+        yield* transactionSync(() =>
+          TransactionBuilder.validateNonceIndex(requestedNonceIndex),
+        )
+      }
+      // Resolve the underlying u64 nonce, then wrap it as a TransactionNonce
+      // (GasKeyNonce when a slot index is given, plain Nonce otherwise).
+      const pkString = delegatePublicKey.toString()
+      let nonceValue: bigint
+      if (opts.nonce !== undefined) {
+        nonceValue = opts.nonce
+      } else if (opts.nonceIndex !== undefined) {
+        // Reserve the per-slot nonce through the shared NonceReservation (keyed by
+        // `pk#index`), so concurrent gas-key delegate signings on the same slot
+        // get distinct nonces instead of all fetching the same chain value.
+        const index = opts.nonceIndex
+        nonceValue = yield* this.nonces.reserve(
+          this.signerId,
+          `${pkString}#${index}`,
+          this.fetchGasKeyNonceEffect(pkString, index),
+        )
+      } else {
+        const accessKey = yield* rpcOperation(
+          this.rpc.getAccessKeyEffect?.(this.signerId, pkString),
+          () => this.rpc.getAccessKey(this.signerId, pkString),
+        )
+        nonceValue = BigInt(accessKey.nonce) + 1n
+      }
+      const txNonce: TransactionNonceBorsh =
+        opts.nonceIndex !== undefined
+          ? { gasKeyNonce: { nonce: nonceValue, nonceIndex: opts.nonceIndex } }
+          : { nonce: { nonce: nonceValue } }
+      let maxBlockHeight: bigint
+      if (opts.maxBlockHeight !== undefined) {
+        maxBlockHeight = opts.maxBlockHeight
+      } else {
+        const status = yield* rpcOperation(this.rpc.getStatusEffect?.(), () =>
+          this.rpc.getStatus(),
+        )
+        const offset = BigInt(opts.blockHeightOffset ?? 200)
+        maxBlockHeight = BigInt(status.sync_info.latest_block_height) + offset
+      }
+      const delegateAction = new actions.DelegateActionV2(
         this.signerId,
-        `${pkString}#${index}`,
-        async () => this.fetchGasKeyNonce(pkString, index),
+        receiverId,
+        this.actions as NonDelegateActionBorsh[],
+        txNonce,
+        maxBlockHeight,
+        delegatePublicKey,
       )
-    } else {
-      const accessKey = await this.rpc.getAccessKey(this.signerId, pkString)
-      nonceValue = BigInt(accessKey.nonce) + 1n
-    }
-    const txNonce: TransactionNonceBorsh =
-      opts.nonceIndex !== undefined
-        ? { gasKeyNonce: { nonce: nonceValue, nonceIndex: opts.nonceIndex } }
-        : { nonce: { nonce: nonceValue } }
-
-    let maxBlockHeight: bigint
-    if (opts.maxBlockHeight !== undefined) {
-      maxBlockHeight = opts.maxBlockHeight
-    } else {
-      const status = await this.rpc.getStatus()
-      const offset = BigInt(opts.blockHeightOffset ?? 200)
-      maxBlockHeight = BigInt(status.sync_info.latest_block_height) + offset
-    }
-
-    const delegateAction = new actions.DelegateActionV2(
-      this.signerId,
-      receiverId,
-      this.actions as NonDelegateActionBorsh[],
-      txNonce,
-      maxBlockHeight,
-      delegatePublicKey,
-    )
-
-    const hash = sha256(serializeDelegateActionV2(delegateAction.toBorsh()))
-    const signature = keyPair.sign(hash)
-    const signedDelegateAction = actions.signedDelegateV2(
-      delegateAction,
-      signature,
-    )
-    const format = (opts.payloadFormat ?? "base64") as F
-    const payload = encodeSignedDelegateActionV2(signedDelegateAction, format)
-
-    return {
-      signedDelegateAction,
-      payload,
-      format,
-    }
+      const hash = sha256(
+        yield* transactionSync(() =>
+          serializeDelegateActionV2(delegateAction.toBorsh()),
+        ),
+      )
+      const signature = yield* transactionSync(() => keyPair.sign(hash))
+      const signedDelegateAction = actions.signedDelegateV2(
+        delegateAction,
+        signature,
+      )
+      const format = (opts.payloadFormat ?? "base64") as F
+      const payload = yield* transactionSync(() =>
+        encodeSignedDelegateActionV2(signedDelegateAction, format),
+      )
+      return {
+        signedDelegateAction,
+        payload,
+        format,
+      }
+    }).pipe(Effect.withSpan("TransactionBuilder.delegateV2"))
   }
 
   /**
@@ -1060,7 +1155,7 @@ export class TransactionBuilder {
       // TypeScript ensures key is PrivateKey format, but we still validate at runtime
       const keyPair = parseKey(key)
       this.keyPair = keyPair // Store for build() to use
-      this.signer = async (message: Uint8Array) => keyPair.sign(message)
+      delete this.signer
     } else {
       // Clear cached keyPair when using custom signer to prevent stale public key
       delete this.keyPair
@@ -1210,49 +1305,66 @@ export class TransactionBuilder {
   /**
    * Build the unsigned transaction
    */
-  async build(): Promise<Transaction> {
-    if (!this.receiverId) {
-      throw new NearError(
-        "No receiver ID set for transaction",
-        "INVALID_TRANSACTION",
+  build(): Promise<Transaction> {
+    return runPromise(this.buildProgram())
+  }
+
+  buildEffect(): Effect.Effect<Transaction, TransactionError> {
+    return Effect.suspend(() => {
+      if (this.build !== originalBuild)
+        return fromPromise(() => this.build(), "TransactionBuilder.build")
+      return this.buildProgram()
+    })
+  }
+
+  private buildProgram(): Effect.Effect<Transaction, TransactionError> {
+    return Effect.gen({ self: this }, function* () {
+      if (!this.receiverId) {
+        return yield* Effect.fail(
+          new NearError(
+            "No receiver ID set for transaction",
+            "INVALID_TRANSACTION",
+          ),
+        )
+      }
+      // Resolve signer key pair (used for public key + nonce lookup)
+      const keyPair = yield* this.resolveKeyPairEffect()
+      const publicKey = keyPair.publicKey
+      // An explicit nonce is used as-is; otherwise use NonceReservation to get the
+      // next nonce (handles concurrent transactions).
+      const nonce =
+        this.explicitNonce ??
+        (yield* this.nonces.reserve(
+          this.signerId,
+          publicKey.toString(),
+          Effect.gen({ self: this }, function* () {
+            const accessKey = yield* rpcOperation(
+              this.rpc.getAccessKeyEffect?.(
+                this.signerId,
+                publicKey.toString(),
+              ),
+              () => this.rpc.getAccessKey(this.signerId, publicKey.toString()),
+            )
+            return BigInt(accessKey.nonce)
+          }),
+        ))
+      // Use finalized block hash - more stable across load-balanced RPC nodes
+      // than getStatus() which returns the optimistic head
+      const block = yield* rpcOperation(
+        this.rpc.getBlockEffect?.({ finality: "final" }),
+        () => this.rpc.getBlock({ finality: "final" }),
       )
-    }
-
-    // Resolve signer key pair (used for public key + nonce lookup)
-    const keyPair = await this.resolveKeyPair()
-    const publicKey = keyPair.publicKey
-
-    // An explicit nonce is used as-is; otherwise use NonceManager to get the
-    // next nonce (handles concurrent transactions).
-    const nonce =
-      this.explicitNonce ??
-      (await TransactionBuilder.nonceManager.getNextNonce(
-        this.signerId,
-        publicKey.toString(),
-        async () => {
-          const accessKey = await this.rpc.getAccessKey(
-            this.signerId,
-            publicKey.toString(),
-          )
-          return BigInt(accessKey.nonce)
-        },
-      ))
-
-    // Use finalized block hash - more stable across load-balanced RPC nodes
-    // than getStatus() which returns the optimistic head
-    const block = await this.rpc.getBlock({ finality: "final" })
-    const blockHash = base58.decode(block.header.hash)
-
-    const transaction: Transaction = {
-      signerId: this.signerId,
-      publicKey,
-      nonce,
-      receiverId: this.receiverId,
-      actions: this.actions,
-      blockHash,
-    }
-
-    return transaction
+      const blockHash = base58.decode(block.header.hash)
+      const transaction: Transaction = {
+        signerId: this.signerId,
+        publicKey,
+        nonce,
+        receiverId: this.receiverId,
+        actions: this.actions,
+        blockHash,
+      }
+      return transaction
+    }).pipe(Effect.withSpan("TransactionBuilder.build"))
   }
 
   /**
@@ -1284,56 +1396,77 @@ export class TransactionBuilder {
    * const result = await tx.send({ waitUntil: 'FINAL' })
    * ```
    */
-  async sign(): Promise<this> {
-    if (this.cachedSignedTx) {
-      // Already signed, return this
-      return this
-    }
+  sign(): Promise<this> {
+    return runPromise(this.signProgram())
+  }
 
-    if (!this.receiverId) {
-      throw new NearError(
-        "No receiver ID set for transaction",
-        "INVALID_TRANSACTION",
+  signEffect(): Effect.Effect<this, TransactionError> {
+    return Effect.suspend(() => {
+      if (this.sign !== originalSign)
+        return fromPromise(() => this.sign(), "TransactionBuilder.sign")
+      return this.signProgram()
+    })
+  }
+
+  private signProgram(): Effect.Effect<this, TransactionError> {
+    return Effect.gen({ self: this }, function* () {
+      if (this.cachedSignedTx) {
+        // Already signed, return this
+        return this
+      }
+      if (!this.receiverId) {
+        return yield* Effect.fail(
+          new NearError(
+            "No receiver ID set for transaction",
+            "INVALID_TRANSACTION",
+          ),
+        )
+      }
+      // Gas-key or strict-nonce transactions use the versioned (V1) encoding.
+      if (this.requiresV1()) {
+        this.cachedSignedTx = yield* this.signV1Effect()
+        return this
+      }
+      // Build the transaction
+      const transaction = yield* this.buildEffect()
+      // Serialize transaction using Borsh
+      const serialized = yield* transactionSync(() =>
+        serializeTransaction(transaction),
       )
-    }
-
-    // Gas-key or strict-nonce transactions use the versioned (V1) encoding.
-    if (this.requiresV1()) {
-      this.cachedSignedTx = await this.signV1()
+      // NEAR protocol requires signing the SHA256 hash of the serialized transaction
+      const messageHash = (yield* fromPromise(
+        () =>
+          crypto.subtle.digest(
+            "SHA-256",
+            serialized as Uint8Array<ArrayBuffer>,
+          ),
+        "crypto.subtle.digest",
+      )) as ArrayBuffer
+      const messageHashArray = new Uint8Array(messageHash)
+      // Compute transaction hash (base58 of SHA256)
+      const txHash = base58.encode(messageHashArray)
+      // Use custom signer if provided, otherwise fall back to keyStore
+      const signer = this.signer
+      const signature = signer
+        ? yield* fromPromise(
+            () => signer.call(this, messageHashArray),
+            "this.signer",
+          )
+        : yield* this.resolveKeyPairEffect().pipe(
+            Effect.flatMap((keyPair) =>
+              transactionSync(() => keyPair.sign(messageHashArray)),
+            ),
+          )
+      // Cache the signed transaction
+      this.cachedSignedTx = {
+        signedTx: {
+          transaction,
+          signature,
+        },
+        hash: txHash,
+      }
       return this
-    }
-
-    // Build the transaction
-    const transaction = await this.build()
-
-    // Serialize transaction using Borsh
-    const serialized = serializeTransaction(transaction)
-
-    // NEAR protocol requires signing the SHA256 hash of the serialized transaction
-    const messageHash = (await crypto.subtle.digest(
-      "SHA-256",
-      serialized as Uint8Array<ArrayBuffer>,
-    )) as ArrayBuffer
-    const messageHashArray = new Uint8Array(messageHash)
-
-    // Compute transaction hash (base58 of SHA256)
-    const txHash = base58.encode(messageHashArray)
-
-    // Use custom signer if provided, otherwise fall back to keyStore
-    const signature = this.signer
-      ? await this.signer(messageHashArray)
-      : (await this.resolveKeyPair()).sign(messageHashArray)
-
-    // Cache the signed transaction
-    this.cachedSignedTx = {
-      signedTx: {
-        transaction,
-        signature,
-      },
-      hash: txHash,
-    }
-
-    return this
+    }).pipe(Effect.withSpan("TransactionBuilder.sign"))
   }
 
   /**
@@ -1342,70 +1475,87 @@ export class TransactionBuilder {
    * pre-serialized `[0x01]`-tagged signed bytes.
    * @internal
    */
-  private async signV1(): Promise<{
-    signedTx: SignedTransaction
-    hash: string
-    serialized: Uint8Array
-  }> {
-    if (!this.receiverId) {
-      throw new NearError(
-        "No receiver ID set for transaction",
-        "INVALID_TRANSACTION",
+  private signV1Effect(): Effect.Effect<
+    {
+      signedTx: SignedTransaction
+      hash: string
+      serialized: Uint8Array
+    },
+    TransactionError
+  > {
+    return Effect.gen({ self: this }, function* () {
+      if (!this.receiverId) {
+        return yield* Effect.fail(
+          new NearError(
+            "No receiver ID set for transaction",
+            "INVALID_TRANSACTION",
+          ),
+        )
+      }
+      const keyPair = yield* this.resolveKeyPairEffect()
+      const publicKey = keyPair.publicKey
+      const txNonce = yield* this.resolveV1NonceEffect(publicKey)
+      const block = yield* rpcOperation(
+        this.rpc.getBlockEffect?.({ finality: "final" }),
+        () => this.rpc.getBlock({ finality: "final" }),
       )
-    }
-
-    const keyPair = await this.resolveKeyPair()
-    const publicKey = keyPair.publicKey
-    const txNonce = await this.resolveV1Nonce(publicKey)
-
-    const block = await this.rpc.getBlock({ finality: "final" })
-    const blockHash = base58.decode(block.header.hash)
-
-    const v1: TransactionV1 = {
-      signerId: this.signerId,
-      publicKey,
-      nonce: txNonce,
-      receiverId: this.receiverId,
-      blockHash,
-      actions: this.actions,
-      nonceMode: this.strictNonce ? { strict: {} } : { monotonic: {} },
-    }
-
-    const serializedTx = serializeTransactionV1(v1)
-    const messageHash = new Uint8Array(
-      await crypto.subtle.digest(
-        "SHA-256",
-        serializedTx as Uint8Array<ArrayBuffer>,
-      ),
-    )
-    const txHash = base58.encode(messageHash)
-
-    const signature = this.signer
-      ? await this.signer(messageHash)
-      : keyPair.sign(messageHash)
-
-    // Underlying u64 nonce, regardless of the V1 nonce variant.
-    const nonceValue =
-      "gasKeyNonce" in txNonce ? txNonce.gasKeyNonce.nonce : txNonce.nonce.nonce
-
-    return {
-      // A V0-shaped SignedTransaction is kept for hash/field access by callers;
-      // the wire bytes come from `serialized` (the V1 encoding can't round-trip
-      // through the V0 SignedTransaction type).
-      signedTx: {
-        transaction: {
-          signerId: this.signerId,
-          publicKey,
-          nonce: nonceValue,
-          receiverId: this.receiverId,
-          actions: this.actions,
-          blockHash,
+      const blockHash = base58.decode(block.header.hash)
+      const v1: TransactionV1 = {
+        signerId: this.signerId,
+        publicKey,
+        nonce: txNonce,
+        receiverId: this.receiverId,
+        blockHash,
+        actions: this.actions,
+        nonceMode: this.strictNonce ? { strict: {} } : { monotonic: {} },
+      }
+      const serializedTx = yield* transactionSync(() =>
+        serializeTransactionV1(v1),
+      )
+      const messageHash = new Uint8Array(
+        yield* fromPromise(
+          () =>
+            crypto.subtle.digest(
+              "SHA-256",
+              serializedTx as Uint8Array<ArrayBuffer>,
+            ),
+          "crypto.subtle.digest",
+        ),
+      )
+      const txHash = base58.encode(messageHash)
+      const signer = this.signer
+      const signature = signer
+        ? yield* fromPromise(
+            () => signer.call(this, messageHash),
+            "this.signer",
+          )
+        : yield* transactionSync(() => keyPair.sign(messageHash))
+      // Underlying u64 nonce, regardless of the V1 nonce variant.
+      const nonceValue =
+        "gasKeyNonce" in txNonce
+          ? txNonce.gasKeyNonce.nonce
+          : txNonce.nonce.nonce
+      return {
+        // A V0-shaped SignedTransaction is kept for hash/field access by callers;
+        // the wire bytes come from `serialized` (the V1 encoding can't round-trip
+        // through the V0 SignedTransaction type).
+        signedTx: {
+          transaction: {
+            signerId: this.signerId,
+            publicKey,
+            nonce: nonceValue,
+            receiverId: this.receiverId,
+            actions: this.actions,
+            blockHash,
+          },
+          signature,
         },
-        signature,
-      },
-      hash: txHash,
-      serialized: serializeSignedTransactionV1(v1, signature),
-    }
+        hash: txHash,
+        serialized: yield* transactionSync(() =>
+          serializeSignedTransactionV1(v1, signature),
+        ),
+      }
+    }).pipe(Effect.withSpan("TransactionBuilder.signV1"))
   }
 
   /**
@@ -1417,63 +1567,68 @@ export class TransactionBuilder {
    * don't collide. For a strict-nonce ordinary key it's a plain `Nonce`.
    * @internal
    */
-  private async resolveV1Nonce(
+  private resolveV1NonceEffect(
     publicKey: PublicKey,
-  ): Promise<TransactionNonceBorsh> {
-    const pkString = publicKey.toString()
-
-    // A caller-supplied nonce is used exactly as given, for either variant.
-    if (this.explicitNonce !== undefined) {
-      if (this.gasKeyNonceIndex === undefined) {
-        return { nonce: { nonce: this.explicitNonce } }
+  ): Effect.Effect<TransactionNonceBorsh, TransactionError> {
+    return Effect.gen({ self: this }, function* () {
+      const pkString = publicKey.toString()
+      // A caller-supplied nonce is used exactly as given, for either variant.
+      if (this.explicitNonce !== undefined) {
+        if (this.gasKeyNonceIndex === undefined) {
+          return { nonce: { nonce: this.explicitNonce } }
+        }
+        // Still confirm the slot exists before signing, so an out-of-range slot
+        // fails here instead of after a (possibly asynchronous) signature. Only
+        // the slot count matters: the slot's current nonce is not used, so it is
+        // not required to fit in a JavaScript number.
+        yield* this.fetchGasKeySlotsEffect(pkString, this.gasKeyNonceIndex)
+        return {
+          gasKeyNonce: {
+            nonce: this.explicitNonce,
+            nonceIndex: this.gasKeyNonceIndex,
+          },
+        }
       }
-      // Still confirm the slot exists before signing, so an out-of-range slot
-      // fails here instead of after a (possibly asynchronous) signature. Only
-      // the slot count matters: the slot's current nonce is not used, so it is
-      // not required to fit in a JavaScript number.
-      await this.fetchGasKeySlots(pkString, this.gasKeyNonceIndex)
-      return {
-        gasKeyNonce: {
-          nonce: this.explicitNonce,
-          nonceIndex: this.gasKeyNonceIndex,
-        },
-      }
-    }
-
-    if (this.gasKeyNonceIndex !== undefined) {
-      const index = this.gasKeyNonceIndex
-      // Strict mode bypasses the monotonic cache (see below); otherwise reserve
-      // the per-slot nonce through the shared manager so parallel transactions
-      // on the same slot don't collide.
-      if (this.strictNonce) {
-        const nonce = (await this.fetchGasKeyNonce(pkString, index)) + 1n
+      if (this.gasKeyNonceIndex !== undefined) {
+        const index = this.gasKeyNonceIndex
+        // Strict mode bypasses the monotonic cache (see below); otherwise reserve
+        // the per-slot nonce through the shared manager so parallel transactions
+        // on the same slot don't collide.
+        if (this.strictNonce) {
+          const nonce =
+            (yield* this.fetchGasKeyNonceEffect(pkString, index)) + 1n
+          return { gasKeyNonce: { nonce, nonceIndex: index } }
+        }
+        const nonce = yield* this.nonces.reserve(
+          this.signerId,
+          `${pkString}#${index}`,
+          this.fetchGasKeyNonceEffect(pkString, index),
+        )
         return { gasKeyNonce: { nonce, nonceIndex: index } }
       }
-      const nonce = await TransactionBuilder.nonceManager.getNextNonce(
+      // Strict mode requires the nonce to be EXACTLY ak_nonce + 1, so it must not
+      // go through the monotonic NonceReservation (whose cache can be ahead of chain
+      // and hand out ak_nonce + 2+). Fetch the chain nonce directly instead.
+      if (this.strictNonce) {
+        const accessKey = yield* rpcOperation(
+          this.rpc.getAccessKeyEffect?.(this.signerId, pkString),
+          () => this.rpc.getAccessKey(this.signerId, pkString),
+        )
+        return { nonce: { nonce: BigInt(accessKey.nonce) + 1n } }
+      }
+      const nonce = yield* this.nonces.reserve(
         this.signerId,
-        `${pkString}#${index}`,
-        async () => this.fetchGasKeyNonce(pkString, index),
+        pkString,
+        Effect.gen({ self: this }, function* () {
+          const accessKey = yield* rpcOperation(
+            this.rpc.getAccessKeyEffect?.(this.signerId, pkString),
+            () => this.rpc.getAccessKey(this.signerId, pkString),
+          )
+          return BigInt(accessKey.nonce)
+        }),
       )
-      return { gasKeyNonce: { nonce, nonceIndex: index } }
-    }
-
-    // Strict mode requires the nonce to be EXACTLY ak_nonce + 1, so it must not
-    // go through the monotonic NonceManager (whose cache can be ahead of chain
-    // and hand out ak_nonce + 2+). Fetch the chain nonce directly instead.
-    if (this.strictNonce) {
-      const accessKey = await this.rpc.getAccessKey(this.signerId, pkString)
-      return { nonce: { nonce: BigInt(accessKey.nonce) + 1n } }
-    }
-
-    const nonce = await TransactionBuilder.nonceManager.getNextNonce(
-      this.signerId,
-      pkString,
-      async () => {
-        const accessKey = await this.rpc.getAccessKey(this.signerId, pkString)
-        return BigInt(accessKey.nonce)
-      },
-    )
-    return { nonce: { nonce } }
+      return { nonce: { nonce } }
+    }).pipe(Effect.withSpan("TransactionBuilder.resolveV1Nonce"))
   }
 
   /**
@@ -1482,31 +1637,44 @@ export class TransactionBuilder {
    * checked here; the slot values are left as returned by the RPC.
    * @internal
    */
-  private async fetchGasKeySlots(
+  private fetchGasKeySlotsEffect(
     publicKey: string,
     nonceIndex: number,
-  ): Promise<unknown[]> {
-    const result = await this.rpc.call<{ nonces?: unknown }>(
-      "EXPERIMENTAL_view_gas_key_nonces",
-      {
-        finality: "optimistic",
-        account_id: this.signerId,
-        public_key: publicKey,
-      },
-    )
-    const nonces = result?.nonces
-    if (
-      !Array.isArray(nonces) ||
-      !Number.isInteger(nonceIndex) ||
-      nonceIndex < 0 ||
-      nonceIndex >= nonces.length
-    ) {
-      throw new NearError(
-        `Gas key ${publicKey} on ${this.signerId} has no nonce slot ${nonceIndex}`,
-        "INVALID_TRANSACTION",
+  ): Effect.Effect<unknown[], TransactionError> {
+    return Effect.gen({ self: this }, function* () {
+      const result = yield* rpcOperation(
+        this.rpc.callEffect?.<{
+          nonces?: unknown
+        }>("EXPERIMENTAL_view_gas_key_nonces", {
+          finality: "optimistic",
+          account_id: this.signerId,
+          public_key: publicKey,
+        }),
+        () =>
+          this.rpc.call<{
+            nonces?: unknown
+          }>("EXPERIMENTAL_view_gas_key_nonces", {
+            finality: "optimistic",
+            account_id: this.signerId,
+            public_key: publicKey,
+          }),
       )
-    }
-    return nonces
+      const nonces = result?.nonces
+      if (
+        !Array.isArray(nonces) ||
+        !Number.isInteger(nonceIndex) ||
+        nonceIndex < 0 ||
+        nonceIndex >= nonces.length
+      ) {
+        return yield* Effect.fail(
+          new NearError(
+            `Gas key ${publicKey} on ${this.signerId} has no nonce slot ${nonceIndex}`,
+            "INVALID_TRANSACTION",
+          ),
+        )
+      }
+      return nonces
+    }).pipe(Effect.withSpan("TransactionBuilder.fetchGasKeySlots"))
   }
 
   /**
@@ -1514,30 +1682,36 @@ export class TransactionBuilder {
    * `EXPERIMENTAL_view_gas_key_nonces`, which returns one nonce per slot.
    * @internal
    */
-  private async fetchGasKeyNonce(
+  private fetchGasKeyNonceEffect(
     publicKey: string,
     nonceIndex: number,
-  ): Promise<bigint> {
-    const nonces = await this.fetchGasKeySlots(publicKey, nonceIndex)
-    const raw = nonces[nonceIndex]
-    // The RPC returns nonces as JSON numbers; guard against precision loss
-    // before widening to bigint, and accept a string form defensively.
-    if (typeof raw === "number") {
-      if (!Number.isSafeInteger(raw)) {
-        throw new NearError(
-          `Gas key nonce slot ${nonceIndex} is not a safe integer: ${raw}`,
-          "INVALID_TRANSACTION",
-        )
+  ): Effect.Effect<bigint, TransactionError> {
+    return Effect.gen({ self: this }, function* () {
+      const nonces = yield* this.fetchGasKeySlotsEffect(publicKey, nonceIndex)
+      const raw = nonces[nonceIndex]
+      // The RPC returns nonces as JSON numbers; guard against precision loss
+      // before widening to bigint, and accept a string form defensively.
+      if (typeof raw === "number") {
+        if (!Number.isSafeInteger(raw)) {
+          return yield* Effect.fail(
+            new NearError(
+              `Gas key nonce slot ${nonceIndex} is not a safe integer: ${raw}`,
+              "INVALID_TRANSACTION",
+            ),
+          )
+        }
+        return BigInt(raw)
       }
-      return BigInt(raw)
-    }
-    if (typeof raw === "string") {
-      return BigInt(raw)
-    }
-    throw new NearError(
-      `Gas key nonce slot ${nonceIndex} has an unexpected type: ${typeof raw}`,
-      "INVALID_TRANSACTION",
-    )
+      if (typeof raw === "string") {
+        return BigInt(raw)
+      }
+      return yield* Effect.fail(
+        new NearError(
+          `Gas key nonce slot ${nonceIndex} has an unexpected type: ${typeof raw}`,
+          "INVALID_TRANSACTION",
+        ),
+      )
+    }).pipe(Effect.withSpan("TransactionBuilder.fetchGasKeyNonce"))
   }
 
   /**
@@ -1623,117 +1797,147 @@ export class TransactionBuilder {
    * console.log(result.transaction.hash) // Always available!
    * ```
    */
-  async send(): Promise<FinalExecutionOutcomeMap["EXECUTED_OPTIMISTIC"]>
-  async send<W extends keyof FinalExecutionOutcomeMap>(
+  send(): Promise<FinalExecutionOutcomeMap["EXECUTED_OPTIMISTIC"]>
+  send<W extends keyof FinalExecutionOutcomeMap>(
     options: SendOptions<W>,
   ): Promise<FinalExecutionOutcomeMap[W]>
-  async send<W extends keyof FinalExecutionOutcomeMap = "EXECUTED_OPTIMISTIC">(
+  send<W extends keyof FinalExecutionOutcomeMap = "EXECUTED_OPTIMISTIC">(
     options?: SendOptions<W>,
   ): Promise<FinalExecutionOutcomeMap[W]> {
-    if (!this.receiverId) {
-      throw new NearError(
-        "No receiver ID set for transaction",
-        "INVALID_TRANSACTION",
-      )
-    }
+    return runPromise(this.sendProgram(options))
+  }
 
-    const waitUntil = (options?.waitUntil ?? this.defaultWaitUntil) as W
+  sendEffect<W extends keyof FinalExecutionOutcomeMap = "EXECUTED_OPTIMISTIC">(
+    options?: SendOptions<W>,
+  ): Effect.Effect<FinalExecutionOutcomeMap[W], TransactionError> {
+    return Effect.suspend(() => {
+      if (this.send !== originalSend)
+        return fromPromise(
+          () => this.send(options ?? {}),
+          "TransactionBuilder.send",
+        )
+      return this.sendProgram(options)
+    })
+  }
 
-    if (this.wallet) {
-      // A wallet chooses its own nonce: its submission interface carries only
-      // the signer, receiver and actions. Refuse before prompting rather than
-      // letting the transaction execute at a nonce the caller didn't allocate.
-      if (this.explicitNonce !== undefined) {
-        throw new NearError(
-          "An explicit nonce cannot be used with a wallet: the wallet chooses the transaction nonce",
-          "INVALID_TRANSACTION",
+  private sendProgram<
+    W extends keyof FinalExecutionOutcomeMap = "EXECUTED_OPTIMISTIC",
+  >(
+    options?: SendOptions<W>,
+  ): Effect.Effect<FinalExecutionOutcomeMap[W], TransactionError> {
+    return Effect.gen({ self: this }, function* () {
+      if (!this.receiverId) {
+        return yield* Effect.fail(
+          new NearError(
+            "No receiver ID set for transaction",
+            "INVALID_TRANSACTION",
+          ),
         )
       }
-      const result = await this.wallet.signAndSendTransaction({
-        signerId: this.signerId,
-        receiverId: this.receiverId,
-        actions: this.actions,
-      })
-      // Inclusion finality and optimistic execution are independent milestones.
-      const reached: Record<TxExecutionStatus, readonly TxExecutionStatus[]> = {
-        NONE: ["NONE"],
-        INCLUDED: ["NONE", "INCLUDED"],
-        INCLUDED_FINAL: ["NONE", "INCLUDED", "INCLUDED_FINAL"],
-        EXECUTED_OPTIMISTIC: ["NONE", "INCLUDED", "EXECUTED_OPTIMISTIC"],
-        EXECUTED: [
-          "NONE",
-          "INCLUDED",
-          "INCLUDED_FINAL",
-          "EXECUTED_OPTIMISTIC",
-          "EXECUTED",
-        ],
-        FINAL: [
-          "NONE",
-          "INCLUDED",
-          "INCLUDED_FINAL",
-          "EXECUTED_OPTIMISTIC",
-          "EXECUTED",
-          "FINAL",
-        ],
-      }
-      const failed =
-        typeof result.status === "object" && "Failure" in result.status
-      if (
-        !failed &&
-        reached[result.final_execution_status]?.includes(waitUntil)
-      ) {
-        return result as FinalExecutionOutcomeMap[W]
-      }
-      if (!result.transaction?.hash) {
-        throw new NearError(
-          "Wallet did not return a transaction hash for status lookup",
-          "INVALID_TRANSACTION",
-        )
-      }
-      // Reconcile the submitted hash; never prompt for another signature on error.
-      // RPC status parsing also provides the usual typed execution errors.
-      return (await this.rpc.getTransactionStatus(
-        result.transaction.hash,
-        result.transaction.signer_id,
-        waitUntil,
-      )) as FinalExecutionOutcomeMap[W]
-    }
-
-    // Retry loop for InvalidNonceError
-    const MAX_NONCE_RETRIES = 3
-    let lastError: Error | null = null
-
-    for (let attempt = 0; attempt < MAX_NONCE_RETRIES; attempt++) {
-      try {
-        // Sign if not already signed (or re-sign on retry for fresh nonce)
-        if (!this.cachedSignedTx || attempt > 0) {
-          // Clear cache on retry to get fresh nonce
-          delete this.cachedSignedTx
-          await this.sign()
-        }
-
-        if (!this.cachedSignedTx) {
-          throw new NearError(
-            "Failed to sign transaction",
-            "TRANSACTION_SIGNING_FAILED",
+      const waitUntil = (options?.waitUntil ?? this.defaultWaitUntil) as W
+      const wallet = this.wallet
+      const receiverId = this.receiverId
+      if (wallet) {
+        // A wallet chooses its own nonce: its submission interface carries only
+        // the signer, receiver and actions. Refuse before prompting rather than
+        // letting the transaction execute at a nonce the caller didn't allocate.
+        if (this.explicitNonce !== undefined) {
+          return yield* Effect.fail(
+            new NearError(
+              "An explicit nonce cannot be used with a wallet: the wallet chooses the transaction nonce",
+              "INVALID_TRANSACTION",
+            ),
           )
         }
-
-        const { signedTx, hash, serialized } = this.cachedSignedTx
-
-        // Serialize signed transaction using Borsh. V1 (gas-key / strict-nonce)
-        // transactions carry pre-serialized wire bytes from signV1().
-        const signedSerialized =
-          serialized ?? serializeSignedTransaction(signedTx)
-
-        // Send to network
-        const result = await this.rpc.sendTransaction(
-          signedSerialized,
-          waitUntil,
+        const result = yield* fromPromise(
+          () =>
+            wallet.signAndSendTransaction({
+              signerId: this.signerId,
+              receiverId,
+              actions: this.actions,
+            }),
+          "this.wallet.signAndSendTransaction",
         )
+        // Inclusion finality and optimistic execution are independent milestones.
+        const reached: Record<TxExecutionStatus, readonly TxExecutionStatus[]> =
+          {
+            NONE: ["NONE"],
+            INCLUDED: ["NONE", "INCLUDED"],
+            INCLUDED_FINAL: ["NONE", "INCLUDED", "INCLUDED_FINAL"],
+            EXECUTED_OPTIMISTIC: ["NONE", "INCLUDED", "EXECUTED_OPTIMISTIC"],
+            EXECUTED: [
+              "NONE",
+              "INCLUDED",
+              "INCLUDED_FINAL",
+              "EXECUTED_OPTIMISTIC",
+              "EXECUTED",
+            ],
+            FINAL: [
+              "NONE",
+              "INCLUDED",
+              "INCLUDED_FINAL",
+              "EXECUTED_OPTIMISTIC",
+              "EXECUTED",
+              "FINAL",
+            ],
+          }
+        const failed =
+          typeof result.status === "object" && "Failure" in result.status
+        if (
+          !failed &&
+          reached[result.final_execution_status]?.includes(waitUntil)
+        ) {
+          return result as FinalExecutionOutcomeMap[W]
+        }
+        if (!result.transaction?.hash) {
+          return yield* Effect.fail(
+            new NearError(
+              "Wallet did not return a transaction hash for status lookup",
+              "INVALID_TRANSACTION",
+            ),
+          )
+        }
+        const transaction = result.transaction
+        // Reconcile the submitted hash; never prompt for another signature on error.
+        // RPC status parsing also provides the usual typed execution errors.
+        return (yield* rpcOperation(
+          this.rpc.getTransactionStatusEffect?.(
+            transaction.hash,
+            transaction.signer_id,
+            waitUntil,
+          ),
+          () =>
+            this.rpc.getTransactionStatus(
+              transaction.hash,
+              transaction.signer_id,
+              waitUntil,
+            ),
+        )) as FinalExecutionOutcomeMap[W]
+      }
 
-        // Inject minimal transaction fields if not present (for NONE/INCLUDED/INCLUDED_FINAL)
-        // This ensures transaction.hash is always available
+      let attempt = 0
+      const submit = Effect.gen({ self: this }, function* () {
+        if (!this.cachedSignedTx || attempt > 0) {
+          delete this.cachedSignedTx
+          yield* this.signEffect()
+        }
+        attempt++
+        if (!this.cachedSignedTx) {
+          return yield* Effect.fail(
+            new NearError(
+              "Failed to sign transaction",
+              "TRANSACTION_SIGNING_FAILED",
+            ),
+          )
+        }
+        const { signedTx, hash, serialized } = this.cachedSignedTx
+        const signedSerialized =
+          serialized ??
+          (yield* transactionSync(() => serializeSignedTransaction(signedTx)))
+        const result = yield* rpcOperation(
+          this.rpc.sendTransactionEffect?.(signedSerialized, waitUntil),
+          () => this.rpc.sendTransaction(signedSerialized, waitUntil),
+        )
         if (!("transaction" in result) || !result.transaction) {
           ;(result as Record<string, unknown>)["transaction"] = {
             hash,
@@ -1742,59 +1946,79 @@ export class TransactionBuilder {
             nonce: Number(signedTx.transaction.nonce),
           }
         }
-
         return result
-      } catch (error) {
-        lastError = error as Error
-
-        // Check if it's an InvalidNonceError. A caller-supplied nonce is owned
-        // by the caller: re-signing would reuse the same nonce, and the shared
-        // cache must not be touched, so surface the error instead of retrying.
-        if (
-          error instanceof InvalidNonceError &&
-          this.explicitNonce === undefined
-        ) {
-          // Use akNonce from the error to update cache directly
-          // This avoids refetching and thundering herd on retry
-          if (this.cachedSignedTx) {
-            const pk =
-              this.cachedSignedTx.signedTx.transaction.publicKey.toString()
-            // Gas-key transactions reserve nonces under a per-slot key
-            // (`pk#index`), so the retry must update that same key — not the
-            // bare `pk` — or it would keep signing with the stale slot nonce.
-            // Strict-nonce transactions bypass the cache entirely (they refetch
-            // ak_nonce + 1 each attempt), so no cache update is needed there.
-            if (!this.strictNonce) {
+      }).pipe(
+        Effect.tapError((failure) =>
+          Effect.gen({ self: this }, function* () {
+            const error =
+              failure instanceof ExternalError ? failure.cause : failure
+            if (
+              error instanceof InvalidNonceError &&
+              this.explicitNonce === undefined &&
+              this.cachedSignedTx &&
+              !this.strictNonce
+            ) {
+              const pk =
+                this.cachedSignedTx.signedTx.transaction.publicKey.toString()
               const cacheKey =
                 this.gasKeyNonceIndex !== undefined
                   ? `${pk}#${this.gasKeyNonceIndex}`
                   : pk
-              TransactionBuilder.nonceManager.updateAndGetNext(
+              yield* this.nonces.updateAndGetNext(
                 this.signerId,
                 cacheKey,
                 BigInt(error.akNonce),
               )
             }
-          }
-
-          // If we have retries left, continue the loop to rebuild with fresh nonce
-          if (attempt < MAX_NONCE_RETRIES - 1) {
-            continue
-          }
-        }
-
-        // Not an InvalidNonceError or out of retries - throw the error
-        throw error
-      }
-    }
-
-    // This should never be reached, but TypeScript needs it
-    throw (
-      lastError ||
-      new NearError(
-        "Unknown error during transaction send",
-        "UNKNOWN_TRANSACTION_ERROR",
+          }),
+        ),
       )
-    )
+      // InvalidNonce proves the transaction was rejected before execution.
+      // No transport, wallet or arbitrary signer failure is safe to replay.
+      return yield* submit.pipe(
+        Effect.retry({
+          schedule: Schedule.recurs(2),
+          while: (failure) => {
+            const error =
+              failure instanceof ExternalError ? failure.cause : failure
+            return (
+              error instanceof InvalidNonceError &&
+              this.explicitNonce === undefined
+            )
+          },
+        }),
+      )
+    }).pipe(Effect.withSpan("TransactionBuilder.send"))
   }
+}
+
+const originalBuild = TransactionBuilder.prototype.build
+const originalSign = TransactionBuilder.prototype.sign
+const originalDelegate = TransactionBuilder.prototype.delegate
+const originalDelegateV2 = TransactionBuilder.prototype.delegateV2
+
+const originalSend = TransactionBuilder.prototype.send
+
+/** Adapt structural Promise-only RPC clients at the extension boundary. */
+function rpcOperation<A>(
+  native: Effect.Effect<A, RpcFailure> | undefined,
+  external: () => Promise<A>,
+): Effect.Effect<A, RpcFailure> {
+  return native ?? fromPromise(external, "TransactionBuilder.rpc")
+}
+
+/** Classify failures from synchronous protocol/key extension boundaries. */
+function transactionSync<A>(
+  operation: () => A,
+): Effect.Effect<A, NearError | ExternalError> {
+  return Effect.try({
+    try: operation,
+    catch: (cause) =>
+      cause instanceof NearError
+        ? cause
+        : new ExternalError({
+            operation: "TransactionBuilder.encoding",
+            cause,
+          }),
+  })
 }

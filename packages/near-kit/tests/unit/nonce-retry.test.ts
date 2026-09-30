@@ -1,3 +1,5 @@
+import { Effect } from "effect"
+import { makeNonceReservation } from "../../src/effect/nonce.js"
 /**
  * Unit tests for nonce collision and retry logic
  *
@@ -5,7 +7,6 @@
  */
 
 import { describe, expect, test } from "vitest"
-import { NonceManager } from "../../src/core/nonce-manager.js"
 import { InvalidNonceError } from "../../src/errors/index.js"
 
 describe("InvalidNonceError", () => {
@@ -314,9 +315,9 @@ describe("Exponential Backoff", () => {
   })
 })
 
-describe("NonceManager", () => {
+describe("NonceReservation", () => {
   test("should fetch nonce from blockchain on first call", async () => {
-    const manager = new NonceManager()
+    const manager = Effect.runSync(makeNonceReservation)
     let fetchCalled = false
 
     const fetchFromBlockchain = async (): Promise<bigint> => {
@@ -324,10 +325,12 @@ describe("NonceManager", () => {
       return 100n
     }
 
-    const nonce = await manager.getNextNonce(
-      "alice.near",
-      "ed25519:test",
-      fetchFromBlockchain,
+    const nonce = await Effect.runPromise(
+      manager.reserve(
+        "alice.near",
+        "ed25519:test",
+        Effect.promise(fetchFromBlockchain),
+      ),
     )
 
     expect(fetchCalled).toBe(true)
@@ -335,7 +338,7 @@ describe("NonceManager", () => {
   })
 
   test("should increment nonce locally on subsequent calls", async () => {
-    const manager = new NonceManager()
+    const manager = Effect.runSync(makeNonceReservation)
     let fetchCount = 0
 
     const fetchFromBlockchain = async (): Promise<bigint> => {
@@ -343,20 +346,26 @@ describe("NonceManager", () => {
       return 100n
     }
 
-    const nonce1 = await manager.getNextNonce(
-      "alice.near",
-      "ed25519:test",
-      fetchFromBlockchain,
+    const nonce1 = await Effect.runPromise(
+      manager.reserve(
+        "alice.near",
+        "ed25519:test",
+        Effect.promise(fetchFromBlockchain),
+      ),
     )
-    const nonce2 = await manager.getNextNonce(
-      "alice.near",
-      "ed25519:test",
-      fetchFromBlockchain,
+    const nonce2 = await Effect.runPromise(
+      manager.reserve(
+        "alice.near",
+        "ed25519:test",
+        Effect.promise(fetchFromBlockchain),
+      ),
     )
-    const nonce3 = await manager.getNextNonce(
-      "alice.near",
-      "ed25519:test",
-      fetchFromBlockchain,
+    const nonce3 = await Effect.runPromise(
+      manager.reserve(
+        "alice.near",
+        "ed25519:test",
+        Effect.promise(fetchFromBlockchain),
+      ),
     )
 
     expect(fetchCount).toBe(1) // Should only fetch once
@@ -366,20 +375,16 @@ describe("NonceManager", () => {
   })
 
   test("should handle different accounts independently", async () => {
-    const manager = new NonceManager()
+    const manager = Effect.runSync(makeNonceReservation)
 
     const fetchAlice = async (): Promise<bigint> => 100n
     const fetchBob = async (): Promise<bigint> => 200n
 
-    const aliceNonce = await manager.getNextNonce(
-      "alice.near",
-      "ed25519:test",
-      fetchAlice,
+    const aliceNonce = await Effect.runPromise(
+      manager.reserve("alice.near", "ed25519:test", Effect.promise(fetchAlice)),
     )
-    const bobNonce = await manager.getNextNonce(
-      "bob.near",
-      "ed25519:test",
-      fetchBob,
+    const bobNonce = await Effect.runPromise(
+      manager.reserve("bob.near", "ed25519:test", Effect.promise(fetchBob)),
     )
 
     expect(aliceNonce).toBe(101n)
@@ -387,14 +392,20 @@ describe("NonceManager", () => {
   })
 
   test("should handle error when fetchFromBlockchain throws", async () => {
-    const manager = new NonceManager()
+    const manager = Effect.runSync(makeNonceReservation)
 
     const fetchFromBlockchain = async (): Promise<bigint> => {
       throw new Error("Network error")
     }
 
     await expect(
-      manager.getNextNonce("alice.near", "ed25519:test", fetchFromBlockchain),
+      Effect.runPromise(
+        manager.reserve(
+          "alice.near",
+          "ed25519:test",
+          Effect.promise(fetchFromBlockchain),
+        ),
+      ),
     ).rejects.toThrow("Network error")
 
     // Verify fetching map is cleaned up after error
@@ -405,10 +416,12 @@ describe("NonceManager", () => {
       return 100n
     }
 
-    const nonce = await manager.getNextNonce(
-      "alice.near",
-      "ed25519:test",
-      secondFetch,
+    const nonce = await Effect.runPromise(
+      manager.reserve(
+        "alice.near",
+        "ed25519:test",
+        Effect.promise(secondFetch),
+      ),
     )
 
     expect(secondAttemptCalled).toBe(true)
@@ -416,7 +429,7 @@ describe("NonceManager", () => {
   })
 
   test("should deduplicate concurrent fetches", async () => {
-    const manager = new NonceManager()
+    const manager = Effect.runSync(makeNonceReservation)
     let fetchCount = 0
 
     const fetchFromBlockchain = async (): Promise<bigint> => {
@@ -428,9 +441,27 @@ describe("NonceManager", () => {
 
     // Make multiple concurrent calls
     const promises = [
-      manager.getNextNonce("alice.near", "ed25519:test", fetchFromBlockchain),
-      manager.getNextNonce("alice.near", "ed25519:test", fetchFromBlockchain),
-      manager.getNextNonce("alice.near", "ed25519:test", fetchFromBlockchain),
+      Effect.runPromise(
+        manager.reserve(
+          "alice.near",
+          "ed25519:test",
+          Effect.promise(fetchFromBlockchain),
+        ),
+      ),
+      Effect.runPromise(
+        manager.reserve(
+          "alice.near",
+          "ed25519:test",
+          Effect.promise(fetchFromBlockchain),
+        ),
+      ),
+      Effect.runPromise(
+        manager.reserve(
+          "alice.near",
+          "ed25519:test",
+          Effect.promise(fetchFromBlockchain),
+        ),
+      ),
     ]
 
     const nonces = await Promise.all(promises)
@@ -442,7 +473,7 @@ describe("NonceManager", () => {
   })
 
   test("should invalidate cached nonce", async () => {
-    const manager = new NonceManager()
+    const manager = Effect.runSync(makeNonceReservation)
     let fetchCount = 0
 
     const fetchFromBlockchain = async (): Promise<bigint> => {
@@ -451,22 +482,26 @@ describe("NonceManager", () => {
     }
 
     // First call - fetches and caches
-    const nonce1 = await manager.getNextNonce(
-      "alice.near",
-      "ed25519:test",
-      fetchFromBlockchain,
+    const nonce1 = await Effect.runPromise(
+      manager.reserve(
+        "alice.near",
+        "ed25519:test",
+        Effect.promise(fetchFromBlockchain),
+      ),
     )
 
     expect(nonce1).toBe(111n) // 100 + 10 + 1
 
     // Invalidate the cache
-    manager.invalidate("alice.near", "ed25519:test")
+    Effect.runSync(manager.invalidate("alice.near", "ed25519:test"))
 
     // Next call should fetch again
-    const nonce2 = await manager.getNextNonce(
-      "alice.near",
-      "ed25519:test",
-      fetchFromBlockchain,
+    const nonce2 = await Effect.runPromise(
+      manager.reserve(
+        "alice.near",
+        "ed25519:test",
+        Effect.promise(fetchFromBlockchain),
+      ),
     )
 
     expect(fetchCount).toBe(2)
@@ -474,72 +509,124 @@ describe("NonceManager", () => {
   })
 
   test("should clear all cached nonces", async () => {
-    const manager = new NonceManager()
+    const manager = Effect.runSync(makeNonceReservation)
 
-    await manager.getNextNonce("alice.near", "ed25519:test1", async () => 100n)
-    await manager.getNextNonce("bob.near", "ed25519:test2", async () => 200n)
+    await Effect.runPromise(
+      manager.reserve(
+        "alice.near",
+        "ed25519:test1",
+        Effect.promise(async () => 100n),
+      ),
+    )
+    await Effect.runPromise(
+      manager.reserve(
+        "bob.near",
+        "ed25519:test2",
+        Effect.promise(async () => 200n),
+      ),
+    )
 
     // Clear all caches
-    manager.clear()
+    Effect.runSync(manager.clear())
 
     // Subsequent calls should fetch again
     let aliceFetchCount = 0
     let bobFetchCount = 0
 
-    await manager.getNextNonce("alice.near", "ed25519:test1", async () => {
-      aliceFetchCount++
-      return 100n
-    })
-    await manager.getNextNonce("bob.near", "ed25519:test2", async () => {
-      bobFetchCount++
-      return 200n
-    })
+    await Effect.runPromise(
+      manager.reserve(
+        "alice.near",
+        "ed25519:test1",
+        Effect.promise(async () => {
+          aliceFetchCount++
+          return 100n
+        }),
+      ),
+    )
+    await Effect.runPromise(
+      manager.reserve(
+        "bob.near",
+        "ed25519:test2",
+        Effect.promise(async () => {
+          bobFetchCount++
+          return 200n
+        }),
+      ),
+    )
 
     expect(aliceFetchCount).toBe(1)
     expect(bobFetchCount).toBe(1)
   })
 
   test("should update nonce from akNonce without refetch", async () => {
-    const manager = new NonceManager()
+    const manager = Effect.runSync(makeNonceReservation)
 
     // First call - no entry exists
-    const nonce1 = manager.updateAndGetNext("alice.near", "ed25519:abc", 100n)
+    const nonce1 = Effect.runSync(
+      manager.updateAndGetNext("alice.near", "ed25519:abc", 100n),
+    )
     expect(nonce1).toBe(101n) // currentNonce + 1
 
     // Second call - entry exists, should increment
-    const nonce2 = manager.updateAndGetNext("alice.near", "ed25519:abc", 100n)
+    const nonce2 = Effect.runSync(
+      manager.updateAndGetNext("alice.near", "ed25519:abc", 100n),
+    )
     // Should use cached value (102) since it's higher than 101
     expect(nonce2).toBe(102n)
 
     // Third call with higher akNonce - should update cache
-    const nonce3 = manager.updateAndGetNext("alice.near", "ed25519:abc", 110n)
+    const nonce3 = Effect.runSync(
+      manager.updateAndGetNext("alice.near", "ed25519:abc", 110n),
+    )
     expect(nonce3).toBe(111n) // New currentNonce + 1
 
     // Fourth call - should use updated cache
-    const nonce4 = await manager.getNextNonce(
-      "alice.near",
-      "ed25519:abc",
-      async () => {
-        throw new Error("Should not fetch!")
-      },
+    const nonce4 = await Effect.runPromise(
+      manager.reserve(
+        "alice.near",
+        "ed25519:abc",
+        Effect.promise(async () => {
+          throw new Error("Should not fetch!")
+        }),
+      ),
     )
     expect(nonce4).toBe(112n) // Incremented from cache
   })
 
   test("should respect higher cached value when updating", async () => {
-    const manager = new NonceManager()
+    const manager = Effect.runSync(makeNonceReservation)
 
     // Setup: get some nonces to advance the cache
-    await manager.getNextNonce("alice.near", "ed25519:abc", async () => 100n) // Returns 101, cache has 102
-    await manager.getNextNonce("alice.near", "ed25519:abc", async () => {
-      throw new Error("no fetch")
-    }) // Returns 102, cache has 103
-    await manager.getNextNonce("alice.near", "ed25519:abc", async () => {
-      throw new Error("no fetch")
-    }) // Returns 103, cache has 104
+    await Effect.runPromise(
+      manager.reserve(
+        "alice.near",
+        "ed25519:abc",
+        Effect.promise(async () => 100n),
+      ),
+    ) // Returns 101, cache has 102
+    await Effect.runPromise(
+      manager.reserve(
+        "alice.near",
+        "ed25519:abc",
+        Effect.promise(async () => {
+          throw new Error("no fetch")
+        }),
+      ),
+    ) // Returns 102, cache has 103
+    await Effect.runPromise(
+      manager.reserve(
+        "alice.near",
+        "ed25519:abc",
+        Effect.promise(async () => {
+          throw new Error("no fetch")
+        }),
+      ),
+    ) // Returns 103, cache has 104
 
     // Now update with a LOWER akNonce - should use cached value
-    const nonce = manager.updateAndGetNext("alice.near", "ed25519:abc", 100n)
+    const nonce = Effect.runSync(
+      manager.updateAndGetNext("alice.near", "ed25519:abc", 100n),
+    )
     // Cache had 104, which is higher than 101, so use cached
     expect(nonce).toBe(104n)
   })
