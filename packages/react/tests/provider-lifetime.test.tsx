@@ -1,4 +1,4 @@
-import { act, renderHook, waitFor } from "@testing-library/react"
+import { act, render, renderHook, waitFor } from "@testing-library/react"
 import { Deferred, Effect, Fiber, SubscriptionRef } from "effect"
 import {
   generateKey,
@@ -13,7 +13,7 @@ import {
   walletConnection,
   type WalletAccountState,
 } from "near-kit/effect"
-import { StrictMode, type ReactNode } from "react"
+import { Component, StrictMode, type ReactNode } from "react"
 import { renderToString } from "react-dom/server"
 import { describe, expect, test } from "vitest"
 import { useAccount } from "../src/account.js"
@@ -82,6 +82,61 @@ const message = {
 }
 
 describe("provider-owned observation", () => {
+  test("reports defective observation acquisition to the application error boundary", async () => {
+    const defect = new Error("native observation acquisition defect")
+    const caught = Deferred.makeUnsafe<unknown>()
+    let released = 0
+    const wallet = walletConnection({
+      getAccounts: () => Effect.succeed([]),
+      signAndSendTransaction: () => Effect.die("unused"),
+      observeAccounts: () =>
+        Effect.gen(function* () {
+          yield* Effect.acquireRelease(Effect.void, () =>
+            Effect.sync(() => {
+              released++
+            }),
+          )
+          return yield* Effect.die(defect)
+        }),
+    })
+    class Boundary extends Component<
+      { children: ReactNode },
+      { failed: boolean }
+    > {
+      override state = { failed: false }
+      static getDerivedStateFromError() {
+        return { failed: true }
+      }
+      override componentDidCatch(error: unknown) {
+        Deferred.doneUnsafe(caught, Effect.succeed(error))
+      }
+      override render() {
+        return this.state.failed ? (
+          <span>observation failed</span>
+        ) : (
+          this.props.children
+        )
+      }
+    }
+    function Child() {
+      const account = useAccount()
+      return <span>{account.isLoading ? "loading" : "ready"}</span>
+    }
+    const view = render(
+      <Boundary>
+        <NearProvider config={{ wallet }}>
+          <Child />
+        </NearProvider>
+      </Boundary>,
+    )
+    await waitFor(() =>
+      expect(view.queryByText("observation failed")).not.toBeNull(),
+    )
+    expect(await Effect.runPromise(Deferred.await(caught))).toBe(defect)
+    expect(released).toBe(1)
+    view.unmount()
+  })
+
   test("SSR and abandoned renders retain children without starting keys or observation", () => {
     const key = generateKey()
     const fixture = observedWallet("alice.near")

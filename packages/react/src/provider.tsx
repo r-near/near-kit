@@ -2,6 +2,7 @@
 
 import { Near, type NearConfig } from "near-kit"
 import { prepareClient, publicConfiguration } from "near-kit/effect"
+import * as Cause from "effect/Cause"
 import * as ConfigProvider from "effect/ConfigProvider"
 import * as Effect from "effect/Effect"
 import * as Fiber from "effect/Fiber"
@@ -12,6 +13,7 @@ import {
   useEffect,
   useMemo,
   useRef,
+  useState,
 } from "react"
 
 /**
@@ -119,19 +121,43 @@ export function NearProvider(props: NearProviderProps): ReactNode {
   ])
 
   const owner = useRef<Fiber.Fiber<void> | undefined>(undefined)
+  const activeOwner = useRef<symbol | undefined>(undefined)
+  const [failure, setFailure] = useState<{ near: Near; cause: unknown }>()
   useEffect(() => {
     if (!projection.prepared) return
     const previous = owner.current
+    const id = Symbol()
+    activeOwner.current = id
     const { activate } = projection.prepared
     const fiber = Effect.runFork(
       Effect.gen(function* () {
         if (previous) yield* Fiber.await(previous)
         return yield* Effect.scoped(activate.pipe(Effect.andThen(Effect.never)))
-      }).pipe(Effect.exit, Effect.asVoid),
+      }).pipe(
+        Effect.onError((cause) => {
+          if (Cause.hasInterruptsOnly(cause)) return Effect.void
+          if (activeOwner.current !== id)
+            return Effect.logError(
+              "NearProvider observation cleanup failed",
+              cause,
+            )
+          return Effect.sync(() =>
+            setFailure({
+              near: projection.near,
+              cause: Cause.squash(cause),
+            }),
+          )
+        }),
+      ),
     )
     owner.current = fiber
-    return () => fiber.interruptUnsafe()
+    return () => {
+      activeOwner.current = undefined
+      fiber.interruptUnsafe()
+    }
   }, [projection])
+
+  if (failure?.near === projection.near) throw failure.cause
 
   return (
     <NearProviderDetectionContext.Provider value={true}>
