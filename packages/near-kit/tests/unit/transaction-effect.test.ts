@@ -1,7 +1,6 @@
 import { sha256 } from "@noble/hashes/sha2.js"
 import { Cause, Effect, Exit } from "effect"
 import { describe, expect, expectTypeOf, test, vi } from "vitest"
-import { rpcToPromises } from "../../src/core/rpc/rpc.js"
 import { testRpcClient, testRpcPrograms } from "../helpers/rpc.js"
 import {
   type DelegateActionResult,
@@ -12,6 +11,8 @@ import type { Signature } from "../../src/core/types.js"
 import { InvalidNonceError } from "../../src/errors/index.js"
 import { ExternalError } from "../../src/effect/runtime.js"
 import { transaction } from "../../src/effect/transaction.js"
+import { makeMemoryStorage } from "../../src/effect/key-storage.js"
+import { makeNonceReservation } from "../../src/effect/nonce.js"
 import { InMemoryKeyStore } from "../../src/keys/in-memory-keystore.js"
 import { parseKey } from "../../src/utils/key.js"
 
@@ -111,30 +112,47 @@ describe("Transaction execution ownership", () => {
     const started = Promise.withResolvers<void>()
     let requestSignal: AbortSignal | null | undefined
     const requests: string[] = []
-    const rpc = rpcToPromises(
-      testRpcPrograms("https://unused.invalid", (_url, init) => {
-        if (typeof init.body !== "string")
-          throw new Error("Expected JSON-RPC string body")
-        requests.push(JSON.parse(init.body).method)
-        requestSignal = init?.signal
-        started.resolve()
-        return new Promise<Response>((_resolve, reject) => {
-          init?.signal?.addEventListener(
-            "abort",
-            () => reject(new Error("aborted")),
-            { once: true },
-          )
-        })
-      }),
+    const events: string[] = []
+    const rpc = testRpcPrograms("https://unused.invalid", (_url, init) => {
+      if (typeof init.body !== "string")
+        throw new Error("Expected JSON-RPC string body")
+      requests.push(JSON.parse(init.body).method)
+      events.push("block")
+      requestSignal = init?.signal
+      started.resolve()
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener(
+          "abort",
+          () => reject(new Error("aborted")),
+          { once: true },
+        )
+      })
+    })
+    const keys = Effect.runSync(
+      makeMemoryStorage({ "alice.near": PRIVATE_KEY }),
     )
     const tx = transaction(
-      new TransactionBuilder("alice.near", rpc, new InMemoryKeyStore()),
+      new TransactionBuilder("alice.near", {
+        rpc,
+        keyStore: {
+          ...keys,
+          get: (id) =>
+            Effect.andThen(
+              Effect.sync(() => events.push("key")),
+              keys.get(id),
+            ),
+        },
+        nonces: Effect.runSync(makeNonceReservation),
+        ready: Effect.sync(() => {
+          events.push("ready")
+        }),
+      }),
     )
-      .signWith(PRIVATE_KEY)
       .nonce(42n)
       .transfer("bob.near", "1 NEAR")
     const program = tx.send()
     expect(requests).toEqual([])
+    expect(events).toEqual([])
     const controller = new AbortController()
     const running = Effect.runPromiseExit(program, {
       signal: controller.signal,
@@ -144,6 +162,7 @@ describe("Transaction execution ownership", () => {
     await running
     expect(requestSignal?.aborted).toBe(true)
     expect(requests).toEqual(["block"])
+    expect(events).toEqual(["ready", "key", "block"])
     expect(tx.getHash()).toBeNull()
   })
 

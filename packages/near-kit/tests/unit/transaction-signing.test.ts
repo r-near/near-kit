@@ -2,7 +2,7 @@
  * Tests for transaction signing functionality
  */
 
-import { describe, expect, test } from "vitest"
+import { describe, expect, test, vi } from "vitest"
 import type { RpcClient } from "../../src/core/rpc/rpc.js"
 import { testRpcClient } from "../helpers/rpc.js"
 import { TransactionBuilder } from "../../src/core/transaction.js"
@@ -346,12 +346,7 @@ describe("TransactionBuilder - sign and send workflow", () => {
     const keyPair = parseKey(TEST_PRIVATE_KEY)
     await keyStore.add("alice.near", keyPair)
 
-    let signCallCount = 0
-    const originalSign = builder.sign.bind(builder)
-    builder.sign = async () => {
-      signCallCount++
-      return originalSign()
-    }
+    const sign = vi.spyOn(keyPair, "sign")
 
     // Mock sendTransaction
     ;(rpc as unknown as Record<string, unknown>)["sendTransaction"] =
@@ -383,11 +378,11 @@ describe("TransactionBuilder - sign and send workflow", () => {
 
     // Sign then send
     await builder.transfer("bob.near", Amount.NEAR(1)).sign()
-    expect(signCallCount).toBe(1)
+    expect(sign).toHaveBeenCalledTimes(1)
 
     await builder.send()
     // Should not sign again since we used cached tx
-    expect(signCallCount).toBe(1)
+    expect(sign).toHaveBeenCalledTimes(1)
   })
 })
 
