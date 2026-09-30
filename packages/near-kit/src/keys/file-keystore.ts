@@ -1,6 +1,6 @@
 /** File storage compatible with near-cli and near-cli-rs credentials. */
 import { NodeFileSystem } from "@effect/platform-node"
-import { Effect } from "effect"
+import { ConfigProvider, Effect } from "effect"
 import type { KeyPair, KeyStore } from "../core/types.js"
 import { makeFileStorage } from "../effect/file-keystore.js"
 import { runPromise } from "../effect/runtime.js"
@@ -21,6 +21,10 @@ export class FileKeyStore implements KeyStore {
     this.storage = Effect.runSync(
       makeFileStorage({ basePath, ...(network ? { network } : {}) }).pipe(
         Effect.provide(NodeFileSystem.layer),
+        Effect.provideService(
+          ConfigProvider.ConfigProvider,
+          ConfigProvider.fromEnv(),
+        ),
       ),
     )
   }
