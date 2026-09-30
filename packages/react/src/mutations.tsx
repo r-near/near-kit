@@ -1,6 +1,6 @@
 "use client"
 
-import { Effect } from "effect"
+import * as Effect from "effect/Effect"
 import { external, useMutation } from "./effect-state.js"
 
 import type { CallOptions, NearError } from "near-kit"

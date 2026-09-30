@@ -1,7 +1,8 @@
 /** Effect programs and the backwards-compatible Promise boundary. */
-import { Effect, Schema } from "effect"
-import type { ZodError } from "zod"
-import type { NearError } from "../errors/index.js"
+import * as Effect from "effect/Effect"
+import * as Schema from "effect/Schema"
+import { ZodError } from "zod"
+import { NearError } from "../errors/index.js"
 
 /** A failure reported by a Promise-only extension such as a wallet or signer. */
 export class ExternalError extends Schema.TaggedError<ExternalError>()(
@@ -42,3 +43,36 @@ export const fromPromise = <A>(
 
 /** Public operational failures of composed SDK programs. */
 export type NearFailure = NearError | ZodError | ExternalError
+
+/** Expected input/encoding failures, preserving SDK error classes where known. */
+export const inputEffect = <A>(
+  operation: () => A,
+  name: string,
+): Effect.Effect<A, NearFailure> =>
+  Effect.try({
+    try: operation,
+    catch: (cause) =>
+      cause instanceof NearError || cause instanceof ZodError
+        ? cause
+        : new ExternalError({ operation: name, cause }),
+  })
+
+/** A synchronous third-party extension boundary, with a typed original cause. */
+export const fromSync = <A>(
+  operation: () => A,
+  name: string,
+): Effect.Effect<A, ExternalError> =>
+  Effect.try({
+    try: operation,
+    catch: (cause) => new ExternalError({ operation: name, cause }),
+  })
+
+/** Synchronous compatibility edge for constructors and pure state operations. */
+export const runSync = <A, E>(program: Effect.Effect<A, E>): A => {
+  try {
+    return Effect.runSync(program)
+  } catch (failure) {
+    if (failure instanceof ExternalError) throw failure.cause
+    throw failure
+  }
+}

@@ -1,3 +1,4 @@
+import { Effect } from "effect"
 /**
  * Unit tests for Near class constructor refactoring
  *
@@ -5,7 +6,7 @@
  * indirectly through the Near constructor and public API.
  */
 
-import { describe, expect, test } from "vitest"
+import { afterEach, describe, expect, test, vi } from "vitest"
 import { NETWORK_PRESETS } from "../../src/core/constants.js"
 import { Near } from "../../src/core/near.js"
 import type { Signer } from "../../src/core/types.js"
@@ -14,32 +15,46 @@ import { InMemoryKeyStore } from "../../src/keys/index.js"
 import { generateKey } from "../../src/utils/key.js"
 
 describe("Near Constructor - RPC Initialization", () => {
-  test("_initializeRpc: uses default mainnet RPC URL", () => {
-    const near = new Near({ network: "mainnet" })
-    expect(near.rpc["url"]).toBe(NETWORK_PRESETS.mainnet.rpcUrl)
-  })
+  afterEach(() => vi.restoreAllMocks())
 
-  test("_initializeRpc: uses custom RPC URL", () => {
-    const near = new Near({
-      network: "mainnet",
-      rpcUrl: "https://rpc.mainnet.near.org",
-    })
-    expect(near.rpc["url"]).toBe("https://rpc.mainnet.near.org")
-  })
+  test.each([
+    [{ network: "mainnet" }, NETWORK_PRESETS.mainnet.rpcUrl],
+    [{ network: "testnet" }, NETWORK_PRESETS.testnet.rpcUrl],
+    [
+      { network: "mainnet", rpcUrl: "https://rpc.mainnet.near.org" },
+      "https://rpc.mainnet.near.org",
+    ],
+  ] as const)(
+    "routes configured RPC requests to the selected endpoint",
+    async (config, url) => {
+      const request = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(new Response(JSON.stringify({ result: null })))
+      const near = new Near(config)
+      await near.rpc.call("status", [])
+      expect(request).toHaveBeenCalledWith(
+        url,
+        expect.objectContaining({ method: "POST" }),
+      )
+    },
+  )
 
-  test("_initializeRpc: uses testnet RPC URL", () => {
-    const near = new Near({ network: "testnet" })
-    expect(near.rpc["url"]).toBe(NETWORK_PRESETS.testnet.rpcUrl)
-  })
-
-  test("_initializeRpc: accepts custom headers and retry config", () => {
+  test("sends configured headers through the public RPC API", async () => {
+    const request = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(JSON.stringify({ result: null })))
     const near = new Near({
       network: "mainnet",
       headers: { "X-Custom-Header": "value" },
       retryConfig: { maxRetries: 5, initialDelayMs: 200 },
     })
-    // Constructor should not throw
-    expect(near).toBeDefined()
+    await near.rpc.call("status", [])
+    expect(request).toHaveBeenCalledWith(
+      NETWORK_PRESETS.mainnet.rpcUrl,
+      expect.objectContaining({
+        headers: expect.objectContaining({ "X-Custom-Header": "value" }),
+      }),
+    )
   })
 })
 
@@ -158,7 +173,7 @@ describe("Near Constructor - Signer Resolution", () => {
     expect(near["pendingKeyStoreInit"]).toBeDefined()
 
     // After waiting, key should be in keyStore
-    await near["pendingKeyStoreInit"]
+    await Effect.runPromise(near.ready)
 
     const key = await near["keyStore"].get("test.near")
     expect(key).not.toBeNull()

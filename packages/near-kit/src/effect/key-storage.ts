@@ -1,6 +1,8 @@
 /** Ref-owned native key storage; insertion order is part of the Promise API. */
-import { Effect, Ref } from "effect"
+import * as Effect from "effect/Effect"
+import * as Ref from "effect/Ref"
 import type { KeyPair } from "../core/types.js"
+import { inputEffect } from "./runtime.js"
 import { parseKey } from "../utils/key.js"
 
 const without = <K, V>(
@@ -14,14 +16,17 @@ const without = <K, V>(
 
 export const makeMemoryStorage = (initialKeys?: Record<string, string>) =>
   Effect.gen(function* () {
-    const keys = yield* Ref.make<ReadonlyMap<string, KeyPair>>(
-      new Map(
-        Object.entries(initialKeys ?? {}).map(([id, key]) => [
-          id,
-          parseKey(key),
-        ]),
-      ),
+    const initial = yield* inputEffect(
+      () =>
+        new Map(
+          Object.entries(initialKeys ?? {}).map(([id, key]) => [
+            id,
+            parseKey(key),
+          ]),
+        ),
+      "MemoryKeyStore.initialize",
     )
+    const keys = yield* Ref.make<ReadonlyMap<string, KeyPair>>(initial)
     return {
       get: Effect.fn("MemoryKeyStore.get")(function* (id: string) {
         return (yield* Ref.get(keys)).get(id) ?? null
@@ -51,12 +56,17 @@ type RotationState = {
 
 export const makeRotatingStorage = (initialKeys?: Record<string, string[]>) =>
   Effect.gen(function* () {
+    const initial = yield* inputEffect(
+      () =>
+        new Map(
+          Object.entries(initialKeys ?? {})
+            .filter(([, keys]) => keys.length > 0)
+            .map(([id, keys]) => [id, keys.map(parseKey)]),
+        ),
+      "RotatingKeyStore.initialize",
+    )
     const state = yield* Ref.make<RotationState>({
-      keys: new Map(
-        Object.entries(initialKeys ?? {})
-          .filter(([, keys]) => keys.length > 0)
-          .map(([id, keys]) => [id, keys.map(parseKey)]),
-      ),
+      keys: initial,
       counters: new Map(),
     })
     return {

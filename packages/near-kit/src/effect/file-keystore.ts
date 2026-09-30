@@ -1,12 +1,10 @@
 /** Native filesystem storage. Filesystem authority is supplied by a Layer. */
-import {
-  Config,
-  Context,
-  Effect,
-  FileSystem,
-  Layer,
-  PlatformError,
-} from "effect"
+import * as Config from "effect/Config"
+import * as Context from "effect/Context"
+import * as Effect from "effect/Effect"
+import * as FileSystem from "effect/FileSystem"
+import * as Layer from "effect/Layer"
+import * as PlatformError from "effect/PlatformError"
 import type { KeyPair } from "../core/types.js"
 import {
   type CredentialMetadata,
@@ -158,6 +156,7 @@ export const makeFileStorage = Effect.fn("FileStorage.make")(function* (
   })
 })
 
+// oxlint-disable-next-line effecttsgo/lazy-effect -- Kit service operations remain named Effect.fn functions, including zero-argument methods.
 export class FileStorage extends Context.Service<
   FileStorage,
   FileStorageService

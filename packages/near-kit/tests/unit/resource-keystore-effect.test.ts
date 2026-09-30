@@ -1,7 +1,7 @@
 import * as fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
-import { NodeFileSystem } from "@effect/platform-node"
+import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem"
 import { Effect, Layer } from "effect"
 import { afterEach, describe, expect, test, vi } from "vitest"
 import { ZodError } from "zod"

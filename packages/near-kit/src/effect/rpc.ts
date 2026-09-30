@@ -1,5 +1,7 @@
 /** Context-owned native RPC service and explicitly selected HTTP transports. */
-import { Context, Effect, Layer } from "effect"
+import * as Context from "effect/Context"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
 import {
   HttpBody,
   HttpClient,
@@ -14,6 +16,7 @@ import {
 } from "../core/rpc/rpc.js"
 import { isRetryableStatus } from "../core/rpc/rpc-error-handler.js"
 import {
+  aliasRpcPrograms,
   fetchTransport,
   makeRpcPrograms,
   type RpcProgramConfig,
@@ -99,7 +102,10 @@ export class Rpc extends Context.Service<Rpc, RpcService>()("near-kit/Rpc") {
       Effect.gen(function* () {
         const transport = yield* RpcTransport
         const programs = yield* makeRpcPrograms(config, transport)
-        return Rpc.of({ ...programs, client: rpcToPromises(programs) })
+        return aliasRpcPrograms(
+          Rpc.of({ ...programs, client: rpcToPromises(programs) }),
+          programs,
+        )
       }),
     )
   }

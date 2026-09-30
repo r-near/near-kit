@@ -7,7 +7,7 @@
 
 import { describe, expect, test, vi } from "vitest"
 import { Near } from "../../src/core/near.js"
-import { RpcClient } from "../../src/core/rpc/rpc.js"
+import { Effect } from "effect"
 
 describe("Near.view() - Empty Response Handling", () => {
   test("should return undefined when contract returns empty string", async () => {
@@ -16,13 +16,15 @@ describe("Near.view() - Empty Response Handling", () => {
 
     // Mock the RPC client's viewFunction to return empty result
     const mockViewFunction = vi
-      .spyOn(RpcClient.prototype, "viewFunction")
-      .mockResolvedValue({
-        result: [], // Empty byte array
-        logs: [],
-        block_height: 123456,
-        block_hash: "test-hash",
-      })
+      .spyOn(near.rpcEffects, "viewFunction")
+      .mockReturnValue(
+        Effect.succeed({
+          result: [], // Empty byte array
+          logs: [],
+          block_height: 123456,
+          block_hash: "test-hash",
+        }),
+      )
 
     // Call view method - should return undefined for empty response
     const result = await near.view("contract.near", "empty_method", {})
@@ -45,13 +47,15 @@ describe("Near.view() - Empty Response Handling", () => {
     const jsonBytes = new TextEncoder().encode(JSON.stringify(jsonData))
 
     const mockViewFunction = vi
-      .spyOn(RpcClient.prototype, "viewFunction")
-      .mockResolvedValue({
-        result: Array.from(jsonBytes),
-        logs: [],
-        block_height: 123456,
-        block_hash: "test-hash",
-      })
+      .spyOn(near.rpcEffects, "viewFunction")
+      .mockReturnValue(
+        Effect.succeed({
+          result: Array.from(jsonBytes),
+          logs: [],
+          block_height: 123456,
+          block_hash: "test-hash",
+        }),
+      )
 
     const result = await near.view<{ count: number; message: string }>(
       "contract.near",
@@ -73,13 +77,15 @@ describe("Near.view() - Empty Response Handling", () => {
     const textBytes = new TextEncoder().encode(plainText)
 
     const mockViewFunction = vi
-      .spyOn(RpcClient.prototype, "viewFunction")
-      .mockResolvedValue({
-        result: Array.from(textBytes),
-        logs: [],
-        block_height: 123456,
-        block_hash: "test-hash",
-      })
+      .spyOn(near.rpcEffects, "viewFunction")
+      .mockReturnValue(
+        Effect.succeed({
+          result: Array.from(textBytes),
+          logs: [],
+          block_height: 123456,
+          block_hash: "test-hash",
+        }),
+      )
 
     const result = await near.view<string>("contract.near", "get_text", {})
 
@@ -92,13 +98,15 @@ describe("Near.view() - Empty Response Handling", () => {
     const near = new Near({ network: "testnet" })
 
     const mockViewFunction = vi
-      .spyOn(RpcClient.prototype, "viewFunction")
-      .mockResolvedValue({
-        result: [],
-        logs: [],
-        block_height: 123456,
-        block_hash: "test-hash",
-      })
+      .spyOn(near.rpcEffects, "viewFunction")
+      .mockReturnValue(
+        Effect.succeed({
+          result: [],
+          logs: [],
+          block_height: 123456,
+          block_hash: "test-hash",
+        }),
+      )
 
     const result = await near.view("contract.near", "void_method", {})
 
@@ -114,13 +122,15 @@ describe("Near.view() - Empty Response Handling", () => {
     const numberBytes = new TextEncoder().encode(JSON.stringify(number))
 
     const mockViewFunction = vi
-      .spyOn(RpcClient.prototype, "viewFunction")
-      .mockResolvedValue({
-        result: Array.from(numberBytes),
-        logs: [],
-        block_height: 123456,
-        block_hash: "test-hash",
-      })
+      .spyOn(near.rpcEffects, "viewFunction")
+      .mockReturnValue(
+        Effect.succeed({
+          result: Array.from(numberBytes),
+          logs: [],
+          block_height: 123456,
+          block_hash: "test-hash",
+        }),
+      )
 
     const result = await near.view<number>("contract.near", "get_count", {})
 
@@ -136,13 +146,15 @@ describe("Near.view() - Empty Response Handling", () => {
     const nullBytes = new TextEncoder().encode("null")
 
     const mockViewFunction = vi
-      .spyOn(RpcClient.prototype, "viewFunction")
-      .mockResolvedValue({
-        result: Array.from(nullBytes),
-        logs: [],
-        block_height: 123456,
-        block_hash: "test-hash",
-      })
+      .spyOn(near.rpcEffects, "viewFunction")
+      .mockReturnValue(
+        Effect.succeed({
+          result: Array.from(nullBytes),
+          logs: [],
+          block_height: 123456,
+          block_hash: "test-hash",
+        }),
+      )
 
     const result = await near.view<null>("contract.near", "get_null", {})
 
@@ -155,14 +167,14 @@ describe("Near.view() - Empty Response Handling", () => {
     const near = new Near({ network: "testnet" })
 
     // Test empty response -> undefined
-    const mockEmpty = vi
-      .spyOn(RpcClient.prototype, "viewFunction")
-      .mockResolvedValue({
+    const mockEmpty = vi.spyOn(near.rpcEffects, "viewFunction").mockReturnValue(
+      Effect.succeed({
         result: [],
         logs: [],
         block_height: 123456,
         block_hash: "test-hash",
-      })
+      }),
+    )
 
     const emptyResult = await near.view("contract.near", "empty", {})
     expect(emptyResult).toBeUndefined()
@@ -170,14 +182,14 @@ describe("Near.view() - Empty Response Handling", () => {
     mockEmpty.mockRestore()
 
     // Test null response -> null
-    const mockNull = vi
-      .spyOn(RpcClient.prototype, "viewFunction")
-      .mockResolvedValue({
+    const mockNull = vi.spyOn(near.rpcEffects, "viewFunction").mockReturnValue(
+      Effect.succeed({
         result: Array.from(new TextEncoder().encode("null")),
         logs: [],
         block_height: 123456,
         block_hash: "test-hash",
-      })
+      }),
+    )
 
     const nullResult = await near.view("contract.near", "get_null", {})
     expect(nullResult).toBeNull()

@@ -3,7 +3,7 @@ import { watch } from "node:fs"
 import * as fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
-import { NodeServices } from "@effect/platform-node"
+import * as NodeServices from "@effect/platform-node/NodeServices"
 import { Deferred, Effect, Exit, Fiber, FileSystem, Layer, Scope } from "effect"
 import { FetchHttpClient } from "effect/http"
 import { ChildProcessSpawner } from "effect/process"
@@ -114,6 +114,41 @@ const absent = async (directory: string) =>
 const stopped = (pid: number) => expect(() => process.kill(pid, 0)).toThrow()
 
 describe("sandbox scoped resource ownership", () => {
+  test("snapshot loading preserves gas-key and future permission fields", async () => {
+    const fixture = await executable("normal")
+    const sandbox = await Sandbox.start({
+      binaryPath: fixture.binary,
+      detached: false,
+    })
+    const records = [
+      {
+        AccessKey: {
+          account_id: "test.near",
+          public_key: "ed25519:test",
+          access_key: {
+            nonce: 0,
+            permission: {
+              GasKeyFullAccess: {
+                balance: "100",
+                num_nonces: 4,
+                future_field: "preserve",
+              },
+            },
+            future_key_field: 7,
+          },
+        },
+      },
+      { FutureRecord: { value: "keep" } },
+    ]
+    const snapshot = path.join(fixture.directory, "gas-key.json")
+    await fs.writeFile(snapshot, JSON.stringify({ records, timestamp: 1 }))
+    try {
+      expect((await sandbox.loadSnapshot(snapshot)).records).toEqual(records)
+    } finally {
+      await sandbox.stop()
+    }
+  })
+
   // New owner-boundary regression: the old start() leaked its temp home whenever
   // init failed. Existing binary-path tests checked only the rejection message.
   test("removes the temporary home when init fails", async () => {

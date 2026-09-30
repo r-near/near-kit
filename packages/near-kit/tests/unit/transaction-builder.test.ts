@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, test } from "vitest"
-import { RpcClient } from "../../src/core/rpc/rpc.js"
+import { testRpcClient } from "../helpers/rpc.js"
 import { TransactionBuilder } from "../../src/core/transaction.js"
 import { InMemoryKeyStore } from "../../src/keys/index.js"
 import { Amount } from "../../src/utils/amount.js"
@@ -15,7 +15,7 @@ const TEST_PUBLIC_KEY = "ed25519:DcA2MzgpJbrUATQLLceocVckhhAqrkingax4oJ9kZ847"
 
 // Helper to create a transaction builder for testing
 function createBuilder(): TransactionBuilder {
-  const rpc = new RpcClient("https://rpc.testnet.fastnear.com")
+  const rpc = testRpcClient("https://rpc.testnet.fastnear.com")
   const keyStore = new InMemoryKeyStore()
 
   return new TransactionBuilder("alice.near", rpc, keyStore)

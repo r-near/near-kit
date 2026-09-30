@@ -9,44 +9,43 @@ import {
 // invalidation must never repopulate the cache or overwrite a newer chain nonce.
 // Existing tests invalidate only after a fetch has completed.
 describe("NonceReservation in-flight invalidation", () => {
-  test.each([
-    "invalidate",
-    "clear",
-    "advance",
-  ] as const)("%s prevents a stale fetch from replacing newer nonce state", async (operation) => {
-    const manager = Effect.runSync(makeNonceReservation)
-    const pending = Promise.withResolvers<bigint>()
-    const started = Promise.withResolvers<void>()
-    let fetchCount = 0
-    const fetchNonce = () => {
-      fetchCount++
-      if (fetchCount === 1) {
-        started.resolve()
-        return pending.promise
+  test.each(["invalidate", "clear", "advance"] as const)(
+    "%s prevents a stale fetch from replacing newer nonce state",
+    async (operation) => {
+      const manager = Effect.runSync(makeNonceReservation)
+      const pending = Promise.withResolvers<bigint>()
+      const started = Promise.withResolvers<void>()
+      let fetchCount = 0
+      const fetchNonce = () => {
+        fetchCount++
+        if (fetchCount === 1) {
+          started.resolve()
+          return pending.promise
+        }
+        return Promise.resolve(200n)
       }
-      return Promise.resolve(200n)
-    }
-    const first = Effect.runPromise(
-      manager.reserve("alice.near", "key", Effect.promise(fetchNonce)),
-    )
-    await started.promise
-    if (operation === "invalidate")
-      Effect.runSync(manager.invalidate("alice.near", "key"))
-    else if (operation === "clear") Effect.runSync(manager.clear())
-    else
-      expect(
-        Effect.runSync(manager.updateAndGetNext("alice.near", "key", 500n)),
-      ).toBe(501n)
-    const second = Effect.runPromise(
-      manager.reserve("alice.near", "key", Effect.promise(fetchNonce)),
-    )
-    pending.resolve(100n)
-    const reserved = await Promise.all([first, second])
-    expect(reserved.sort((a, b) => Number(a - b))).toEqual(
-      operation === "advance" ? [502n, 503n] : [201n, 202n],
-    )
-    expect(fetchCount).toBe(operation === "advance" ? 1 : 2)
-  })
+      const first = Effect.runPromise(
+        manager.reserve("alice.near", "key", Effect.promise(fetchNonce)),
+      )
+      await started.promise
+      if (operation === "invalidate")
+        Effect.runSync(manager.invalidate("alice.near", "key"))
+      else if (operation === "clear") Effect.runSync(manager.clear())
+      else
+        expect(
+          Effect.runSync(manager.updateAndGetNext("alice.near", "key", 500n)),
+        ).toBe(501n)
+      const second = Effect.runPromise(
+        manager.reserve("alice.near", "key", Effect.promise(fetchNonce)),
+      )
+      pending.resolve(100n)
+      const reserved = await Promise.all([first, second])
+      expect(reserved.sort((a, b) => Number(a - b))).toEqual(
+        operation === "advance" ? [502n, 503n] : [201n, 202n],
+      )
+      expect(fetchCount).toBe(operation === "advance" ? 1 : 2)
+    },
+  )
 })
 
 // An interrupted lookup must release its per-key permit without cancelling

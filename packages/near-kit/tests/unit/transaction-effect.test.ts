@@ -1,7 +1,8 @@
 import { sha256 } from "@noble/hashes/sha2.js"
 import { Effect } from "effect"
 import { describe, expect, expectTypeOf, test, vi } from "vitest"
-import { RpcClient } from "../../src/core/rpc/rpc.js"
+import { rpcToPromises } from "../../src/core/rpc/rpc.js"
+import { testRpcClient, testRpcPrograms } from "../helpers/rpc.js"
 import {
   type DelegateActionResult,
   TransactionBuilder,
@@ -17,7 +18,7 @@ const PRIVATE_KEY =
   "ed25519:3D4YudUahN1nawWogh8pAKSj92sUNMdbZGjn7kERKzYoTy8oryFtvLGoBnu1J6N4qVWY9jXwfLiNWnaTzKkHNfqG"
 
 function setup() {
-  const rpc = new RpcClient("https://unused.invalid")
+  const rpc = { ...testRpcClient("https://unused.invalid") }
   rpc.getBlock = async () =>
     ({ header: { hash: "11111111111111111111111111111111" } }) as never
   rpc.call = async () => ({ nonces: [10, 20, 30, 40, 50] }) as never
@@ -47,20 +48,25 @@ describe("Effect-native transaction wire compatibility", () => {
       "HVnTQVLTyiavPU99oPw7Myv7YkoYtaj4kX5zKVM57uNr",
       "2bd8dca582cc982507027f172a94976a5e8743db417217b579817d252ecb8020",
     ],
-  ] as const)("%s preserves signed bytes and shares the Promise facade cache", async (mode, hash, wireDigest) => {
-    const { builder } = setup()
-    const tx = transaction(builder).nonce(42n).transfer("bob.near", "1 NEAR")
-    if (mode === "strict") tx.strictNonceMode()
-    if (mode === "gas") tx.useGasKey(4)
-    expect(tx.getHash()).toBeNull()
-    expect(await Effect.runPromise(tx.sign())).toBe(tx)
-    expect(tx.getHash()).toBe(hash)
-    expect(Buffer.from(sha256(tx.serialize())).toString("hex")).toBe(wireDigest)
-    // A second facade sign must use the same committed bytes, not allocate or
-    // sign again, and the native view must expose that identical shared state.
-    await builder.sign()
-    expect(builder.serialize()).toEqual(tx.serialize())
-  })
+  ] as const)(
+    "%s preserves signed bytes and shares the Promise facade cache",
+    async (mode, hash, wireDigest) => {
+      const { builder } = setup()
+      const tx = transaction(builder).nonce(42n).transfer("bob.near", "1 NEAR")
+      if (mode === "strict") tx.strictNonceMode()
+      if (mode === "gas") tx.useGasKey(4)
+      expect(tx.getHash()).toBeNull()
+      expect(await Effect.runPromise(tx.sign())).toBe(tx)
+      expect(tx.getHash()).toBe(hash)
+      expect(Buffer.from(sha256(tx.serialize())).toString("hex")).toBe(
+        wireDigest,
+      )
+      // A second facade sign must use the same committed bytes, not allocate or
+      // sign again, and the native view must expose that identical shared state.
+      await builder.sign()
+      expect(builder.serialize()).toEqual(tx.serialize())
+    },
+  )
 
   test.each([
     [
@@ -71,19 +77,22 @@ describe("Effect-native transaction wire compatibility", () => {
       "delegateV2",
       "86f3246de20c1a20696ef765e344320961a1f512deb3143c0a9f944406382dc5",
     ],
-  ] as const)("%s preserves its domain-separated payload", async (mode, digest) => {
-    const tx = transaction(setup().builder).transfer("bob.near", "1 NEAR")
-    const options = {
-      nonce: 42n,
-      maxBlockHeight: 200n,
-      payloadFormat: "bytes" as const,
-    }
-    const result =
-      mode === "delegate"
-        ? await Effect.runPromise(tx.delegate(options))
-        : await Effect.runPromise(tx.delegateV2(options))
-    expect(Buffer.from(sha256(result.payload)).toString("hex")).toBe(digest)
-  })
+  ] as const)(
+    "%s preserves its domain-separated payload",
+    async (mode, digest) => {
+      const tx = transaction(setup().builder).transfer("bob.near", "1 NEAR")
+      const options = {
+        nonce: 42n,
+        maxBlockHeight: 200n,
+        payloadFormat: "bytes" as const,
+      }
+      const result =
+        mode === "delegate"
+          ? await Effect.runPromise(tx.delegate(options))
+          : await Effect.runPromise(tx.delegateV2(options))
+      expect(Buffer.from(sha256(result.payload)).toString("hex")).toBe(digest)
+    },
+  )
 
   test("keeps generic delegate payload inference", () => {
     const tx = transaction(setup().builder).transfer("bob.near", "1 NEAR")
@@ -101,10 +110,11 @@ describe("Transaction execution ownership", () => {
     const started = Promise.withResolvers<void>()
     let requestSignal: AbortSignal | null | undefined
     const requests: string[] = []
-    const rpc = RpcClient.withTransport(
-      "https://unused.invalid",
-      (_url, init) => {
-        requests.push(JSON.parse(String(init?.body)).method)
+    const rpc = rpcToPromises(
+      testRpcPrograms("https://unused.invalid", (_url, init) => {
+        if (typeof init.body !== "string")
+          throw new Error("Expected JSON-RPC string body")
+        requests.push(JSON.parse(init.body).method)
         requestSignal = init?.signal
         started.resolve()
         return new Promise<Response>((_resolve, reject) => {
@@ -114,7 +124,7 @@ describe("Transaction execution ownership", () => {
             { once: true },
           )
         })
-      },
+      }),
     )
     const tx = transaction(
       new TransactionBuilder("alice.near", rpc, new InMemoryKeyStore()),

@@ -1,5 +1,7 @@
 /** Operating-system keyrings have no Effect-native backend; this is the FFI boundary. */
-import { Context, Effect, Layer } from "effect"
+import * as Context from "effect/Context"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
 import type { KeyPair } from "../core/types.js"
 import {
   type CredentialMetadata,
@@ -83,6 +85,7 @@ export const makeNativeStorage = Effect.fn("NativeStorage.make")(function* (
   })
 })
 
+// oxlint-disable-next-line effecttsgo/lazy-effect -- Kit service operations remain named Effect.fn functions, including zero-argument methods.
 export class NativeStorage extends Context.Service<
   NativeStorage,
   NativeStorageService

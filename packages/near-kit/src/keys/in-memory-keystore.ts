@@ -1,4 +1,4 @@
-import { Effect } from "effect"
+import * as Effect from "effect/Effect"
 /**
  * In-memory key store implementation.
  */
@@ -8,6 +8,7 @@ import {
   type ExternalError,
   fromPromise,
   runPromise,
+  runSync,
 } from "../effect/runtime.js"
 
 /**
@@ -44,7 +45,7 @@ export class InMemoryKeyStore implements KeyStore {
    * ```
    */
   constructor(initialKeys?: Record<string, string>) {
-    this.storage = Effect.runSync(makeMemoryStorage(initialKeys))
+    this.storage = runSync(makeMemoryStorage(initialKeys))
   }
 
   /**
@@ -148,9 +149,12 @@ export class InMemoryKeyStore implements KeyStore {
 
 // Preserve supported Promise-method overrides without crossing a runtime boundary
 // in the built-in Effect implementation.
+// oxlint-disable typescript/unbound-method -- Compared by identity to honor user overrides; never invoked unbound.
 const originalMethods = {
   add: InMemoryKeyStore.prototype.add,
   get: InMemoryKeyStore.prototype.get,
   remove: InMemoryKeyStore.prototype.remove,
   list: InMemoryKeyStore.prototype.list,
 }
+
+// oxlint-enable typescript/unbound-method

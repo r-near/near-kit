@@ -13,18 +13,17 @@ describe("Effect compatibility boundary", () => {
     await expect(runPromise(Effect.fail(failure))).rejects.toBe(failure)
   })
 
-  test.each([
-    new Error("wallet rejected"),
-    "rejected",
-    undefined,
-  ])("exposes a typed extension failure natively and its exact rejection through the facade: %s", async (failure) => {
-    const program = fromPromise(() => Promise.reject(failure), "wallet.sign")
-    const native = await Effect.runPromise(Effect.flip(program))
-    expect(native).toBeInstanceOf(ExternalError)
-    expect(native.operation).toBe("wallet.sign")
-    expect(native.cause).toBe(failure)
-    await expect(runPromise(program)).rejects.toBe(failure)
-  })
+  test.each([new Error("wallet rejected"), "rejected", undefined])(
+    "exposes a typed extension failure natively and its exact rejection through the facade: %s",
+    async (failure) => {
+      const program = fromPromise(() => Promise.reject(failure), "wallet.sign")
+      const native = await Effect.runPromise(Effect.flip(program))
+      expect(native).toBeInstanceOf(ExternalError)
+      expect(native.operation).toBe("wallet.sign")
+      expect(native.cause).toBe(failure)
+      await expect(runPromise(program)).rejects.toBe(failure)
+    },
+  )
 
   test("interrupts a cooperative external operation and waits for scoped cleanup", async () => {
     const controller = new AbortController()

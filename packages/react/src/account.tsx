@@ -1,6 +1,6 @@
 "use client"
 
-import { Effect } from "effect"
+import * as Effect from "effect/Effect"
 import { useMemo } from "react"
 import { external, useQuery } from "./effect-state.js"
 

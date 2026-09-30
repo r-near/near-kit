@@ -1,4 +1,4 @@
-import { Effect } from "effect"
+import * as Effect from "effect/Effect"
 /**
  * Rotating key store implementation for concurrent transaction handling.
  */
@@ -8,6 +8,7 @@ import {
   type ExternalError,
   fromPromise,
   runPromise,
+  runSync,
 } from "../effect/runtime.js"
 
 /**
@@ -90,7 +91,7 @@ export class RotatingKeyStore implements KeyStore {
    * ```
    */
   constructor(initialKeys?: Record<string, string[]>) {
-    this.storage = Effect.runSync(makeRotatingStorage(initialKeys))
+    this.storage = runSync(makeRotatingStorage(initialKeys))
   }
 
   /**
@@ -326,6 +327,7 @@ export class RotatingKeyStore implements KeyStore {
 
 // Preserve supported Promise-method overrides without crossing a runtime boundary
 // in the built-in Effect implementation.
+// oxlint-disable typescript/unbound-method -- Compared by identity to honor user overrides; never invoked unbound.
 const originalMethods = {
   get: RotatingKeyStore.prototype.get,
   add: RotatingKeyStore.prototype.add,
@@ -333,3 +335,5 @@ const originalMethods = {
   list: RotatingKeyStore.prototype.list,
   getAll: RotatingKeyStore.prototype.getAll,
 }
+
+// oxlint-enable typescript/unbound-method

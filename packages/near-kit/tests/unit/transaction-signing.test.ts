@@ -3,7 +3,8 @@
  */
 
 import { describe, expect, test } from "vitest"
-import { RpcClient } from "../../src/core/rpc/rpc.js"
+import type { RpcClient } from "../../src/core/rpc/rpc.js"
+import { testRpcClient } from "../helpers/rpc.js"
 import { TransactionBuilder } from "../../src/core/transaction.js"
 import { InMemoryKeyStore } from "../../src/keys/index.js"
 import { Amount } from "../../src/utils/amount.js"
@@ -20,7 +21,7 @@ function createBuilderWithMocks(): {
   rpc: RpcClient
   keyStore: InMemoryKeyStore
 } {
-  const rpc = new RpcClient("https://rpc.testnet.fastnear.com")
+  const rpc = { ...testRpcClient("https://rpc.testnet.fastnear.com") }
   const keyStore = new InMemoryKeyStore()
 
   // Mock RPC methods to avoid network calls

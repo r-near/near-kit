@@ -3,7 +3,7 @@
  * Parses NEAR RPC errors and throws appropriate typed exceptions
  */
 
-import { Schema } from "effect"
+import * as Schema from "effect/Schema"
 import { RpcErrorResponseSchema } from "../../effect/protocol-schemas.js"
 import {
   AccessKeyDoesNotExistError,
@@ -571,8 +571,7 @@ export function parseRpcError(error: unknown, statusCode?: number): never {
   }
 }
 
-/** Render primitive references directly and retain structure for malformed node details. */
+/** Preserve the historical public error-message coercion, including nested objects. */
 function displayRpcValue(value: unknown): string {
-  if (value !== null && typeof value === "object") return JSON.stringify(value)
   return String(value)
 }

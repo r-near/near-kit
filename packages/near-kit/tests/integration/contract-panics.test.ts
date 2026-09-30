@@ -340,7 +340,7 @@ describe("Contract Failure Modes", () => {
     })
 
     test("should not throw error for view function call", async () => {
-      const count = await near.view(contractId, "total_messages", {})
+      const count = await near.view<number>(contractId, "total_messages", {})
 
       expect(count).toBeDefined()
       expect(typeof count).toBe("number")

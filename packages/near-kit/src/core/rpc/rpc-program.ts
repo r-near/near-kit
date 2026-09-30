@@ -1,14 +1,13 @@
+import { inputEffect } from "../../effect/runtime.js"
 import { base58, base64 } from "@scure/base"
-import {
-  Config,
-  Console,
-  Effect,
-  Option,
-  Ref,
-  Schedule,
-  Schema,
-  Stream,
-} from "effect"
+import * as Config from "effect/Config"
+import * as Console from "effect/Console"
+import * as Effect from "effect/Effect"
+import * as Option from "effect/Option"
+import * as Ref from "effect/Ref"
+import * as Schedule from "effect/Schedule"
+import * as Schema from "effect/Schema"
+import * as Stream from "effect/Stream"
 import type { z } from "zod"
 import * as Protocol from "../../effect/protocol-schemas.js"
 import { ExternalError } from "../../effect/runtime.js"
@@ -191,16 +190,39 @@ export const makeRpcProgramsUnsafe = (
   transport: RpcTransportService,
 ): RpcPrograms => programsWithState(config, transport, Ref.makeUnsafe(0))
 
+const programFactories = new WeakMap<
+  RpcPrograms,
+  (call: RpcPrograms["call"]) => RpcPrograms
+>()
+
+/** Derive native middleware without replacing request-id ownership. */
+export const withRpcCall = (
+  programs: RpcPrograms,
+  call: RpcPrograms["call"],
+): RpcPrograms =>
+  programFactories.get(programs)?.(call) ?? { ...programs, call }
+
+/** Preserve construction metadata when exposing one native service under a tag. */
+export const aliasRpcPrograms = <A extends RpcPrograms>(
+  alias: A,
+  original: RpcPrograms,
+): A => {
+  const factory = programFactories.get(original)
+  if (factory) programFactories.set(alias, factory)
+  return alias
+}
+
 function programsWithState(
   config: RpcProgramConfig,
   transport: RpcTransportService,
   requestIds: Ref.Ref<number>,
+  callOverride?: RpcPrograms["call"],
 ): RpcPrograms {
   const retryConfig: RpcRetryConfig = {
     maxRetries: config.retry?.maxRetries ?? 4,
     initialDelayMs: config.retry?.initialDelayMs ?? 1000,
   }
-  const call = Effect.fn("Rpc.call")(function* <T = unknown>(
+  const rawCall = Effect.fn("Rpc.call")(function* <T = unknown>(
     method: string,
     params: unknown,
   ): Effect.fn.Return<T, RpcFailure> {
@@ -250,6 +272,8 @@ function programsWithState(
     )
   })
 
+  const call = callOverride ?? rawCall
+
   const query = Effect.fn("Rpc.query")(function* <T = unknown>(
     path: string,
     data: string | Uint8Array,
@@ -257,7 +281,10 @@ function programsWithState(
     return yield* call<T>("query", {
       request_type: path,
       finality: "final",
-      args_base64: typeof data === "string" ? data : base64.encode(data),
+      args_base64:
+        typeof data === "string"
+          ? data
+          : yield* inputEffect(() => base64.encode(data), "Rpc.query.encoding"),
     })
   })
 
@@ -267,11 +294,15 @@ function programsWithState(
     args: unknown = {},
     options?: BlockReference,
   ): Effect.fn.Return<ViewFunctionCallResult, RpcFailure> {
-    const argsBytes =
-      args instanceof Uint8Array
-        ? args
-        : new TextEncoder().encode(JSON.stringify(args))
-    const argsBase64 = base64.encode(argsBytes)
+    const argsBase64 = yield* inputEffect(
+      () =>
+        base64.encode(
+          args instanceof Uint8Array
+            ? args
+            : new TextEncoder().encode(JSON.stringify(args)),
+        ),
+      "Rpc.viewFunction.arguments",
+    )
     const result = yield* call("query", {
       request_type: "call_function",
       ...(options?.blockId
@@ -333,16 +364,19 @@ function programsWithState(
       contract: GlobalContractReference,
       options?: BlockReference,
     ): Effect.fn.Return<ContractCodeView, RpcFailure> {
-      const request =
-        "accountId" in contract
-          ? {
-              request_type: "view_global_contract_code_by_account_id",
-              account_id: contract.accountId,
-            }
-          : {
-              request_type: "view_global_contract_code",
-              code_hash: normalizeCodeHash(contract.codeHash),
-            }
+      const request = yield* inputEffect(
+        () =>
+          "accountId" in contract
+            ? {
+                request_type: "view_global_contract_code_by_account_id",
+                account_id: contract.accountId,
+              }
+            : {
+                request_type: "view_global_contract_code",
+                code_hash: normalizeCodeHash(contract.codeHash),
+              },
+        "Rpc.globalContract.reference",
+      )
       const result = yield* call("query", {
         ...request,
         ...(options?.blockId
@@ -452,7 +486,10 @@ function programsWithState(
     waitUntil?: W,
   ): Effect.fn.Return<FinalExecutionOutcomeMap[W], RpcFailure> {
     const actualWaitUntil = (waitUntil ?? "EXECUTED_OPTIMISTIC") as W
-    const base64Encoded = base64.encode(signedTransaction)
+    const base64Encoded = yield* inputEffect(
+      () => base64.encode(signedTransaction),
+      "Rpc.sendTransaction.encoding",
+    )
     // Use send_tx with wait_until parameter instead of deprecated broadcast_tx_commit
     const result = yield* call("send_tx", {
       signed_tx_base64: base64Encoded,
@@ -795,6 +832,9 @@ function programsWithState(
     maintenanceWindows,
     viewStateAll,
   }
+  programFactories.set(programs, (call) =>
+    programsWithState(config, transport, requestIds, call),
+  )
   return programs
 }
 

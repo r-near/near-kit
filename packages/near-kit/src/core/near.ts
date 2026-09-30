@@ -1,28 +1,34 @@
+import { makeNearPrograms, type NearPrograms } from "../effect/near-program.js"
 /**
  * Main NEAR client class
  */
 
-import { base64 } from "@scure/base"
+import * as Effect from "effect/Effect"
+import * as Fiber from "effect/Fiber"
+import { keyStoreService } from "../effect/keys.js"
 import type { ContractMethods } from "../contracts/contract.js"
 import { createContract } from "../contracts/contract.js"
+import type { NonceReservationService } from "../effect/nonce.js"
 import {
-  AccountDoesNotExistError,
-  GlobalContractNotFoundError,
-  NearError,
-} from "../errors/index.js"
+  fromPromise,
+  runPromise,
+  type ExternalError,
+  type NearFailure,
+} from "../effect/runtime.js"
 import { InMemoryKeyStore } from "../keys/index.js"
-import { formatAmount } from "../utils/amount.js"
 import { parseKey } from "../utils/key.js"
-import { generateNonce } from "../utils/nep413.js"
-import type { Amount, Gas } from "../utils/validation.js"
+import type { Amount } from "../utils/validation.js"
 import {
-  type BlockReference,
-  type NearConfig,
   NearConfigSchema,
   resolveNetworkConfig,
+  type BlockReference,
+  type NearConfig,
 } from "./config-schemas.js"
-import { STORAGE_AMOUNT_PER_BYTE } from "./constants.js"
-import { RpcClient } from "./rpc/rpc.js"
+import {
+  fetchTransport,
+  makeRpcProgramsUnsafe,
+  type RpcPrograms,
+} from "./rpc/rpc-program.js"
 import type {
   AccessKeyListResponse,
   AccessKeyView,
@@ -32,6 +38,7 @@ import type {
   StatusResponse,
   ViewStateResult,
 } from "./rpc/rpc-schemas.js"
+import { rpcFromPromises, rpcToPromises, type RpcClient } from "./rpc/rpc.js"
 import { TransactionBuilder } from "./transaction.js"
 import type {
   AccountState,
@@ -58,19 +65,30 @@ import type {
  * wallets, and retry behavior. For a guided overview see
  * `docs/01-getting-started.md` and `docs/02-core-concepts.md`.
  */
+export interface NearRuntime {
+  readonly rpc?: RpcPrograms
+  readonly nonceReservation?: NonceReservationService
+  readonly deferInitialization?: boolean
+}
+
 export class Near {
+  private nativeRpc!: RpcPrograms
+  private readonly nonceReservation: NonceReservationService | undefined
+  private readonly programs: NearPrograms
+  private readonly publicPrograms: NearEffects
   private _rpc!: RpcClient
   private keyStore!: KeyStore
   private signer?: Signer
   private wallet?: WalletConnection
   private defaultSignerId?: string
   private defaultWaitUntil: TxExecutionStatus
-  private pendingKeyStoreInit?: Promise<void>
+  private pendingKeyStoreInit?: Effect.Effect<void, ExternalError>
 
-  constructor(config: NearConfig = {}) {
+  constructor(config: NearConfig = {}, runtime?: NearRuntime) {
     const validatedConfig = NearConfigSchema.parse(config)
 
-    this._initializeRpc(validatedConfig)
+    this.nonceReservation = runtime?.nonceReservation
+    this._initializeRpc(validatedConfig, runtime?.rpc)
     this._resolveKeyStore(validatedConfig)
     this._resolveSigner(validatedConfig, config)
 
@@ -80,6 +98,23 @@ export class Near {
     this.defaultWaitUntil =
       validatedConfig.defaultWaitUntil || "EXECUTED_OPTIMISTIC"
     this.wallet = validatedConfig.wallet
+    if (this.pendingKeyStoreInit) {
+      const initialization = Effect.runSync(
+        Effect.cached(this.pendingKeyStoreInit),
+      )
+      this.pendingKeyStoreInit = runtime?.deferInitialization
+        ? initialization
+        : Fiber.join(Effect.runFork(initialization))
+    }
+    this.programs = makeNearPrograms({
+      rpc: this.nativeRpc,
+      keyStore: this.keyStore,
+      wallet: this.wallet,
+      defaultSignerId: this.defaultSignerId,
+      transaction: (id) => this.transaction(id),
+      ready: () => this.ensureKeyStoreReadyEffect(),
+    })
+    this.publicPrograms = publicNearPrograms(this, this.programs)
   }
 
   /**
@@ -101,20 +136,41 @@ export class Near {
     return this._rpc
   }
 
+  /** Canonical native programs shared by the optional Effect entrypoint. */
+  get effects(): NearEffects {
+    return this.publicPrograms
+  }
+
+  get rpcEffects(): RpcPrograms {
+    return this.nativeRpc
+  }
+
   /**
    * Initialize RPC client from configuration
    * @internal
    */
   private _initializeRpc(
     validatedConfig: ReturnType<typeof NearConfigSchema.parse>,
+    programs?: RpcPrograms,
   ): void {
     const networkConfig = resolveNetworkConfig(validatedConfig.network)
     const rpcUrl = validatedConfig.rpcUrl || networkConfig.rpcUrl
-    this._rpc = new RpcClient(
-      rpcUrl,
-      validatedConfig.headers,
-      validatedConfig.retryConfig,
-    )
+    this.nativeRpc =
+      programs ??
+      makeRpcProgramsUnsafe(
+        {
+          url: rpcUrl,
+          ...(validatedConfig.headers
+            ? { headers: validatedConfig.headers }
+            : {}),
+          ...(validatedConfig.retryConfig
+            ? { retry: validatedConfig.retryConfig }
+            : {}),
+        },
+        fetchTransport((url, init) => globalThis.fetch(url, init)),
+      )
+    this._rpc = rpcToPromises(this.nativeRpc)
+    this.nativeRpc = rpcFromPromises(this._rpc)
   }
 
   /**
@@ -167,9 +223,12 @@ export class Near {
       }
 
       // Add the key to keyStore if we have an account ID
-      // Store the promise to ensure async keystores complete initialization
+      // Native initialization is shared by concurrent signing operations
       if (accountId) {
-        this.pendingKeyStoreInit = this.keyStore.add(accountId, keyPair)
+        this.pendingKeyStoreInit = keyStoreService(this.keyStore).add(
+          accountId,
+          keyPair,
+        )
       }
     }
 
@@ -189,8 +248,8 @@ export class Near {
           typeof rootAccount.rootAccount.secretKey === "string"
         ) {
           const keyPair = parseKey(rootAccount.rootAccount.secretKey)
-          // Store the promise to ensure async keystores complete initialization
-          this.pendingKeyStoreInit = this.keyStore.add(
+          // Native initialization is shared by concurrent signing operations
+          this.pendingKeyStoreInit = keyStoreService(this.keyStore).add(
             rootAccount.rootAccount.id,
             keyPair,
           )
@@ -203,11 +262,18 @@ export class Near {
    * Ensure any pending keystore initialization is complete
    * @internal
    */
-  private async ensureKeyStoreReady(): Promise<void> {
-    if (this.pendingKeyStoreInit) {
-      await this.pendingKeyStoreInit
-      delete this.pendingKeyStoreInit
-    }
+  private ensureKeyStoreReady(): Promise<void> {
+    return runPromise(this.ensureKeyStoreReadyEffect())
+  }
+
+  /** Effect-native ensureKeyStoreReady operation. */
+  private ensureKeyStoreReadyEffect(): Effect.Effect<void, ExternalError> {
+    return this.pendingKeyStoreInit ?? Effect.void
+  }
+
+  /** Wait for configured keys to finish initialization in the caller's fiber. */
+  get ready(): Effect.Effect<void, ExternalError> {
+    return this.ensureKeyStoreReadyEffect()
   }
 
   /**
@@ -239,29 +305,8 @@ export class Near {
    * Get signer ID from options, default, or wallet
    * @internal
    */
-  private async getSignerId(signerId?: string): Promise<string> {
-    if (signerId) return signerId
-    if (this.defaultSignerId) return this.defaultSignerId
 
-    // Get from wallet if available
-    if (this.wallet) {
-      const accounts = await this.wallet.getAccounts()
-      if (accounts.length === 0) {
-        throw new NearError(
-          "No accounts connected to wallet",
-          "NO_WALLET_ACCOUNTS",
-        )
-      }
-      // Safe to use non-null assertion after length check
-      // biome-ignore lint/style/noNonNullAssertion: verified accounts[0] exists above
-      return accounts[0]!.accountId
-    }
-
-    throw new NearError(
-      "No signer ID provided. Set signerId in options or config.",
-      "MISSING_SIGNER",
-    )
-  }
+  /** Effect-native getSignerId operation. */
 
   /**
    * Call a view function on a contract (read-only, no gas).
@@ -283,32 +328,15 @@ export class Near {
    *
    * @see NearConfig.defaultWaitUntil
    */
-  async view<T = unknown>(
+  view<T = unknown>(
     contractId: string,
     methodName: string,
     args: object | Uint8Array = {},
     options?: BlockReference,
   ): Promise<T | undefined> {
-    const result = await this._rpc.viewFunction(
-      contractId,
-      methodName,
-      args,
-      options,
+    return runPromise(
+      this.programs.view<T>(contractId, methodName, args, options),
     )
-
-    // Decode result
-    const resultBuffer = new Uint8Array(result.result)
-    const resultString = new TextDecoder().decode(resultBuffer)
-
-    if (!resultString) {
-      return undefined
-    }
-
-    try {
-      return JSON.parse(resultString) as T
-    } catch {
-      return resultString as T
-    }
   }
 
   /**
@@ -339,34 +367,15 @@ export class Near {
    * )
    * ```
    */
-  async call<T = FinalExecutionOutcome>(
+  call<T = FinalExecutionOutcome>(
     contractId: string,
     methodName: string,
     args: object | Uint8Array = {},
     options: CallOptions = {},
   ): Promise<T> {
-    const signerId = await this.getSignerId(options.signerId)
-
-    const functionCallOptions: {
-      gas?: Gas
-      attachedDeposit?: Amount
-    } = {}
-    if (options.gas !== undefined) {
-      functionCallOptions.gas = options.gas
-    }
-    if (options.attachedDeposit !== undefined) {
-      functionCallOptions.attachedDeposit = options.attachedDeposit
-    }
-
-    const sendOptions = options.waitUntil
-      ? { waitUntil: options.waitUntil }
-      : {}
-
-    const result = await this.transaction(signerId)
-      .functionCall(contractId, methodName, args, functionCallOptions)
-      .send(sendOptions)
-
-    return result as T
+    return runPromise(
+      this.programs.call<T>(contractId, methodName, args, options),
+    )
   }
 
   /**
@@ -385,13 +394,8 @@ export class Near {
    * This is a convenience wrapper over {@link Near.transaction} with a single
    * `transfer` action.
    */
-  async send(
-    receiverId: string,
-    amount: Amount,
-  ): Promise<FinalExecutionOutcome> {
-    const signerId = await this.getSignerId()
-
-    return await this.transaction(signerId).transfer(receiverId, amount).send()
+  send(receiverId: string, amount: Amount): Promise<FinalExecutionOutcome> {
+    return runPromise(this.programs.send(receiverId, amount))
   }
 
   /**
@@ -429,48 +433,11 @@ export class Near {
    * })
    * ```
    */
-  async signMessage(
+  signMessage(
     params: SignMessageParams | Omit<SignMessageParams, "nonce">,
     options?: { signerId?: string },
   ): Promise<SignedMessage> {
-    const signerId = await this.getSignerId(options?.signerId)
-
-    // Add nonce if not provided
-    const fullParams: SignMessageParams = {
-      ...params,
-      nonce: "nonce" in params ? params.nonce : generateNonce(),
-    }
-
-    // Try wallet first if available
-    if (this.wallet?.signMessage) {
-      try {
-        return await this.wallet.signMessage(fullParams)
-      } catch (error) {
-        // Fall through to keystore if wallet doesn't support it
-        console.warn("Wallet signMessage failed, trying keystore:", error)
-      }
-    }
-
-    // Use keystore approach
-    // Ensure any pending keystore initialization is complete
-    await this.ensureKeyStoreReady()
-
-    const keyPair = await this.keyStore.get(signerId)
-    if (!keyPair) {
-      throw new NearError(
-        `No key found for account ${signerId}. Add a key using keyStore.add() or configure a wallet.`,
-        "NO_KEY_FOUND",
-      )
-    }
-
-    if (!keyPair.signNep413Message) {
-      throw new NearError(
-        "Key pair does not support NEP-413 message signing",
-        "UNSUPPORTED_OPERATION",
-      )
-    }
-
-    return keyPair.signNep413Message(signerId, fullParams)
+    return runPromise(this.programs.signMessage(params, options))
   }
 
   /**
@@ -482,28 +449,6 @@ export class Near {
    *
    * @internal
    */
-  private calculateAvailableBalance(
-    amount: string,
-    locked: string,
-    storageUsage: number,
-  ): bigint {
-    const amountBigInt = BigInt(amount)
-    const lockedBigInt = BigInt(locked)
-    const storageRequired = STORAGE_AMOUNT_PER_BYTE * BigInt(storageUsage)
-
-    // If staked >= storage requirement, all liquid balance is available
-    if (lockedBigInt >= storageRequired) {
-      return amountBigInt
-    }
-
-    // Otherwise, some liquid balance is reserved for storage
-    const reservedForStorage = storageRequired - lockedBigInt
-    if (reservedForStorage >= amountBigInt) {
-      return BigInt(0)
-    }
-
-    return amountBigInt - reservedForStorage
-  }
 
   /**
    * Get the available (spendable) balance for an account in NEAR.
@@ -531,22 +476,8 @@ export class Near {
    * console.log(`Can spend: ${available} NEAR`)
    * ```
    */
-  async getBalance(
-    accountId: string,
-    options?: BlockReference,
-  ): Promise<string> {
-    const account = await this._rpc.getAccount(accountId, options)
-
-    const available = this.calculateAvailableBalance(
-      account.amount,
-      account.locked,
-      account.storage_usage,
-    )
-
-    return formatAmount(available.toString(), {
-      precision: 2,
-      includeSuffix: false,
-    })
+  getBalance(accountId: string, options?: BlockReference): Promise<string> {
+    return runPromise(this.programs.getBalance(accountId, options))
   }
 
   /**
@@ -573,48 +504,11 @@ export class Near {
    * console.log(`Has contract: ${account.hasContract}`)
    * ```
    */
-  async getAccount(
+  getAccount(
     accountId: string,
     options?: BlockReference,
   ): Promise<AccountState> {
-    const account = await this._rpc.getAccount(accountId, options)
-
-    const available = this.calculateAvailableBalance(
-      account.amount,
-      account.locked,
-      account.storage_usage,
-    )
-
-    const storageRequired =
-      STORAGE_AMOUNT_PER_BYTE * BigInt(account.storage_usage)
-
-    // Code hash for accounts without contracts
-    const emptyCodeHash = "11111111111111111111111111111111"
-
-    return {
-      balance: formatAmount(account.amount, {
-        precision: 2,
-        includeSuffix: false,
-      }),
-      available: formatAmount(available.toString(), {
-        precision: 2,
-        includeSuffix: false,
-      }),
-      staked: formatAmount(account.locked, {
-        precision: 2,
-        includeSuffix: false,
-      }),
-      storageUsage: formatAmount(storageRequired.toString(), {
-        precision: 4,
-        includeSuffix: false,
-      }),
-      storageBytes: account.storage_usage,
-      hasContract:
-        account.code_hash !== emptyCodeHash ||
-        account.global_contract_hash != null ||
-        account.global_contract_account_id != null,
-      codeHash: account.code_hash,
-    }
+    return runPromise(this.programs.getAccount(accountId, options))
   }
 
   /**
@@ -629,16 +523,8 @@ export class Near {
    * This method swallows all errors and returns `false` on failure. Use
    * {@link RpcClient.getAccount} if you need to distinguish error causes.
    */
-  async accountExists(
-    accountId: string,
-    options?: BlockReference,
-  ): Promise<boolean> {
-    try {
-      await this._rpc.getAccount(accountId, options)
-      return true
-    } catch {
-      return false
-    }
+  accountExists(accountId: string, options?: BlockReference): Promise<boolean> {
+    return runPromise(this.programs.accountExists(accountId, options))
   }
 
   /**
@@ -662,16 +548,12 @@ export class Near {
    * }
    * ```
    */
-  async getAccessKey(
+  getAccessKey(
     accountId: string,
     publicKey: string,
     options?: BlockReference,
   ): Promise<AccessKeyView | null> {
-    try {
-      return await this._rpc.getAccessKey(accountId, publicKey, options)
-    } catch {
-      return null
-    }
+    return runPromise(this.programs.getAccessKey(accountId, publicKey, options))
   }
 
   /**
@@ -694,11 +576,11 @@ export class Near {
    * }
    * ```
    */
-  async getAccessKeys(
+  getAccessKeys(
     accountId: string,
     options?: BlockReference,
   ): Promise<AccessKeyListResponse> {
-    return this._rpc.getAccessKeys(accountId, options)
+    return runPromise(this.programs.getAccessKeys(accountId, options))
   }
 
   /**
@@ -723,12 +605,11 @@ export class Near {
    * console.log(`${code.length} bytes, hash ${hash}`)
    * ```
    */
-  async getContractCode(
+  getContractCode(
     accountId: string,
     options?: BlockReference,
   ): Promise<ContractCodeResult> {
-    const view = await this._rpc.viewCode(accountId, options)
-    return { code: base64.decode(view.code_base64), hash: view.hash }
+    return runPromise(this.programs.getContractCode(accountId, options))
   }
 
   /**
@@ -762,12 +643,11 @@ export class Near {
    * const published = await near.getGlobalContract({ codeHash: "9wa3..." })
    * ```
    */
-  async getGlobalContract(
+  getGlobalContract(
     contract: GlobalContractReference,
     options?: BlockReference,
   ): Promise<ContractCodeResult> {
-    const view = await this._rpc.viewGlobalContractCode(contract, options)
-    return { code: base64.decode(view.code_base64), hash: view.hash }
+    return runPromise(this.programs.getGlobalContract(contract, options))
   }
 
   /**
@@ -791,25 +671,11 @@ export class Near {
    * }
    * ```
    */
-  async globalContractExists(
+  globalContractExists(
     contract: GlobalContractReference,
     options?: BlockReference,
   ): Promise<boolean> {
-    try {
-      await this._rpc.viewGlobalContractCode(contract, options)
-      return true
-    } catch (error) {
-      // Current nodes answer a global-contract query for a nonexistent
-      // account with NO_GLOBAL_CONTRACT_CODE (the lookup is by identifier,
-      // not account), but treat UNKNOWN_ACCOUNT as "not published" too.
-      if (
-        error instanceof GlobalContractNotFoundError ||
-        error instanceof AccountDoesNotExistError
-      ) {
-        return false
-      }
-      throw error
-    }
+    return runPromise(this.programs.globalContractExists(contract, options))
   }
 
   /**
@@ -848,7 +714,7 @@ export class Near {
    *
    * @see {@link https://docs.near.org/api/rpc/transactions#transaction-status-with-receipts NEAR RPC Documentation}
    */
-  async getTransactionStatus<
+  getTransactionStatus<
     W extends
       | "NONE"
       | "INCLUDED"
@@ -865,15 +731,9 @@ export class Near {
       ? FinalExecutionOutcomeWithReceiptsMap[W]
       : never
   > {
-    return this._rpc.getTransactionStatus(
-      txHash,
-      senderAccountId,
-      waitUntil,
-    ) as Promise<
-      W extends keyof FinalExecutionOutcomeWithReceiptsMap
-        ? FinalExecutionOutcomeWithReceiptsMap[W]
-        : never
-    >
+    return runPromise(
+      this.programs.getTransactionStatus<W>(txHash, senderAccountId, waitUntil),
+    )
   }
 
   /**
@@ -881,8 +741,8 @@ export class Near {
    *
    * @returns The full network status response from the RPC.
    */
-  async getStatus(): Promise<StatusResponse> {
-    return this._rpc.getStatus()
+  getStatus(): Promise<StatusResponse> {
+    return runPromise(this.programs.getStatus())
   }
 
   /**
@@ -895,7 +755,7 @@ export class Near {
    * @param accountId - Account whose contract state to read.
    * @param options - Optional `prefix`, `afterKey`, `limit`, `includeProof`, and block reference.
    */
-  async viewState(
+  viewState(
     accountId: string,
     options?: BlockReference & {
       prefix?: string
@@ -904,7 +764,7 @@ export class Near {
       includeProof?: boolean
     },
   ): Promise<ViewStateResult> {
-    return this._rpc.viewState(accountId, options)
+    return runPromise(this.programs.viewState(accountId, options))
   }
 
   /**
@@ -939,10 +799,10 @@ export class Near {
    * This is a thin wrapper over `Promise.all` with a tuple-friendly signature.
    * It does not perform any RPC-level batching.
    */
-  async batch<T extends unknown[]>(
+  batch<T extends unknown[]>(
     ...promises: Array<Promise<T[number]>>
   ): Promise<T> {
-    return Promise.all(promises) as Promise<T>
+    return runPromise(this.programs.batch<T>(...promises))
   }
 
   /**
@@ -982,6 +842,10 @@ export class Near {
       this.defaultWaitUntil,
       this.wallet,
       this.pendingKeyStoreInit ? () => this.ensureKeyStoreReady() : undefined,
+      this.pendingKeyStoreInit
+        ? () => this.ensureKeyStoreReadyEffect()
+        : undefined,
+      this.nonceReservation,
     )
   }
 
@@ -1006,3 +870,271 @@ export class Near {
     return createContract<T>(this, contractId)
   }
 }
+
+// oxlint-disable typescript/unbound-method -- Function identities honor public overrides without invoking methods unbound.
+const originalMethods = {
+  view: Near.prototype.view,
+  call: Near.prototype.call,
+  send: Near.prototype.send,
+  signMessage: Near.prototype.signMessage,
+  getBalance: Near.prototype.getBalance,
+  getAccount: Near.prototype.getAccount,
+  accountExists: Near.prototype.accountExists,
+  getAccessKey: Near.prototype.getAccessKey,
+  getAccessKeys: Near.prototype.getAccessKeys,
+  getContractCode: Near.prototype.getContractCode,
+  getGlobalContract: Near.prototype.getGlobalContract,
+  globalContractExists: Near.prototype.globalContractExists,
+  getTransactionStatus: Near.prototype.getTransactionStatus,
+  getStatus: Near.prototype.getStatus,
+  viewState: Near.prototype.viewState,
+  batch: Near.prototype.batch,
+}
+// oxlint-enable typescript/unbound-method
+
+function publicNearPrograms(near: Near, programs: NearPrograms) {
+  return {
+    ...programs,
+    view<T = unknown>(
+      this: void,
+      contractId: string,
+      methodName: string,
+      args: object | Uint8Array = {},
+      options?: BlockReference,
+    ): Effect.Effect<T | undefined, NearFailure> {
+      return Effect.suspend(() =>
+        near.view === originalMethods.view
+          ? programs.view<T>(contractId, methodName, args, options)
+          : fromPromise(
+              () => near.view<T>(contractId, methodName, args, options),
+              "Near.view",
+            ),
+      )
+    },
+    call<T = FinalExecutionOutcome>(
+      this: void,
+      contractId: string,
+      methodName: string,
+      args: object | Uint8Array = {},
+      options: CallOptions = {},
+    ): Effect.Effect<T, NearFailure> {
+      return Effect.suspend(() =>
+        near.call === originalMethods.call
+          ? programs.call<T>(contractId, methodName, args, options)
+          : fromPromise(
+              () => near.call<T>(contractId, methodName, args, options),
+              "Near.call",
+            ),
+      )
+    },
+    send(
+      this: void,
+      receiverId: string,
+      amount: Amount,
+    ): Effect.Effect<FinalExecutionOutcome, NearFailure> {
+      return Effect.suspend(() =>
+        near.send === originalMethods.send
+          ? programs.send(receiverId, amount)
+          : fromPromise(() => near.send(receiverId, amount), "Near.send"),
+      )
+    },
+    signMessage(
+      this: void,
+      params: SignMessageParams | Omit<SignMessageParams, "nonce">,
+      options?: { signerId?: string },
+    ): Effect.Effect<SignedMessage, NearFailure> {
+      return Effect.suspend(() =>
+        near.signMessage === originalMethods.signMessage
+          ? programs.signMessage(params, options)
+          : fromPromise(
+              () => near.signMessage(params, options),
+              "Near.signMessage",
+            ),
+      )
+    },
+    getBalance(
+      this: void,
+      accountId: string,
+      options?: BlockReference,
+    ): Effect.Effect<string, NearFailure> {
+      return Effect.suspend(() =>
+        near.getBalance === originalMethods.getBalance
+          ? programs.getBalance(accountId, options)
+          : fromPromise(
+              () => near.getBalance(accountId, options),
+              "Near.getBalance",
+            ),
+      )
+    },
+    getAccount(
+      this: void,
+      accountId: string,
+      options?: BlockReference,
+    ): Effect.Effect<AccountState, NearFailure> {
+      return Effect.suspend(() =>
+        near.getAccount === originalMethods.getAccount
+          ? programs.getAccount(accountId, options)
+          : fromPromise(
+              () => near.getAccount(accountId, options),
+              "Near.getAccount",
+            ),
+      )
+    },
+    accountExists(
+      this: void,
+      accountId: string,
+      options?: BlockReference,
+    ): Effect.Effect<boolean, NearFailure> {
+      return Effect.suspend(() =>
+        near.accountExists === originalMethods.accountExists
+          ? programs.accountExists(accountId, options)
+          : fromPromise(
+              () => near.accountExists(accountId, options),
+              "Near.accountExists",
+            ),
+      )
+    },
+    getAccessKey(
+      this: void,
+      accountId: string,
+      publicKey: string,
+      options?: BlockReference,
+    ): Effect.Effect<AccessKeyView | null, NearFailure> {
+      return Effect.suspend(() =>
+        near.getAccessKey === originalMethods.getAccessKey
+          ? programs.getAccessKey(accountId, publicKey, options)
+          : fromPromise(
+              () => near.getAccessKey(accountId, publicKey, options),
+              "Near.getAccessKey",
+            ),
+      )
+    },
+    getAccessKeys(
+      this: void,
+      accountId: string,
+      options?: BlockReference,
+    ): Effect.Effect<AccessKeyListResponse, NearFailure> {
+      return Effect.suspend(() =>
+        near.getAccessKeys === originalMethods.getAccessKeys
+          ? programs.getAccessKeys(accountId, options)
+          : fromPromise(
+              () => near.getAccessKeys(accountId, options),
+              "Near.getAccessKeys",
+            ),
+      )
+    },
+    getContractCode(
+      this: void,
+      accountId: string,
+      options?: BlockReference,
+    ): Effect.Effect<ContractCodeResult, NearFailure> {
+      return Effect.suspend(() =>
+        near.getContractCode === originalMethods.getContractCode
+          ? programs.getContractCode(accountId, options)
+          : fromPromise(
+              () => near.getContractCode(accountId, options),
+              "Near.getContractCode",
+            ),
+      )
+    },
+    getGlobalContract(
+      this: void,
+      contract: GlobalContractReference,
+      options?: BlockReference,
+    ): Effect.Effect<ContractCodeResult, NearFailure> {
+      return Effect.suspend(() =>
+        near.getGlobalContract === originalMethods.getGlobalContract
+          ? programs.getGlobalContract(contract, options)
+          : fromPromise(
+              () => near.getGlobalContract(contract, options),
+              "Near.getGlobalContract",
+            ),
+      )
+    },
+    globalContractExists(
+      this: void,
+      contract: GlobalContractReference,
+      options?: BlockReference,
+    ): Effect.Effect<boolean, NearFailure> {
+      return Effect.suspend(() =>
+        near.globalContractExists === originalMethods.globalContractExists
+          ? programs.globalContractExists(contract, options)
+          : fromPromise(
+              () => near.globalContractExists(contract, options),
+              "Near.globalContractExists",
+            ),
+      )
+    },
+    getTransactionStatus<
+      W extends
+        | "NONE"
+        | "INCLUDED"
+        | "EXECUTED_OPTIMISTIC"
+        | "INCLUDED_FINAL"
+        | "EXECUTED"
+        | "FINAL" = "EXECUTED_OPTIMISTIC",
+    >(
+      this: void,
+      txHash: string,
+      senderAccountId: string,
+      waitUntil?: W,
+    ): Effect.Effect<
+      W extends keyof FinalExecutionOutcomeWithReceiptsMap
+        ? FinalExecutionOutcomeWithReceiptsMap[W]
+        : never,
+      NearFailure
+    > {
+      return Effect.suspend(() =>
+        near.getTransactionStatus === originalMethods.getTransactionStatus
+          ? programs.getTransactionStatus<W>(txHash, senderAccountId, waitUntil)
+          : fromPromise(
+              () =>
+                near.getTransactionStatus<W>(
+                  txHash,
+                  senderAccountId,
+                  waitUntil,
+                ),
+              "Near.getTransactionStatus",
+            ),
+      )
+    },
+    getStatus(this: void): Effect.Effect<StatusResponse, NearFailure> {
+      return Effect.suspend(() =>
+        near.getStatus === originalMethods.getStatus
+          ? programs.getStatus()
+          : fromPromise(() => near.getStatus(), "Near.getStatus"),
+      )
+    },
+    viewState(
+      this: void,
+      accountId: string,
+      options?: BlockReference & {
+        prefix?: string
+        afterKey?: string
+        limit?: number
+        includeProof?: boolean
+      },
+    ): Effect.Effect<ViewStateResult, NearFailure> {
+      return Effect.suspend(() =>
+        near.viewState === originalMethods.viewState
+          ? programs.viewState(accountId, options)
+          : fromPromise(
+              () => near.viewState(accountId, options),
+              "Near.viewState",
+            ),
+      )
+    },
+    batch<T extends unknown[]>(
+      this: void,
+      ...promises: Array<Promise<T[number]>>
+    ): Effect.Effect<T, NearFailure> {
+      return Effect.suspend(() =>
+        near.batch === originalMethods.batch
+          ? programs.batch<T>(...promises)
+          : fromPromise(() => near.batch<T>(...promises), "Near.batch"),
+      )
+    },
+  }
+}
+
+export type NearEffects = ReturnType<typeof publicNearPrograms>

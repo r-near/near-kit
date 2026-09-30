@@ -63,15 +63,18 @@ describe("native key-store ownership", () => {
   test.each([
     ["memory", () => new InMemoryKeyStore()],
     ["rotating", () => new RotatingKeyStore()],
-  ] as const)("%s keeps insertion order when accounts are removed and re-added", async (_name, make) => {
-    const store = make()
-    const key = generateKey()
-    for (const id of ["z.near", "a.near", "m.near"]) await store.add(id, key)
-    expect(await store.list()).toEqual(["z.near", "a.near", "m.near"])
-    await store.remove("z.near")
-    await store.add("z.near", key)
-    expect(await store.list()).toEqual(["a.near", "m.near", "z.near"])
-  })
+  ] as const)(
+    "%s keeps insertion order when accounts are removed and re-added",
+    async (_name, make) => {
+      const store = make()
+      const key = generateKey()
+      for (const id of ["z.near", "a.near", "m.near"]) await store.add(id, key)
+      expect(await store.list()).toEqual(["z.near", "a.near", "m.near"])
+      await store.remove("z.near")
+      await store.add("z.near", key)
+      expect(await store.list()).toEqual(["a.near", "m.near", "z.near"])
+    },
+  )
 
   test("rotating initialization does not create an account for an empty key pool", async () => {
     const store = new RotatingKeyStore({ "empty.near": [] })

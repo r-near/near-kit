@@ -5,6 +5,7 @@
  * before build() or send() try to access the keyStore.
  */
 
+import { Effect } from "effect"
 import { describe, expect, test } from "vitest"
 import { Near } from "../../src/core/near.js"
 import type { KeyPair, KeyStore } from "../../src/core/types.js"
@@ -69,7 +70,7 @@ describe("Sandbox async keyStore initialization", () => {
     expect(keyBeforeInit).toBeNull()
 
     // After awaiting pendingKeyStoreInit, key should be available
-    await near["pendingKeyStoreInit"]
+    await Effect.runPromise(near.ready)
 
     const keyAfterInit = await slowKeyStore.get(mockSandbox.rootAccount.id)
     expect(keyAfterInit).not.toBeNull()
@@ -138,7 +139,7 @@ describe("Sandbox async keyStore initialization", () => {
     expect(near["pendingKeyStoreInit"]).toBeDefined()
 
     // Wait for it to complete
-    await near["pendingKeyStoreInit"]
+    await Effect.runPromise(near.ready)
 
     // Verify the key was added
     const keyPair = await near["keyStore"].get("test.near")

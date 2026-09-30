@@ -579,3 +579,25 @@ describe("native protocol decoding", () => {
     ])
   })
 })
+
+describe("public RPC middleware", () => {
+  test("a call replacement also observes high-level methods without recursion", async () => {
+    const { testRpcClient } = await import("../helpers/rpc.js")
+    const fetch = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      Response.json({
+        result: { gas_price: "100", block_height: 1, block_hash: "block" },
+      }),
+    )
+    try {
+      const client = testRpcClient("https://unused.invalid")
+      const original = client.call.bind(client)
+      const middleware = vi.fn(original)
+      client.call = middleware
+      await client.getGasPrice()
+      expect(middleware).toHaveBeenCalledTimes(1)
+      expect(middleware).toHaveBeenCalledWith("gas_price", [null])
+    } finally {
+      fetch.mockRestore()
+    }
+  })
+})

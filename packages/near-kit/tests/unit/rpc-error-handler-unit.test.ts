@@ -1878,7 +1878,6 @@ describe("parseRpcError - Real RPC Fixtures", () => {
       parseRpcError(REAL_UNKNOWN_CHUNK_ERROR)
     } catch (e) {
       expect(e).toBeInstanceOf(UnknownChunkError)
-      e as UnknownChunkError
       // NOTE: Real error uses 'chunk_hash' but error handler looks for 'chunk_reference'
       // Real error uses 'chunk_hash' field
       // Error handler now correctly extracts this field

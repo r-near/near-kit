@@ -1,4 +1,10 @@
-import { Context, Effect, HashMap, Layer, Option, Ref, Semaphore } from "effect"
+import * as Context from "effect/Context"
+import * as Effect from "effect/Effect"
+import * as HashMap from "effect/HashMap"
+import * as Layer from "effect/Layer"
+import * as Option from "effect/Option"
+import * as Ref from "effect/Ref"
+import * as Semaphore from "effect/Semaphore"
 
 export interface NonceReservationService {
   readonly reserve: <E, R>(
@@ -15,6 +21,7 @@ export interface NonceReservationService {
     publicKey: string,
     currentNonce: bigint,
   ) => Effect.Effect<bigint>
+  // oxlint-disable-next-line effecttsgo/lazy-effect -- Kit service operations remain named Effect.fn functions, including zero-argument methods.
   readonly clear: () => Effect.Effect<void>
 }
 
@@ -156,6 +163,7 @@ export const makeNonceReservation: Effect.Effect<NonceReservationService> =
   })
 
 /** Explicit, injectable coordination shared by all users of one provided layer. */
+// oxlint-disable-next-line effecttsgo/lazy-effect -- Kit service operations remain named Effect.fn functions, including zero-argument methods.
 export class NonceReservation extends Context.Service<
   NonceReservation,
   NonceReservationService

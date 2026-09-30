@@ -1,7 +1,7 @@
 import { base58 } from "@scure/base"
 import { describe, expect, test } from "vitest"
 import { deployFromPublished, publishContract } from "../../src/core/actions.js"
-import { RpcClient } from "../../src/core/rpc/rpc.js"
+import { testRpcClient } from "../helpers/rpc.js"
 import { ActionSchema } from "../../src/core/schema.js"
 import { TransactionBuilder } from "../../src/core/transaction.js"
 import { InMemoryKeyStore } from "../../src/keys/index.js"
@@ -204,7 +204,7 @@ describe("Global Contracts API - Edge Cases", () => {
 describe("Global Contracts - Transaction Builder Integration", () => {
   // Helper to create a transaction builder for testing
   function createBuilder(): TransactionBuilder {
-    const rpc = new RpcClient("https://rpc.testnet.fastnear.com")
+    const rpc = testRpcClient("https://rpc.testnet.fastnear.com")
     const keyStore = new InMemoryKeyStore()
     return new TransactionBuilder("alice.near", rpc, keyStore)
   }

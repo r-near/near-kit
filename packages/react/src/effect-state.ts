@@ -1,14 +1,12 @@
 "use client"
 
-import {
-  Cause,
-  Effect,
-  Exit,
-  Fiber,
-  Ref,
-  Stream,
-  SubscriptionRef,
-} from "effect"
+import * as Cause from "effect/Cause"
+import * as Effect from "effect/Effect"
+import * as Exit from "effect/Exit"
+import * as Fiber from "effect/Fiber"
+import * as Ref from "effect/Ref"
+import * as Stream from "effect/Stream"
+import * as SubscriptionRef from "effect/SubscriptionRef"
 import { ExternalError } from "near-kit/effect"
 import {
   useCallback,

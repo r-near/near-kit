@@ -1,6 +1,7 @@
 /** File storage compatible with near-cli and near-cli-rs credentials. */
-import { NodeFileSystem } from "@effect/platform-node"
-import { ConfigProvider, Effect } from "effect"
+import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem"
+import * as ConfigProvider from "effect/ConfigProvider"
+import * as Effect from "effect/Effect"
 import type { KeyPair, KeyStore } from "../core/types.js"
 import { makeFileStorage } from "../effect/file-keystore.js"
 import { fromPromise, runPromise } from "../effect/runtime.js"

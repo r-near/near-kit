@@ -1,7 +1,14 @@
-import { Context, Effect, Layer } from "effect"
+import * as Context from "effect/Context"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
 import type { KeyPair, KeyStore as PromiseKeyStore } from "../core/types.js"
 import { makeMemoryStorage } from "./key-storage.js"
-import { type ExternalError, fromPromise } from "./runtime.js"
+import {
+  type ExternalError,
+  type NearFailure,
+  fromPromise,
+  runPromise,
+} from "./runtime.js"
 
 export interface KeyStoreService {
   readonly get: (
@@ -12,6 +19,7 @@ export interface KeyStoreService {
     key: KeyPair,
   ) => Effect.Effect<void, ExternalError>
   readonly remove: (accountId: string) => Effect.Effect<void, ExternalError>
+  // oxlint-disable-next-line effecttsgo/lazy-effect -- Kit service operations remain named Effect.fn functions, including zero-argument methods.
   readonly list: () => Effect.Effect<string[], ExternalError>
 }
 
@@ -20,6 +28,7 @@ export interface NativeKeyStore extends PromiseKeyStore {
   getEffect(accountId: string): Effect.Effect<KeyPair | null, ExternalError>
   addEffect(accountId: string, key: KeyPair): Effect.Effect<void, ExternalError>
   removeEffect(accountId: string): Effect.Effect<void, ExternalError>
+  // oxlint-disable-next-line effecttsgo/lazy-effect -- Kit service operations remain named Effect.fn functions, including zero-argument methods.
   listEffect(): Effect.Effect<string[], ExternalError>
 }
 
@@ -51,6 +60,7 @@ export const keyStoreService = (store: PromiseKeyStore): KeyStoreService => {
 }
 
 /** Injectable key storage; each layer construction owns its own store. */
+// oxlint-disable-next-line effecttsgo/lazy-effect -- Kit service operations remain named Effect.fn functions, including zero-argument methods.
 export class KeyStore extends Context.Service<KeyStore, KeyStoreService>()(
   "near-kit/KeyStore",
 ) {
@@ -59,9 +69,23 @@ export class KeyStore extends Context.Service<KeyStore, KeyStoreService>()(
 
   static memory = (
     initialKeys?: Record<string, string>,
-  ): Layer.Layer<KeyStore> =>
+  ): Layer.Layer<KeyStore, NearFailure> =>
     Layer.effect(
       KeyStore,
       Effect.map(makeMemoryStorage(initialKeys), KeyStore.of),
     )
 }
+
+/** A public KeyStore connection backed directly by native operations. */
+export const keyStoreConnection = (
+  service: KeyStoreService,
+): NativeKeyStore => ({
+  get: (id) => runPromise(service.get(id)),
+  add: (id, key) => runPromise(service.add(id, key)),
+  remove: (id) => runPromise(service.remove(id)),
+  list: () => runPromise(service.list()),
+  getEffect: service.get,
+  addEffect: service.add,
+  removeEffect: service.remove,
+  listEffect: service.list,
+})

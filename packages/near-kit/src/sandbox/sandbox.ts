@@ -1,7 +1,11 @@
 /* oxlint-disable effecttsgo/unstable-api-usage -- Uses the matching pinned Effect 4 FetchHttpClient platform layer. */
 /** NEAR Sandbox: the simple Promise API over scope-owned native resources. */
-import { NodeServices } from "@effect/platform-node"
-import { ConfigProvider, Effect, Exit, Layer, Scope } from "effect"
+import * as NodeServices from "@effect/platform-node/NodeServices"
+import * as ConfigProvider from "effect/ConfigProvider"
+import * as Effect from "effect/Effect"
+import * as Exit from "effect/Exit"
+import * as Layer from "effect/Layer"
+import * as Scope from "effect/Scope"
 import { FetchHttpClient } from "effect/http"
 import { makeSandbox, type SandboxService } from "../effect/sandbox.js"
 import { runPromise } from "../effect/runtime.js"

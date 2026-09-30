@@ -956,7 +956,8 @@ describe("addContractMethod()", () => {
 
     addContractMethod(MockNear.prototype as unknown as typeof Near.prototype)
 
-    const near = new MockNear() as unknown as Near
+    const mockNear = new MockNear()
+    const near = mockNear as unknown as Near
     const contract = near.contract("contract.near")
 
     expect(contract).toHaveProperty("view")
@@ -978,13 +979,14 @@ describe("addContractMethod()", () => {
 
     addContractMethod(MockNear.prototype as unknown as typeof Near.prototype)
 
-    const near = new MockNear() as unknown as Near
+    const mockNear = new MockNear()
+    const near = mockNear as unknown as Near
     const contract = near.contract<TestContract>("test.near")
 
     // Test that the proxy works correctly
     await contract.view.getBalance({ account_id: "alice.near" })
 
-    expect(near.view).toHaveBeenCalledWith(
+    expect(mockNear.view).toHaveBeenCalledWith(
       "test.near",
       "getBalance",
       { account_id: "alice.near" },
@@ -1007,21 +1009,22 @@ describe("addContractMethod()", () => {
 
     addContractMethod(MockNear.prototype as unknown as typeof Near.prototype)
 
-    const near = new MockNear() as unknown as Near
+    const mockNear = new MockNear()
+    const near = mockNear as unknown as Near
     const contract1 = near.contract<TestContract>("contract1.near")
     const contract2 = near.contract<TestContract>("contract2.near")
 
     await contract1.view.getData()
     await contract2.view.getData()
 
-    expect(near.view).toHaveBeenNthCalledWith(
+    expect(mockNear.view).toHaveBeenNthCalledWith(
       1,
       "contract1.near",
       "getData",
       {},
       undefined,
     )
-    expect(near.view).toHaveBeenNthCalledWith(
+    expect(mockNear.view).toHaveBeenNthCalledWith(
       2,
       "contract2.near",
       "getData",
@@ -1057,18 +1060,16 @@ describe("addContractMethod()", () => {
 
     addContractMethod(MockNear.prototype as unknown as typeof Near.prototype)
 
-    const near = new MockNear() as unknown as Near
+    const mockNear = new MockNear()
+    const near = mockNear as unknown as Near
     const contract = near.contract<TestContract>("contract.near")
 
     await contract.view.getData()
 
-    expect(near.view).toHaveBeenCalled()
+    expect(mockNear.view).toHaveBeenCalled()
   })
 
   test("should support TypeScript generic type parameter", () => {
-    // Interface defined for type documentation purposes
-    // @ts-expect-error - Type defined for documentation, not runtime use
-    // biome-ignore lint/correctness/noUnusedVariables: Example type definition for documentation
     interface MyContract extends ContractMethods {
       view: {
         getBalance: (args: { account_id: string }) => Promise<string>
@@ -1088,8 +1089,9 @@ describe("addContractMethod()", () => {
 
     addContractMethod(MockNear.prototype as unknown as typeof Near.prototype)
 
-    const near = new MockNear() as unknown as Near
-    const contract = near.contract("ft.near")
+    const mockNear = new MockNear()
+    const near = mockNear as unknown as Near
+    const contract = near.contract<MyContract>("ft.near")
 
     // TypeScript should infer correct types
     expect(contract).toHaveProperty("view")
@@ -1125,7 +1127,8 @@ describe("addContractMethod()", () => {
 
     addContractMethod(MockNear.prototype as unknown as typeof Near.prototype)
 
-    const near = new MockNear() as unknown as Near
+    const mockNear = new MockNear()
+    const near = mockNear as unknown as Near
     const ftContract = near.contract<FTContract>("ft.near")
     const nftContract = near.contract<NFTContract>("nft.near")
     const daoContract = near.contract<DAOContract>("dao.near")
@@ -1134,22 +1137,22 @@ describe("addContractMethod()", () => {
     await nftContract.view.nft_tokens({ from_index: "0" })
     await daoContract.view.get_proposals()
 
-    expect(near.view).toHaveBeenCalledTimes(3)
-    expect(near.view).toHaveBeenNthCalledWith(
+    expect(mockNear.view).toHaveBeenCalledTimes(3)
+    expect(mockNear.view).toHaveBeenNthCalledWith(
       1,
       "ft.near",
       "ft_balance_of",
       { account_id: "alice.near" },
       undefined,
     )
-    expect(near.view).toHaveBeenNthCalledWith(
+    expect(mockNear.view).toHaveBeenNthCalledWith(
       2,
       "nft.near",
       "nft_tokens",
       { from_index: "0" },
       undefined,
     )
-    expect(near.view).toHaveBeenNthCalledWith(
+    expect(mockNear.view).toHaveBeenNthCalledWith(
       3,
       "dao.near",
       "get_proposals",

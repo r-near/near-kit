@@ -14,15 +14,16 @@
 
 import { sha256 } from "@noble/hashes/sha2.js"
 import { base58, base64 } from "@scure/base"
+import * as Effect from "effect/Effect"
 import { decodeSignedDelegateAction } from "../core/schema.js"
 import type {
   Action,
   FinalExecutionOutcome,
-  SignDelegateActionsParams,
-  SignDelegateActionsResult,
   SignedMessage,
   WalletConnection,
 } from "../core/types.js"
+import { ExternalError, fromPromise, fromSync } from "../effect/runtime.js"
+import { walletConnection } from "../effect/wallet.js"
 import type {
   NearConnectAction,
   NearConnectAddKeyPermission,
@@ -227,51 +228,57 @@ function convertActionToNearConnect(action: Action): NearConnectAction {
 export function fromWalletSelector(
   wallet: WalletSelectorWallet,
 ): WalletConnection {
-  return {
-    async getAccounts() {
-      const accounts = await wallet.getAccounts()
-      return accounts.map((acc) => ({
-        accountId: acc.accountId,
-        ...(acc.publicKey !== undefined && { publicKey: acc.publicKey }),
-      }))
-    },
-
-    async signAndSendTransaction(params): Promise<FinalExecutionOutcome> {
-      // Our Action[] type is structurally compatible with @near-js Action[]
-      // Duck typing works at runtime - see type-compatibility.test.ts
-      const result = await wallet.signAndSendTransaction({
-        ...(params.signerId !== undefined && { signerId: params.signerId }),
-        receiverId: params.receiverId,
-        actions: params.actions,
-      })
-
-      if (!result) {
-        throw new Error("Wallet did not return transaction outcome")
-      }
-      return result as FinalExecutionOutcome
-    },
-
-    async signMessage(params): Promise<SignedMessage> {
-      if (!wallet.signMessage) {
-        throw new Error("Wallet does not support message signing")
-      }
-
-      // wallet-selector expects Buffer, convert from Uint8Array
-      const nonce = Buffer.from(params.nonce)
-
-      const result = await wallet.signMessage({
-        message: params.message,
-        recipient: params.recipient,
-        nonce,
-      })
-
-      // Browser wallets may return void
-      if (!result) {
-        throw new Error("Wallet did not return signed message")
-      }
-      return result as SignedMessage
-    },
-  }
+  return walletConnection({
+    getAccounts: () =>
+      fromPromise(
+        () => wallet.getAccounts(),
+        "wallet-selector.getAccounts",
+      ).pipe(
+        Effect.map((accounts) =>
+          accounts.map((acc) => ({
+            accountId: acc.accountId,
+            ...(acc.publicKey !== undefined && { publicKey: acc.publicKey }),
+          })),
+        ),
+      ),
+    signAndSendTransaction: (params) =>
+      Effect.gen(function* () {
+        const result = yield* fromPromise(
+          () =>
+            wallet.signAndSendTransaction({
+              ...(params.signerId !== undefined && {
+                signerId: params.signerId,
+              }),
+              receiverId: params.receiverId,
+              actions: params.actions,
+            }),
+          "wallet-selector.signAndSendTransaction",
+        )
+        if (!result)
+          return yield* walletFailure(
+            "Wallet did not return transaction outcome",
+          )
+        return result as FinalExecutionOutcome
+      }),
+    signMessage: (params) =>
+      Effect.gen(function* () {
+        if (!wallet.signMessage)
+          return yield* walletFailure("Wallet does not support message signing")
+        const nonce = Buffer.from(params.nonce)
+        const result = yield* fromPromise(
+          () =>
+            wallet.signMessage!({
+              message: params.message,
+              recipient: params.recipient,
+              nonce,
+            }),
+          "wallet-selector.signMessage",
+        )
+        if (!result)
+          return yield* walletFailure("Wallet did not return signed message")
+        return result as SignedMessage
+      }),
+  })
 }
 
 /**
@@ -312,81 +319,105 @@ export function fromNearConnect(
     )
   }
 
-  return {
-    async getAccounts() {
-      const wallet = await connector.wallet()
-      const accounts = await wallet.getAccounts()
-
-      return accounts.map((acc) => ({
-        accountId: acc.accountId,
-        ...(acc.publicKey !== undefined && { publicKey: acc.publicKey }),
-      }))
-    },
-
-    async signAndSendTransaction(params): Promise<FinalExecutionOutcome> {
-      const wallet = await connector.wallet()
-      const nearConnectActions = params.actions.map(convertActionToNearConnect)
-
-      const result = await wallet.signAndSendTransaction({
-        ...(params.signerId !== undefined && { signerId: params.signerId }),
-        receiverId: params.receiverId,
-        actions: nearConnectActions,
-      })
-
-      return result as FinalExecutionOutcome
-    },
-
-    async signMessage(params): Promise<SignedMessage> {
-      const wallet = await connector.wallet()
-      const result = await wallet.signMessage({
-        message: params.message,
-        recipient: params.recipient,
-        nonce: params.nonce,
-      })
-      return result as SignedMessage
-    },
-
-    async signDelegateActions(
-      params: SignDelegateActionsParams,
-    ): Promise<SignDelegateActionsResult> {
-      const wallet = await connector.wallet()
-
-      if (wallet.manifest.features?.signDelegateActions === false) {
-        throw new Error(
-          "Connected wallet does not support delegate action signing. " +
-            "Make sure you're using a wallet that supports meta-transactions " +
-            "and @hot-labs/near-connect v0.9.0 or later.",
+  const connected = () =>
+    fromPromise(() => connector.wallet(), "near-connect.wallet")
+  return walletConnection({
+    getAccounts: () =>
+      Effect.gen(function* () {
+        const wallet = yield* connected()
+        const accounts = yield* fromPromise(
+          () => wallet.getAccounts(),
+          "near-connect.getAccounts",
         )
-      }
-
-      // Convert each delegate action's near-kit Actions to NEAR Connect format
-      const nearConnectDelegateActions = params.delegateActions.map((da) => ({
-        actions: da.actions.map(convertActionToNearConnect),
-        receiverId: da.receiverId,
-      }))
-
-      const response = await wallet.signDelegateActions({
-        ...(params.signerId !== undefined && { signerId: params.signerId }),
-        delegateActions: nearConnectDelegateActions,
-      })
-
-      // Bridge response: near-connect returns base64-encoded signed delegate
-      // actions as strings. Decode each into near-kit's structured format.
-      return {
-        signedDelegateActions: response.signedDelegateActions.map((encoded) => {
-          const signedDelegate = decodeSignedDelegateAction(encoded)
-          const bytes = base64.decode(encoded)
-          return {
-            delegateHash: sha256(bytes),
-            signedDelegate,
-          }
-        }),
-      }
-    },
-  }
+        return accounts.map((acc) => ({
+          accountId: acc.accountId,
+          ...(acc.publicKey !== undefined && { publicKey: acc.publicKey }),
+        }))
+      }),
+    signAndSendTransaction: (params) =>
+      Effect.gen(function* () {
+        const wallet = yield* connected()
+        const actions = yield* fromSync(
+          () => params.actions.map(convertActionToNearConnect),
+          "near-connect.actions",
+        )
+        return yield* fromPromise(
+          () =>
+            wallet.signAndSendTransaction({
+              ...(params.signerId !== undefined && {
+                signerId: params.signerId,
+              }),
+              receiverId: params.receiverId,
+              actions,
+            }),
+          "near-connect.signAndSendTransaction",
+        )
+      }),
+    signMessage: (params) =>
+      Effect.gen(function* () {
+        const wallet = yield* connected()
+        return yield* fromPromise(
+          () =>
+            wallet.signMessage({
+              message: params.message,
+              recipient: params.recipient,
+              nonce: params.nonce,
+            }),
+          "near-connect.signMessage",
+        )
+      }),
+    signDelegateActions: (params) =>
+      Effect.gen(function* () {
+        const wallet = yield* connected()
+        if (wallet.manifest.features?.signDelegateActions === false) {
+          return yield* walletFailure(
+            "Connected wallet does not support delegate action signing. " +
+              "Make sure you're using a wallet that supports meta-transactions " +
+              "and @hot-labs/near-connect v0.9.0 or later.",
+          )
+        }
+        const delegateActions = params.delegateActions.map((da) => ({
+          actions: da.actions.map(convertActionToNearConnect),
+          receiverId: da.receiverId,
+        }))
+        const response = yield* fromPromise(
+          () =>
+            wallet.signDelegateActions({
+              ...(params.signerId !== undefined && {
+                signerId: params.signerId,
+              }),
+              delegateActions,
+            }),
+          "near-connect.signDelegateActions",
+        )
+        return yield* Effect.try({
+          try: () => ({
+            signedDelegateActions: response.signedDelegateActions.map(
+              (encoded) => ({
+                delegateHash: sha256(base64.decode(encoded)),
+                signedDelegate: decodeSignedDelegateAction(encoded),
+              }),
+            ),
+          }),
+          catch: (cause) =>
+            new ExternalError({
+              operation: "near-connect.decodeDelegate",
+              cause,
+            }),
+        })
+      }),
+  })
 }
 
 /**
  * @deprecated Renamed to {@link fromNearConnect}. This alias will be removed in a future major version.
  */
 export const fromHotConnect = fromNearConnect
+
+const walletFailure = (message: string) =>
+  Effect.fail(
+    new ExternalError({
+      operation: "wallet.validate",
+      cause: new Error(message),
+    }),
+  )

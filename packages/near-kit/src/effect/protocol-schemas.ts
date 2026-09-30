@@ -3,7 +3,8 @@
  * Finite numbers, optional undefined values, mutable arrays, stripping structs
  * and explicit catch-all records intentionally match those public contracts.
  */
-import { Schema } from "effect"
+import * as Schema from "effect/Schema"
+import * as SchemaGetter from "effect/SchemaGetter"
 
 export const FunctionCallPermissionDetailsSchema = Schema.Struct({
   receiver_id: Schema.String,
@@ -353,7 +354,12 @@ export const ActionSchema = Schema.Union(
   [
     Schema.Literal("CreateAccount"),
     Schema.Struct({
-      CreateAccount: Schema.Struct({}),
+      CreateAccount: Schema.Record(Schema.String, Schema.Unknown).pipe(
+        Schema.decodeTo(Schema.Struct({}), {
+          decode: SchemaGetter.transform(() => ({})),
+          encode: SchemaGetter.transform(() => ({})),
+        }),
+      ),
     }),
     Schema.Struct({
       Transfer: Schema.Struct({

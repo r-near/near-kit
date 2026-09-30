@@ -1,3 +1,4 @@
+import type { AccessKeyView } from "../core/rpc/rpc-schemas.js"
 /**
  * Default code hash for accounts without deployed contract code.
  * This is a base58-encoded sha256 hash of an empty byte array.
@@ -24,15 +25,7 @@ export interface StateRecord {
     public_key: string
     access_key: {
       nonce: number
-      permission:
-        | "FullAccess"
-        | {
-            FunctionCall: {
-              allowance: string | null
-              receiver_id: string
-              method_names: string[]
-            }
-          }
+      permission: AccessKeyView["permission"]
     }
   }
   Contract?: {

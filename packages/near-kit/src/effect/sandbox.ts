@@ -4,23 +4,21 @@ import { STATUS_CODES } from "node:http"
 import { createServer, type Server } from "node:net"
 import os from "node:os"
 import path from "node:path"
-import {
-  Clock,
-  Config,
-  Context,
-  Effect,
-  Exit,
-  FileSystem,
-  Fiber,
-  Layer,
-  PlatformError,
-  Ref,
-  Schedule,
-  Schema,
-  Scope,
-  Semaphore,
-  Stream,
-} from "effect"
+import * as Clock from "effect/Clock"
+import * as Config from "effect/Config"
+import * as Context from "effect/Context"
+import * as Effect from "effect/Effect"
+import * as Exit from "effect/Exit"
+import * as FileSystem from "effect/FileSystem"
+import * as Fiber from "effect/Fiber"
+import * as Layer from "effect/Layer"
+import * as PlatformError from "effect/PlatformError"
+import * as Ref from "effect/Ref"
+import * as Schedule from "effect/Schedule"
+import * as Schema from "effect/Schema"
+import * as Scope from "effect/Scope"
+import * as Semaphore from "effect/Semaphore"
+import * as Stream from "effect/Stream"
 import { HttpClient, HttpClientRequest } from "effect/http"
 import { ChildProcess, ChildProcessSpawner } from "effect/process"
 import * as tar from "tar"
@@ -85,6 +83,13 @@ const account = Schema.StructWithRest(
   }),
   [Schema.Record(Schema.String, Schema.Unknown)],
 )
+const extensible = <const Fields extends Schema.Struct.Fields>(
+  fields: Fields,
+) =>
+  Schema.StructWithRest(Schema.Struct(fields), [
+    Schema.Record(Schema.String, Schema.Unknown),
+  ])
+
 const RecordSchema = Schema.StructWithRest(
   Schema.Struct({
     Account: Schema.optionalKey(
@@ -101,11 +106,29 @@ const RecordSchema = Schema.StructWithRest(
           access_key: Schema.StructWithRest(
             Schema.Struct({
               nonce: Schema.Finite,
+              // Snapshots archive nearcore data, including gas-key permissions and future
+              // fields. Validate the JSON envelope without deleting
+              // fields or imposing a stale SDK permission model on the archive.
               permission: Schema.Union([
                 Schema.Literal("FullAccess"),
-                Schema.Struct({
-                  FunctionCall: Schema.Struct({
-                    allowance: Schema.NullOr(Schema.String),
+                extensible({
+                  FunctionCall: extensible({
+                    allowance: Schema.optional(Schema.NullOr(Schema.String)),
+                    receiver_id: Schema.String,
+                    method_names: Schema.mutable(Schema.Array(Schema.String)),
+                  }),
+                }),
+                extensible({
+                  GasKeyFullAccess: extensible({
+                    balance: Schema.String,
+                    num_nonces: Schema.Finite,
+                  }),
+                }),
+                extensible({
+                  GasKeyFunctionCall: extensible({
+                    balance: Schema.String,
+                    num_nonces: Schema.Finite,
+                    allowance: Schema.optional(Schema.NullOr(Schema.String)),
                     receiver_id: Schema.String,
                     method_names: Schema.mutable(Schema.Array(Schema.String)),
                   }),
@@ -155,10 +178,12 @@ export interface SandboxService {
   readonly fastForward: (
     numBlocks: number,
   ) => Effect.Effect<void, ExternalError>
+  // oxlint-disable-next-line effecttsgo/lazy-effect -- Kit service operations remain named Effect.fn functions, including zero-argument methods.
   readonly dumpState: () => Effect.Effect<StateSnapshot, ExternalError>
   readonly restoreState: (
     snapshot: StateSnapshot,
   ) => Effect.Effect<void, ExternalError>
+  // oxlint-disable-next-line effecttsgo/lazy-effect -- Kit service operations remain named Effect.fn functions, including zero-argument methods.
   readonly saveSnapshot: () => Effect.Effect<string, ExternalError>
   readonly loadSnapshot: (
     snapshotPath: string,
@@ -169,6 +194,7 @@ export interface SandboxService {
 }
 
 /** A running sandbox is acquired by its layer and stopped when that scope closes. */
+// oxlint-disable-next-line effecttsgo/lazy-effect -- Kit service operations remain named Effect.fn functions, including zero-argument methods.
 export class Sandbox extends Context.Service<Sandbox, SandboxService>()(
   "near-kit/Sandbox",
 ) {

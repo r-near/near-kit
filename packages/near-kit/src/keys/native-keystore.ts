@@ -1,5 +1,5 @@
 /** Native OS credential storage using @napi-rs/keyring. Node.js/Bun only. */
-import { Effect } from "effect"
+import * as Effect from "effect/Effect"
 import type { KeyPair, KeyStore } from "../core/types.js"
 import { makeNativeStorage } from "../effect/native-keystore.js"
 import { fromPromise, runPromise } from "../effect/runtime.js"

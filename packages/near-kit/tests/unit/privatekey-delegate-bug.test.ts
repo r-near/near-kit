@@ -1,3 +1,4 @@
+import { Effect } from "effect"
 /**
  * Test to replicate the bug where privateKey is not added to keyStore
  * when initializing Near with privateKey and defaultSignerId (non-sandbox config)
@@ -30,7 +31,7 @@ describe("privateKey + defaultSignerId initialization bug", () => {
 
     // Wait for async keyStore initialization to complete
     if (near["pendingKeyStoreInit"]) {
-      await near["pendingKeyStoreInit"]
+      await Effect.runPromise(near.ready)
     }
 
     // The key SHOULD be in the keyStore (this is what we want!)
@@ -60,7 +61,7 @@ describe("privateKey + defaultSignerId initialization bug", () => {
 
     // Wait for keystore to be ready
     if (near["pendingKeyStoreInit"]) {
-      await near["pendingKeyStoreInit"]
+      await Effect.runPromise(near.ready)
     }
 
     // Verify the key IS in the keyStore when using sandbox config

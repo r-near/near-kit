@@ -1,5 +1,6 @@
 /** The sole Promise boundary for the public Near.rpc API. */
-import { Effect, Stream } from "effect"
+import * as Effect from "effect/Effect"
+import * as Stream from "effect/Stream"
 import type { z } from "zod"
 import { ExternalError, fromPromise, runPromise } from "../../effect/runtime.js"
 import type { NearError } from "../../errors/index.js"
@@ -25,7 +26,7 @@ import type {
   ViewStateResult,
 } from "../types.js"
 
-import type { RpcPrograms } from "./rpc-program.js"
+import { withRpcCall, type RpcPrograms } from "./rpc-program.js"
 
 export interface RpcRequest {
   jsonrpc: "2.0"
@@ -133,11 +134,24 @@ export type RpcFetch = (
 // Public TransactionBuilder accepts structural Promise RPC providers. This identity
 // map returns built-in programs directly instead of creating a Promise round-trip.
 const nativePrograms = new WeakMap<RpcClient, RpcPrograms>()
+const publicMethods = new WeakMap<RpcClient, RpcClient>()
+const promiseAdapters = new WeakMap<RpcClient, RpcPrograms>()
 
-export function rpcToPromises(programs: RpcPrograms): RpcClient {
+export function rpcToPromises(underlying: RpcPrograms): RpcClient {
+  let originalCall: RpcClient["call"] | undefined
+  const middleware: RpcPrograms["call"] = <T = unknown>(
+    method: string,
+    params: unknown,
+  ) =>
+    Effect.suspend(() =>
+      originalCall && client.call !== originalCall
+        ? fromPromise(() => client.call<T>(method, params), "Rpc.call.override")
+        : underlying.call<T>(method, params),
+    )
+  const programs = withRpcCall(underlying, middleware)
   const client: RpcClient = {
     call<T = unknown>(method: string, params: unknown): Promise<T> {
-      return runPromise(programs.call<T>(method, params))
+      return runPromise(underlying.call<T>(method, params))
     },
     query<T = unknown>(path: string, data: string | Uint8Array): Promise<T> {
       return runPromise(programs.query<T>(path, data))
@@ -255,19 +269,27 @@ export function rpcToPromises(programs: RpcPrograms): RpcClient {
       return runPromise(programs.maintenanceWindows(accountId))
     },
   }
+  // oxlint-disable-next-line typescript/unbound-method -- Store identity for middleware detection, never invoke this unbound reference.
+  originalCall = client.call
   nativePrograms.set(client, programs)
+  publicMethods.set(client, { ...client })
   return client
 }
 
 /** Adapt a caller-supplied Promise provider only at the public extension boundary. */
 export function rpcFromPromises(client: RpcClient): RpcPrograms {
+  const existing = promiseAdapters.get(client)
+  if (existing) return existing
   const native = nativePrograms.get(client)
-  if (native) return native
+  const original = publicMethods.get(client)
   const programs = {
     call: Effect.fn("Rpc.external.call")(function* <T = unknown>(
       method: string,
       params: unknown,
     ): Effect.fn.Return<T, RpcFailure> {
+      if (native && client.call === original?.call)
+        return yield* native.call<T>(method, params)
+
       return yield* fromPromise(
         () => client.call<T>(method, params),
         "Rpc.call",
@@ -277,6 +299,9 @@ export function rpcFromPromises(client: RpcClient): RpcPrograms {
       path: string,
       data: string | Uint8Array,
     ): Effect.fn.Return<T, RpcFailure> {
+      if (native && client.query === original?.query)
+        return yield* native.query<T>(path, data)
+
       return yield* fromPromise(() => client.query<T>(path, data), "Rpc.query")
     }),
     viewFunction: Effect.fn("Rpc.external.viewFunction")(function* (
@@ -285,6 +310,9 @@ export function rpcFromPromises(client: RpcClient): RpcPrograms {
       args: unknown = {},
       options?: BlockReference,
     ): Effect.fn.Return<ViewFunctionCallResult, RpcFailure> {
+      if (native && client.viewFunction === original?.viewFunction)
+        return yield* native.viewFunction(contractId, methodName, args, options)
+
       return yield* fromPromise(
         () => client.viewFunction(contractId, methodName, args, options),
         "Rpc.viewFunction",
@@ -294,6 +322,9 @@ export function rpcFromPromises(client: RpcClient): RpcPrograms {
       accountId: string,
       options?: BlockReference,
     ): Effect.fn.Return<AccountView, RpcFailure> {
+      if (native && client.getAccount === original?.getAccount)
+        return yield* native.getAccount(accountId, options)
+
       return yield* fromPromise(
         () => client.getAccount(accountId, options),
         "Rpc.getAccount",
@@ -303,6 +334,9 @@ export function rpcFromPromises(client: RpcClient): RpcPrograms {
       accountId: string,
       options?: BlockReference,
     ): Effect.fn.Return<ContractCodeView, RpcFailure> {
+      if (native && client.viewCode === original?.viewCode)
+        return yield* native.viewCode(accountId, options)
+
       return yield* fromPromise(
         () => client.viewCode(accountId, options),
         "Rpc.viewCode",
@@ -313,6 +347,12 @@ export function rpcFromPromises(client: RpcClient): RpcPrograms {
         contract: GlobalContractReference,
         options?: BlockReference,
       ): Effect.fn.Return<ContractCodeView, RpcFailure> {
+        if (
+          native &&
+          client.viewGlobalContractCode === original?.viewGlobalContractCode
+        )
+          return yield* native.viewGlobalContractCode(contract, options)
+
         return yield* fromPromise(
           () => client.viewGlobalContractCode(contract, options),
           "Rpc.viewGlobalContractCode",
@@ -324,6 +364,9 @@ export function rpcFromPromises(client: RpcClient): RpcPrograms {
       publicKey: string,
       options?: BlockReference,
     ): Effect.fn.Return<AccessKeyView, RpcFailure> {
+      if (native && client.getAccessKey === original?.getAccessKey)
+        return yield* native.getAccessKey(accountId, publicKey, options)
+
       return yield* fromPromise(
         () => client.getAccessKey(accountId, publicKey, options),
         "Rpc.getAccessKey",
@@ -333,6 +376,9 @@ export function rpcFromPromises(client: RpcClient): RpcPrograms {
       accountId: string,
       options?: BlockReference,
     ): Effect.fn.Return<AccessKeyListResponse, RpcFailure> {
+      if (native && client.getAccessKeys === original?.getAccessKeys)
+        return yield* native.getAccessKeys(accountId, options)
+
       return yield* fromPromise(
         () => client.getAccessKeys(accountId, options),
         "Rpc.getAccessKeys",
@@ -343,6 +389,9 @@ export function rpcFromPromises(client: RpcClient): RpcPrograms {
       publicKey: string,
       options?: BlockReference,
     ): Effect.fn.Return<GasKeyNoncesResponse, RpcFailure> {
+      if (native && client.getGasKeyNonces === original?.getGasKeyNonces)
+        return yield* native.getGasKeyNonces(accountId, publicKey, options)
+
       return yield* fromPromise(
         () => client.getGasKeyNonces(accountId, publicKey, options),
         "Rpc.getGasKeyNonces",
@@ -354,6 +403,9 @@ export function rpcFromPromises(client: RpcClient): RpcPrograms {
       signedTransaction: Uint8Array,
       waitUntil?: W,
     ): Effect.fn.Return<FinalExecutionOutcomeMap[W], RpcFailure> {
+      if (native && client.sendTransaction === original?.sendTransaction)
+        return yield* native.sendTransaction<W>(signedTransaction, waitUntil)
+
       return yield* fromPromise(
         () => client.sendTransaction<W>(signedTransaction, waitUntil),
         "Rpc.sendTransaction",
@@ -368,6 +420,16 @@ export function rpcFromPromises(client: RpcClient): RpcPrograms {
         senderAccountId: string,
         waitUntil?: W,
       ): Effect.fn.Return<FinalExecutionOutcomeWithReceiptsMap[W], RpcFailure> {
+        if (
+          native &&
+          client.getTransactionStatus === original?.getTransactionStatus
+        )
+          return yield* native.getTransactionStatus<W>(
+            txHash,
+            senderAccountId,
+            waitUntil,
+          )
+
         return yield* fromPromise(
           () =>
             client.getTransactionStatus<W>(txHash, senderAccountId, waitUntil),
@@ -378,6 +440,9 @@ export function rpcFromPromises(client: RpcClient): RpcPrograms {
     receiptToTx: Effect.fn("Rpc.external.receiptToTx")(function* (
       receiptId: string,
     ): Effect.fn.Return<ReceiptToTxResponse, RpcFailure> {
+      if (native && client.receiptToTx === original?.receiptToTx)
+        return yield* native.receiptToTx(receiptId)
+
       return yield* fromPromise(
         () => client.receiptToTx(receiptId),
         "Rpc.receiptToTx",
@@ -385,17 +450,26 @@ export function rpcFromPromises(client: RpcClient): RpcPrograms {
     }),
     getStatus: Effect.fn("Rpc.external.getStatus")(
       function* (): Effect.fn.Return<StatusResponse, RpcFailure> {
+        if (native && client.getStatus === original?.getStatus)
+          return yield* native.getStatus()
+
         return yield* fromPromise(() => client.getStatus(), "Rpc.getStatus")
       },
     ),
     getBlock: Effect.fn("Rpc.external.getBlock")(function* (
       options?: BlockReference,
     ): Effect.fn.Return<BlockView, RpcFailure> {
+      if (native && client.getBlock === original?.getBlock)
+        return yield* native.getBlock(options)
+
       return yield* fromPromise(() => client.getBlock(options), "Rpc.getBlock")
     }),
     getGasPrice: Effect.fn("Rpc.external.getGasPrice")(function* (
       blockId: string | null = null,
     ): Effect.fn.Return<GasPriceResponse, RpcFailure> {
+      if (native && client.getGasPrice === original?.getGasPrice)
+        return yield* native.getGasPrice(blockId)
+
       return yield* fromPromise(
         () => client.getGasPrice(blockId),
         "Rpc.getGasPrice",
@@ -410,6 +484,9 @@ export function rpcFromPromises(client: RpcClient): RpcPrograms {
         includeProof?: boolean
       },
     ): Effect.fn.Return<ViewStateResult, RpcFailure> {
+      if (native && client.viewState === original?.viewState)
+        return yield* native.viewState(accountId, options)
+
       return yield* fromPromise(
         () => client.viewState(accountId, options),
         "Rpc.viewState",
@@ -434,6 +511,9 @@ export function rpcFromPromises(client: RpcClient): RpcPrograms {
     blockEffects: Effect.fn("Rpc.external.blockEffects")(function* (
       options?: BlockReference,
     ): Effect.fn.Return<BlockEffectsResponse, RpcFailure> {
+      if (native && client.blockEffects === original?.blockEffects)
+        return yield* native.blockEffects(options)
+
       return yield* fromPromise(
         () => client.blockEffects(options),
         "Rpc.blockEffects",
@@ -441,6 +521,9 @@ export function rpcFromPromises(client: RpcClient): RpcPrograms {
     }),
     genesisConfig: Effect.fn("Rpc.external.genesisConfig")(
       function* (): Effect.fn.Return<GenesisConfigResponse, RpcFailure> {
+        if (native && client.genesisConfig === original?.genesisConfig)
+          return yield* native.genesisConfig()
+
         return yield* fromPromise(
           () => client.genesisConfig(),
           "Rpc.genesisConfig",
@@ -450,12 +533,15 @@ export function rpcFromPromises(client: RpcClient): RpcPrograms {
     maintenanceWindows: Effect.fn("Rpc.external.maintenanceWindows")(function* (
       accountId: string,
     ): Effect.fn.Return<MaintenanceWindowsResponse, RpcFailure> {
+      if (native && client.maintenanceWindows === original?.maintenanceWindows)
+        return yield* native.maintenanceWindows(accountId)
+
       return yield* fromPromise(
         () => client.maintenanceWindows(accountId),
         "Rpc.maintenanceWindows",
       )
     }),
   }
-  nativePrograms.set(client, programs)
+  promiseAdapters.set(client, programs)
   return programs
 }

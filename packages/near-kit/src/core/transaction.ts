@@ -1,3 +1,6 @@
+import { walletService } from "../effect/wallet.js"
+import type { RpcPrograms } from "./rpc/rpc-program.js"
+import { rpcFromPromises } from "./rpc/rpc.js"
 /**
  * Fluent API for building and sending NEAR transactions.
  *
@@ -32,7 +35,8 @@
 
 import { sha256 } from "@noble/hashes/sha2.js"
 import { base58 } from "@scure/base"
-import { Effect, Schedule } from "effect"
+import * as Effect from "effect/Effect"
+import * as Schedule from "effect/Schedule"
 import { getKeyEffect } from "../effect/keys.js"
 import {
   type NonceReservationService,
@@ -64,13 +68,13 @@ import {
   encodeSignedDelegateAction,
   encodeSignedDelegateActionV2,
   type NonDelegateActionBorsh,
-  type SignedDelegateAction,
   serializeDelegateAction,
   serializeDelegateActionV2,
   serializeSignedTransaction,
   serializeSignedTransactionV1,
   serializeTransaction,
   serializeTransactionV1,
+  type SignedDelegateAction,
   type TransactionNonceBorsh,
   type TransactionV1,
 } from "./schema.js"
@@ -243,7 +247,7 @@ export class TransactionBuilder {
   private signerId: string
   private actions: Action[]
   private receiverId?: string
-  private rpc: RpcClient
+  private readonly rpcPrograms: RpcPrograms
   private keyStore: KeyStore
   private signer?: Signer
   private keyPair?: KeyPair // KeyPair from signWith() for building transaction
@@ -294,7 +298,7 @@ export class TransactionBuilder {
     this.nonces = nonces
     this.signerId = signerId
     this.actions = []
-    this.rpc = rpc
+    this.rpcPrograms = rpcFromPromises(rpc)
     this.keyStore = keyStore
     if (ensureKeyStoreReady !== undefined) {
       this.ensureKeyStoreReady = ensureKeyStoreReady
@@ -816,21 +820,19 @@ export class TransactionBuilder {
       }
       // Use wallet if available and it supports signDelegateActions
       const wallet = this.wallet
-      if (wallet?.signDelegateActions) {
-        const signDelegateActions = wallet.signDelegateActions.bind(wallet)
-        const result = yield* fromPromise(
-          () =>
-            signDelegateActions({
-              signerId: this.signerId,
-              delegateActions: [
-                {
-                  actions: this.actions,
-                  receiverId,
-                },
-              ],
-            }),
-          "this.wallet.signDelegateActions",
-        )
+      const signDelegateActions = wallet
+        ? walletService(wallet).signDelegateActions
+        : undefined
+      if (signDelegateActions) {
+        const result = yield* signDelegateActions({
+          signerId: this.signerId,
+          delegateActions: [
+            {
+              actions: this.actions,
+              receiverId,
+            },
+          ],
+        })
         const first = result.signedDelegateActions[0]
         if (!first) {
           return yield* Effect.fail(
@@ -874,13 +876,9 @@ export class TransactionBuilder {
       if (opts.nonce !== undefined) {
         nonce = opts.nonce
       } else {
-        const accessKey = yield* rpcOperation(
-          this.rpc.getAccessKeyEffect?.(
-            this.signerId,
-            delegatePublicKey.toString(),
-          ),
-          () =>
-            this.rpc.getAccessKey(this.signerId, delegatePublicKey.toString()),
+        const accessKey = yield* this.rpcPrograms.getAccessKey(
+          this.signerId,
+          delegatePublicKey.toString(),
         )
         nonce = BigInt(accessKey.nonce) + 1n
       }
@@ -888,9 +886,7 @@ export class TransactionBuilder {
       if (opts.maxBlockHeight !== undefined) {
         maxBlockHeight = opts.maxBlockHeight
       } else {
-        const status = yield* rpcOperation(this.rpc.getStatusEffect?.(), () =>
-          this.rpc.getStatus(),
-        )
+        const status = yield* this.rpcPrograms.getStatus()
         const offset = BigInt(opts.blockHeightOffset ?? 200)
         maxBlockHeight = BigInt(status.sync_info.latest_block_height) + offset
       }
@@ -1040,9 +1036,9 @@ export class TransactionBuilder {
           this.fetchGasKeyNonceEffect(pkString, index),
         )
       } else {
-        const accessKey = yield* rpcOperation(
-          this.rpc.getAccessKeyEffect?.(this.signerId, pkString),
-          () => this.rpc.getAccessKey(this.signerId, pkString),
+        const accessKey = yield* this.rpcPrograms.getAccessKey(
+          this.signerId,
+          pkString,
         )
         nonceValue = BigInt(accessKey.nonce) + 1n
       }
@@ -1054,9 +1050,7 @@ export class TransactionBuilder {
       if (opts.maxBlockHeight !== undefined) {
         maxBlockHeight = opts.maxBlockHeight
       } else {
-        const status = yield* rpcOperation(this.rpc.getStatusEffect?.(), () =>
-          this.rpc.getStatus(),
-        )
+        const status = yield* this.rpcPrograms.getStatus()
         const offset = BigInt(opts.blockHeightOffset ?? 200)
         maxBlockHeight = BigInt(status.sync_info.latest_block_height) + offset
       }
@@ -1338,22 +1332,16 @@ export class TransactionBuilder {
           this.signerId,
           publicKey.toString(),
           Effect.gen({ self: this }, function* () {
-            const accessKey = yield* rpcOperation(
-              this.rpc.getAccessKeyEffect?.(
-                this.signerId,
-                publicKey.toString(),
-              ),
-              () => this.rpc.getAccessKey(this.signerId, publicKey.toString()),
+            const accessKey = yield* this.rpcPrograms.getAccessKey(
+              this.signerId,
+              publicKey.toString(),
             )
             return BigInt(accessKey.nonce)
           }),
         ))
       // Use finalized block hash - more stable across load-balanced RPC nodes
       // than getStatus() which returns the optimistic head
-      const block = yield* rpcOperation(
-        this.rpc.getBlockEffect?.({ finality: "final" }),
-        () => this.rpc.getBlock({ finality: "final" }),
-      )
+      const block = yield* this.rpcPrograms.getBlock({ finality: "final" })
       const blockHash = base58.decode(block.header.hash)
       const transaction: Transaction = {
         signerId: this.signerId,
@@ -1495,10 +1483,7 @@ export class TransactionBuilder {
       const keyPair = yield* this.resolveKeyPairEffect()
       const publicKey = keyPair.publicKey
       const txNonce = yield* this.resolveV1NonceEffect(publicKey)
-      const block = yield* rpcOperation(
-        this.rpc.getBlockEffect?.({ finality: "final" }),
-        () => this.rpc.getBlock({ finality: "final" }),
-      )
+      const block = yield* this.rpcPrograms.getBlock({ finality: "final" })
       const blockHash = base58.decode(block.header.hash)
       const v1: TransactionV1 = {
         signerId: this.signerId,
@@ -1610,9 +1595,9 @@ export class TransactionBuilder {
       // go through the monotonic NonceReservation (whose cache can be ahead of chain
       // and hand out ak_nonce + 2+). Fetch the chain nonce directly instead.
       if (this.strictNonce) {
-        const accessKey = yield* rpcOperation(
-          this.rpc.getAccessKeyEffect?.(this.signerId, pkString),
-          () => this.rpc.getAccessKey(this.signerId, pkString),
+        const accessKey = yield* this.rpcPrograms.getAccessKey(
+          this.signerId,
+          pkString,
         )
         return { nonce: { nonce: BigInt(accessKey.nonce) + 1n } }
       }
@@ -1620,9 +1605,9 @@ export class TransactionBuilder {
         this.signerId,
         pkString,
         Effect.gen({ self: this }, function* () {
-          const accessKey = yield* rpcOperation(
-            this.rpc.getAccessKeyEffect?.(this.signerId, pkString),
-            () => this.rpc.getAccessKey(this.signerId, pkString),
+          const accessKey = yield* this.rpcPrograms.getAccessKey(
+            this.signerId,
+            pkString,
           )
           return BigInt(accessKey.nonce)
         }),
@@ -1642,23 +1627,13 @@ export class TransactionBuilder {
     nonceIndex: number,
   ): Effect.Effect<unknown[], TransactionError> {
     return Effect.gen({ self: this }, function* () {
-      const result = yield* rpcOperation(
-        this.rpc.callEffect?.<{
-          nonces?: unknown
-        }>("EXPERIMENTAL_view_gas_key_nonces", {
-          finality: "optimistic",
-          account_id: this.signerId,
-          public_key: publicKey,
-        }),
-        () =>
-          this.rpc.call<{
-            nonces?: unknown
-          }>("EXPERIMENTAL_view_gas_key_nonces", {
-            finality: "optimistic",
-            account_id: this.signerId,
-            public_key: publicKey,
-          }),
-      )
+      const result = yield* this.rpcPrograms.call<{
+        nonces?: unknown
+      }>("EXPERIMENTAL_view_gas_key_nonces", {
+        finality: "optimistic",
+        account_id: this.signerId,
+        public_key: publicKey,
+      })
       const nonces = result?.nonces
       if (
         !Array.isArray(nonces) ||
@@ -1849,15 +1824,11 @@ export class TransactionBuilder {
             ),
           )
         }
-        const result = yield* fromPromise(
-          () =>
-            wallet.signAndSendTransaction({
-              signerId: this.signerId,
-              receiverId,
-              actions: this.actions,
-            }),
-          "this.wallet.signAndSendTransaction",
-        )
+        const result = yield* walletService(wallet).signAndSendTransaction({
+          signerId: this.signerId,
+          receiverId,
+          actions: this.actions,
+        })
         // Inclusion finality and optimistic execution are independent milestones.
         const reached: Record<TxExecutionStatus, readonly TxExecutionStatus[]> =
           {
@@ -1900,18 +1871,10 @@ export class TransactionBuilder {
         const transaction = result.transaction
         // Reconcile the submitted hash; never prompt for another signature on error.
         // RPC status parsing also provides the usual typed execution errors.
-        return (yield* rpcOperation(
-          this.rpc.getTransactionStatusEffect?.(
-            transaction.hash,
-            transaction.signer_id,
-            waitUntil,
-          ),
-          () =>
-            this.rpc.getTransactionStatus(
-              transaction.hash,
-              transaction.signer_id,
-              waitUntil,
-            ),
+        return (yield* this.rpcPrograms.getTransactionStatus(
+          transaction.hash,
+          transaction.signer_id,
+          waitUntil,
         )) as FinalExecutionOutcomeMap[W]
       }
 
@@ -1934,9 +1897,9 @@ export class TransactionBuilder {
         const signedSerialized =
           serialized ??
           (yield* transactionSync(() => serializeSignedTransaction(signedTx)))
-        const result = yield* rpcOperation(
-          this.rpc.sendTransactionEffect?.(signedSerialized, waitUntil),
-          () => this.rpc.sendTransaction(signedSerialized, waitUntil),
+        const result = yield* this.rpcPrograms.sendTransaction(
+          signedSerialized,
+          waitUntil,
         )
         if (!("transaction" in result) || !result.transaction) {
           ;(result as Record<string, unknown>)["transaction"] = {
@@ -1992,6 +1955,7 @@ export class TransactionBuilder {
   }
 }
 
+// oxlint-disable typescript/unbound-method -- Method identities detect public overrides; no unbound invocation occurs.
 const originalBuild = TransactionBuilder.prototype.build
 const originalSign = TransactionBuilder.prototype.sign
 const originalDelegate = TransactionBuilder.prototype.delegate
@@ -1999,13 +1963,7 @@ const originalDelegateV2 = TransactionBuilder.prototype.delegateV2
 
 const originalSend = TransactionBuilder.prototype.send
 
-/** Adapt structural Promise-only RPC clients at the extension boundary. */
-function rpcOperation<A>(
-  native: Effect.Effect<A, RpcFailure> | undefined,
-  external: () => Promise<A>,
-): Effect.Effect<A, RpcFailure> {
-  return native ?? fromPromise(external, "TransactionBuilder.rpc")
-}
+// oxlint-enable typescript/unbound-method
 
 /** Classify failures from synchronous protocol/key extension boundaries. */
 function transactionSync<A>(

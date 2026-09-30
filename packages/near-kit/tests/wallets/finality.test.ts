@@ -70,23 +70,22 @@ describe("wallet transaction finality", () => {
       JSON.parse(fetch.mock.calls[0]?.[1].body).params.sender_account_id,
     ).toBe("selected.testnet")
   })
-  it.each([
-    "builder",
-    "call",
-    "send",
-  ])("honors configured FINAL through %s", async (method) => {
-    const { near, fetch } = await setup("EXECUTED_OPTIMISTIC", "FINAL")
-    if (method === "builder")
-      await near
-        .transaction("alice.testnet")
-        .transfer("bob.testnet", "1 NEAR")
-        .send()
-    else if (method === "call") await near.call("bob.testnet", "check_in", {})
-    else await near.send("bob.testnet", "1 NEAR")
-    expect(JSON.parse(fetch.mock.calls[0]?.[1].body).params.wait_until).toBe(
-      "FINAL",
-    )
-  })
+  it.each(["builder", "call", "send"])(
+    "honors configured FINAL through %s",
+    async (method) => {
+      const { near, fetch } = await setup("EXECUTED_OPTIMISTIC", "FINAL")
+      if (method === "builder")
+        await near
+          .transaction("alice.testnet")
+          .transfer("bob.testnet", "1 NEAR")
+          .send()
+      else if (method === "call") await near.call("bob.testnet", "check_in", {})
+      else await near.send("bob.testnet", "1 NEAR")
+      expect(JSON.parse(fetch.mock.calls[0]?.[1].body).params.wait_until).toBe(
+        "FINAL",
+      )
+    },
+  )
   it("honors explicit FINAL through call", async () => {
     const { near, fetch } = await setup("EXECUTED_OPTIMISTIC")
     await near.call("bob.testnet", "check_in", {}, { waitUntil: "FINAL" })
@@ -98,14 +97,17 @@ describe("wallet transaction finality", () => {
     ["EXECUTED_OPTIMISTIC", "INCLUDED", false],
     ["INCLUDED_FINAL", "EXECUTED_OPTIMISTIC", true],
     ["EXECUTED_OPTIMISTIC", "INCLUDED_FINAL", true],
-  ] as const)("%s satisfies %s: reconcile=%s", async (level, requested, reconcile) => {
-    const { near, fetch } = await setup(level)
-    await near
-      .transaction("alice.testnet")
-      .transfer("bob.testnet", "1 NEAR")
-      .send({ waitUntil: requested })
-    expect(fetch).toHaveBeenCalledTimes(reconcile ? 1 : 0)
-  })
+  ] as const)(
+    "%s satisfies %s: reconcile=%s",
+    async (level, requested, reconcile) => {
+      const { near, fetch } = await setup(level)
+      await near
+        .transaction("alice.testnet")
+        .transfer("bob.testnet", "1 NEAR")
+        .send({ waitUntil: requested })
+      expect(fetch).toHaveBeenCalledTimes(reconcile ? 1 : 0)
+    },
+  )
   it("raises typed execution errors even when the wallet reports FINAL", async () => {
     const { near, signing, fetch, outcome } = await setup("FINAL")
     const failure = {

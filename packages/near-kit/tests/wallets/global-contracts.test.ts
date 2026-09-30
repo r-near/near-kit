@@ -35,65 +35,65 @@ describe("Global contracts through NEAR Connect", () => {
       },
       contractIdentifier: { codeHash },
     },
-  ])("deploys by $name and initializes in the same transaction", async ({
-    reference,
-    contractIdentifier,
-  }) => {
-    const { connector, near } = setup()
-    const args = { challenge_delay_ms: 60_000, friends: [] }
+  ])(
+    "deploys by $name and initializes in the same transaction",
+    async ({ reference, contractIdentifier }) => {
+      const { connector, near } = setup()
+      const args = { challenge_delay_ms: 60_000, friends: [] }
 
-    await near
-      .transaction(accountId)
-      .deployFromPublished(reference)
-      .functionCall(accountId, "init", args, { gas: "100 Tgas" })
-      .send()
+      await near
+        .transaction(accountId)
+        .deployFromPublished(reference)
+        .functionCall(accountId, "init", args, { gas: "100 Tgas" })
+        .send()
 
-    const transactions = connector
-      .getCallLog()
-      .filter((call) => call.method === "signAndSendTransaction")
-    expect(transactions).toHaveLength(1)
-    expect(transactions[0]?.params).toEqual({
-      signerId: accountId,
-      receiverId: accountId,
-      actions: [
-        { type: "UseGlobalContract", params: { contractIdentifier } },
-        {
-          type: "FunctionCall",
-          params: {
-            methodName: "init",
-            args,
-            gas: "100000000000000",
-            deposit: "0",
+      const transactions = connector
+        .getCallLog()
+        .filter((call) => call.method === "signAndSendTransaction")
+      expect(transactions).toHaveLength(1)
+      expect(transactions[0]?.params).toEqual({
+        signerId: accountId,
+        receiverId: accountId,
+        actions: [
+          { type: "UseGlobalContract", params: { contractIdentifier } },
+          {
+            type: "FunctionCall",
+            params: {
+              methodName: "init",
+              args,
+              gas: "100000000000000",
+              deposit: "0",
+            },
           },
-        },
-      ] satisfies ConnectorAction[],
-    })
-  })
+        ] satisfies ConnectorAction[],
+      })
+    },
+  )
 
   it.each([
     { identifiedBy: "account" as const, deployMode: "AccountId" as const },
     { identifiedBy: "hash" as const, deployMode: "CodeHash" as const },
-  ])("publishes code identified by $identifiedBy", async ({
-    identifiedBy,
-    deployMode,
-  }) => {
-    const { connector, near } = setup()
-    const code = new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0])
+  ])(
+    "publishes code identified by $identifiedBy",
+    async ({ identifiedBy, deployMode }) => {
+      const { connector, near } = setup()
+      const code = new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0])
 
-    await near
-      .transaction(accountId)
-      .publishContract(code, { identifiedBy })
-      .send()
+      await near
+        .transaction(accountId)
+        .publishContract(code, { identifiedBy })
+        .send()
 
-    const transaction = connector
-      .getCallLog()
-      .find((call) => call.method === "signAndSendTransaction")
-    expect(transaction?.params).toEqual({
-      signerId: accountId,
-      receiverId: accountId,
-      actions: [
-        { type: "DeployGlobalContract", params: { code, deployMode } },
-      ] satisfies ConnectorAction[],
-    })
-  })
+      const transaction = connector
+        .getCallLog()
+        .find((call) => call.method === "signAndSendTransaction")
+      expect(transaction?.params).toEqual({
+        signerId: accountId,
+        receiverId: accountId,
+        actions: [
+          { type: "DeployGlobalContract", params: { code, deployMode } },
+        ] satisfies ConnectorAction[],
+      })
+    },
+  )
 })
