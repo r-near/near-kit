@@ -61,8 +61,13 @@ describe("native client dependency ownership", () => {
         })
       }).pipe(Effect.provide(layer)),
     )
-    expect(unsigned.publicKey.toString()).toBe(key.publicKey.toString())
-    expect(unsigned.nonce).toBe(1002n)
+    expect(unsigned.transaction.publicKey.toString()).toBe(
+      key.publicKey.toString(),
+    )
+    expect(unsigned).toMatchObject({
+      version: 0,
+      transaction: { nonce: 1002n },
+    })
     expect(blockCalls).toBe(1)
   })
 

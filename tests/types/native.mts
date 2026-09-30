@@ -5,6 +5,7 @@ import {
   Near,
   Actions,
   type TransactionPlan,
+  type UnsignedTransactionValue,
   Rpc,
   KeyStore,
   NonceReservation,
@@ -50,6 +51,15 @@ export function consumeNative(near: NearService) {
     actions: [Actions.transfer(10n ** 24n)],
   }
   const tx = near.transactions
+  const unsigned: Effect.Effect<UnsignedTransactionValue, NearFailure> =
+    tx.build(plan)
+  const nonce = Effect.map(unsigned, (value): bigint =>
+    value.version === 0
+      ? value.transaction.nonce
+      : "nonce" in value.transaction.nonce
+        ? value.transaction.nonce.nonce.nonce
+        : value.transaction.nonce.gasKeyNonce.nonce,
+  )
   const bytes: Effect.Effect<
     DelegateActionResult<"bytes">,
     NearFailure
@@ -91,6 +101,8 @@ export function consumeNative(near: NearService) {
   // @ts-expect-error Wait levels must remain protocol literals.
   const invalidWait = tx.send(plan, { waitUntil: "ALMOST_FINAL" })
   return {
+    unsigned,
+    nonce,
     bytes,
     base64,
     none,

@@ -91,13 +91,13 @@ describe("Effect-native transaction wire compatibility", () => {
   ] as const)(
     "%s preserves its domain-separated payload",
     async (mode, digest) => {
-      const result = await Effect.runPromise(
+      const program: Effect.Effect<{ payload: Uint8Array }, TransactionError> =
         Transaction[mode](plan(), setup().dependencies, {
           nonce: 42n,
           maxBlockHeight: 200n,
           payloadFormat: "bytes",
-        }),
-      )
+        })
+      const result = await Effect.runPromise(program)
       expect(Buffer.from(sha256(result.payload)).toString("hex")).toBe(digest)
     },
   )
@@ -110,6 +110,116 @@ describe("Effect-native transaction wire compatibility", () => {
       Effect.Effect<DelegateActionResult<"base64">, TransactionError>
     >()
   })
+})
+
+describe("Native unsigned transaction values", () => {
+  test("preserves the public builder's historical unsigned V0 projection", async () => {
+    const { builder, rpc } = setup()
+    rpc.getAccessKey = async () => ({ nonce: 7 }) as never
+    rpc.call = async () => ({ nonces: [100, 200] }) as never
+    const unsigned = await builder
+      .useGasKey(1)
+      .strictNonceMode()
+      .transfer("bob.near", "1 NEAR")
+      .build()
+    expect(unsigned.nonce).toBe(8n)
+    expect(unsigned).not.toHaveProperty("version")
+    expect(unsigned).not.toHaveProperty("nonceMode")
+  })
+
+  test.each([
+    { name: "V0", policy: {}, version: 0, nonce: 8n },
+    {
+      name: "strict V1",
+      policy: { strictNonce: true },
+      version: 1,
+      nonce: { nonce: { nonce: 8n } },
+      nonceMode: { strict: {} },
+    },
+    {
+      name: "gas V1",
+      policy: { nonceIndex: 1 },
+      version: 1,
+      nonce: { gasKeyNonce: { nonce: 201n, nonceIndex: 1 } },
+      nonceMode: { monotonic: {} },
+    },
+    {
+      name: "strict gas V1",
+      policy: { nonceIndex: 1, strictNonce: true },
+      version: 1,
+      nonce: { gasKeyNonce: { nonce: 201n, nonceIndex: 1 } },
+      nonceMode: { strict: {} },
+    },
+    {
+      name: "explicit gas V1",
+      policy: { nonce: 42n, nonceIndex: 1 },
+      version: 1,
+      nonce: { gasKeyNonce: { nonce: 42n, nonceIndex: 1 } },
+      nonceMode: { monotonic: {} },
+    },
+  ])(
+    "builds $name with its actual nonce domain",
+    async ({ policy, version, nonce, nonceMode }) => {
+      const { dependencies, rpc } = setup()
+      rpc.getAccessKey = async () => ({ nonce: 7 }) as never
+      rpc.call = async () => ({ nonces: [100, 200] }) as never
+      const tx = Transaction.transactions(dependencies)
+      const input = plan(policy)
+      const unsigned = await Effect.runPromise(tx.build(input))
+      expect(unsigned).toMatchObject({
+        version,
+        transaction: {
+          signerId: "alice.near",
+          receiverId: "bob.near",
+          nonce,
+          ...(nonceMode ? { nonceMode } : {}),
+        },
+      })
+      const next = await Effect.runPromise(tx.build(input))
+      const nextNonce = policy.nonce ?? (policy.strictNonce ? 8n : 9n)
+      const nextGasNonce = policy.nonce ?? (policy.strictNonce ? 201n : 202n)
+      expect(next).toMatchObject({
+        transaction: {
+          nonce:
+            version === 0
+              ? nextNonce
+              : policy.nonceIndex === undefined
+                ? { nonce: { nonce: nextNonce } }
+                : { gasKeyNonce: { nonce: nextGasNonce, nonceIndex: 1 } },
+        },
+      })
+    },
+  )
+
+  test.each([
+    {
+      name: "missing explicit gas slot",
+      policy: { nonce: 42n, nonceIndex: 2 },
+      nonces: [100, 200],
+    },
+    {
+      name: "malformed gas nonce",
+      policy: { strictNonce: true, nonceIndex: 1 },
+      nonces: [100, "bad"],
+    },
+  ])(
+    "classifies $name before block acquisition",
+    async ({ policy, nonces }) => {
+      const { dependencies, rpc } = setup()
+      rpc.getAccessKey = async () => ({ nonce: 7 }) as never
+      rpc.call = async () => ({ nonces }) as never
+      const block = vi.spyOn(rpc, "getBlock")
+      const exit = await Effect.runPromiseExit(
+        Transaction.transactions(dependencies).build(plan(policy)),
+      )
+      expect(Exit.isFailure(exit)).toBe(true)
+      if (Exit.isFailure(exit)) {
+        expect(Cause.hasFails(exit.cause)).toBe(true)
+        expect(Cause.hasDies(exit.cause)).toBe(false)
+      }
+      expect(block).not.toHaveBeenCalled()
+    },
+  )
 })
 
 describe("Transaction execution ownership", () => {

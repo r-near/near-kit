@@ -20,6 +20,7 @@ export type {
   TransactionPlan,
   TransactionSigner,
   SignedTransactionValue,
+  UnsignedTransactionValue,
 } from "./transaction.js"
 export {
   createEffectContract,

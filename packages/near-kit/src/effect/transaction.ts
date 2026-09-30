@@ -19,6 +19,7 @@ import {
   signatureToZorsh,
   type SignedDelegateAction,
   type TransactionNonceBorsh,
+  type TransactionV1,
 } from "../core/schema.js"
 import type {
   Action,
@@ -85,6 +86,11 @@ export interface TransactionPlan {
   readonly signer?: TransactionSigner
 }
 
+/** Owned unsigned data in the exact wire version selected by the plan. */
+export type UnsignedTransactionValue =
+  | { readonly version: 0; readonly transaction: UnsignedTransaction }
+  | { readonly version: 1; readonly transaction: TransactionV1 }
+
 /** Only copied wire bytes leave a signed commitment. No live action or key objects are retained. */
 export interface SignedTransactionValue {
   readonly hash: string
@@ -96,6 +102,8 @@ export interface SignedTransactionValue {
   readonly serialize: () => Uint8Array
 }
 
+/** Delegate nonce and expiry belong to these options, not the outer transaction plan.
+ * A plan nonce is rejected; plan strictNonce and nonceIndex do not select delegate policy. */
 export type DelegateSigningOptions = {
   receiverId?: string
   /** Explicit expiry; otherwise current height plus blockHeightOffset (default 200). */
@@ -108,7 +116,10 @@ export type DelegateOptions<F extends DelegateActionPayloadFormat = "base64"> =
   DelegateSigningOptions & { payloadFormat?: F }
 export type DelegateV2Options<
   F extends DelegateActionPayloadFormat = "base64",
-> = DelegateOptions<F> & { nonceIndex?: number }
+> = DelegateOptions<F> & {
+  /** Delegate gas-key slot, independent of the outer transaction plan's nonceIndex. */
+  nonceIndex?: number
+}
 export type DelegateActionResult<
   F extends DelegateActionPayloadFormat = "base64",
 > = {
@@ -307,8 +318,8 @@ const prepare = Effect.fn("Transaction.prepare")(function* (
   return transaction
 })
 
-/** build preserves the existing unsigned V0 shape; sign selects the actual wire version. */
-export const build = Effect.fn("Transaction.build")(function* (
+/** Compatibility projection for the public Promise builder's historical unsigned V0 API. */
+export const legacyBuild = Effect.fn("Transaction.legacyBuild")(function* (
   input: TransactionPlan,
   dependencies: TransactionDependencies,
   key?: Effect.Effect<KeyPair, NearFailure>,
@@ -320,6 +331,36 @@ export const build = Effect.fn("Transaction.build")(function* (
     key ?? resolveKey(plan, dependencies),
     false,
   )
+})
+
+const unsignedValue = (
+  plan: TransactionPlan,
+  transaction: UnsignedTransaction,
+): UnsignedTransactionValue =>
+  plan.nonceIndex !== undefined || plan.strictNonce
+    ? {
+        version: 1,
+        transaction: {
+          ...transaction,
+          nonce: nonceValue(transaction.nonce, plan.nonceIndex),
+          nonceMode: plan.strictNonce ? { strict: {} } : { monotonic: {} },
+        },
+      }
+    : { version: 0, transaction }
+
+/** Build owned unsigned data with the same nonce domain and wire version as signing. */
+export const build = Effect.fn("Transaction.build")(function* (
+  input: TransactionPlan,
+  dependencies: TransactionDependencies,
+) {
+  const plan = yield* transactionInput(() => make(input))
+  const transaction = yield* prepare(
+    plan,
+    dependencies,
+    resolveKey(plan, dependencies),
+    true,
+  )
+  return unsignedValue(plan, transaction)
 })
 
 const signOwned = Effect.fn("Transaction.sign")(function* (
@@ -346,16 +387,13 @@ const signOwned = Effect.fn("Transaction.sign")(function* (
     plan,
     dependencies,
     Effect.succeed(keyPair),
-    plan.nonceIndex !== undefined || plan.strictNonce === true,
+    true,
   )
+  const unsigned = unsignedValue(plan, transaction)
   const bytes = yield* transactionInput(() =>
-    plan.nonceIndex !== undefined || plan.strictNonce
-      ? serializeTransactionV1({
-          ...transaction,
-          nonce: nonceValue(transaction.nonce, plan.nonceIndex),
-          nonceMode: plan.strictNonce ? { strict: {} } : { monotonic: {} },
-        })
-      : serializeTransaction(transaction),
+    unsigned.version === 1
+      ? serializeTransactionV1(unsigned.transaction)
+      : serializeTransaction(unsigned.transaction),
   )
   const digest = sha256(bytes)
   const hash = base58.encode(digest)

@@ -807,7 +807,7 @@ export class TransactionBuilder {
     return runPromise(
       Effect.suspend(() => {
         const { plan, key } = this.execution()
-        return Program.build(plan, this.dependencies, key)
+        return Program.legacyBuild(plan, this.dependencies, key)
       }),
     )
   }
