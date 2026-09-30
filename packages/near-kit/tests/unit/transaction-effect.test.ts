@@ -7,7 +7,7 @@ import {
   TransactionBuilder,
   type TransactionError,
 } from "../../src/core/transaction.js"
-import type { Signature } from "../../src/core/types.js"
+import type { KeyStore, Signature } from "../../src/core/types.js"
 import { InvalidNonceError } from "../../src/errors/index.js"
 import { ExternalError } from "../../src/effect/runtime.js"
 import { transaction } from "../../src/effect/transaction.js"
@@ -227,6 +227,42 @@ describe("Transaction execution ownership", () => {
     )
     await builder.nonce(42n).transfer("bob.near", "1 NEAR").sign()
     expect(receivers).toEqual([builder, builder])
+  })
+
+  test("does not replay a signer that rejects InvalidNonce before broadcast", async () => {
+    const { rpc } = setup()
+    const key = parseKey(PRIVATE_KEY)
+    const get = vi.fn(async () => key)
+    const keyStore: KeyStore = {
+      get,
+      add: async () => {},
+      remove: async () => {},
+      list: async () => ["pre-submit-retry.near"],
+    }
+    const accessKey = vi.fn(async () => ({
+      nonce: 10,
+      permission: "FullAccess" as const,
+      block_height: 1,
+      block_hash: "11111111111111111111111111111111",
+    }))
+    rpc.getAccessKey = accessKey
+    const block = vi.spyOn(rpc, "getBlock")
+    const broadcast = vi.spyOn(rpc, "sendTransaction")
+    const rejection = new InvalidNonceError(1, 2)
+    const signer = vi.fn(async () => {
+      throw rejection
+    })
+    const tx = new TransactionBuilder("pre-submit-retry.near", rpc, keyStore)
+      .transfer("bob.near", "1 NEAR")
+      .signWith(signer)
+
+    await expect(tx.send()).rejects.toBe(rejection)
+    expect(signer).toHaveBeenCalledTimes(1)
+    expect(get).toHaveBeenCalledTimes(1)
+    expect(accessKey).toHaveBeenCalledTimes(1)
+    expect(block).toHaveBeenCalledTimes(1)
+    expect(broadcast).not.toHaveBeenCalled()
+    expect(tx.getHash()).toBeNull()
   })
 
   test("classifies synchronous KeyPair failures in the native error channel", async () => {

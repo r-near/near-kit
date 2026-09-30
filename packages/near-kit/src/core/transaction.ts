@@ -1635,10 +1635,38 @@ export class TransactionBuilder {
         const signedSerialized =
           serialized ??
           (yield* transactionSync(() => serializeSignedTransaction(signedTx)))
-        const result = yield* this.rpcPrograms.sendTransaction(
-          signedSerialized,
-          waitUntil,
-        )
+        const result = yield* this.rpcPrograms
+          .sendTransaction(signedSerialized, waitUntil)
+          .pipe(
+            Effect.catch((failure) =>
+              Effect.gen({ self: this }, function* () {
+                const error =
+                  failure instanceof ExternalError ? failure.cause : failure
+                if (
+                  !(error instanceof InvalidNonceError) ||
+                  this.explicitNonce !== undefined
+                )
+                  return yield* Effect.fail(failure)
+                if (!this.strictNonce) {
+                  const pk = signedTx.transaction.publicKey.toString()
+                  const cacheKey =
+                    this.gasKeyNonceIndex !== undefined
+                      ? `${pk}#${this.gasKeyNonceIndex}`
+                      : pk
+                  yield* this.nonces.updateAndGetNext(
+                    this.signerId,
+                    cacheKey,
+                    yield* transactionSync(() => BigInt(error.akNonce)),
+                  )
+                }
+                // Only a submission rejection authorizes rebuilding and signing.
+                return yield* Effect.fail({
+                  _tag: "NonceRetry" as const,
+                  failure,
+                })
+              }),
+            ),
+          )
         if (!("transaction" in result) || !result.transaction) {
           ;(result as Record<string, unknown>)["transaction"] = {
             hash,
@@ -1648,46 +1676,14 @@ export class TransactionBuilder {
           }
         }
         return result
-      }).pipe(
-        Effect.tapError((failure) =>
-          Effect.gen({ self: this }, function* () {
-            const error =
-              failure instanceof ExternalError ? failure.cause : failure
-            if (
-              error instanceof InvalidNonceError &&
-              this.explicitNonce === undefined &&
-              this.cachedSignedTx &&
-              !this.strictNonce
-            ) {
-              const pk =
-                this.cachedSignedTx.signedTx.transaction.publicKey.toString()
-              const cacheKey =
-                this.gasKeyNonceIndex !== undefined
-                  ? `${pk}#${this.gasKeyNonceIndex}`
-                  : pk
-              yield* this.nonces.updateAndGetNext(
-                this.signerId,
-                cacheKey,
-                yield* transactionSync(() => BigInt(error.akNonce)),
-              )
-            }
-          }),
-        ),
-      )
-      // InvalidNonce proves the transaction was rejected before execution.
-      // No transport, wallet or arbitrary signer failure is safe to replay.
+      })
       return yield* submit.pipe(
         Effect.retry({
           schedule: Schedule.recurs(2),
-          while: (failure) => {
-            const error =
-              failure instanceof ExternalError ? failure.cause : failure
-            return (
-              error instanceof InvalidNonceError &&
-              this.explicitNonce === undefined
-            )
-          },
+          while: (failure) =>
+            "_tag" in failure && failure._tag === "NonceRetry",
         }),
+        Effect.catchTag("NonceRetry", ({ failure }) => Effect.fail(failure)),
       )
     }).pipe(Effect.withSpan("TransactionBuilder.send"))
   }
