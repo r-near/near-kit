@@ -151,14 +151,53 @@ describe("paired application workflow examples", () => {
               nativeWorkflow(input).pipe(Effect.provide(fixture.layer)),
             )
           : runPromiseWorkflow(fixture.layer, input)
-      await expect(work).rejects.toMatchObject({
-        code: "NETWORK_ERROR",
-        statusCode: 400,
-        retryable: false,
-      })
-      expect(fixture.submissions).toEqual([])
-      expect(fixture.snapshot().active).toBe(0)
-      expect([...fixture.released].sort()).toEqual([...fixture.acquired].sort())
+      let settled = false
+      const completion = work.then(
+        (value) => {
+          settled = true
+          return { value, error: undefined }
+        },
+        (error: unknown) => {
+          settled = true
+          return { value: undefined, error }
+        },
+      )
+      try {
+        await fixture.readFailure.blocked
+        const failure = await fixture.readFailure.observed
+        if (mode === "promise") {
+          // Drain rejection handlers at the next task boundary without a timed
+          // sleep. The first request can only finish when this test opens it.
+          await new Promise<void>((resolve) => setImmediate(resolve))
+          expect(settled).toBe(false)
+          expect(fixture.readFailure.state()).toEqual({
+            blockedStatus: "pending",
+            releasedRead: false,
+          })
+          expect(fixture.snapshot().active).toBe(1)
+          expect(fixture.released).toEqual([])
+          fixture.readFailure.release()
+        }
+        const outcome = await completion
+        expect(outcome.error).toBe(failure)
+        expect(outcome.error).toMatchObject({
+          code: "NETWORK_ERROR",
+          statusCode: 400,
+          retryable: false,
+        })
+        expect(fixture.readFailure.state()).toEqual(
+          mode === "native"
+            ? { blockedStatus: "aborted", releasedRead: false }
+            : { blockedStatus: "released", releasedRead: true },
+        )
+        expect(fixture.submissions).toEqual([])
+        expect(fixture.snapshot().active).toBe(0)
+        expect([...fixture.released].sort()).toEqual(
+          [...fixture.acquired].sort(),
+        )
+      } finally {
+        fixture.readFailure.release()
+      }
     },
   )
 })

@@ -47,6 +47,11 @@ export async function workflowFixture(
   let maximum = 0
   let dropped = false
   let calls = 0
+  const blockedRead = Promise.withResolvers<void>()
+  const releaseRead = Promise.withResolvers<void>()
+  const failedRead = Promise.withResolvers<unknown>()
+  let blockedStatus: "pending" | "released" | "aborted" | undefined
+  let releasedRead = false
   const store = new InMemoryKeyStore()
   for (const [index, key] of keys.entries()) {
     await store.add(accounts[index] ?? "", {
@@ -126,7 +131,27 @@ export async function workflowFixture(
       const args = JSON.parse(
         Buffer.from(params["args_base64"] ?? "", "base64").toString(),
       ) as { index: number }
-      if (options.failRead) status = 400
+      if (options.failRead && args.index === 0) {
+        blockedStatus = "pending"
+        blockedRead.resolve()
+        await new Promise<void>((resolve, reject) => {
+          const abort = () => {
+            blockedStatus = "aborted"
+            reject(new DOMException("Aborted", "AbortError"))
+          }
+          init.signal.addEventListener("abort", abort, { once: true })
+          void releaseRead.promise.then(() => {
+            init.signal.removeEventListener("abort", abort)
+            if (blockedStatus !== "pending") return
+            blockedStatus = "released"
+            resolve()
+          })
+          if (init.signal.aborted) abort()
+        })
+      } else if (options.failRead && args.index === 1) {
+        await blockedRead.promise
+        status = 400
+      }
       result = {
         result: [
           ...Buffer.from(
@@ -209,10 +234,18 @@ export async function workflowFixture(
     Effect.gen(function* () {
       const base = yield* RpcTransport
       return RpcTransport.of({
-        execute: (...args) =>
-          options.trace
+        execute: (...args) => {
+          const operation = options.trace
             ? record("rpc").pipe(Effect.andThen(base.execute(...args)))
-            : base.execute(...args),
+            : base.execute(...args)
+          return operation.pipe(
+            Effect.tapError((error) =>
+              Effect.sync(() => {
+                if (options.failRead) failedRead.resolve(error)
+              }),
+            ),
+          )
+        },
       })
     }),
   ).pipe(
@@ -261,6 +294,15 @@ export async function workflowFixture(
     submissions,
     statusHashes,
     observations,
+    readFailure: {
+      blocked: blockedRead.promise,
+      observed: failedRead.promise,
+      release: () => {
+        releasedRead = true
+        releaseRead.resolve()
+      },
+      state: () => ({ blockedStatus, releasedRead }),
+    },
     snapshot: () => ({ signatures, active, maximum }),
   }
 }
