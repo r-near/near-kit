@@ -28,6 +28,7 @@
  * @see https://github.com/near/near-cli
  */
 
+import { Effect, Schema } from "effect"
 import { z } from "zod"
 
 /**
@@ -131,24 +132,76 @@ export type Network = z.infer<typeof NetworkSchema>
  * @returns Parsed credential with normalized field names
  * @throws {z.ZodError} If the data doesn't match any supported format
  */
+/** Native credential codec; the exported Zod schemas retain their existing API. */
+const credentialFields = {
+  account_id: Schema.optional(Schema.String),
+  public_key: Schema.String,
+  seed_phrase_hd_path: Schema.optional(Schema.String),
+  master_seed_phrase: Schema.optional(Schema.String),
+  implicit_account_id: Schema.optional(Schema.String),
+}
+
+export const Credential = Schema.Struct({
+  ...credentialFields,
+  private_key: Schema.String,
+})
+export interface Credential extends Schema.Schema.Type<typeof Credential> {}
+
+const LegacyCredential = Schema.Struct({
+  ...credentialFields,
+  secret_key: Schema.String,
+})
+
+/** Decode persisted data, preferring the modern key when both forms are present. */
+export const decodeCredential = Effect.fn("Credential.decode")(function* (
+  data: unknown,
+) {
+  return yield* Schema.decodeUnknownEffect(Credential)(data).pipe(
+    Effect.catch(() =>
+      Schema.decodeUnknownEffect(LegacyCredential)(data).pipe(
+        Effect.map(({ secret_key, ...rest }) => ({
+          ...rest,
+          private_key: secret_key,
+        })),
+        // Preserve the established public Zod error and issue details on invalid input.
+        Effect.mapError((error) => {
+          const result = NearCliCredentialSchema.safeParse(data)
+          return result.success ? error : result.error
+        }),
+      ),
+    ),
+  )
+})
+
 export function parseCredentialFile(data: unknown): NearCliCredential {
-  // Try modern format first
-  const modernResult = NearCliCredentialSchema.safeParse(data)
-  if (modernResult.success) {
-    return modernResult.data
-  }
+  return Effect.runSync(decodeCredential(data))
+}
 
-  // Try legacy format
-  const legacyResult = LegacyCredentialSchema.safeParse(data)
-  if (legacyResult.success) {
-    // Convert legacy format to modern format
-    const { secret_key, ...rest } = legacyResult.data
-    return {
-      ...rest,
-      private_key: secret_key,
-    }
-  }
+export interface CredentialMetadata {
+  seedPhrase?: string
+  derivationPath?: string
+  implicitAccountId?: string
+}
 
-  // Neither format matched, throw the modern format error
-  throw modernResult.error
+/** Shared wire encoding used by disk and operating-system keyrings. */
+export function makeCredential(
+  accountId: string,
+  key: {
+    readonly publicKey: { toString(): string }
+    readonly secretKey: string
+  },
+  options?: CredentialMetadata,
+): Credential {
+  return {
+    account_id: accountId,
+    public_key: key.publicKey.toString(),
+    private_key: key.secretKey,
+    ...(options?.seedPhrase ? { master_seed_phrase: options.seedPhrase } : {}),
+    ...(options?.derivationPath
+      ? { seed_phrase_hd_path: options.derivationPath }
+      : {}),
+    ...(options?.implicitAccountId
+      ? { implicit_account_id: options.implicitAccountId }
+      : {}),
+  }
 }
