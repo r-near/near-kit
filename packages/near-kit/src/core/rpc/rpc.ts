@@ -1,4 +1,8 @@
 import { base58, base64 } from "@scure/base"
+import { Effect, Option, Schedule, Schema, Stream } from "effect"
+import type { z } from "zod"
+import * as Protocol from "../../effect/protocol-schemas.js"
+import { ExternalError, fromPromise, runPromise } from "../../effect/runtime.js"
 import {
   AccessKeyDoesNotExistError,
   GlobalContractNotFoundError,
@@ -102,6 +106,19 @@ export class RpcClient {
   private readonly headers: Record<string, string>
   private requestId: number
   private readonly retryConfig: RpcRetryConfig
+  private transport: RpcFetch = (url, init) => globalThis.fetch(url, init)
+
+  /** Construct a client using an explicit HTTP transport (proxies, instrumentation or tests). */
+  static withTransport(
+    url: string,
+    transport: RpcFetch,
+    headers?: Record<string, string>,
+    retryConfig?: RpcRetryConfigInput,
+  ): RpcClient {
+    const client = new RpcClient(url, headers, retryConfig)
+    client.transport = transport
+    return client
+  }
 
   constructor(
     url: string,
@@ -119,14 +136,6 @@ export class RpcClient {
   }
 
   /**
-   * Sleep for the specified number of milliseconds.
-   * @internal
-   */
-  private async sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms))
-  }
-
-  /**
    * Perform a raw JSON-RPC call with automatic retries and error mapping.
    *
    * @param method - RPC method name (e.g. `"query"`, `"status"`).
@@ -138,103 +147,99 @@ export class RpcClient {
    * @throws {InvalidTransactionError} For transaction failures detected by {@link parseRpcError}.
    * @throws {NearError} For other RPC-level errors.
    */
-  async call<T = unknown>(method: string, params: unknown): Promise<T> {
+  call<T = unknown>(method: string, params: unknown): Promise<T> {
+    return runPromise(this.callOperation<T>(method, params))
+  }
+
+  callEffect<T = unknown>(
+    method: string,
+    params: unknown,
+  ): Effect.Effect<T, RpcFailure> {
+    return Effect.suspend(() =>
+      this.call === rpcPromiseMethods["call"]?.value
+        ? this.callOperation<T>(method, params)
+        : fromPromise(() => this.call<T>(method, params), "RpcClient.call"),
+    )
+  }
+
+  private readonly callOperation = Effect.fn("RpcClient.call")(function* <
+    T = unknown,
+  >(
+    this: RpcClient,
+    method: string,
+    params: unknown,
+  ): Effect.fn.Return<T, RpcFailure> {
     const request: RpcRequest = {
       jsonrpc: "2.0",
       id: ++this.requestId,
       method,
       params,
     }
-
-    let lastError: NearError | null = null
-
-    // Retry loop with exponential backoff
-    // Total attempts = 1 (initial) + maxRetries
-    const totalAttempts = 1 + this.retryConfig.maxRetries
-    for (let attempt = 0; attempt < totalAttempts; attempt++) {
-      try {
-        // Debug logging for RPC requests
-        if (
-          typeof process !== "undefined" &&
-          process.env["NEAR_RPC_DEBUG"] === "true"
-        ) {
-          console.log("[RPC Request]", JSON.stringify(request, null, 2))
-        }
-
-        const response = await fetch(this.url, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...this.headers,
+    const attempt = Effect.fn("RpcClient.request")(
+      { self: this },
+      function* (this: RpcClient): Effect.fn.Return<T, NearError> {
+        debugRpc("Request", request)
+        // One interruptible transport boundary owns both fetch and body consumption.
+        // Aborting after headers have arrived must still cancel the response body.
+        const { response, data } = yield* Effect.tryPromise({
+          try: async (signal) => {
+            const response = await this.transport(this.url, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                ...this.headers,
+              },
+              body: JSON.stringify(request),
+              signal,
+            })
+            if (!response.ok) {
+              const error = new NetworkError(
+                `HTTP ${response.status}: ${response.statusText}`,
+                response.status,
+                isRetryableStatus(response.status),
+              )
+              try {
+                await response.body?.cancel()
+              } catch {
+                // Cleanup failure must not hide the HTTP status or alter retry policy.
+              }
+              throw error
+            }
+            const data: unknown = await response.json()
+            return { response, data }
           },
-          body: JSON.stringify(request),
+          catch: transportError,
         })
-
-        if (!response.ok) {
-          // Use isRetryableStatus to determine if this HTTP error is retryable
-          throw new NetworkError(
-            `HTTP ${response.status}: ${response.statusText}`,
-            response.status,
-            isRetryableStatus(response.status),
+        debugRpc("Response", data)
+        const envelope = yield* Schema.decodeUnknownEffect(RpcEnvelopeSchema)(
+          data,
+        ).pipe(
+          Effect.mapError(
+            () => new NetworkError("RPC response missing result field"),
+          ),
+        )
+        if (envelope.error)
+          return yield* domainEffect(() =>
+            parseRpcError(envelope.error, response.status),
           )
-        }
-
-        const data: RpcResponse<T> = await response.json()
-
-        // Debug logging for RPC responses
-        if (
-          typeof process !== "undefined" &&
-          process.env["NEAR_RPC_DEBUG"] === "true"
-        ) {
-          console.log("[RPC Response]", JSON.stringify(data, null, 2))
-        }
-
-        if (data.error) {
-          // Pass status code to parseRpcError for better retryable detection
-          parseRpcError(data.error, response.status)
-        }
-
-        if (data.result === undefined) {
-          throw new NetworkError("RPC response missing result field")
-        }
-
-        return data.result
-      } catch (error) {
-        // Re-throw non-NearError instances as NetworkError
-        let nearError: NearError
-        if (!(error instanceof NearError)) {
-          // Network failure (fetch threw an error)
-          nearError = new NetworkError(
-            `Network request failed: ${(error as Error).message}`,
-            undefined,
-            true, // Network failures are always retryable
+        if (envelope.result === undefined)
+          return yield* Effect.fail(
+            new NetworkError("RPC response missing result field"),
           )
-        } else {
-          nearError = error
-        }
-
-        lastError = nearError
-
-        // Check if we should retry
-        const isRetryable = "retryable" in lastError && lastError.retryable
-        const hasRetriesLeft = attempt + 1 < totalAttempts
-
-        if (!isRetryable || !hasRetriesLeft) {
-          // Not retryable or out of retries - throw the error
-          throw lastError
-        }
-
-        // Calculate exponential backoff delay: initialDelay * 2^attempt
-        const delayMs = this.retryConfig.initialDelayMs * 2 ** attempt
-
-        // Wait before retrying
-        await this.sleep(delayMs)
-      }
-    }
-
-    // This should never be reached, but TypeScript needs it
-    throw lastError || new NetworkError("Unknown error during RPC call")
-  }
+        // call<T> is intentionally the existing unvalidated raw-RPC escape hatch.
+        // Typed methods below always decode their own complete protocol contract.
+        return envelope.result as T
+      },
+    )
+    return yield* attempt().pipe(
+      Effect.retry({
+        schedule: Schedule.exponential(this.retryConfig.initialDelayMs).pipe(
+          Schedule.upTo({ times: this.retryConfig.maxRetries }),
+        ),
+        while: (error) => "retryable" in error && error.retryable === true,
+      }),
+    )
+  })
 
   /**
    * Perform a generic `query` RPC call.
@@ -242,16 +247,34 @@ export class RpcClient {
    * @param path - `request_type` (e.g. `"view_account"`, `"view_access_key"`).
    * @param data - Raw args as base64 string or bytes.
    */
-  async query<T = unknown>(
+  query<T = unknown>(path: string, data: string | Uint8Array): Promise<T> {
+    return runPromise(this.queryOperation<T>(path, data))
+  }
+
+  queryEffect<T = unknown>(
     path: string,
     data: string | Uint8Array,
-  ): Promise<T> {
-    return this.call("query", {
+  ): Effect.Effect<T, RpcFailure> {
+    return Effect.suspend(() =>
+      this.query === rpcPromiseMethods["query"]?.value
+        ? this.queryOperation<T>(path, data)
+        : fromPromise(() => this.query<T>(path, data), "RpcClient.query"),
+    )
+  }
+
+  private readonly queryOperation = Effect.fn("RpcClient.query")(function* <
+    T = unknown,
+  >(
+    this: RpcClient,
+    path: string,
+    data: string | Uint8Array,
+  ): Effect.fn.Return<T, RpcFailure> {
+    return yield* this.callEffect<T>("query", {
       request_type: path,
       finality: "final",
       args_base64: typeof data === "string" ? data : base64.encode(data),
     })
-  }
+  })
 
   /**
    * Call a contract view function via RPC.
@@ -261,33 +284,67 @@ export class RpcClient {
    * @param args - Arguments object or raw bytes; defaults to `{}`.
    * @param options - Optional {@link BlockReference} to control finality or block.
    */
-  async viewFunction(
+  viewFunction(
     contractId: string,
     methodName: string,
     args: unknown = {},
     options?: BlockReference,
   ): Promise<ViewFunctionCallResult> {
-    const argsBytes =
-      args instanceof Uint8Array
-        ? args
-        : new TextEncoder().encode(JSON.stringify(args))
-    const argsBase64 = base64.encode(argsBytes)
-
-    const result = await this.call("query", {
-      request_type: "call_function",
-      ...(options?.blockId
-        ? { block_id: options.blockId }
-        : { finality: options?.finality || "final" }),
-      account_id: contractId,
-      method_name: methodName,
-      args_base64: argsBase64,
-    })
-
-    // Check for errors in result (NEAR returns view function errors this way)
-    parseQueryError(result, { contractId, methodName })
-
-    return ViewFunctionCallResultSchema.parse(result)
+    return runPromise(
+      this.viewFunctionOperation(contractId, methodName, args, options),
+    )
   }
+
+  viewFunctionEffect(
+    contractId: string,
+    methodName: string,
+    args: unknown = {},
+    options?: BlockReference,
+  ): Effect.Effect<ViewFunctionCallResult, RpcFailure> {
+    return Effect.suspend(() =>
+      this.viewFunction === rpcPromiseMethods["viewFunction"]?.value
+        ? this.viewFunctionOperation(contractId, methodName, args, options)
+        : fromPromise(
+            () => this.viewFunction(contractId, methodName, args, options),
+            "RpcClient.viewFunction",
+          ),
+    )
+  }
+
+  private readonly viewFunctionOperation = Effect.fn("RpcClient.viewFunction")(
+    { self: this },
+    function* (
+      this: RpcClient,
+      contractId: string,
+      methodName: string,
+      args: unknown = {},
+      options?: BlockReference,
+    ): Effect.fn.Return<ViewFunctionCallResult, RpcFailure> {
+      const argsBytes =
+        args instanceof Uint8Array
+          ? args
+          : new TextEncoder().encode(JSON.stringify(args))
+      const argsBase64 = base64.encode(argsBytes)
+      const result = yield* this.callEffect("query", {
+        request_type: "call_function",
+        ...(options?.blockId
+          ? { block_id: options.blockId }
+          : { finality: options?.finality || "final" }),
+        account_id: contractId,
+        method_name: methodName,
+        args_base64: argsBase64,
+      })
+      yield* domainEffect(() =>
+        // Check for errors in result (NEAR returns view function errors this way)
+        parseQueryError(result, { contractId, methodName }),
+      )
+      return yield* decodeRpc(
+        Protocol.ViewFunctionCallResultSchema,
+        ViewFunctionCallResultSchema,
+        result,
+      )
+    },
+  )
 
   /**
    * Get basic account information via `view_account`.
@@ -295,20 +352,48 @@ export class RpcClient {
    * @param accountId - Account ID to query.
    * @param options - Optional {@link BlockReference} to control finality or block.
    */
-  async getAccount(
+  getAccount(
     accountId: string,
     options?: BlockReference,
   ): Promise<AccountView> {
-    const result = await this.call("query", {
-      request_type: "view_account",
-      ...(options?.blockId
-        ? { block_id: options.blockId }
-        : { finality: options?.finality || "optimistic" }),
-      account_id: accountId,
-    })
-
-    return AccountViewSchema.parse(result)
+    return runPromise(this.getAccountOperation(accountId, options))
   }
+
+  getAccountEffect(
+    accountId: string,
+    options?: BlockReference,
+  ): Effect.Effect<AccountView, RpcFailure> {
+    return Effect.suspend(() =>
+      this.getAccount === rpcPromiseMethods["getAccount"]?.value
+        ? this.getAccountOperation(accountId, options)
+        : fromPromise(
+            () => this.getAccount(accountId, options),
+            "RpcClient.getAccount",
+          ),
+    )
+  }
+
+  private readonly getAccountOperation = Effect.fn("RpcClient.getAccount")(
+    { self: this },
+    function* (
+      this: RpcClient,
+      accountId: string,
+      options?: BlockReference,
+    ): Effect.fn.Return<AccountView, RpcFailure> {
+      const result = yield* this.callEffect("query", {
+        request_type: "view_account",
+        ...(options?.blockId
+          ? { block_id: options.blockId }
+          : { finality: options?.finality || "optimistic" }),
+        account_id: accountId,
+      })
+      return yield* decodeRpc(
+        Protocol.AccountViewSchema,
+        AccountViewSchema,
+        result,
+      )
+    },
+  )
 
   /**
    * Get the WASM code deployed on an account via `view_code`.
@@ -321,20 +406,48 @@ export class RpcClient {
    * @throws {ContractNotDeployedError} If the account has no contract deployed.
    * @throws {AccountDoesNotExistError} If the account does not exist.
    */
-  async viewCode(
+  viewCode(
     accountId: string,
     options?: BlockReference,
   ): Promise<ContractCodeView> {
-    const result = await this.call("query", {
-      request_type: "view_code",
-      ...(options?.blockId
-        ? { block_id: options.blockId }
-        : { finality: options?.finality || "optimistic" }),
-      account_id: accountId,
-    })
-
-    return ContractCodeViewSchema.parse(result)
+    return runPromise(this.viewCodeOperation(accountId, options))
   }
+
+  viewCodeEffect(
+    accountId: string,
+    options?: BlockReference,
+  ): Effect.Effect<ContractCodeView, RpcFailure> {
+    return Effect.suspend(() =>
+      this.viewCode === rpcPromiseMethods["viewCode"]?.value
+        ? this.viewCodeOperation(accountId, options)
+        : fromPromise(
+            () => this.viewCode(accountId, options),
+            "RpcClient.viewCode",
+          ),
+    )
+  }
+
+  private readonly viewCodeOperation = Effect.fn("RpcClient.viewCode")(
+    { self: this },
+    function* (
+      this: RpcClient,
+      accountId: string,
+      options?: BlockReference,
+    ): Effect.fn.Return<ContractCodeView, RpcFailure> {
+      const result = yield* this.callEffect("query", {
+        request_type: "view_code",
+        ...(options?.blockId
+          ? { block_id: options.blockId }
+          : { finality: options?.finality || "optimistic" }),
+        account_id: accountId,
+      })
+      return yield* decodeRpc(
+        Protocol.ContractCodeViewSchema,
+        ContractCodeViewSchema,
+        result,
+      )
+    },
+  )
 
   /**
    * Get a published global contract's code via `view_global_contract_code`
@@ -348,42 +461,74 @@ export class RpcClient {
    *
    * @throws {GlobalContractNotFoundError} If no code is published under the identifier.
    */
-  async viewGlobalContractCode(
+  viewGlobalContractCode(
     contract: GlobalContractReference,
     options?: BlockReference,
   ): Promise<ContractCodeView> {
-    const request =
-      "accountId" in contract
-        ? {
-            request_type: "view_global_contract_code_by_account_id",
-            account_id: contract.accountId,
-          }
-        : {
-            request_type: "view_global_contract_code",
-            code_hash: normalizeCodeHash(contract.codeHash),
-          }
-
-    const result = await this.call("query", {
-      ...request,
-      ...(options?.blockId
-        ? { block_id: options.blockId }
-        : { finality: options?.finality || "optimistic" }),
-    }).catch((error) => {
-      // nearcore echoes the identifier in the error payload, but its shape
-      // varies across node versions — re-key with the caller-known reference
-      // so the error is always complete.
-      if (error instanceof GlobalContractNotFoundError) {
-        throw new GlobalContractNotFoundError(
-          "accountId" in contract
-            ? { accountId: contract.accountId }
-            : { codeHash: normalizeCodeHash(contract.codeHash) },
-        )
-      }
-      throw error
-    })
-
-    return ContractCodeViewSchema.parse(result)
+    return runPromise(this.viewGlobalContractCodeOperation(contract, options))
   }
+
+  viewGlobalContractCodeEffect(
+    contract: GlobalContractReference,
+    options?: BlockReference,
+  ): Effect.Effect<ContractCodeView, RpcFailure> {
+    return Effect.suspend(() =>
+      this.viewGlobalContractCode ===
+      rpcPromiseMethods["viewGlobalContractCode"]?.value
+        ? this.viewGlobalContractCodeOperation(contract, options)
+        : fromPromise(
+            () => this.viewGlobalContractCode(contract, options),
+            "RpcClient.viewGlobalContractCode",
+          ),
+    )
+  }
+
+  private readonly viewGlobalContractCodeOperation = Effect.fn(
+    "RpcClient.viewGlobalContractCode",
+  )(
+    { self: this },
+    function* (
+      this: RpcClient,
+      contract: GlobalContractReference,
+      options?: BlockReference,
+    ): Effect.fn.Return<ContractCodeView, RpcFailure> {
+      const request =
+        "accountId" in contract
+          ? {
+              request_type: "view_global_contract_code_by_account_id",
+              account_id: contract.accountId,
+            }
+          : {
+              request_type: "view_global_contract_code",
+              code_hash: normalizeCodeHash(contract.codeHash),
+            }
+      const result = yield* this.callEffect("query", {
+        ...request,
+        ...(options?.blockId
+          ? { block_id: options.blockId }
+          : { finality: options?.finality || "optimistic" }),
+      }).pipe(
+        Effect.mapError((error) => {
+          // nearcore echoes the identifier in the error payload, but its shape
+          // varies across node versions — re-key with the caller-known reference
+          // so the error is always complete.
+          if (rpcFailureCause(error) instanceof GlobalContractNotFoundError) {
+            return new GlobalContractNotFoundError(
+              "accountId" in contract
+                ? { accountId: contract.accountId }
+                : { codeHash: normalizeCodeHash(contract.codeHash) },
+            )
+          }
+          return error
+        }),
+      )
+      return yield* decodeRpc(
+        Protocol.ContractCodeViewSchema,
+        ContractCodeViewSchema,
+        result,
+      )
+    },
+  )
 
   /**
    * Get an access key via `view_access_key`.
@@ -392,25 +537,56 @@ export class RpcClient {
    * @param publicKey - Public key string (e.g. `"ed25519:..."`).
    * @param options - Optional {@link BlockReference} to control finality or block.
    */
-  async getAccessKey(
+  getAccessKey(
     accountId: string,
     publicKey: string,
     options?: BlockReference,
   ): Promise<AccessKeyView> {
-    const result = await this.call("query", {
-      request_type: "view_access_key",
-      ...(options?.blockId
-        ? { block_id: options.blockId }
-        : { finality: options?.finality || "optimistic" }),
-      account_id: accountId,
-      public_key: publicKey,
-    })
-
-    // Check for errors in result (NEAR returns access key errors this way)
-    parseQueryError(result, { accountId, publicKey })
-
-    return AccessKeyViewSchema.parse(result)
+    return runPromise(this.getAccessKeyOperation(accountId, publicKey, options))
   }
+
+  getAccessKeyEffect(
+    accountId: string,
+    publicKey: string,
+    options?: BlockReference,
+  ): Effect.Effect<AccessKeyView, RpcFailure> {
+    return Effect.suspend(() =>
+      this.getAccessKey === rpcPromiseMethods["getAccessKey"]?.value
+        ? this.getAccessKeyOperation(accountId, publicKey, options)
+        : fromPromise(
+            () => this.getAccessKey(accountId, publicKey, options),
+            "RpcClient.getAccessKey",
+          ),
+    )
+  }
+
+  private readonly getAccessKeyOperation = Effect.fn("RpcClient.getAccessKey")(
+    { self: this },
+    function* (
+      this: RpcClient,
+      accountId: string,
+      publicKey: string,
+      options?: BlockReference,
+    ): Effect.fn.Return<AccessKeyView, RpcFailure> {
+      const result = yield* this.callEffect("query", {
+        request_type: "view_access_key",
+        ...(options?.blockId
+          ? { block_id: options.blockId }
+          : { finality: options?.finality || "optimistic" }),
+        account_id: accountId,
+        public_key: publicKey,
+      })
+      yield* domainEffect(() =>
+        // Check for errors in result (NEAR returns access key errors this way)
+        parseQueryError(result, { accountId, publicKey }),
+      )
+      return yield* decodeRpc(
+        Protocol.AccessKeyViewSchema,
+        AccessKeyViewSchema,
+        result,
+      )
+    },
+  )
 
   /**
    * Get all access keys for an account via `view_access_key_list`.
@@ -418,20 +594,50 @@ export class RpcClient {
    * @param accountId - Account ID to list keys for.
    * @param options - Optional {@link BlockReference} to control finality or block.
    */
-  async getAccessKeys(
+  getAccessKeys(
     accountId: string,
     options?: BlockReference,
   ): Promise<AccessKeyListResponse> {
-    const result = await this.call("query", {
-      request_type: "view_access_key_list",
-      ...(options?.blockId
-        ? { block_id: options.blockId }
-        : { finality: options?.finality || "optimistic" }),
-      account_id: accountId,
-    })
-
-    return AccessKeyListResponseSchema.parse(result)
+    return runPromise(this.getAccessKeysOperation(accountId, options))
   }
+
+  getAccessKeysEffect(
+    accountId: string,
+    options?: BlockReference,
+  ): Effect.Effect<AccessKeyListResponse, RpcFailure> {
+    return Effect.suspend(() =>
+      this.getAccessKeys === rpcPromiseMethods["getAccessKeys"]?.value
+        ? this.getAccessKeysOperation(accountId, options)
+        : fromPromise(
+            () => this.getAccessKeys(accountId, options),
+            "RpcClient.getAccessKeys",
+          ),
+    )
+  }
+
+  private readonly getAccessKeysOperation = Effect.fn(
+    "RpcClient.getAccessKeys",
+  )(
+    { self: this },
+    function* (
+      this: RpcClient,
+      accountId: string,
+      options?: BlockReference,
+    ): Effect.fn.Return<AccessKeyListResponse, RpcFailure> {
+      const result = yield* this.callEffect("query", {
+        request_type: "view_access_key_list",
+        ...(options?.blockId
+          ? { block_id: options.blockId }
+          : { finality: options?.finality || "optimistic" }),
+        account_id: accountId,
+      })
+      return yield* decodeRpc(
+        Protocol.AccessKeyListResponseSchema,
+        AccessKeyListResponseSchema,
+        result,
+      )
+    },
+  )
 
   /**
    * Get a gas key's per-lane nonces via `view_gas_key_nonces` (nearcore 2.13).
@@ -446,32 +652,68 @@ export class RpcClient {
    * @param publicKey - Gas key public key string (e.g. `"ed25519:..."`).
    * @param options - Optional {@link BlockReference} to control finality or block.
    */
-  async getGasKeyNonces(
+  getGasKeyNonces(
     accountId: string,
     publicKey: string,
     options?: BlockReference,
   ): Promise<GasKeyNoncesResponse> {
-    // Unlike view_access_key (whose "does not exist" arrives in `result.error`),
-    // view_gas_key_nonces reports a missing gas key as a typed UNKNOWN_GAS_KEY
-    // JSON-RPC error. parseRpcError already maps that to AccessKeyDoesNotExistError
-    // but nearcore only echoes the public key, so we re-key it with the queried
-    // account for a complete error.
-    const result = await this.call("query", {
-      request_type: "view_gas_key_nonces",
-      ...(options?.blockId
-        ? { block_id: options.blockId }
-        : { finality: options?.finality || "optimistic" }),
-      account_id: accountId,
-      public_key: publicKey,
-    }).catch((error) => {
-      if (error instanceof AccessKeyDoesNotExistError) {
-        throw new AccessKeyDoesNotExistError(accountId, publicKey)
-      }
-      throw error
-    })
-
-    return GasKeyNoncesResponseSchema.parse(result)
+    return runPromise(
+      this.getGasKeyNoncesOperation(accountId, publicKey, options),
+    )
   }
+
+  getGasKeyNoncesEffect(
+    accountId: string,
+    publicKey: string,
+    options?: BlockReference,
+  ): Effect.Effect<GasKeyNoncesResponse, RpcFailure> {
+    return Effect.suspend(() =>
+      this.getGasKeyNonces === rpcPromiseMethods["getGasKeyNonces"]?.value
+        ? this.getGasKeyNoncesOperation(accountId, publicKey, options)
+        : fromPromise(
+            () => this.getGasKeyNonces(accountId, publicKey, options),
+            "RpcClient.getGasKeyNonces",
+          ),
+    )
+  }
+
+  private readonly getGasKeyNoncesOperation = Effect.fn(
+    "RpcClient.getGasKeyNonces",
+  )(
+    { self: this },
+    function* (
+      this: RpcClient,
+      accountId: string,
+      publicKey: string,
+      options?: BlockReference,
+    ): Effect.fn.Return<GasKeyNoncesResponse, RpcFailure> {
+      // Unlike view_access_key (whose "does not exist" arrives in `result.error`),
+      // view_gas_key_nonces reports a missing gas key as a typed UNKNOWN_GAS_KEY
+      // JSON-RPC error. parseRpcError already maps that to AccessKeyDoesNotExistError
+      // but nearcore only echoes the public key, so we re-key it with the queried
+      // account for a complete error.
+      const result = yield* this.callEffect("query", {
+        request_type: "view_gas_key_nonces",
+        ...(options?.blockId
+          ? { block_id: options.blockId }
+          : { finality: options?.finality || "optimistic" }),
+        account_id: accountId,
+        public_key: publicKey,
+      }).pipe(
+        Effect.mapError((error) => {
+          if (rpcFailureCause(error) instanceof AccessKeyDoesNotExistError) {
+            return new AccessKeyDoesNotExistError(accountId, publicKey)
+          }
+          return error
+        }),
+      )
+      return yield* decodeRpc(
+        Protocol.GasKeyNoncesResponseSchema,
+        GasKeyNoncesResponseSchema,
+        result,
+      )
+    },
+  )
 
   /**
    * Send a signed transaction via `send_tx`.
@@ -479,24 +721,53 @@ export class RpcClient {
    * @param signedTransaction - Borsh-serialized signed transaction bytes.
    * @param waitUntil - Execution status level to wait for (see {@link TxExecutionStatus}).
    */
-  async sendTransaction<
+  sendTransaction<
     W extends keyof FinalExecutionOutcomeMap = "EXECUTED_OPTIMISTIC",
   >(
     signedTransaction: Uint8Array,
     waitUntil?: W,
   ): Promise<FinalExecutionOutcomeMap[W]> {
+    return runPromise(
+      this.sendTransactionOperation(signedTransaction, waitUntil),
+    )
+  }
+
+  sendTransactionEffect<
+    W extends keyof FinalExecutionOutcomeMap = "EXECUTED_OPTIMISTIC",
+  >(
+    signedTransaction: Uint8Array,
+    waitUntil?: W,
+  ): Effect.Effect<FinalExecutionOutcomeMap[W], RpcFailure> {
+    return Effect.suspend(() =>
+      this.sendTransaction === rpcPromiseMethods["sendTransaction"]?.value
+        ? this.sendTransactionOperation(signedTransaction, waitUntil)
+        : fromPromise(
+            () => this.sendTransaction(signedTransaction, waitUntil),
+            "RpcClient.sendTransaction",
+          ),
+    )
+  }
+
+  private readonly sendTransactionOperation = Effect.fn(
+    "RpcClient.sendTransaction",
+  )({ self: this }, function* <
+    W extends keyof FinalExecutionOutcomeMap = "EXECUTED_OPTIMISTIC",
+  >(this: RpcClient, signedTransaction: Uint8Array, waitUntil?: W): Effect.fn.Return<
+    FinalExecutionOutcomeMap[W],
+    RpcFailure
+  > {
     const actualWaitUntil = (waitUntil ?? "EXECUTED_OPTIMISTIC") as W
     const base64Encoded = base64.encode(signedTransaction)
-
     // Use send_tx with wait_until parameter instead of deprecated broadcast_tx_commit
-    const result = await this.call("send_tx", {
+    const result = yield* this.callEffect("send_tx", {
       signed_tx_base64: base64Encoded,
       wait_until: actualWaitUntil,
     })
-
-    const parsed: FinalExecutionOutcome =
-      FinalExecutionOutcomeSchema.parse(result)
-
+    const parsed: FinalExecutionOutcome = yield* decodeRpc(
+      Protocol.FinalExecutionOutcomeSchema,
+      FinalExecutionOutcomeSchema,
+      result,
+    )
     // Check for execution failures (only in modes that return execution status)
     // NONE, INCLUDED, and INCLUDED_FINAL don't have status/transaction/outcome fields
     if (
@@ -512,28 +783,28 @@ export class RpcClient {
       ) {
         // Check transaction_outcome for direct failures
         if (parsed.transaction_outcome) {
-          checkOutcomeForFunctionCallError(
-            parsed.transaction_outcome,
-            parsed.transaction,
+          yield* domainEffect(() =>
+            checkOutcomeForFunctionCallError(
+              parsed.transaction_outcome,
+              parsed.transaction,
+            ),
           )
         }
-
         // Check receipts_outcome for cross-contract failures
         const failedReceipt = parsed.receipts_outcome?.find(
           (receipt: ExecutionOutcomeWithId) =>
             typeof receipt.outcome.status === "object" &&
             "Failure" in receipt.outcome.status,
         )
-
         if (failedReceipt) {
-          checkOutcomeForFunctionCallError(failedReceipt, parsed.transaction)
+          yield* domainEffect(() =>
+            checkOutcomeForFunctionCallError(failedReceipt, parsed.transaction),
+          )
         }
-
         // Generic transaction failure (non-function-call errors)
         // Extract error message from the actual failure in transaction_outcome or receipts
         let errorMessage = "Transaction execution failed"
         let failureDetails = parsed.status.Failure
-
         if (
           parsed.transaction_outcome &&
           typeof parsed.transaction_outcome.outcome.status === "object" &&
@@ -553,15 +824,15 @@ export class RpcClient {
             failureDetails as Record<string, unknown>,
           )
         }
-
-        throw new InvalidTransactionError(errorMessage, failureDetails)
+        return yield* Effect.fail(
+          new InvalidTransactionError(errorMessage, failureDetails),
+        )
       }
     }
-
     // Safe cast: TypeScript guarantees W is a valid key, Zod validates the structure,
     // and waitUntil determines which variant we get from the RPC
     return parsed as FinalExecutionOutcomeMap[W]
-  }
+  })
 
   /**
    * Query transaction status with receipts via `EXPERIMENTAL_tx_status`.
@@ -570,7 +841,7 @@ export class RpcClient {
    * @param senderAccountId - Account ID that sent the transaction.
    * @param waitUntil - Execution status level to wait for.
    */
-  async getTransactionStatus<
+  getTransactionStatus<
     W extends
       keyof FinalExecutionOutcomeWithReceiptsMap = "EXECUTED_OPTIMISTIC",
   >(
@@ -578,18 +849,51 @@ export class RpcClient {
     senderAccountId: string,
     waitUntil?: W,
   ): Promise<FinalExecutionOutcomeWithReceiptsMap[W]> {
-    const actualWaitUntil = (waitUntil ?? "EXECUTED_OPTIMISTIC") as W
+    return runPromise(
+      this.getTransactionStatusOperation(txHash, senderAccountId, waitUntil),
+    )
+  }
 
+  getTransactionStatusEffect<
+    W extends
+      keyof FinalExecutionOutcomeWithReceiptsMap = "EXECUTED_OPTIMISTIC",
+  >(
+    txHash: string,
+    senderAccountId: string,
+    waitUntil?: W,
+  ): Effect.Effect<FinalExecutionOutcomeWithReceiptsMap[W], RpcFailure> {
+    return Effect.suspend(() =>
+      this.getTransactionStatus ===
+      rpcPromiseMethods["getTransactionStatus"]?.value
+        ? this.getTransactionStatusOperation(txHash, senderAccountId, waitUntil)
+        : fromPromise(
+            () => this.getTransactionStatus(txHash, senderAccountId, waitUntil),
+            "RpcClient.getTransactionStatus",
+          ),
+    )
+  }
+
+  private readonly getTransactionStatusOperation = Effect.fn(
+    "RpcClient.getTransactionStatus",
+  )({ self: this }, function* <
+    W extends
+      keyof FinalExecutionOutcomeWithReceiptsMap = "EXECUTED_OPTIMISTIC",
+  >(this: RpcClient, txHash: string, senderAccountId: string, waitUntil?: W): Effect.fn.Return<
+    FinalExecutionOutcomeWithReceiptsMap[W],
+    RpcFailure
+  > {
+    const actualWaitUntil = (waitUntil ?? "EXECUTED_OPTIMISTIC") as W
     // Call EXPERIMENTAL_tx_status with wait_until parameter
-    const result = await this.call("EXPERIMENTAL_tx_status", {
+    const result = yield* this.callEffect("EXPERIMENTAL_tx_status", {
       tx_hash: txHash,
       sender_account_id: senderAccountId,
       wait_until: actualWaitUntil,
     })
-
-    const parsed: FinalExecutionOutcomeWithReceipts =
-      FinalExecutionOutcomeWithReceiptsSchema.parse(result)
-
+    const parsed: FinalExecutionOutcomeWithReceipts = yield* decodeRpc(
+      Protocol.FinalExecutionOutcomeWithReceiptsSchema,
+      FinalExecutionOutcomeWithReceiptsSchema,
+      result,
+    )
     // Check for execution failures. EXPERIMENTAL_tx_status can return a terminal
     // Failure status even when final_execution_status is an early wait level
     // (NONE/INCLUDED/INCLUDED_FINAL), so gate on the presence of a Failure status
@@ -602,28 +906,26 @@ export class RpcClient {
     ) {
       // Check transaction_outcome for direct failures
       if (parsed.transaction_outcome) {
-        checkOutcomeForFunctionCallError(
-          parsed.transaction_outcome,
-          parsed.transaction,
+        const outcome = parsed.transaction_outcome
+        yield* domainEffect(() =>
+          checkOutcomeForFunctionCallError(outcome, parsed.transaction),
         )
       }
-
       // Check receipts_outcome for cross-contract failures
       const failedReceipt = parsed.receipts_outcome?.find(
         (receipt) =>
           typeof receipt.outcome.status === "object" &&
           "Failure" in receipt.outcome.status,
       )
-
       if (failedReceipt) {
-        checkOutcomeForFunctionCallError(failedReceipt, parsed.transaction)
+        yield* domainEffect(() =>
+          checkOutcomeForFunctionCallError(failedReceipt, parsed.transaction),
+        )
       }
-
       // Generic transaction failure (non-function-call errors)
       // Extract error message from the actual failure in transaction_outcome or receipts
       let errorMessage = "Transaction execution failed"
       let failureDetails = parsed.status.Failure
-
       if (
         parsed.transaction_outcome &&
         typeof parsed.transaction_outcome.outcome.status === "object" &&
@@ -643,14 +945,14 @@ export class RpcClient {
           failureDetails as Record<string, unknown>,
         )
       }
-
-      throw new InvalidTransactionError(errorMessage, failureDetails)
+      return yield* Effect.fail(
+        new InvalidTransactionError(errorMessage, failureDetails),
+      )
     }
-
     // Safe cast: TypeScript guarantees W is a valid key, Zod validates the structure,
     // and waitUntil determines which variant we get from the RPC
     return parsed as FinalExecutionOutcomeWithReceiptsMap[W]
-  }
+  })
 
   /**
    * Map a receipt back to its originating transaction via
@@ -668,21 +970,66 @@ export class RpcClient {
    * @throws {UnknownReceiptError} If the receipt is not known to the node.
    * @throws {NetworkError} If the network request failed.
    */
-  async receiptToTx(receiptId: string): Promise<ReceiptToTxResponse> {
-    const result = await this.call("EXPERIMENTAL_receipt_to_tx", {
-      receipt_id: receiptId,
-    })
-
-    return ReceiptToTxResponseSchema.parse(result)
+  receiptToTx(receiptId: string): Promise<ReceiptToTxResponse> {
+    return runPromise(this.receiptToTxOperation(receiptId))
   }
+
+  receiptToTxEffect(
+    receiptId: string,
+  ): Effect.Effect<ReceiptToTxResponse, RpcFailure> {
+    return Effect.suspend(() =>
+      this.receiptToTx === rpcPromiseMethods["receiptToTx"]?.value
+        ? this.receiptToTxOperation(receiptId)
+        : fromPromise(
+            () => this.receiptToTx(receiptId),
+            "RpcClient.receiptToTx",
+          ),
+    )
+  }
+
+  private readonly receiptToTxOperation = Effect.fn("RpcClient.receiptToTx")(
+    { self: this },
+    function* (
+      this: RpcClient,
+      receiptId: string,
+    ): Effect.fn.Return<ReceiptToTxResponse, RpcFailure> {
+      const result = yield* this.callEffect("EXPERIMENTAL_receipt_to_tx", {
+        receipt_id: receiptId,
+      })
+      return yield* decodeRpc(
+        Protocol.ReceiptToTxResponseSchema,
+        ReceiptToTxResponseSchema,
+        result,
+      )
+    },
+  )
 
   /**
    * Get node status via `status`.
    */
-  async getStatus(): Promise<StatusResponse> {
-    const result = await this.call("status", [])
-    return StatusResponseSchema.parse(result)
+  getStatus(): Promise<StatusResponse> {
+    return runPromise(this.getStatusOperation())
   }
+
+  getStatusEffect(): Effect.Effect<StatusResponse, RpcFailure> {
+    return Effect.suspend(() =>
+      this.getStatus === rpcPromiseMethods["getStatus"]?.value
+        ? this.getStatusOperation()
+        : fromPromise(() => this.getStatus(), "RpcClient.getStatus"),
+    )
+  }
+
+  private readonly getStatusOperation = Effect.fn("RpcClient.getStatus")(
+    { self: this },
+    function* (this: RpcClient): Effect.fn.Return<StatusResponse, RpcFailure> {
+      const result = yield* this.callEffect("status", [])
+      return yield* decodeRpc(
+        Protocol.StatusResponseSchema,
+        StatusResponseSchema,
+        result,
+      )
+    },
+  )
 
   /**
    * Get block information via `block`.
@@ -707,25 +1054,69 @@ export class RpcClient {
    * const block = await rpc.getBlock({ blockId: "ABC123..." })
    * ```
    */
-  async getBlock(options?: BlockReference): Promise<BlockView> {
-    const result = await this.call("block", {
-      ...(options?.blockId
-        ? { block_id: options.blockId }
-        : { finality: options?.finality || "final" }),
-    })
-
-    return BlockViewSchema.parse(result)
+  getBlock(options?: BlockReference): Promise<BlockView> {
+    return runPromise(this.getBlockOperation(options))
   }
+
+  getBlockEffect(
+    options?: BlockReference,
+  ): Effect.Effect<BlockView, RpcFailure> {
+    return Effect.suspend(() =>
+      this.getBlock === rpcPromiseMethods["getBlock"]?.value
+        ? this.getBlockOperation(options)
+        : fromPromise(() => this.getBlock(options), "RpcClient.getBlock"),
+    )
+  }
+
+  private readonly getBlockOperation = Effect.fn("RpcClient.getBlock")(
+    { self: this },
+    function* (
+      this: RpcClient,
+      options?: BlockReference,
+    ): Effect.fn.Return<BlockView, RpcFailure> {
+      const result = yield* this.callEffect(
+        "block",
+        options?.blockId
+          ? { block_id: options.blockId }
+          : { finality: options?.finality || "final" },
+      )
+      return yield* decodeRpc(Protocol.BlockViewSchema, BlockViewSchema, result)
+    },
+  )
 
   /**
    * Get gas price via `gas_price`.
    *
    * @param blockId - Optional block hash or height; `null` for latest.
    */
-  async getGasPrice(blockId: string | null = null): Promise<GasPriceResponse> {
-    const result = await this.call("gas_price", [blockId])
-    return GasPriceResponseSchema.parse(result)
+  getGasPrice(blockId: string | null = null): Promise<GasPriceResponse> {
+    return runPromise(this.getGasPriceOperation(blockId))
   }
+
+  getGasPriceEffect(
+    blockId: string | null = null,
+  ): Effect.Effect<GasPriceResponse, RpcFailure> {
+    return Effect.suspend(() =>
+      this.getGasPrice === rpcPromiseMethods["getGasPrice"]?.value
+        ? this.getGasPriceOperation(blockId)
+        : fromPromise(() => this.getGasPrice(blockId), "RpcClient.getGasPrice"),
+    )
+  }
+
+  private readonly getGasPriceOperation = Effect.fn("RpcClient.getGasPrice")(
+    { self: this },
+    function* (
+      this: RpcClient,
+      blockId: string | null = null,
+    ): Effect.fn.Return<GasPriceResponse, RpcFailure> {
+      const result = yield* this.callEffect("gas_price", [blockId])
+      return yield* decodeRpc(
+        Protocol.GasPriceResponseSchema,
+        GasPriceResponseSchema,
+        result,
+      )
+    },
+  )
 
   /**
    * Read a single page of contract state via `view_state`.
@@ -751,7 +1142,7 @@ export class RpcClient {
    * }
    * ```
    */
-  async viewState(
+  viewState(
     accountId: string,
     options?: BlockReference & {
       prefix?: string
@@ -760,28 +1151,67 @@ export class RpcClient {
       includeProof?: boolean
     },
   ): Promise<ViewStateResult> {
-    const result = await this.call("query", {
-      request_type: "view_state",
-      ...(options?.blockId
-        ? { block_id: options.blockId }
-        : { finality: options?.finality || "optimistic" }),
-      account_id: accountId,
-      prefix_base64: options?.prefix ?? "",
-      ...(options?.afterKey !== undefined
-        ? { after_key_base64: options.afterKey }
-        : {}),
-      ...(options?.limit !== undefined ? { limit: options.limit } : {}),
-      ...(options?.includeProof ? { include_proof: true } : {}),
-    })
-
-    // No access-key context: parseQueryError would otherwise misread a
-    // "does not exist" error (missing account/contract) as an
-    // AccessKeyDoesNotExistError. A view_state failure surfaces as a generic
-    // query error instead.
-    parseQueryError(result)
-
-    return ViewStateResultSchema.parse(result)
+    return runPromise(this.viewStateOperation(accountId, options))
   }
+
+  viewStateEffect(
+    accountId: string,
+    options?: BlockReference & {
+      prefix?: string
+      afterKey?: string
+      limit?: number
+      includeProof?: boolean
+    },
+  ): Effect.Effect<ViewStateResult, RpcFailure> {
+    return Effect.suspend(() =>
+      this.viewState === rpcPromiseMethods["viewState"]?.value
+        ? this.viewStateOperation(accountId, options)
+        : fromPromise(
+            () => this.viewState(accountId, options),
+            "RpcClient.viewState",
+          ),
+    )
+  }
+
+  private readonly viewStateOperation = Effect.fn("RpcClient.viewState")(
+    { self: this },
+    function* (
+      this: RpcClient,
+      accountId: string,
+      options?: BlockReference & {
+        prefix?: string
+        afterKey?: string
+        limit?: number
+        includeProof?: boolean
+      },
+    ): Effect.fn.Return<ViewStateResult, RpcFailure> {
+      const result = yield* this.callEffect("query", {
+        request_type: "view_state",
+        ...(options?.blockId
+          ? { block_id: options.blockId }
+          : { finality: options?.finality || "optimistic" }),
+        account_id: accountId,
+        prefix_base64: options?.prefix ?? "",
+        ...(options?.afterKey !== undefined
+          ? { after_key_base64: options.afterKey }
+          : {}),
+        ...(options?.limit !== undefined ? { limit: options.limit } : {}),
+        ...(options?.includeProof ? { include_proof: true } : {}),
+      })
+      yield* domainEffect(() =>
+        // No access-key context: parseQueryError would otherwise misread a
+        // "does not exist" error (missing account/contract) as an
+        // AccessKeyDoesNotExistError. A view_state failure surfaces as a generic
+        // query error instead.
+        parseQueryError(result),
+      )
+      return yield* decodeRpc(
+        Protocol.ViewStateResultSchema,
+        ViewStateResultSchema,
+        result,
+      )
+    },
+  )
 
   /**
    * Iterate all contract state entries via `view_state`, following the
@@ -804,15 +1234,47 @@ export class RpcClient {
     accountId: string,
     options?: BlockReference & { prefix?: string; limit?: number },
   ): AsyncGenerator<StateItem> {
-    let afterKey: string | undefined
-    do {
-      const page = await this.viewState(accountId, {
-        ...options,
-        ...(afterKey !== undefined ? { afterKey } : {}),
-      })
-      yield* page.values
-      afterKey = page.last_key
-    } while (afterKey !== undefined)
+    try {
+      yield* Stream.toAsyncIterable(
+        this.viewStateAllOperation(accountId, options),
+      )
+    } catch (error) {
+      throw error instanceof ExternalError ? error.cause : error
+    }
+  }
+
+  viewStateAllStream(
+    accountId: string,
+    options?: BlockReference & { prefix?: string; limit?: number },
+  ): Stream.Stream<StateItem, RpcFailure> {
+    return Stream.suspend(() =>
+      this.viewStateAll === rpcPromiseMethods["viewStateAll"]?.value
+        ? this.viewStateAllOperation(accountId, options)
+        : Stream.fromAsyncIterable(
+            this.viewStateAll(accountId, options),
+            (cause) =>
+              new ExternalError({ operation: "RpcClient.viewStateAll", cause }),
+          ),
+    )
+  }
+
+  private viewStateAllOperation(
+    accountId: string,
+    options?: BlockReference & { prefix?: string; limit?: number },
+  ): Stream.Stream<StateItem, RpcFailure> {
+    return Stream.paginate<string | undefined, StateItem, RpcFailure>(
+      undefined,
+      (afterKey) =>
+        this.viewStateEffect(accountId, {
+          ...options,
+          ...(afterKey !== undefined ? { afterKey } : {}),
+        }).pipe(
+          Effect.map(
+            (page) =>
+              [page.values, Option.fromUndefinedOr(page.last_key)] as const,
+          ),
+        ),
+    )
   }
 
   /**
@@ -822,32 +1284,79 @@ export class RpcClient {
    *
    * @param options - Block reference. Defaults to the latest final block.
    */
-  async blockEffects(options?: BlockReference): Promise<BlockEffectsResponse> {
-    const params = options?.blockId
-      ? { block_id: options.blockId }
-      : { finality: options?.finality || "final" }
-
-    const result = await this.callWithExperimentalFallback(
-      "block_effects",
-      "EXPERIMENTAL_changes_in_block",
-      params,
-    )
-    return BlockEffectsResponseSchema.parse(result)
+  blockEffects(options?: BlockReference): Promise<BlockEffectsResponse> {
+    return runPromise(this.blockEffectsOperation(options))
   }
+
+  blockEffectsEffect(
+    options?: BlockReference,
+  ): Effect.Effect<BlockEffectsResponse, RpcFailure> {
+    return Effect.suspend(() =>
+      this.blockEffects === rpcPromiseMethods["blockEffects"]?.value
+        ? this.blockEffectsOperation(options)
+        : fromPromise(
+            () => this.blockEffects(options),
+            "RpcClient.blockEffects",
+          ),
+    )
+  }
+
+  private readonly blockEffectsOperation = Effect.fn("RpcClient.blockEffects")(
+    { self: this },
+    function* (
+      this: RpcClient,
+      options?: BlockReference,
+    ): Effect.fn.Return<BlockEffectsResponse, RpcFailure> {
+      const params = options?.blockId
+        ? { block_id: options.blockId }
+        : { finality: options?.finality || "final" }
+      const result = yield* this.callWithExperimentalFallbackEffect(
+        "block_effects",
+        "EXPERIMENTAL_changes_in_block",
+        params,
+      )
+      return yield* decodeRpc(
+        Protocol.BlockEffectsResponseSchema,
+        BlockEffectsResponseSchema,
+        result,
+      )
+    },
+  )
 
   /**
    * Get the network genesis configuration via `genesis_config` (stabilized in
    * nearcore 2.13; falls back to the `EXPERIMENTAL_genesis_config` alias on
    * older nodes).
    */
-  async genesisConfig(): Promise<GenesisConfigResponse> {
-    const result = await this.callWithExperimentalFallback(
+  genesisConfig(): Promise<GenesisConfigResponse> {
+    return runPromise(this.genesisConfigOperation())
+  }
+
+  genesisConfigEffect(): Effect.Effect<GenesisConfigResponse, RpcFailure> {
+    return Effect.suspend(() =>
+      this.genesisConfig === rpcPromiseMethods["genesisConfig"]?.value
+        ? this.genesisConfigOperation()
+        : fromPromise(() => this.genesisConfig(), "RpcClient.genesisConfig"),
+    )
+  }
+
+  private readonly genesisConfigOperation = Effect.fn(
+    "RpcClient.genesisConfig",
+  )({ self: this }, function* (this: RpcClient): Effect.fn.Return<
+    GenesisConfigResponse,
+    RpcFailure
+  > {
+    const result = yield* this.callWithExperimentalFallbackEffect(
       "genesis_config",
       "EXPERIMENTAL_genesis_config",
       [],
     )
-    return GenesisConfigResponseSchema.parse(result)
-  }
+    return yield* decodeRpc(
+      Protocol.GenesisConfigResponseSchema,
+      GenesisConfigResponseSchema,
+      result,
+    )
+  })
 
   /**
    * Get the upcoming maintenance windows (half-open block-height ranges) for a
@@ -856,16 +1365,43 @@ export class RpcClient {
    *
    * @param accountId - Validator account ID.
    */
-  async maintenanceWindows(
-    accountId: string,
-  ): Promise<MaintenanceWindowsResponse> {
-    const result = await this.callWithExperimentalFallback(
-      "maintenance_windows",
-      "EXPERIMENTAL_maintenance_windows",
-      { account_id: accountId },
-    )
-    return MaintenanceWindowsResponseSchema.parse(result)
+  maintenanceWindows(accountId: string): Promise<MaintenanceWindowsResponse> {
+    return runPromise(this.maintenanceWindowsOperation(accountId))
   }
+
+  maintenanceWindowsEffect(
+    accountId: string,
+  ): Effect.Effect<MaintenanceWindowsResponse, RpcFailure> {
+    return Effect.suspend(() =>
+      this.maintenanceWindows === rpcPromiseMethods["maintenanceWindows"]?.value
+        ? this.maintenanceWindowsOperation(accountId)
+        : fromPromise(
+            () => this.maintenanceWindows(accountId),
+            "RpcClient.maintenanceWindows",
+          ),
+    )
+  }
+
+  private readonly maintenanceWindowsOperation = Effect.fn(
+    "RpcClient.maintenanceWindows",
+  )(
+    { self: this },
+    function* (
+      this: RpcClient,
+      accountId: string,
+    ): Effect.fn.Return<MaintenanceWindowsResponse, RpcFailure> {
+      const result = yield* this.callWithExperimentalFallbackEffect(
+        "maintenance_windows",
+        "EXPERIMENTAL_maintenance_windows",
+        { account_id: accountId },
+      )
+      return yield* decodeRpc(
+        Protocol.MaintenanceWindowsResponseSchema,
+        MaintenanceWindowsResponseSchema,
+        result,
+      )
+    },
+  )
 
   /**
    * Call a method that was stabilized (renamed without the `EXPERIMENTAL_`
@@ -873,20 +1409,20 @@ export class RpcClient {
    * `EXPERIMENTAL_` alias if the node does not recognize the new name.
    * @internal
    */
-  private async callWithExperimentalFallback<T = unknown>(
-    method: string,
-    experimentalMethod: string,
-    params: unknown,
-  ): Promise<T> {
-    try {
-      return await this.call<T>(method, params)
-    } catch (error) {
-      if (isMethodNotFound(error)) {
-        return await this.call<T>(experimentalMethod, params)
-      }
-      throw error
-    }
-  }
+  private readonly callWithExperimentalFallbackEffect = Effect.fn(
+    "RpcClient.callWithExperimentalFallback",
+  )({ self: this }, function* <
+    T = unknown,
+  >(this: RpcClient, method: string, experimentalMethod: string, params: unknown): Effect.fn.Return<
+    T,
+    RpcFailure
+  > {
+    return yield* this.callEffect<T>(method, params).pipe(
+      Effect.catchIf(isMethodNotFound, () =>
+        this.callEffect<T>(experimentalMethod, params),
+      ),
+    )
+  })
 }
 
 /**
@@ -917,10 +1453,75 @@ function normalizeCodeHash(codeHash: string | Uint8Array): string {
  * JSON-RPC error code (-32601).
  * @internal
  */
-function isMethodNotFound(error: unknown): boolean {
+function isMethodNotFound(failure: unknown): boolean {
+  const error = rpcFailureCause(failure)
   if (error instanceof NetworkError && error.statusCode === -32601) {
     return true
   }
   const message = error instanceof Error ? error.message : String(error)
   return /method[\s_]not[\s_]found|-32601/i.test(message)
+}
+
+// Capture original Promise entrypoints before consumers subclass or decorate them.
+// The Promise facade bypasses override dispatch, allowing overrides to call super
+// without recursion; native composition adapts only genuinely external overrides.
+const rpcPromiseMethods = Object.getOwnPropertyDescriptors(RpcClient.prototype)
+
+export type RpcFailure = NearError | z.ZodError | ExternalError
+export type RpcFetch = (
+  url: string,
+  init: RequestInit & { signal: AbortSignal },
+) => PromiseLike<Response>
+
+const RpcEnvelopeSchema = Schema.Struct({
+  result: Schema.optional(Schema.Unknown),
+  // Error details retain the historic parser's malformed-error fallback.
+  error: Schema.optional(Schema.Unknown),
+})
+
+const domainEffect = <A>(operation: () => A): Effect.Effect<A, NearError> =>
+  Effect.try({
+    try: operation,
+    catch: (error) => {
+      if (error instanceof NearError) return error
+      throw error
+    },
+  })
+
+function transportError(error: unknown): NearError {
+  if (error instanceof NearError) return error
+  return new NetworkError(
+    `Network request failed: ${error instanceof Error ? error.message : String(error)}`,
+    undefined,
+    true,
+  )
+}
+
+function decodeRpc<S extends Schema.Constraint>(
+  schema: S,
+  compatibilitySchema: z.ZodType,
+  input: unknown,
+): Effect.Effect<S["Type"], z.ZodError, S["DecodingServices"]> {
+  return Schema.decodeUnknownEffect(schema)(input).pipe(
+    Effect.mapError((error) => {
+      // Public callers historically receive a ZodError. The old decoder runs
+      // only on rejection to preserve its issue paths and error shape.
+      const result = compatibilitySchema.safeParse(input)
+      if (!result.success) return result.error
+      // A disagreement is a codec bug, not a reason to silently accept bad data.
+      throw error
+    }),
+  )
+}
+
+function debugRpc(direction: "Request" | "Response", value: unknown): void {
+  if (
+    typeof process !== "undefined" &&
+    process.env["NEAR_RPC_DEBUG"] === "true"
+  )
+    console.log(`[RPC ${direction}]`, JSON.stringify(value, null, 2))
+}
+
+function rpcFailureCause(error: unknown): unknown {
+  return error instanceof ExternalError ? error.cause : error
 }

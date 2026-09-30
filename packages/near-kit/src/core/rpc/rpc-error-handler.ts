@@ -3,6 +3,8 @@
  * Parses NEAR RPC errors and throws appropriate typed exceptions
  */
 
+import { Schema } from "effect"
+import { RpcErrorResponseSchema } from "../../effect/protocol-schemas.js"
 import {
   AccessKeyDoesNotExistError,
   AccountDoesNotExistError,
@@ -33,7 +35,6 @@ import type {
   RpcMinimalTransaction,
   RpcTransaction,
 } from "../types.js"
-import { RpcErrorResponseSchema } from "./rpc-schemas.js"
 
 // ==================== Failure Type Definitions ====================
 
@@ -176,7 +177,7 @@ export function extractErrorMessage(failure: Record<string, unknown>): string {
       if (errorData && typeof errorData === "object" && errorData !== null) {
         const dataObj = errorData as Record<string, unknown>
         const dataStr = Object.entries(dataObj)
-          .map(([key, value]) => `${key}: ${value}`)
+          .map(([key, value]) => `${key}: ${displayRpcValue(value)}`)
           .join(", ")
         return `${errorType} (${dataStr})`
       }
@@ -319,17 +320,14 @@ export function parseQueryError(
  *
  * @internal
  */
-export function parseRpcError(
-  error: RpcErrorResponse | undefined,
-  statusCode?: number,
-): never {
+export function parseRpcError(error: unknown, statusCode?: number): never {
   if (!error) {
     throw new NetworkError("Unknown RPC error")
   }
 
   // Try to parse the error using the schema
   try {
-    const parsedError = RpcErrorResponseSchema.parse(error)
+    const parsedError = Schema.decodeUnknownSync(RpcErrorResponseSchema)(error)
     const causeName = parsedError.cause?.name
     const causeInfo = parsedError.cause?.info || {}
 
@@ -349,7 +347,7 @@ export function parseRpcError(
           (blockReference as Record<string, unknown>)["block_id"] ||
           (blockReference as Record<string, unknown>)["BlockId"]
         blockRef = blockId
-          ? String(blockId)
+          ? displayRpcValue(blockId)
           : parsedError.data || parsedError.message
       } else {
         blockRef = parsedError.data || parsedError.message
@@ -444,7 +442,7 @@ export function parseRpcError(
         // Extract chunk_id or similar field, fallback to data/message
         const chunkId = (chunkReference as Record<string, unknown>)["chunk_id"]
         chunkRef = chunkId
-          ? String(chunkId)
+          ? displayRpcValue(chunkId)
           : parsedError.data || parsedError.message
       } else {
         chunkRef = parsedError.data || parsedError.message
@@ -470,7 +468,7 @@ export function parseRpcError(
           (blockReference as Record<string, unknown>)["block_id"] ||
           (blockReference as Record<string, unknown>)["BlockId"]
         blockRef = blockId
-          ? String(blockId)
+          ? displayRpcValue(blockId)
           : parsedError.data || parsedError.message
       } else {
         blockRef = parsedError.data || parsedError.message
@@ -558,6 +556,23 @@ export function parseRpcError(
     }
 
     // Parsing failed, fall back to generic error
-    throw new NetworkError(`RPC error: ${error.message}`, error.code, false)
+    const message =
+      typeof error === "object" && error !== null && "message" in error
+        ? displayRpcValue(error.message)
+        : "undefined"
+    const code =
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      typeof error.code === "number"
+        ? error.code
+        : undefined
+    throw new NetworkError(`RPC error: ${message}`, code, false)
   }
+}
+
+/** Render primitive references directly and retain structure for malformed node details. */
+function displayRpcValue(value: unknown): string {
+  if (value !== null && typeof value === "object") return JSON.stringify(value)
+  return String(value)
 }
