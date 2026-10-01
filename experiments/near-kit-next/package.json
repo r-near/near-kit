@@ -37,7 +37,7 @@
   },
   "scripts": {
     "build": "node scripts/clean.mjs && tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.check.json --noEmit",
+    "typecheck": "tsc -p tsconfig.check.json --noEmit && tsc -p tsconfig.wallet.json --noEmit",
     "test": "vitest run",
     "check": "npm run build && npm run typecheck && npm test",
     "test:browser": "playwright test",
@@ -50,13 +50,16 @@
   },
   "devDependencies": {
     "@effect/vitest": "4.0.0-rc.118",
+    "@near-wallet-selector/core": "10.1.4",
     "@playwright/test": "1.63.0",
+    "@tanstack/react-query": "5.104.0",
     "@types/node": "24.19.0",
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
     "esbuild": "0.28.2",
     "react": "19.2.7",
     "react-dom": "19.2.7",
+    "rxjs": "7.8.1",
     "typescript": "7.0.2",
     "vitest": "5.0.3",
     "wabt": "1.0.39"

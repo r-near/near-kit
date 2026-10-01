@@ -49,7 +49,7 @@ node --experimental-strip-types read.mts RPC_URL ACCOUNT_ID
 
 Node 22.12+ and modern browsers are the target. Exact wire decoding requires native JSON source context, rawJSON and isRawJSON (feature floors: Chrome 114, Firefox 135, Safari 18.4). Missing/incomplete features fail with UnsupportedError before I/O. Actual tested engine versions are recorded separately; feature availability is not a platform acceptance claim. Effect 4.0.0-rc.118 and its HTTP API are prerelease/unstable dependencies, deliberately pinned.
 
-Strict browser-only TypeScript consumers need ESNext.Disposable alongside ES2022/DOM libs. Core and pure-subpath consumers are checked without Node globals. An optional wallet example may have separate upstream declaration requirements.
+Strict browser-only TypeScript consumers need ESNext.Disposable alongside ES2022/DOM libs. Core and pure-subpath consumers are checked without Node globals. The optional WalletSelector 10.1.4 examples use Bundler module resolution and type-only @types/node because its declarations contain extensionless ESM imports and Buffer. Two upstream declarations also reference unexported @near-js/types paths. The supplied optional-example config maps those exact type-only imports to the real installed declarations. These requirements do not add runtime Node polyfills, ambient any types or skip library checking.
 
 Use Effect module imports, as above. `/data` and `/units` have no Effect runtime imports; the package still installs its declared Effect dependency. `/operator` contains optional named operator summaries, sharing the same internal HTTP boundary.
 
@@ -86,8 +86,23 @@ Keep the entry guard: the pinned Effect runner starts evaluating before checking
 
 Expected failures are RequestError, TransportError, HttpError, DecodeError, RpcError, UnsupportedError, AccountNotFound and AccessKeyNotFound. A missing access key does not prove its account exists; unavailable gas-key lanes can mean an ordinary non-gas key. Empty key lists do not establish account existence. Defects and interruption remain native Effect causes.
 
-Expected diagnostics omit provider text, credentials and raw causes. Operations create no automatic spans and suppress standard HTTP tracing even with a borrowed client. Explicit caller middleware/tracing remains caller-owned. The supplied fetchLayer rejects redirects; an explicitly configured custom client keeps its own policy.
+Missing-key detection supports both structured RPC errors and the exact pinned nearcore legacy result formatter; unfamiliar legacy text stays an unknown RPC failure. Expected diagnostics omit provider text, credentials and raw causes. Operations create no automatic spans and suppress standard HTTP tracing even with a borrowed client. Explicit caller middleware/tracing remains caller-owned. The supplied fetchLayer rejects redirects; an explicitly configured custom client keeps its own policy.
 
 Response bytes default to a 2 MiB cap, configurable with a finite positive safe integer. This is not a total heap/CPU cap. Request inputs are copied at each execution; immutable inputs are required for retry-stable values.
 
 [Design](DESIGN.md) · [coverage and current evidence](COVERAGE.md) · [historical five-read evaluation](EVALUATION.md)
+
+## Application recipes
+
+- [Snapshot export](examples/snapshot-export.ts): `node --experimental-strip-types examples/snapshot-export.ts RPC_URL ACCOUNT_ID OUTPUT.ndjson`. Pins all reads, writes exact decimal strings/tagged base64, and publishes only after natural traversal and file close. Existing files are never overwritten. Failure leaves `.partial`; publication requires same-filesystem hard links. Unavailable account code is an explicit status.
+- [Wallet observation](examples/wallet-selector-observation.ts), [plain React](examples/wallet-account.tsx) and [React Query](examples/wallet-query.tsx): supply an already-created selector and an immutable application read source. No connection or write action is performed. The app owns QueryClientProvider and wallet setup/error UI.
+
+For the optional wallet recipes, copy the three `wallet*.ts/tsx` files and `examples/tsconfig.wallet.json` into your project root, then install the pinned example dependencies:
+
+```sh
+npm install @near-wallet-selector/core@10.1.4 @tanstack/react-query@5.104.0 react@19.2.7 react-dom@19.2.7
+npm install --save-dev typescript@7.0.2 @types/node@24.19.0 @types/react@19.2.17 @types/react-dom@19.2.3
+npx tsc -p tsconfig.wallet.json
+```
+
+Keep sourceKey non-secret and advance source.revision when endpoint credentials or chain context changes. Configured wallet network is not current observed network; only selected-wallet events update knowledge, and delayed same-wallet events cannot be proved fresh. A known mismatch suspends reads. Mocked observation/browser fixtures do not establish real extension/mobile/hardware compatibility.

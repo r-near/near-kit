@@ -16,5 +16,11 @@
     "test/**/*.tsx",
     "playwright.config.ts",
     "vitest.sandbox.config.ts"
+  ],
+  "exclude": [
+    "examples/wallet*.ts",
+    "examples/wallet*.tsx",
+    "test/wallet*.ts",
+    "test/browser/**"
   ]
 }
