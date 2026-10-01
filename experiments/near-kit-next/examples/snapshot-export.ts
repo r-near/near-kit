@@ -4,7 +4,9 @@
  *
  * OUTPUT.ndjson.partial is always partial, even if it has an end record. Only a
  * published OUTPUT.ndjson with an end record is complete. Both paths must be new.
- * Failure/interruption preserves the partial file; it may end with a torn line.
+ * Before publication, failure/interruption preserves a partial file which may
+ * end with a torn line. Interruption during publication can still leave a valid
+ * final file; a later cleanup failure can leave both names.
  * Publication uses a same-directory hard link, so an existing export is never
  * overwritten. This requires a filesystem supporting hard links. No resume or
  * global-code resolution is implied by this local-code/account-state snapshot.

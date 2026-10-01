@@ -14,7 +14,7 @@ import {
 } from "@tanstack/react-query"
 import { createElement } from "react"
 import { renderToString } from "react-dom/server"
-import { BehaviorSubject, Observable, Subject } from "rxjs"
+import { BehaviorSubject, config, Observable, Subject } from "rxjs"
 import {
   afterAll,
   afterEach,
@@ -299,6 +299,33 @@ describe("WalletSelector 10.1.4 public observation seam (mocked connector)", () 
     observation.dispose()
     expect(f.removed).toHaveBeenCalledTimes(2)
     external.remove()
+  })
+
+  it("releases subscriptions even when failure delivery throws an application defect", async () => {
+    const f = fixture()
+    const defect = new Error("application callback failed")
+    const previous = config.onUnhandledError
+    const errors: unknown[] = []
+    config.onUnhandledError = (error) => {
+      errors.push(error)
+    }
+    try {
+      observeWalletSelector({
+        selector: f.selector,
+        source: source(),
+        onChange: (value) => {
+          if (value.status === "observation-failed") throw defect
+        },
+      })
+      f.subject.error(new Error("connector failure"))
+      expect(f.subject.observed).toBe(false)
+      expect(f.listeners.get("networkChanged")?.size).toBe(0)
+      expect(f.listeners.get("signedIn")?.size).toBe(0)
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(errors).toEqual([defect])
+    } finally {
+      config.onUnhandledError = previous
+    }
   })
 
   it("unwinds synchronous partial registration failures", () => {

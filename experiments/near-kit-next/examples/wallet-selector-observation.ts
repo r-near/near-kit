@@ -176,8 +176,11 @@ export function observeWalletSelector({
     reason: Extract<WalletSnapshot, { status: "observation-failed" }>["reason"],
   ) => {
     if (stopped) return
-    publish({ status: "observation-failed", reason })
-    dispose()
+    try {
+      publish({ status: "observation-failed", reason })
+    } finally {
+      dispose()
+    }
   }
   const replaceSession = () => {
     sessionRevision += 1
