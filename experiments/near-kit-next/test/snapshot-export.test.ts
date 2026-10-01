@@ -168,7 +168,7 @@ it("publishes useful complete output after natural traversal, pinning every read
         },
       ],
     },
-    localCode: {
+    accountCode: {
       status: "available",
       code: {
         bytes: { encoding: "base64", data: "AGFzbQ==" },
@@ -263,7 +263,7 @@ it("records typed local CodeUnavailable and still exports an account's state", a
       : fixture(request),
   )
   await Effect.runPromise(h.provide(program()))
-  expect((await records(output))[1].localCode).toEqual({
+  expect((await records(output))[1].accountCode).toEqual({
     status: "unavailable",
     reason: "CodeUnavailable",
   })

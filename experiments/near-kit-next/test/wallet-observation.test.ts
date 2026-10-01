@@ -328,6 +328,46 @@ describe("WalletSelector 10.1.4 public observation seam (mocked connector)", () 
     }
   })
 
+  it("does not misclassify a connected callback defect as a connector failure", async () => {
+    const f = fixture()
+    const defect = new Error("connected callback failed")
+    const previous = config.onUnhandledError
+    const errors: unknown[] = []
+    config.onUnhandledError = (error) => {
+      errors.push(error)
+    }
+    try {
+      const observation = observeWalletSelector({
+        selector: f.selector,
+        source: source(),
+        onChange: () => {
+          throw defect
+        },
+      })
+      expect(observation.getSnapshot().status).toBe("connected")
+      expect(f.subject.observed).toBe(false)
+      expect(f.listeners.get("networkChanged")?.size).toBe(0)
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(errors).toEqual([defect])
+      const fallback = fixture()
+      fallback.selector.store.observable =
+        new Subject<WalletSelectorState>().asObservable()
+      expect(() =>
+        observeWalletSelector({
+          selector: fallback.selector,
+          source: source(),
+          onChange: () => {
+            throw defect
+          },
+        }),
+      ).toThrow(defect)
+      expect(fallback.listeners.get("networkChanged")?.size).toBe(0)
+      expect(fallback.listeners.get("signedIn")?.size).toBe(0)
+    } finally {
+      config.onUnhandledError = previous
+    }
+  })
+
   it("unwinds synchronous partial registration failures", () => {
     const f = fixture()
     const on = f.selector.on

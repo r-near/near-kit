@@ -9,7 +9,8 @@
  * final file; a later cleanup failure can leave both names.
  * Publication uses a same-directory hard link, so an existing export is never
  * overwritten. This requires a filesystem supporting hard links. No resume or
- * global-code resolution is implied by this local-code/account-state snapshot.
+ * separate global-registry export is implied. Account code is the node’s
+ * view_code result, which can resolve a global reference.
  */
 import { promises as fs } from "node:fs"
 import { resolve } from "node:path"
@@ -33,7 +34,7 @@ export class OutputError extends Error {
   }
 }
 
-export type LocalCode =
+export type AccountCode =
   | { readonly status: "available"; readonly code: Near.Code }
   | { readonly status: "unavailable"; readonly reason: "CodeUnavailable" }
 
@@ -75,11 +76,11 @@ export const exportSnapshot = (
           })
           const block = yield* Near.block(client, "final")
           const at = { hash: block.blockHash }
-          const localCode = Near.code(client, accountId, { at }).pipe(
-            Effect.map((code): LocalCode => ({ status: "available", code })),
+          const accountCode = Near.code(client, accountId, { at }).pipe(
+            Effect.map((code): AccountCode => ({ status: "available", code })),
             Effect.catchTag("RpcError", (error) =>
               error.kind === "CodeUnavailable"
-                ? Effect.succeed<LocalCode>({
+                ? Effect.succeed<AccountCode>({
                     status: "unavailable",
                     reason: "CodeUnavailable",
                   })
@@ -90,7 +91,7 @@ export const exportSnapshot = (
             [
               Near.account(client, accountId, { at }),
               Near.accessKeys(client, accountId, { at }),
-              localCode,
+              accountCode,
               Near.gasPrice(client, at),
             ],
             { concurrency: 4 },
@@ -100,7 +101,7 @@ export const exportSnapshot = (
             block,
             account,
             keys,
-            localCode: code,
+            accountCode: code,
             gasPrice,
           })
           let pages = 0n

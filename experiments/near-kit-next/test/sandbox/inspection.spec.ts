@@ -287,7 +287,7 @@ it("exports a naturally complete exact snapshot from the real node, including a 
     expect(summary.entries).toBe(
       id === "fixture.sandbox" ? BigInt(fixture.data.length) : 0n,
     )
-    expect(header.localCode.status).toBe(
+    expect(header.accountCode.status).toBe(
       id === "fixture.sandbox" ? "available" : "unavailable",
     )
     if (id === "fixture.sandbox") {

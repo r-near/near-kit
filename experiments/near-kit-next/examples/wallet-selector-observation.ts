@@ -170,7 +170,12 @@ export function observeWalletSelector({
       revision: ++revision,
       sessionRevision,
     })
-    onChange(snapshot)
+    try {
+      onChange(snapshot)
+    } catch (error) {
+      dispose()
+      throw error
+    }
   }
   const fail = (
     reason: Extract<WalletSnapshot, { status: "observation-failed" }>["reason"],
@@ -245,7 +250,8 @@ export function observeWalletSelector({
       next: (state) => {
         try {
           acceptState(state)
-        } catch {
+        } catch (error) {
+          if (stopped) throw error
           fail("store-error")
         }
       },
@@ -260,11 +266,13 @@ export function observeWalletSelector({
       try {
         const current = selector.store.getState()
         if (!stopped && revision === ticket) acceptState(current)
-      } catch {
-        if (!stopped && revision === ticket) fail("store-error")
+      } catch (error) {
+        if (stopped) throw error
+        if (revision === ticket) fail("store-error")
       }
     }
-  } catch {
+  } catch (error) {
+    if (stopped) throw error
     fail("registration")
   }
   return { getSnapshot: () => snapshot, dispose }

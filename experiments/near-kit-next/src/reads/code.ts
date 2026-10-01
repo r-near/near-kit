@@ -46,6 +46,7 @@ const project = Effect.fnUntraced(function* (
     codeHash: value.hash,
   }
 })
+/** Node-resolved account code; view_code can resolve global references. */
 export const code = Effect.fnUntraced(function* (
   client: Client,
   id: string,
