@@ -247,33 +247,26 @@ export function observeWalletSelector({
     })
     acquire(() => signedIn.remove())
     const subscription = selector.store.observable.subscribe({
-      next: (state) => {
-        try {
-          acceptState(state)
-        } catch (error) {
-          if (stopped) throw error
-          fail("store-error")
-        }
-      },
+      next: acceptState,
       error: () => fail("store-error"),
       complete: () => fail("store-completed"),
     })
     acquire(() => subscription.unsubscribe())
-    // The supported BehaviorSubject emits synchronously, so this is normally
-    // unnecessary. Guard the public getState fallback against reentrant events.
-    if (!stopped && revision === 0) {
-      const ticket = revision
-      try {
-        const current = selector.store.getState()
-        if (!stopped && revision === ticket) acceptState(current)
-      } catch (error) {
-        if (stopped) throw error
-        if (revision === ticket) fail("store-error")
-      }
-    }
-  } catch (error) {
-    if (stopped) throw error
+  } catch {
     fail("registration")
+  }
+  // Keep acquisition failures separate from application callback delivery. A
+  // newer event/disposal wins over an older reentrant getState result or error.
+  if (!stopped && revision === 0) {
+    const ticket = revision
+    let current: WalletSelectorState | undefined
+    try {
+      current = selector.store.getState()
+    } catch {
+      if (!stopped && revision === ticket) fail("store-error")
+    }
+    if (current !== undefined && !stopped && revision === ticket)
+      acceptState(current)
   }
   return { getSnapshot: () => snapshot, dispose }
 }

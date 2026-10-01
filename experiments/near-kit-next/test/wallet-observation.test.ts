@@ -368,6 +368,28 @@ describe("WalletSelector 10.1.4 public observation seam (mocked connector)", () 
     }
   })
 
+  it.each([
+    "error",
+    "complete",
+  ] as const)("ignores a stale bootstrap error after reentrant store %s", (termination) => {
+    const f = fixture()
+    const subject = new Subject<WalletSelectorState>()
+    f.selector.store.observable = subject.asObservable()
+    f.selector.store.getState = () => {
+      if (termination === "error") subject.error(new Error("current failure"))
+      else subject.complete()
+      throw new Error("stale bootstrap failure")
+    }
+    const observation = f.start()
+    expect(observation.getSnapshot()).toMatchObject({
+      status: "observation-failed",
+      reason: termination === "error" ? "store-error" : "store-completed",
+    })
+    expect(subject.observed).toBe(false)
+    expect(f.listeners.get("networkChanged")?.size).toBe(0)
+    expect(f.listeners.get("signedIn")?.size).toBe(0)
+  })
+
   it("unwinds synchronous partial registration failures", () => {
     const f = fixture()
     const on = f.selector.on
