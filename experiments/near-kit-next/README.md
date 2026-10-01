@@ -2,7 +2,7 @@
 
 A private ground-up candidate for exact protocol reads, public data and caller-owned Effect workflows. It does not replace the published SDK. Signing, custody, authentication and transaction/reconciliation workflows remain outside the current implementation; see [coverage](COVERAGE.md).
 
-Protocol u64/u128 quantities are exact bigint values. Arbitrary contract JSON numbers still use ordinary JavaScript JSON semantics. Use `viewBytes` for a different contract decoder.
+Protocol u64/u128 quantities are exact bigint values. Arbitrary contract JSON numbers still use ordinary JavaScript JSON semantics. Use `viewBytes` for a different contract decoder. JSON objects follow the native parser’s last-member-wins behavior for duplicate names.
 
 ## Run a first read
 

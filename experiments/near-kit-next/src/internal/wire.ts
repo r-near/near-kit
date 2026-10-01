@@ -55,6 +55,15 @@ const Failure = Schema.Struct({
   name: Schema.optionalKey(Schema.Unknown),
   cause: Schema.optionalKey(Schema.Unknown),
 })
+const BlockReference = Schema.Union([
+  Schema.Struct({ block_id: Schema.Union([hash, u64]) }),
+  Schema.Struct({
+    finality: Schema.Literals(["final", "near-final", "optimistic"]),
+  }),
+  Schema.Struct({
+    sync_checkpoint: Schema.Literals(["genesis", "earliest_available"]),
+  }),
+])
 const errorMetadata = Schema.Struct(metadata)
 const accountError = Schema.Struct({
   ...metadata,
@@ -204,16 +213,73 @@ const rpcFailure = Effect.fnUntraced(function* (
         break
       }
       case "UNKNOWN_BLOCK": {
-        if (!plainRecord(info) || !Object.hasOwn(info, "block_reference"))
+        // These handlers skip their diagnostic field when serializing info.
+        const directBlock =
+          operation === "block" ||
+          operation === "gasPrice" ||
+          operation === "blockEffects"
+        if (
+          !plainRecord(info) ||
+          (!directBlock && !Object.hasOwn(info, "block_reference"))
+        )
           return yield* new DecodeError({
             operation,
             reason: "InvalidEnvelope",
           })
+        if (!directBlock) {
+          const rawReference = info.block_reference
+          if (
+            !plainRecord(rawReference) ||
+            Reflect.ownKeys(rawReference).length !== 1
+          )
+            return yield* new DecodeError({
+              operation,
+              reason: "InvalidEnvelope",
+            })
+          const reference = yield* decode(
+            BlockReference,
+            rawReference,
+            operation,
+            "InvalidEnvelope",
+          )
+          const at = context.at
+          if (at !== undefined) {
+            const equal =
+              typeof at === "string"
+                ? "finality" in reference && reference.finality === at
+                : "block_id" in reference &&
+                  ("hash" in at
+                    ? typeof reference.block_id === "string" &&
+                      reference.block_id === at.hash
+                    : typeof reference.block_id !== "string" &&
+                      BigInt(reference.block_id) === at.height)
+            if (!equal)
+              return yield* new DecodeError({
+                operation,
+                reason: "BlockMismatch",
+              })
+          }
+        }
         kind = "UnknownBlock"
         break
       }
       case "NO_SYNCED_BLOCKS":
         kind = "NodeNotSynced"
+        break
+      case "NOT_SYNCED_YET":
+        if (operation === "block" || operation === "blockEffects")
+          kind = "NodeNotSynced"
+        break
+      case "SHARD_NOT_APPLIED":
+        if (operation === "blockEffects") {
+          yield* decode(
+            Schema.Struct({ shard_id: u64 }),
+            info,
+            operation,
+            "InvalidEnvelope",
+          )
+          kind = "ShardUnavailable"
+        }
         break
       case "UNAVAILABLE_SHARD":
         yield* decode(

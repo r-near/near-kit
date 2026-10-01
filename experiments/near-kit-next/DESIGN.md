@@ -6,7 +6,7 @@ The first experiment compared a NEAR service over HttpClient, a Promise facade o
 
 HttpClient is the sole network service. Each operation owns one request and its complete response body. State traversal adds only protocol-specific pinning/progress rules around native Stream pagination. Pure public encodings and exact units use ordinary TypeScript. Contract wrappers are application functions with result schemas. No Promise mirror, generic RPC escape hatch, schema catalog, contract proxy or library runtime is added.
 
-A modern native JSON boundary preserves source integer tokens and serializes validated heights exactly. All exposed protocol u64 values are bigint; arbitrary contract JSON deliberately retains ordinary JS semantics. This raises the browser floor, rather than maintaining two parser implementations or silently rounding.
+A modern native JSON boundary preserves source integer tokens and serializes validated heights exactly. All exposed protocol u64 values are bigint; arbitrary contract JSON deliberately retains ordinary JS semantics. Duplicate JSON member names follow native last-member-wins behavior. This raises the browser floor, rather than maintaining two parser implementations or silently rounding.
 
 Wallet/framework examples must use actual external stores and caller-owned source identity, with cleanup, failure states and stale-result prevention. They do not turn the read client into a live wallet session. Test infrastructure owns the official pinned Docker node and static fixtures.
 

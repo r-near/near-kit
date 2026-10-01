@@ -177,7 +177,7 @@ export const accessKeys = Effect.fnUntraced(function* (
           access_key: Schema.Struct(wireKey),
         }),
       ),
-      last_key: Schema.optionalKey(Schema.NullOr(Schema.String)),
+      last_key: Schema.optionalKey(Schema.Unknown),
     }),
     reply.value,
     "accessKeys",
@@ -185,7 +185,6 @@ export const accessKeys = Effect.fnUntraced(function* (
   const meta = projectMetadata(value)
   yield* checkBlock(meta, reply.context.at, "accessKeys")
   if (value.last_key != null) {
-    yield* parsedKey(value.last_key, "accessKeys")
     return yield* new UnsupportedError({
       operation: "accessKeys",
       feature: "AccessKeyPagination",

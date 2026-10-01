@@ -177,11 +177,10 @@ export const statePage = Effect.fnUntraced(function* (
       operation: "statePage",
       reason: "Pagination",
     })
-  const proof = selected.proof
-    ? yield* Effect.forEach(value.proof ?? [], (item) =>
-        bytes(item, "statePage"),
-      )
-    : undefined
+  const decodedProof = yield* Effect.forEach(value.proof ?? [], (item) =>
+    bytes(item, "statePage"),
+  )
+  const proof = selected.proof ? decodedProof : undefined
   return {
     ...meta,
     entries,
