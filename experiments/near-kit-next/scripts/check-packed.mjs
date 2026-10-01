@@ -36,6 +36,13 @@ try {
       dependencies: {
         "@near-kit/next": `file:${tarball}`,
         effect: "4.0.0-rc.118",
+        "@near-wallet-selector/core": "10.1.4",
+        "@tanstack/react-query": "5.104.0",
+        react: "19.2.7",
+        "react-dom": "19.2.7",
+        "@types/node": "24.19.0",
+        "@types/react": "19.2.17",
+        "@types/react-dom": "19.2.3",
       },
     }),
   )
@@ -77,6 +84,40 @@ try {
     cwd: work,
     stdio: "inherit",
   })
+  const examples = join(work, "node_modules/@near-kit/next/examples")
+  for (const file of [
+    "wallet-selector-observation.ts",
+    "wallet-account.tsx",
+    "wallet-query.tsx",
+  ])
+    copyFileSync(join(examples, file), join(work, file))
+  copyFileSync(
+    join(root, "test/consumers/wallet.mts"),
+    join(work, "wallet-consumer.mts"),
+  )
+  const optionalConfig = JSON.parse(
+    readFileSync(join(examples, "tsconfig.wallet.json"), "utf8"),
+  )
+  optionalConfig.compilerOptions.noEmit = false
+  optionalConfig.compilerOptions.outDir = "wallet-out"
+  optionalConfig.include.push("wallet-consumer.mts")
+  writeFileSync(
+    join(work, "tsconfig.wallet.json"),
+    JSON.stringify(optionalConfig),
+  )
+  execFileSync(
+    process.execPath,
+    [
+      resolve(root, "node_modules/typescript/bin/tsc"),
+      "-p",
+      "tsconfig.wallet.json",
+    ],
+    { cwd: work, stdio: "inherit" },
+  )
+  execFileSync(process.execPath, ["wallet-out/wallet-consumer.mjs"], {
+    cwd: work,
+    stdio: "inherit",
+  })
   const pureBundles = {}
   for (const subpath of ["data", "units"]) {
     const bundled = await build({
@@ -110,6 +151,7 @@ try {
     sha256: createHash("sha256").update(readFileSync(tarball)).digest("hex"),
     package: packed[0].id,
     browserOnlyTypes: true,
+    optionalWalletTypesAndSsr: true,
     runtime: true,
   }
   mkdirSync(join(root, "artifacts"), { recursive: true })

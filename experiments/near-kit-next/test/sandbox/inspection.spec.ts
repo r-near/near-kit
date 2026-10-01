@@ -6,6 +6,7 @@ import * as Operator from "@near-kit/next/operator"
 import * as Effect from "effect/Effect"
 import * as Stream from "effect/Stream"
 import { expect, it } from "vitest"
+import { exportSnapshot } from "../../examples/snapshot-export.js"
 
 const url = process.env.NEAR_SANDBOX_URL
 if (!url) throw new Error("NEAR_SANDBOX_URL is required")
@@ -259,4 +260,48 @@ it("reads exact gas/genesis and named operator shapes without inventing provenan
       2,
     ),
   )
+})
+
+it("exports a naturally complete exact snapshot from the real node, including a no-code account", async () => {
+  for (const id of ["fixture.sandbox", "empty.sandbox"]) {
+    const path = `artifacts/sandbox/${id}-snapshot.ndjson`
+    const summary = await run(exportSnapshot(client, id, path))
+    const rows = readFileSync(path, "utf8")
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line))
+    expect(rows[0].type).toBe("begin")
+    expect(rows.at(-1)).toMatchObject({
+      type: "end",
+      blockHash: summary.blockHash,
+    })
+    const header = rows.find((row) => row.type === "header")
+    expect(header.account.amount).toBe(fixture.fixtureAmount)
+    expect(header.block.blockHash).toBe(summary.blockHash)
+    expect(header.account.blockHash).toBe(summary.blockHash)
+    expect(header.keys.blockHash).toBe(summary.blockHash)
+    const pages = rows.filter((row) => row.type === "state-page")
+    expect(pages.every((row) => row.page.blockHash === summary.blockHash)).toBe(
+      true,
+    )
+    expect(summary.entries).toBe(
+      id === "fixture.sandbox" ? BigInt(fixture.data.length) : 0n,
+    )
+    expect(header.localCode.status).toBe(
+      id === "fixture.sandbox" ? "available" : "unavailable",
+    )
+    if (id === "fixture.sandbox") {
+      expect(
+        pages
+          .flatMap((row) => row.page.entries)
+          .map((row) => ({ key: row.key.data, value: row.value.data })),
+      ).toEqual(fixture.data)
+      expect(
+        header.keys.keys.some(
+          (key: { accessKey: { nonce: string } }) =>
+            key.accessKey.nonce === "18446744073709551615",
+        ),
+      ).toBe(true)
+    }
+  }
 })

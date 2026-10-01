@@ -11,6 +11,15 @@ await build({
   target: "es2022",
   jsx: "automatic",
 })
+await build({
+  entryPoints: ["test/browser/wallet-app.tsx"],
+  outfile: "artifacts/browser/wallet.js",
+  bundle: true,
+  format: "esm",
+  platform: "browser",
+  target: "es2022",
+  jsx: "automatic",
+})
 const hash = "56xEo2LorUFVNbkFhCncFSWNiobdp1kzm14nZ47b5JVW"
 let sequence = 0
 let hold = false
@@ -24,16 +33,16 @@ const json = (response, body) => {
 const server = createServer(async (request, response) => {
   try {
     const url = new URL(request.url ?? "/", "http://127.0.0.1")
-    if (url.pathname === "/") {
+    if (url.pathname === "/" || url.pathname === "/wallet") {
       response.setHeader("content-type", "text/html")
       response.end(
-        '<!doctype html><html><body><div id="root"></div><script type="module" src="/app.js"></script></body></html>',
+        `<!doctype html><html><body><div id="root"></div><script type="module" src="${url.pathname === "/wallet" ? "/wallet.js" : "/app.js"}"></script></body></html>`,
       )
       return
     }
-    if (url.pathname === "/app.js") {
+    if (url.pathname === "/app.js" || url.pathname === "/wallet.js") {
       response.setHeader("content-type", "text/javascript")
-      response.end(await readFile("artifacts/browser/app.js"))
+      response.end(await readFile(`artifacts/browser${url.pathname}`))
       return
     }
     if (url.pathname === "/control/reset") {
@@ -100,6 +109,7 @@ const server = createServer(async (request, response) => {
         pending.delete(id)
       })
       if (url.pathname === "/rpc/failure") {
+        observation.released = true
         response.writeHead(503)
         response.end()
         return
