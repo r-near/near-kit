@@ -4,22 +4,18 @@ import { cp, mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { transform, version as esbuild } from "esbuild"
-const here = dirname(fileURLToPath(import.meta.url)), root = resolve(here, "../../.."), repo = resolve(root, "../.."), work = join(root, "artifacts/bench-next")
+import { bootstrapBaseline } from "./bootstrap-baseline.mjs"
+const here = dirname(fileURLToPath(import.meta.url)), root = resolve(here, "../../.."), repo = resolve(root, "../.."), work = resolve(process.env.BENCH_WORK_DIR ?? join(root, "artifacts/bench-next"))
 const [tarballArg, expected] = process.argv.slice(2)
 if (!tarballArg || !/^[a-f0-9]{64}$/.test(expected ?? "")) throw Error("Usage: node scripts/bench/next/setup.mjs TARBALL SHA256")
 const sha = bytes => createHash("sha256").update(bytes).digest("hex"), tarball = resolve(tarballArg)
 if (sha(await readFile(tarball)) !== expected) throw Error("Candidate tarball hash mismatch")
 await mkdir(work, { recursive: true })
 const run = (cmd, args, cwd = work) => execFileSync(cmd, args, { cwd, encoding: "utf8", maxBuffer: 32 * 1024 * 1024, env: { ...process.env, npm_config_cache: "/tmp/near-bench-next-cache", npm_config_update_notifier: "false" } })
-const historical = JSON.parse(await readFile(join(root, "artifacts/bench/provenance.json"), "utf8"))
-const oldLock = await readFile(join(root, "artifacts/bench/package-lock.json"))
-if (sha(oldLock) !== historical.installedLockSha256) throw Error("Historical baseline lock changed")
-const baselineTarball = join(root, "artifacts/bench", historical.baselinePackage)
-if (sha(await readFile(baselineTarball)) !== historical.baselinePackageSha256) throw Error("Historical baseline package changed")
-await cp(join(root, "artifacts/bench/package.json"), join(work, "package.json"))
-await cp(join(root, "artifacts/bench/package-lock.json"), join(work, "package-lock.json"))
-await cp(baselineTarball, join(work, historical.baselinePackage))
-try { await stat(join(work, "node_modules/near-api-js/package.json")) } catch { process.stdout.write(run("npm", ["ci", "--ignore-scripts", "--omit=optional", "--no-audit", "--no-fund"])) }
+// Setup writes only a new candidate checkpoint; recorded evidence is immutable.
+try { await stat(join(work, "provenance.json")); throw Error("Choose a fresh BENCH_WORK_DIR; checkpoint provenance already exists") }
+catch (error) { if (error.code !== "ENOENT") throw error }
+const historical = await bootstrapBaseline(work)
 const installed = join(work, "node_modules/@near-kit/next")
 await mkdir(installed, { recursive: true })
 run("tar", ["-xzf", tarball, "--strip-components=1", "-C", installed])
@@ -71,8 +67,8 @@ await writeFile(join(work, "provenance.json"), JSON.stringify({
   createdAt: new Date().toISOString(), node: process.version, sourceCommit: run("git", ["rev-parse", "HEAD"], repo).trim(), sourceStatus: run("git", ["status", "--short"], repo),
   candidatePath: tarball, candidateSha256: expected, packedDist, packedExamples, sourceHashes: await hashes(join(root, "src")),
   baselineCommit: historical.baselineCommit, baselinePackageSha256: historical.baselinePackageSha256, baselineArchiveSha256: historical.baselineArchiveSha256, baselineRuntimeCompiler: historical.baselineRuntimeCompiler,
-  historicalLockSha256: sha(oldLock), appLockSha256: sha(await readFile(join(root, "package-lock.json"))),
-  installation: "Unmodified historical npm lock restored with npm ci --ignore-scripts --omit=optional; exact candidate tarball extracted into @near-kit/next. App-only dependencies resolve from existing candidate package node_modules and its hashed lock. Unused historical prototype remains installed but is never imported by this run.",
+  historicalLockSha256: historical.historicalLockSha256, registryLockSha256: historical.registryLockSha256, baselineReconstruction: historical, appLockSha256: sha(await readFile(join(root, "package-lock.json"))),
+  installation: "Pinned normalized registry lock restored with npm ci --ignore-scripts --omit=optional. Exact baseline reconstructed from git archive using TypeScript 6.0.3 and verified against the measured tarball SHA; baseline and candidate extracted into node_modules without re-resolving registry dependencies. App dependencies resolve from the candidate package node_modules and its hashed lock. No historical artifact directory is required.",
   versions: { effect: "4.0.0-rc.118", nearApi: "7.3.1", browserUtil: "0.12.5", esbuild, react: "19.2.7", reactQuery: "5.104.0", walletSelectorTypesOnly: "10.1.4" },
   harnessHashes: await hashes(here),
 }, null, 2) + "\n")

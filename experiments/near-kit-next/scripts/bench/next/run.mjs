@@ -9,7 +9,7 @@ import { promisify } from "node:util"
 import { brotliCompressSync, constants, gzipSync } from "node:zlib"
 import { build, version as esbuild } from "esbuild"
 import { fixture, pages } from "./fixture.mjs"
-const here = dirname(fileURLToPath(import.meta.url)), work = resolve(here, "../../../artifacts/bench-next")
+const here = dirname(fileURLToPath(import.meta.url)), work = resolve(process.env.BENCH_WORK_DIR ?? resolve(here, "../../../artifacts/bench-next"))
 const lanes = ["candidate", "baseline", "near-api", "fetch-minimal", "fetch-bounded"]
 const rounds = Number(process.env.BENCH_ROUNDS ?? 7), samples = Number(process.env.BENCH_SAMPLES ?? 25), warmups = Number(process.env.BENCH_WARMUPS ?? 5), importRounds = Number(process.env.BENCH_IMPORT_ROUNDS ?? 15)
 const runName = process.env.BENCH_RUN_NAME ?? "final"

@@ -8,7 +8,7 @@ import { dirname, join, resolve } from "node:path"
 import { pathToFileURL, fileURLToPath } from "node:url"
 import { promisify } from "node:util"
 import { fixture, id } from "./fixture.mjs"
-const here = dirname(fileURLToPath(import.meta.url)), work = resolve(here, "../../../artifacts/bench-next"), directory = join(work, "runs", process.env.BENCH_RUN_NAME ?? "final")
+const here = dirname(fileURLToPath(import.meta.url)), work = resolve(process.env.BENCH_WORK_DIR ?? resolve(here, "../../../artifacts/bench-next")), directory = join(work, "runs", process.env.BENCH_RUN_NAME ?? "final")
 const raw = JSON.parse(await readFile(join(directory, "raw.json"), "utf8")), server = await fixture(), results = []
 const run = promisify(execFile)
 try {

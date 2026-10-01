@@ -4,25 +4,82 @@ This is an independent consumer harness for the immutable `@near-kit/next`
 checkpoint. It is not a whole-SDK equivalence or adoption claim. The original
 `scripts/bench` harness and every `artifacts/bench` result remain historical.
 
-Run from `experiments/near-kit-next`:
+## Fresh-checkout reproduction
+
+Use the repository's public Git checkout with Node 24.19.0/npm 11.9.0 for the
+recorded bootstrap tool versions (other engines are new observations). From
+`experiments/near-kit-next`, install the tracked candidate lock and build the
+candidate before packing it. No ignored historical artifacts are prerequisites:
 
 ```sh
-node scripts/bench/next/setup.mjs /absolute/path/to/candidate.tgz SHA256
+npm ci --ignore-scripts
+npm run build
+mkdir -p artifacts/repro-package
+npm pack --ignore-scripts --pack-destination artifacts/repro-package
+sha256sum artifacts/repro-package/near-kit-next-0.0.0-experimental.1.tgz
+export BENCH_WORK_DIR="$PWD/artifacts/bench-next-reproduction"
+node scripts/bench/next/setup.mjs artifacts/repro-package/near-kit-next-0.0.0-experimental.1.tgz SHA256_FROM_ABOVE
 node scripts/bench/next/run.mjs
 node scripts/bench/next/audit-bundles.mjs
 node scripts/bench/next/check-bundles.mjs
 node scripts/bench/next/summarize.mjs
 ```
 
-Setup refuses a tarball whose SHA-256, emitted `dist`, or measured example files
-differ from the expected checkpoint/current build. It verifies the old baseline
-package and lock hashes, restores the unmodified historical npm lock using
-`npm ci --ignore-scripts --omit=optional`, and extracts the new tarball alongside
-it. This keeps the exact main baseline and its prior TypeScript 6.0.3 `--noCheck`
-runtime emit, rather than silently rebuilding changed sources. The old prototype
-still present in that restored tree is unused. App dependencies resolve from the
-existing, separately hashed candidate lock. No source/package/workflow changes
-or registry publication are made. Generated files go only to `artifacts/bench-next`.
+The candidate archive hash identifies the artifact actually supplied. A new pack
+with changed documentation is not relabelled as the historical measured tarball.
+Setup also compares its emitted `dist` and measured examples with the current
+build. Use a fresh ignored `BENCH_WORK_DIR`: setup refuses to overwrite checkpoint
+provenance, and run names with existing raw data are immutable. All pipeline
+commands honor the same environment variable; without it they use
+`artifacts/bench-next`.
+
+The exact main baseline is reconstructed automatically by
+`bootstrap-baseline.mjs`. The source commit must be present locally. For a shallow
+checkout, first fetch the pinned public commit from the repository's authorized
+origin (from the repository root):
+
+```sh
+git fetch --no-tags --depth=1 origin 86cf14a2a9e0c7d3acaa8e3d40b5fb4c85ef172d
+```
+
+The tracked `registry/package.json` and `registry/package-lock.json` are derived
+from the measured dependency lock: only root dependencies and package records for
+unused `@near-kit/read-experiment` and the generated local `near-kit` were removed.
+Every one of the 103 retained registry records, including integrity hashes and
+resolved versions, is unchanged. Lifecycle scripts and optional native packages
+are disabled during `npm ci`; no new SDK binary is shipped in the repository.
+`baseline.json` records the original lock digest, normalized lock/manifest digests,
+source commit/archive digest and expected baseline package digest.
+
+Bootstrap runs the original exact `git archive` selection, checks its SHA-256,
+emits the unchanged sources using pinned TypeScript 6.0.3 with the original
+configuration and `--noCheck --composite false --declaration false
+--declarationMap false`, and runs `npm pack --ignore-scripts`. The regenerated
+baseline tarball **must** hash to
+`1bb7aa1c346720e0b7f5cb918b3e33a9ead4bd1117591b5347c92d210b1466ad`.
+It is extracted into standard `node_modules/near-kit` without asking npm to
+resolve any ranges again. The normalized registry lock remains unchanged.
+The supplied candidate is similarly extracted into `node_modules/@near-kit/next`.
+App-only dependencies resolve from the already installed candidate project and
+its separately hashed tracked lock. Full baseline SDK typechecking is not claimed.
+
+Bootstrap can also be checked separately, without first installing the candidate
+project or having esbuild available:
+
+```sh
+node scripts/bench/next/bootstrap-baseline.mjs artifacts/bench-next-bootstrap-proof
+```
+
+A prepared baseline can be reused by setup only after its expected artifact,
+registry lock/manifest and installed versions are verified; arbitrary existing
+`node_modules` trees are refused. `baseline-reconstruction.json` records the
+result. The original measurement used the unnormalized lock, including an unused
+historical prototype; its raw evidence is unchanged. The fresh bootstrap proves
+byte-identical baseline reconstruction and identical retained registry records,
+not new performance numbers for that historical run.
+
+No source/package/workflow changes or registry publication are made. Generated
+files remain under the chosen ignored artifact directory.
 
 ## Consumer and operation boundaries
 

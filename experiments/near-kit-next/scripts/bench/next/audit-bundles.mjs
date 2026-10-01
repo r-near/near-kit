@@ -6,7 +6,7 @@ import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { brotliCompressSync, constants, gzipSync } from "node:zlib"
 import { build, version as esbuild } from "esbuild"
-const root = resolve(dirname(fileURLToPath(import.meta.url)), "../../../artifacts/bench-next"), runName = process.env.BENCH_RUN_NAME ?? "final", work = join(root, "runs", runName)
+const root = resolve(process.env.BENCH_WORK_DIR ?? resolve(dirname(fileURLToPath(import.meta.url)), "../../../artifacts/bench-next")), runName = process.env.BENCH_RUN_NAME ?? "final", work = join(root, "runs", runName)
 const raw = JSON.parse(await readFile(join(work, "raw.json"), "utf8"))
 assert.ok(raw.finishedAt, "Wait for immutable runtime run completion")
 const output = join(work, "audited-bundles"); await mkdir(output, { recursive: true })

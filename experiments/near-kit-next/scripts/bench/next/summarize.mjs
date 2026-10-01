@@ -2,7 +2,7 @@ import { createHash } from "node:crypto"
 import { readFile, readdir, stat, writeFile } from "node:fs/promises"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
-const work = resolve(dirname(fileURLToPath(import.meta.url)), "../../../artifacts/bench-next"), runName = process.env.BENCH_RUN_NAME ?? "final"
+const work = resolve(process.env.BENCH_WORK_DIR ?? resolve(dirname(fileURLToPath(import.meta.url)), "../../../artifacts/bench-next")), runName = process.env.BENCH_RUN_NAME ?? "final"
 const directory = join(work, "runs", runName), rawBytes = await readFile(join(directory, "raw.json")), raw = JSON.parse(rawBytes)
 if (!raw.finishedAt) throw Error("Run not complete")
 let bundleAudit
