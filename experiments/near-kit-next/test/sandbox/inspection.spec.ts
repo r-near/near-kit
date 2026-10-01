@@ -310,16 +310,11 @@ it("exports a naturally complete exact snapshot from the real node, including a 
 it("runs the explicit full-wire inspection CLI for block, chunk and protocol config", async () => {
   const at = await selector()
   const raw = (...args: string[]) =>
-    execFileSync(
-      process.execPath,
-      [
-        "--experimental-strip-types",
-        "examples/raw-inspection.ts",
-        endpoint,
-        ...args,
-      ],
-      { encoding: "utf8", timeout: 20000, maxBuffer: 4 * 1024 * 1024 },
-    )
+    execFileSync("sh", ["examples/raw-inspection.sh", endpoint, ...args], {
+      encoding: "utf8",
+      timeout: 20000,
+      maxBuffer: 4 * 1024 * 1024,
+    })
   const blockText = raw("block", at.hash)
   const block = JSON.parse(blockText)
   expect(block.result.header.hash).toBe(at.hash)

@@ -6,8 +6,7 @@ import * as Stream from "effect/Stream"
 import * as TestClock from "effect/testing/TestClock"
 import { expect } from "vitest"
 import { accountSamples } from "../examples/poll-account.js"
-import { rawReadRequest } from "../examples/raw-inspection.js"
-import { accountWire, HASH, harness, unknownAccount } from "./fixtures.js"
+import { accountWire, harness, unknownAccount } from "./fixtures.js"
 
 const client = Near.make({ url: "https://example.test" })
 it.effect(
@@ -45,31 +44,6 @@ it.effect(
       expect(h.requests).toHaveLength(1)
     }),
 )
-it("raw inspection accepts only the documented read commands and validated hashes", () => {
-  expect(rawReadRequest("block", HASH)).toEqual({
-    method: "block",
-    params: { block_id: HASH },
-  })
-  expect(rawReadRequest("chunk", HASH)).toEqual({
-    method: "chunk",
-    params: { chunk_id: HASH },
-  })
-  expect(rawReadRequest("genesis")).toEqual({
-    method: "genesis_config",
-    params: [],
-  })
-  expect(rawReadRequest("config")).toEqual({
-    method: "EXPERIMENTAL_protocol_config",
-    params: { finality: "final" },
-  })
-  for (const [method, hash] of [
-    ["unknown", undefined],
-    ["block", "bad"],
-    ["config", HASH],
-  ] as const)
-    expect(() => rawReadRequest(method, hash)).toThrow()
-})
-
 it.effect("poll spacing uses the caller clock and fiber", () =>
   Effect.gen(function* () {
     const h = harness(() => accountWire)
