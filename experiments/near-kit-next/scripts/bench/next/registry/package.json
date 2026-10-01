@@ -1,0 +1,22 @@
+{
+  "name": "near-read-measurement-consumer",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@napi-rs/keyring": "1.3.0",
+    "@noble/curves": "2.2.0",
+    "@noble/hashes": "2.2.0",
+    "@noble/post-quantum": "0.6.1",
+    "@scure/base": "2.2.0",
+    "@scure/bip32": "2.2.0",
+    "@scure/bip39": "2.2.0",
+    "@types/bun": "1.3.14",
+    "@zorsh/zorsh": "0.5.1",
+    "effect": "4.0.0-rc.118",
+    "near-api-js": "7.3.1",
+    "tar": "7.5.22",
+    "typescript": "6.0.3",
+    "util": "0.12.5",
+    "zod": "4.4.3"
+  }
+}

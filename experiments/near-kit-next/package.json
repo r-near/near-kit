@@ -1,0 +1,78 @@
+{
+  "name": "@near-kit/next",
+  "version": "0.0.0-experimental.1",
+  "private": true,
+  "description": "Experimental Effect-native NEAR SDK redesign",
+  "type": "module",
+  "license": "MIT",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./data": {
+      "types": "./dist/data.d.ts",
+      "import": "./dist/data.js"
+    },
+    "./units": {
+      "types": "./dist/units.d.ts",
+      "import": "./dist/units.js"
+    },
+    "./operator": {
+      "types": "./dist/operator.d.ts",
+      "import": "./dist/operator.js"
+    },
+    "./address": {
+      "types": "./dist/address.d.ts",
+      "import": "./dist/address.js"
+    },
+    "./nep413": {
+      "types": "./dist/nep413.d.ts",
+      "import": "./dist/nep413.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "DESIGN.md",
+    "COVERAGE.md",
+    "EVALUATION.md",
+    "GOAL.md",
+    "examples"
+  ],
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "build": "node scripts/clean.mjs && tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.check.json --noEmit && tsc -p tsconfig.wallet.json --noEmit",
+    "test": "vitest run",
+    "check": "npm run build && npm run typecheck && npm test",
+    "test:browser": "playwright test",
+    "test:sandbox": "vitest run --config vitest.sandbox.config.ts",
+    "test:packed": "node scripts/check-packed.mjs"
+  },
+  "dependencies": {
+    "@noble/curves": "2.4.0",
+    "@noble/hashes": "2.4.0",
+    "@scure/base": "2.2.0",
+    "effect": "4.0.0-rc.118"
+  },
+  "devDependencies": {
+    "@effect/vitest": "4.0.0-rc.118",
+    "@near-wallet-selector/core": "10.1.4",
+    "@playwright/test": "1.63.0",
+    "@tanstack/react-query": "5.104.0",
+    "@types/node": "24.19.0",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
+    "esbuild": "0.28.2",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "rxjs": "7.8.1",
+    "typescript": "7.0.2",
+    "vitest": "5.0.3",
+    "wabt": "1.0.39"
+  }
+}

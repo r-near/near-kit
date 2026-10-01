@@ -1,0 +1,314 @@
+{
+  "schemaVersion": 1,
+  "candidateCommit": "819b5880451a0202a8109aa52dab19cb5a204096",
+  "scope": "Original public read responses from existing state/history, replayed offline. No transactions, accounts, credentials, genesis mutations, or state changes were created during capture. Node observations are not consensus/completeness proofs.",
+  "replay": "Only the JSON-RPC envelope request ID changes during replay; raw compressed originals and checksums are retained.",
+  "networks": {
+    "mainnet": {
+      "endpoint": "https://rpc.mainnet.near.org",
+      "nodeVersion": {
+        "build": "2.13.4",
+        "commit": "44f7ae6cd7ef08bab604e20a473bf77e35d4c993",
+        "rustc_version": "1.93.0",
+        "version": "2.13.4"
+      },
+      "statusProtocol": 86,
+      "chainId": "mainnet",
+      "blockHash": "3c2wihrifPV1xHw9A7FDWck58vFASJeRyrZ4S94yJ1Fu",
+      "blockHeight": 218010335,
+      "blockLatestProtocolVersion": 86,
+      "statusResponse": {
+        "file": "mainnet-status-response.json.gz",
+        "bytes": 4879,
+        "sha256": "56a1e149d1b9e3171e00585792fa534dcc116b93c1fa5c607d092d3d00c9b28f",
+        "gzipBytes": 1325,
+        "gzipSha256": "cf04296dc5bf269bd02abc93d258008d5eb5237911636a9a641e0e1766887134"
+      },
+      "blockResponse": {
+        "file": "mainnet-block-response.json.gz",
+        "bytes": 20312,
+        "sha256": "d1424aad9c0b918bce12c0a8c1f3d7673617639772d9b2ab13d2dab9271d78bb",
+        "gzipBytes": 9785,
+        "gzipSha256": "ec1d6ca174ec7b75d3f977d65206fdda1fbb2a329479d5f42fc50bf6cdb9659a"
+      }
+    },
+    "archive-testnet": {
+      "endpoint": "https://archival-rpc.testnet.near.org",
+      "nodeVersion": {
+        "build": "2.14.0-rc.2",
+        "commit": "21ec809d1530c73f68b61509263e0c7c0f6dbb06",
+        "rustc_version": "1.95.0",
+        "version": "2.14.0-rc.2"
+      },
+      "statusProtocol": 87,
+      "chainId": "testnet",
+      "blockHash": "D1ZY3y51Z2v5tXq2nZPmXHgA3zZsPBzbtwHXjCvAEuLV",
+      "blockHeight": 187309439,
+      "blockLatestProtocolVersion": 73,
+      "statusResponse": {
+        "file": "archive-testnet-status-response.json.gz",
+        "bytes": 1836,
+        "sha256": "9ccf6e55850d6703418cd38f13076b008511d54387ccf817258290ff428b682f",
+        "gzipBytes": 776,
+        "gzipSha256": "9bbd7fc4cdded4df24974eb88e7953382ed574a5e3537039326768c229da6ef6"
+      },
+      "blockResponse": {
+        "file": "archive-testnet-block-response.json.gz",
+        "bytes": 8573,
+        "sha256": "c973651d960294f1c4c45496747e6d312fca59c804c368d64df9a689fa264944",
+        "gzipBytes": 3473,
+        "gzipSha256": "653f6c05132304bb1bff3a587b8a8cdf3ba9283fa067909d349938c4c60c25c9"
+      }
+    }
+  },
+  "captures": [
+    {
+      "name": "global-hash-sputnik",
+      "operation": "globalCode",
+      "network": "mainnet",
+      "recordedAt": "2026-10-01T04:09:50.272Z",
+      "discovery": "https://nearblocks.io/txns/BjQrZtBY8y966pqZgjafzMRGUjBtvgWdSyJzSAR4jRGr/execution",
+      "reference": {
+        "hash": "DtHZA1mUmGYeScEaUoUZYQGGFHSMpnjMCvkr5U9hJXuF"
+      },
+      "request": {
+        "jsonrpc": "2.0",
+        "id": "3721790853-3799562639-594122687-4173667755",
+        "method": "query",
+        "params": {
+          "request_type": "view_global_contract_code",
+          "code_hash": "DtHZA1mUmGYeScEaUoUZYQGGFHSMpnjMCvkr5U9hJXuF",
+          "block_id": "3c2wihrifPV1xHw9A7FDWck58vFASJeRyrZ4S94yJ1Fu"
+        }
+      },
+      "response": {
+        "file": "global-hash-sputnik-response.json.gz",
+        "bytes": 592354,
+        "sha256": "751974b345f1f4ed54d6b5727eb3e8351088dc885eaeb0685f17669fd9625d8b",
+        "gzipBytes": 237004,
+        "gzipSha256": "80a170bf24e1ab845d972f29c63b2d7579f85c9b9c0854341f7808af28727d1c"
+      },
+      "expected": {
+        "blockHash": "3c2wihrifPV1xHw9A7FDWck58vFASJeRyrZ4S94yJ1Fu",
+        "blockHeight": "218010335",
+        "codeHash": "DtHZA1mUmGYeScEaUoUZYQGGFHSMpnjMCvkr5U9hJXuF",
+        "calculatedHash": "DtHZA1mUmGYeScEaUoUZYQGGFHSMpnjMCvkr5U9hJXuF",
+        "bytes": 444088,
+        "wasmMagic": "0061736d01000000"
+      }
+    },
+    {
+      "name": "global-publisher-intents",
+      "operation": "globalCode",
+      "network": "mainnet",
+      "recordedAt": "2026-10-01T04:09:53.694Z",
+      "discovery": "https://github.com/near/nearcore/blob/bb04d86378ef66bbc0573771dad7d5fced25b2eb/core/primitives/src/universal_state_init_vectors.rs",
+      "reference": {
+        "publisher": "0sb0d7ef4f935c6ef78e08ad03569767aaec4223a3"
+      },
+      "request": {
+        "jsonrpc": "2.0",
+        "id": "105501274-1134407941-713228065-6368841",
+        "method": "query",
+        "params": {
+          "request_type": "view_global_contract_code_by_account_id",
+          "account_id": "0sb0d7ef4f935c6ef78e08ad03569767aaec4223a3",
+          "block_id": "3c2wihrifPV1xHw9A7FDWck58vFASJeRyrZ4S94yJ1Fu"
+        }
+      },
+      "response": {
+        "file": "global-publisher-intents-response.json.gz",
+        "bytes": 410222,
+        "sha256": "6235a83c38b55ace7ca85fbe042fabb383acede96827bef221e9598646ed83dd",
+        "gzipBytes": 171859,
+        "gzipSha256": "0c26202ab58e9a05dafb25871b87f0afe9c36b91a1327414c2dfb7e93967ddc4"
+      },
+      "expected": {
+        "blockHash": "3c2wihrifPV1xHw9A7FDWck58vFASJeRyrZ4S94yJ1Fu",
+        "blockHeight": "218010335",
+        "codeHash": "HACZcjbLvfUjsbCYnLpzK1ZR4e3d8zbGi5YtCi2zzDKk",
+        "calculatedHash": "HACZcjbLvfUjsbCYnLpzK1ZR4e3d8zbGi5YtCi2zzDKk",
+        "bytes": 307492,
+        "wasmMagic": "0061736d01000000"
+      }
+    },
+    {
+      "name": "mainnet-effects",
+      "operation": "blockEffects",
+      "network": "mainnet",
+      "recordedAt": "2026-10-01T04:11:07.017Z",
+      "discovery": "Read-only final block discovery via official mainnet RPC",
+      "request": {
+        "jsonrpc": "2.0",
+        "id": "2082168943-1417362573-741388957-2038142092",
+        "method": "block_effects",
+        "params": {
+          "block_id": "3c2wihrifPV1xHw9A7FDWck58vFASJeRyrZ4S94yJ1Fu"
+        }
+      },
+      "response": {
+        "file": "mainnet-effects-sdk-response.json.gz",
+        "bytes": 1574,
+        "sha256": "69198f706feabd4e55f13557e369e94ff734fbedba04aeeef15836df465aff64",
+        "gzipBytes": 383,
+        "gzipSha256": "4e5c2a8243576cd36e99d070c65c7afd2c726a6f3ab8a28e456f7b5c0a3da197"
+      },
+      "expected": {
+        "blockHash": "3c2wihrifPV1xHw9A7FDWck58vFASJeRyrZ4S94yJ1Fu",
+        "blockHeight": "218010335",
+        "counts": {
+          "account_touched": 12,
+          "access_key_touched": 6,
+          "data_touched": 6
+        },
+        "changes": [
+          {
+            "kind": "account_touched",
+            "accountId": "0here.tg"
+          },
+          {
+            "kind": "account_touched",
+            "accountId": "4d707cb4f08f3d16da94498e1f1405e77a5f96fe98c352f4e9ed663b6637fa71"
+          },
+          {
+            "kind": "account_touched",
+            "accountId": "aurora"
+          },
+          {
+            "kind": "account_touched",
+            "accountId": "closemeat6237.near"
+          },
+          {
+            "kind": "account_touched",
+            "accountId": "game.hot.tg"
+          },
+          {
+            "kind": "account_touched",
+            "accountId": "greentie5780.near"
+          },
+          {
+            "kind": "account_touched",
+            "accountId": "relay.aurora"
+          },
+          {
+            "kind": "account_touched",
+            "accountId": "silentxml7180.near"
+          },
+          {
+            "kind": "account_touched",
+            "accountId": "sweat-relayer.near"
+          },
+          {
+            "kind": "account_touched",
+            "accountId": "token.publicailab.near"
+          },
+          {
+            "kind": "account_touched",
+            "accountId": "vx-zec.near"
+          },
+          {
+            "kind": "account_touched",
+            "accountId": "wallet.kaiching"
+          },
+          {
+            "kind": "access_key_touched",
+            "accountId": "0here.tg"
+          },
+          {
+            "kind": "access_key_touched",
+            "accountId": "relay.aurora"
+          },
+          {
+            "kind": "access_key_touched",
+            "accountId": "relay.aurora"
+          },
+          {
+            "kind": "access_key_touched",
+            "accountId": "relay.aurora"
+          },
+          {
+            "kind": "access_key_touched",
+            "accountId": "sweat-relayer.near"
+          },
+          {
+            "kind": "access_key_touched",
+            "accountId": "vx-zec.near"
+          },
+          {
+            "kind": "data_touched",
+            "accountId": "game.hot.tg"
+          },
+          {
+            "kind": "data_touched",
+            "accountId": "game.hot.tg"
+          },
+          {
+            "kind": "data_touched",
+            "accountId": "game.hot.tg"
+          },
+          {
+            "kind": "data_touched",
+            "accountId": "token.publicailab.near"
+          },
+          {
+            "kind": "data_touched",
+            "accountId": "token.publicailab.near"
+          },
+          {
+            "kind": "data_touched",
+            "accountId": "token.publicailab.near"
+          }
+        ]
+      }
+    },
+    {
+      "name": "archive-testnet-effects",
+      "operation": "blockEffects",
+      "network": "archive-testnet",
+      "recordedAt": "2026-10-01T04:11:16.649Z",
+      "discovery": "https://docs.near.org/api/rpc/contracts#view-contract-code-changes",
+      "request": {
+        "jsonrpc": "2.0",
+        "id": "4173357676-135125218-869159962-2263446239",
+        "method": "block_effects",
+        "params": {
+          "block_id": "D1ZY3y51Z2v5tXq2nZPmXHgA3zZsPBzbtwHXjCvAEuLV"
+        }
+      },
+      "response": {
+        "file": "archive-testnet-effects-sdk-response.json.gz",
+        "bytes": 436,
+        "sha256": "5f093106c619b89e0cc88ec8bdb64fd403ac028ae586561eeef82c49972daf0b",
+        "gzipBytes": 244,
+        "gzipSha256": "96bff9d1b2b5004ba97b61c4b5cb4d751e628e08bc3b77c9bccf7a1714e10628"
+      },
+      "expected": {
+        "blockHash": "D1ZY3y51Z2v5tXq2nZPmXHgA3zZsPBzbtwHXjCvAEuLV",
+        "blockHeight": "187309439",
+        "counts": {
+          "account_touched": 2,
+          "contract_code_touched": 1,
+          "access_key_touched": 1
+        },
+        "changes": [
+          {
+            "kind": "account_touched",
+            "accountId": "contract.rpc-examples.testnet"
+          },
+          {
+            "kind": "account_touched",
+            "accountId": "cosmosfirst.testnet"
+          },
+          {
+            "kind": "contract_code_touched",
+            "accountId": "contract.rpc-examples.testnet"
+          },
+          {
+            "kind": "access_key_touched",
+            "accountId": "contract.rpc-examples.testnet"
+          }
+        ]
+      }
+    }
+  ]
+}
