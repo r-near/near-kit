@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process"
 import { createHash } from "node:crypto"
 import { readFileSync, writeFileSync } from "node:fs"
 import * as Near from "@near-kit/next"
@@ -304,4 +305,32 @@ it("exports a naturally complete exact snapshot from the real node, including a 
       ).toBe(true)
     }
   }
+})
+
+it("runs the explicit full-wire inspection CLI for block, chunk and protocol config", async () => {
+  const at = await selector()
+  const raw = (...args: string[]) =>
+    execFileSync(
+      process.execPath,
+      [
+        "--experimental-strip-types",
+        "examples/raw-inspection.ts",
+        endpoint,
+        ...args,
+      ],
+      { encoding: "utf8", timeout: 20000, maxBuffer: 4 * 1024 * 1024 },
+    )
+  const blockText = raw("block", at.hash)
+  const block = JSON.parse(blockText)
+  expect(block.result.header.hash).toBe(at.hash)
+  const chunkHash = block.result.chunks[0]?.chunk_hash
+  expect(typeof chunkHash).toBe("string")
+  const chunk = JSON.parse(raw("chunk", chunkHash))
+  expect(chunk.result.header.chunk_hash).toBe(chunkHash)
+  expect(chunk.result.transactions).toEqual([])
+  const config = JSON.parse(raw("config"))
+  expect(config.result.runtime_config).toBeDefined()
+  const genesis = JSON.parse(raw("genesis"))
+  expect(genesis.result.chain_id).toBe(fixture.genesis.chainId)
+  writeFileSync("artifacts/sandbox/raw-block-response.json", blockText)
 })

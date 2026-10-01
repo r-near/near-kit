@@ -9,8 +9,8 @@ This is an implementation candidate, not a full-SDK completion claim. Existing p
 | State pages and complete traversal | Pinned page Stream with explicit partial-consumption semantics |
 | Exact units and public account/key/hash data | Pure `/units` and `/data` |
 | Genesis summary, maintenance windows, touched-account kinds | Named `/operator` reads; not full raw wire schemas |
-| Full raw block/chunk/config inspection | Explicit official-RPC recipe to be completed |
-| Wallet observation, framework cache/SSR/polling | Application-owned recipes to be completed and tested |
+| Full raw block/chunk/config inspection | Runnable explicit official-RPC CLI; original bytes, no full-wire typing claim |
+| Wallet observation, framework cache/SSR/polling | Concrete version-pinned observation, React/Query/SSR and native polling recipes; acceptance is tracked below |
 | Sandbox process management | External pinned Docker/static-genesis test infrastructure |
 | Contract proxies, batch aliases, owned runtime, rounded spendability, catch-all existence | Deliberately omitted; ordinary functions/native Effect/exact data cover the useful jobs |
 | Signing/custody/authentication/state-init and transaction/reconciliation paths | Separately paused/gated; not reconstructed as “pure helpers” |

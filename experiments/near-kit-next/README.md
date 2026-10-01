@@ -95,6 +95,8 @@ Response bytes default to a 2 MiB cap, configurable with a finite positive safe 
 ## Application recipes
 
 - [Snapshot export](examples/snapshot-export.ts): `node --experimental-strip-types examples/snapshot-export.ts RPC_URL ACCOUNT_ID OUTPUT.ndjson`. Pins all reads, writes exact decimal strings/tagged base64, and publishes only after natural traversal and file close. Existing files are never overwritten. Before publication, failure leaves `.partial`. Interruption during the short publication step can leave a valid final export; cleanup failure can leave both names. Publication requires same-filesystem hard links. Unavailable account code is an explicit status.
+- [Polling](examples/poll-account.ts): five sequential final-account samples, with caller-owned cancellation and at most two retries for transport failures. Repeated blocks are allowed; this is not a history subscription.
+- [Full wire inspection](examples/raw-inspection.ts): explicit official block/chunk/genesis/config reads stream the original bytes to stdout. No claim of typed raw fields or JSON-RPC success is made; a truncated output is partial.
 - [Wallet observation](examples/wallet-selector-observation.ts), [plain React](examples/wallet-account.tsx) and [React Query](examples/wallet-query.tsx): supply an already-created selector and an immutable application read source. No connection or write action is performed. The app owns QueryClientProvider and wallet setup/error UI.
 
 For the optional wallet recipes, copy the three `wallet*.ts/tsx` files and `examples/tsconfig.wallet.json` into your project root, then install the pinned example dependencies:

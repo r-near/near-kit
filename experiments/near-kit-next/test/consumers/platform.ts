@@ -18,7 +18,8 @@ export async function platformChecks() {
   let transportDiagnostic = ""
   const fetch: typeof globalThis.fetch = async (_input, init) => {
     requests++
-    body = String(init?.body)
+    // Node Buffer.toString() hid this fixture assumption; browsers pass plain bytes.
+    body = await new Response(init?.body).text()
     try {
       const request = JSON.parse(body) as { id: unknown }
       return new Response(
