@@ -15,13 +15,19 @@ export async function platformChecks() {
   let requests = 0
   let body = ""
   let extension = ""
+  let transportDiagnostic = ""
   const fetch: typeof globalThis.fetch = async (_input, init) => {
     requests++
     body = String(init?.body)
-    const request = JSON.parse(body) as { id: unknown }
-    return new Response(
-      `{"jsonrpc":"2.0","id":${JSON.stringify(request.id)},"result":${account}${extension}}`,
-    )
+    try {
+      const request = JSON.parse(body) as { id: unknown }
+      return new Response(
+        `{"jsonrpc":"2.0","id":${JSON.stringify(request.id)},"result":${account}${extension}}`,
+      )
+    } catch (error) {
+      transportDiagnostic = String(error)
+      throw error
+    }
   }
   const provide = <A, E>(
     value: Effect.Effect<A, E, import("effect/http/HttpClient").HttpClient>,
@@ -32,7 +38,11 @@ export async function platformChecks() {
     )
   const exact = await Effect.runPromise(
     provide(Near.account(client, "fixture", { at: { height: BigInt(u64) } })),
-  )
+  ).catch((error) => {
+    throw new Error(
+      `Platform fixture transport: requests=${requests}, diagnostic=${transportDiagnostic}, body=${body.slice(0, 120)}, error=${String(error)}`,
+    )
+  })
   assert(exact.blockHeight === BigInt(u64), "Rounded height")
   assert(exact.storageUsage === BigInt(u64), "Rounded storage usage")
   assert(body.includes(`"block_id":${u64}`), "Rounded request height")
