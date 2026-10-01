@@ -20,6 +20,28 @@ await build({
   target: "es2022",
   jsx: "automatic",
 })
+await build({
+  entryPoints: ["test/browser/ssr-app.tsx"],
+  outfile: "artifacts/browser/ssr.js",
+  bundle: true,
+  format: "esm",
+  platform: "browser",
+  target: "es2022",
+  jsx: "automatic",
+})
+await build({
+  entryPoints: ["test/browser/ssr-handler.tsx"],
+  outfile: "artifacts/browser/ssr-handler.mjs",
+  bundle: true,
+  packages: "external",
+  format: "esm",
+  platform: "node",
+  target: "node22",
+  jsx: "automatic",
+})
+const { renderSsrFixture } = await import(
+  "../artifacts/browser/ssr-handler.mjs"
+)
 const hash = "56xEo2LorUFVNbkFhCncFSWNiobdp1kzm14nZ47b5JVW"
 let sequence = 0
 let hold = false
@@ -33,6 +55,21 @@ const json = (response, body) => {
 const server = createServer(async (request, response) => {
   try {
     const url = new URL(request.url ?? "/", "http://127.0.0.1")
+    if (url.pathname === "/ssr") {
+      const controller = new AbortController()
+      response.once("close", () => {
+        if (!response.writableEnded) controller.abort()
+      })
+      const rendered = await renderSsrFixture(
+        new Request(`http://127.0.0.1:${server.address().port}${request.url}`, {
+          signal: controller.signal,
+        }),
+      )
+      controller.signal.throwIfAborted()
+      response.writeHead(rendered.status, Object.fromEntries(rendered.headers))
+      response.end(await rendered.text())
+      return
+    }
     if (url.pathname === "/" || url.pathname === "/wallet") {
       response.setHeader("content-type", "text/html")
       response.end(
@@ -40,7 +77,11 @@ const server = createServer(async (request, response) => {
       )
       return
     }
-    if (url.pathname === "/app.js" || url.pathname === "/wallet.js") {
+    if (
+      url.pathname === "/app.js" ||
+      url.pathname === "/wallet.js" ||
+      url.pathname === "/ssr.js"
+    ) {
       response.setHeader("content-type", "text/javascript")
       response.end(await readFile(`artifacts/browser${url.pathname}`))
       return
@@ -56,6 +97,11 @@ const server = createServer(async (request, response) => {
     }
     if (url.pathname === "/control/hold") {
       hold = true
+      json(response, { ok: true })
+      return
+    }
+    if (url.pathname === "/control/resume") {
+      hold = false
       json(response, { ok: true })
       return
     }
@@ -95,11 +141,20 @@ const server = createServer(async (request, response) => {
         return
       }
       const id = ++sequence
+      const ssr =
+        url.pathname === "/rpc/ssr-one" || url.pathname === "/rpc/ssr-two"
+      const amount = ssr
+        ? String(
+            340282366920938463463374607431768211455n -
+              (url.pathname === "/rpc/ssr-two" ? 2n : 0n) -
+              (rpc.params.account_id === "bob.testnet" ? 1n : 0n),
+          )
+        : String(id)
       const observation = {
         id,
         accountId: rpc.params.account_id,
         network: url.pathname,
-        amount: String(id),
+        amount,
         aborted: false,
         released: false,
       }
@@ -115,12 +170,12 @@ const server = createServer(async (request, response) => {
         return
       }
       const result = {
-        amount: String(id),
+        amount,
         locked: "0",
         storage_usage: 10,
         code_hash: "11111111111111111111111111111111",
         block_hash: hash,
-        block_height: 123,
+        block_height: ssr ? JSON.rawJSON("18446744073709551615") : 123,
       }
       const envelope = { jsonrpc: "2.0", id: rpc.id, result }
       if (hold) {
@@ -136,8 +191,10 @@ const server = createServer(async (request, response) => {
     response.writeHead(404)
     response.end()
   } catch {
-    response.writeHead(500)
-    response.end()
+    if (!response.destroyed) {
+      if (!response.headersSent) response.writeHead(500)
+      response.end()
+    }
   }
 })
 server.listen(
