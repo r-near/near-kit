@@ -22,6 +22,10 @@
     "./operator": {
       "types": "./dist/operator.d.ts",
       "import": "./dist/operator.js"
+    },
+    "./address": {
+      "types": "./dist/address.d.ts",
+      "import": "./dist/address.js"
     }
   },
   "files": [
@@ -30,6 +34,7 @@
     "DESIGN.md",
     "COVERAGE.md",
     "EVALUATION.md",
+    "GOAL.md",
     "examples"
   ],
   "engines": {
@@ -45,6 +50,7 @@
     "test:packed": "node scripts/check-packed.mjs"
   },
   "dependencies": {
+    "@noble/hashes": "2.4.0",
     "@scure/base": "2.2.0",
     "effect": "4.0.0-rc.118"
   },

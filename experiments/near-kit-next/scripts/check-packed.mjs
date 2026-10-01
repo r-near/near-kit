@@ -120,7 +120,7 @@ try {
     stdio: "inherit",
   })
   const pureBundles = {}
-  for (const subpath of ["data", "units"]) {
+  for (const subpath of ["data", "units", "address"]) {
     const bundled = await build({
       stdin: {
         contents: `export * from "@near-kit/next/${subpath}"`,

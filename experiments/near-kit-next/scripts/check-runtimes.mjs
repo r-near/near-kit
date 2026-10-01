@@ -86,7 +86,7 @@ try {
   evidence.sha256 = digest(tarball)
   evidence.fixtureSha256 = digest(join(work, "consumer.mjs"))
   evidence.dependencies = Object.fromEntries(
-    ["effect", "@scure/base"].map((name) => {
+    Object.keys(sdk.dependencies).map((name) => {
       const dependency = lock.packages[`node_modules/${name}`]
       return [
         name,

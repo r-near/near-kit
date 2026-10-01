@@ -1,9 +1,15 @@
 import * as Near from "@near-kit/next"
+import { deterministicAccountId, type StateInit } from "@near-kit/next/address"
 import * as Effect from "effect/Effect"
 import * as FetchHttpClient from "effect/http/FetchHttpClient"
 import * as Schema from "effect/Schema"
 import { platformChecks } from "./platform.js"
 
+const state: StateInit = { code: { accountId: "publisher.near" } }
+if (
+  deterministicAccountId(state) !== "0s2293da2d32cd0a067950616036ff973884abab0a"
+)
+  throw new Error("Packed public address calculation failed")
 const near = Near.make({ url: "https://fixture.invalid" })
 const account = Near.account(near, "fixture")
 const view = Near.view(near, {
@@ -14,6 +20,13 @@ const view = Near.view(near, {
 type Count = Effect.Success<typeof view>["value"]["count"]
 const count: Count = 7
 const typeErrors = () => {
+  // @ts-expect-error Code references are exclusive.
+  deterministicAccountId({ code: { hash: "hash", accountId: "aa" } })
+  deterministicAccountId({
+    code: { accountId: "aa" },
+    // @ts-expect-error Initial storage is bytes, not JSON strings.
+    data: [["key", "value"]],
+  })
   // @ts-expect-error Transport must still be supplied.
   Effect.runPromise(account)
   // @ts-expect-error The schema-inferred result is a number.

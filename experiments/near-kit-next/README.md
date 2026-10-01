@@ -1,6 +1,6 @@
 # NEAR next: independent SDK candidate
 
-A private ground-up candidate for exact protocol reads, public data and caller-owned Effect workflows. It does not replace the published SDK. Signing, custody, authentication and transaction/reconciliation workflows remain outside the current implementation; see [coverage](COVERAGE.md).
+A private ground-up candidate for exact protocol reads, public data and caller-owned Effect workflows. It does not replace the published SDK. The full workflow goal remains open; signing/custody and transaction/reconciliation work is paused, while independent public-data/authentication work is tracked separately; see [coverage](COVERAGE.md).
 
 Protocol u64/u128 quantities are exact bigint values. Arbitrary contract JSON numbers still use ordinary JavaScript JSON semantics. Use `viewBytes` for a different contract decoder. JSON objects follow the native parser’s last-member-wins behavior for duplicate names.
 
@@ -108,3 +108,18 @@ npx tsc -p tsconfig.wallet.json
 ```
 
 Keep sourceKey non-secret and advance source.revision when endpoint credentials or chain context changes. Configured wallet network is not current observed network; only selected-wallet events update knowledge, and delayed same-wallet events cannot be proved fresh. A known mismatch suspends reads. Mocked observation/browser fixtures do not establish real extension/mobile/hardware compatibility.
+
+## Public deterministic addresses
+
+`@near-kit/next/address` exports one synchronous `deterministicAccountId` function for NEP-616 V1. It consumes an exclusive `{ hash }` or `{ accountId }` global-code reference and optional storage entries as `[Uint8Array, Uint8Array]` tuples. These are exact initial storage bytes, not JSON method arguments. Duplicate equal-byte keys, malformed references, detached bytes and shared backing are rejected with TypeError/RangeError. Inputs must stay stable while the call captures them; arbitrary caller getters/proxies remain caller code.
+
+```ts
+import { deterministicAccountId } from "@near-kit/next/address"
+const expected = deterministicAccountId({
+  code: { accountId: "publisher.near" },
+  data: [],
+})
+console.log(expected) // 0s2293da2d32cd0a067950616036ff973884abab0a
+```
+
+The calculation is network-independent and does not establish account existence, ownership, current code/state or deployability. The publisher's referenced code can change. The offline `examples/address.ts` demonstrates both reference forms and invalid input handling; copy packed TypeScript into your project before native Node execution. This subpath imports the pinned Keccak implementation, with no Effect runtime; other subpaths do not import it. The package installs the hash dependency even if the subpath is unused.

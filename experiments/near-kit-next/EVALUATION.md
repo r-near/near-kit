@@ -1,6 +1,6 @@
 # Useful independent candidate; keep it experimental
 
-The coherent part of the redesign is now implemented beyond five reads: exact protocol inspection, pinned state streams, public data/units, operator summaries and complete application recipes. It is still not a full SDK replacement while write/authentication and dependent workflows remain paused. Existing packages are unchanged.
+The coherent part of the redesign is now implemented beyond five reads: exact protocol inspection, pinned state streams, public data/units, operator summaries and runnable application read recipes. The [full rewrite goal](GOAL.md) remains open: independent public-address/authentication and additional application handoffs are ordinary unfinished work, while transaction-dependent work remains paused. Existing packages are unchanged.
 
 ## Why the selected design
 
@@ -20,7 +20,7 @@ Strict core/data/units consumers remain Node-global-free. WalletSelector 10.1.4'
 
 ## Remaining product boundaries
 
-- Signing/custody, transaction encoding/submission/reconciliation, authentication and dependent state-init/derivation gates remain paused. No full completion or release recommendation is possible while those essential workflows remain unresolved
+- Signing/custody, transaction encoding/submission/reconciliation and applying state-init on-chain remain paused. Independent public address calculation and NEP-413 verification/challenge receipt are separately open implementation work. No full completion or release recommendation is possible while the required workflows remain unresolved
 - Successful global-code retrieval lacks real-node evidence: both official-doc public testnet examples returned absence at the recorded block, and the static genesis has no registry record. Historical block-effect categories and full ML-DSA lookup also retain narrower evidence
 - Proof bytes are unverified. Account/code metadata is node-reported, not consensus proof; parsing a key does not verify its mathematics
 - Effect 4.0.0-rc.118 and its HTTP APIs are prerelease dependencies. The already-aborted runner limitation remains documented; application entry guards are required

@@ -1,6 +1,6 @@
 # Coverage and acceptance
 
-This is an implementation candidate, not a full-SDK completion claim. Existing packages remain unchanged.
+The [complete SDK goal](GOAL.md) remains open. This implementation candidate covers the independent reads/data/application portion; the checklist distinguishes ordinary unfinished work from the recorded transaction-work boundary.
 
 | Workflow | Candidate disposition |
 | --- | --- |
@@ -13,7 +13,8 @@ This is an implementation candidate, not a full-SDK completion claim. Existing p
 | Wallet observation, framework cache/SSR/polling | Concrete version-pinned observation, React/Query/SSR and native polling recipes; acceptance is tracked below |
 | Sandbox process management | External pinned Docker/static-genesis test infrastructure |
 | Contract proxies, batch aliases, owned runtime, rounded spendability, catch-all existence | Deliberately omitted; ordinary functions/native Effect/exact data cover the useful jobs |
-| Signing/custody/authentication/state-init and transaction/reconciliation paths | Separately paused/gated; not reconstructed as “pure helpers” |
+| Public address calculation and NEP-413 verification/challenge receipt | Ordinary independent design/implementation gaps, now tracked in [the full goal](GOAL.md) |
+| Signing/custody, applying state-init on-chain, transactions and reconciliation | Paused pending resolution of the recorded transaction-work boundary |
 
 ## Current evidence
 
