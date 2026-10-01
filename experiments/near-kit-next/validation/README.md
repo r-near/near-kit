@@ -4,4 +4,6 @@ These public static-fixture artifacts were downloaded from [run 36803350082](htt
 
 Official image: `nearprotocol/sandbox@sha256:1f36ba675ecce97cf5311b8f29f6ca7c42af17b6d6c45d38a652f0f9bad282a7`. No key files or transaction-based setup are included. Gas balances are serialization fixtures, not economic/funding evidence. The captured block-effects array is empty, so it does not prove historical category branches. Proof bytes are not verified cryptographically.
 
-`exact-nonces-response.json` preserves the native unquoted full-range u64 tokens. `fixture.json` is the deterministic public input manifest; state-derived block metadata/time changes across runs.
+`exact-nonces-response.json.gz` preserves the native unquoted full-range u64 tokens. `fixture.json.gz` is the deterministic public input manifest; state-derived block metadata/time changes across runs.
+
+JSON captures use gzip to retain byte-for-byte response/projection evidence without formatter changes; decompress them before inspection.
