@@ -18,6 +18,10 @@ const digest = createHash("sha256").update(wasm).digest()
 const codeHash = base58.encode(digest)
 const emptyHash = base58.encode(new Uint8Array(32))
 const raw = (value) => JSON.rawJSON(BigInt(value).toString())
+// Copy an existing upstream public KAT vector; never generate signing material.
+const mlDsa = JSON.parse(
+  await readFile("test/fixtures/protocol/ml-dsa-kat-public.json", "utf8"),
+)
 const data = [
   [[], [0, 255, 1]],
   [[0], []],
@@ -82,7 +86,8 @@ const keys = [
     },
   },
   {
-    publicKey: publicKey("ml-dsa-65-hash", 32, 6),
+    publicKey: mlDsa.publicKeyHandle,
+    lookupPublicKey: mlDsa.publicKey,
     nonce: "0",
     permission: "FullAccess",
   },

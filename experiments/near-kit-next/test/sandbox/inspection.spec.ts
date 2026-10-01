@@ -25,7 +25,11 @@ const fixture = JSON.parse(
   fixtureAmount: string
   wasmSha256: string
   data: Array<{ key: string; value: string }>
-  keys: Array<{ publicKey: string; nonce: string }>
+  keys: Array<{
+    publicKey: string
+    lookupPublicKey?: string
+    nonce: string
+  }>
   nonces: string[]
   genesis: {
     chainId: string
@@ -66,16 +70,17 @@ it("inspects all public permission variants and exact u64 nonces on a pinned nod
       (item) => Data.formatPublicKey(item.publicKey) === expected.publicKey,
     )
     expect(found?.accessKey.nonce).toBe(BigInt(expected.nonce))
-    if (!expected.publicKey.startsWith("ml-dsa-65-hash:"))
-      expect(
-        (
-          await run(
-            Near.accessKey(client, "fixture.sandbox", expected.publicKey, {
-              at,
-            }),
-          )
-        ).nonce,
-      ).toBe(BigInt(expected.nonce))
+    const lookup = await run(
+      Near.accessKey(
+        client,
+        "fixture.sandbox",
+        expected.lookupPublicKey ?? expected.publicKey,
+        { at },
+      ),
+    )
+    expect(lookup.nonce).toBe(BigInt(expected.nonce))
+    expect(lookup.permission).toEqual(found?.accessKey.permission)
+    expect(lookup.blockHash).toBe(at.hash)
   }
   const lanes = await run(
     Near.gasKeyNonces(client, "fixture.sandbox", gasKey.publicKey, {
