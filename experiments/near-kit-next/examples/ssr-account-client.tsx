@@ -38,7 +38,9 @@ export function hydrateAccountPage(
   const initial = readPage(page) // Validate before creating a cache or hydrating.
   const queryClient = new QueryClient()
   function Hydrated() {
-    useEffect(() => callbacks.onHydrated?.(), [])
+    useEffect(() => {
+      callbacks.onHydrated?.()
+    }, [])
     return null
   }
   const content = (props: ReturnType<typeof readPage>) => (
@@ -68,8 +70,11 @@ export function hydrateAccountPage(
     dispose() {
       if (disposed) return
       disposed = true
-      root.unmount()
-      queryClient.clear()
+      try {
+        root.unmount()
+      } finally {
+        queryClient.clear()
+      }
     },
   }
 }

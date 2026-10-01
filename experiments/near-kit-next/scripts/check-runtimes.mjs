@@ -121,6 +121,28 @@ try {
     report.status !== "passed"
   )
     throw new Error(`Unexpected runtime result: ${output}`)
+  copyFileSync(
+    join(root, "test/consumers/public-crypto.mjs"),
+    join(work, "public-crypto.mjs"),
+  )
+  copyFileSync(
+    join(root, "test/fixtures/nep413/vectors.json"),
+    join(work, "nep413-vectors.json"),
+  )
+  writeFileSync(
+    join(work, "crypto-consumer.mjs"),
+    `import proofs from "./nep413-vectors.json" with { type: "json" };
+import { publicCryptoChecks } from "./public-crypto.mjs";
+console.log(JSON.stringify(publicCryptoChecks(proofs)));
+`,
+  )
+  const cryptoOutput = execFileSync(
+    binary,
+    [...args.slice(0, -1), "crypto-consumer.mjs"],
+    { cwd: work, env, encoding: "utf8", timeout: 60_000 },
+  )
+  evidence.publicCrypto = JSON.parse(cryptoOutput.trim())
+  evidence.publicProofSha256 = digest(join(work, "nep413-vectors.json"))
   evidence.consumer = report
   evidence.passed = true
 } catch (error) {

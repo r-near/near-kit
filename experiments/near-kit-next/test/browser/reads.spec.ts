@@ -153,3 +153,15 @@ test("native JSON exactness, feature failure and resource errors match the publi
     depth: "JsonResource",
   })
 })
+
+test("public addresses and independent NEP-413 proofs work in the browser", async ({
+  page,
+}) => {
+  await page.goto("/")
+  await expect(page.getByText(/^[0-9]+ yoctoNEAR$/)).toBeVisible()
+  const result = await page.evaluate(() => window.readDemo.publicCrypto())
+  expect(result.address).toBe(true)
+  expect(result.verified).toBeGreaterThan(1)
+  expect(result.wrongMessageRejected).toBe(true)
+  expect(result.detachedRejected).toBe(true)
+})

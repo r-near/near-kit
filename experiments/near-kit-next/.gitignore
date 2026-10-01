@@ -4,3 +4,5 @@ artifacts/
 playwright-report/
 test-results/
 *.tgz
+
+.receipt-build/

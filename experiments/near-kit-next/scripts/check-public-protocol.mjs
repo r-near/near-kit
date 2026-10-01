@@ -4,9 +4,9 @@ import assert from "node:assert/strict"
 import { createHash } from "node:crypto"
 import { mkdir, readFile, writeFile } from "node:fs/promises"
 import { gzipSync } from "node:zlib"
-import { base58 } from "@scure/base"
 import * as Near from "@near-kit/next"
 import * as Operator from "@near-kit/next/operator"
+import { base58 } from "@scure/base"
 import * as Effect from "effect/Effect"
 import * as FetchHttpClient from "effect/http/FetchHttpClient"
 
@@ -52,7 +52,9 @@ const run = (program) =>
 // Source: https://docs.near.org/api/rpc/providers
 const clients = {
   mainnet: Near.make({ url: "https://archival-rpc.mainnet.near.org" }),
-  "archive-testnet": Near.make({ url: "https://archival-rpc.testnet.near.org" }),
+  "archive-testnet": Near.make({
+    url: "https://archival-rpc.testnet.near.org",
+  }),
 }
 const results = []
 try {
@@ -79,7 +81,8 @@ try {
       })
     } else {
       const effects = await run(Operator.blockEffects(client, at))
-      const pairs = (changes) => changes.map((c) => `${c.kind}:${c.accountId}`).sort()
+      const pairs = (changes) =>
+        changes.map((c) => `${c.kind}:${c.accountId}`).sort()
       assert.deepEqual(pairs(effects.changes), pairs(item.expected.changes))
       results.push({
         name: item.name,

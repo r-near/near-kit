@@ -134,7 +134,9 @@ it("pins the upstream full ML-DSA public key and its independently checked handl
     .update("near:ml-dsa-65-pubkey-hash:v1")
     .update(full.data)
     .digest()
-  expect(`ml-dsa-65-hash:${base58.encode(digest)}`).toBe(fixture.publicKeyHandle)
+  expect(`ml-dsa-65-hash:${base58.encode(digest)}`).toBe(
+    fixture.publicKeyHandle,
+  )
   expect(Data.parsePublicKey(fixture.publicKeyHandle)).toEqual({
     kind: "ml-dsa-65-hash",
     data: new Uint8Array(digest),

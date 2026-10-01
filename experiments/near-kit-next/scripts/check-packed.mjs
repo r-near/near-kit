@@ -119,8 +119,54 @@ try {
     cwd: work,
     stdio: "inherit",
   })
+  for (const file of [
+    "ssr-account.tsx",
+    "ssr-account-server.tsx",
+    "ssr-account-client.tsx",
+  ])
+    copyFileSync(join(examples, file), join(work, file))
+  copyFileSync(
+    join(root, "test/consumers/ssr.mts"),
+    join(work, "ssr-consumer.mts"),
+  )
+  const ssrCompilerOptions = {
+    target: "ES2022",
+    module: "NodeNext",
+    moduleResolution: "NodeNext",
+    jsx: "react-jsx",
+    strict: true,
+    skipLibCheck: false,
+    lib: ["ES2022", "DOM", "DOM.Iterable", "ESNext.Disposable"],
+    types: [],
+    outDir: "ssr-out",
+  }
+  writeFileSync(
+    join(work, "tsconfig.ssr.json"),
+    JSON.stringify({
+      compilerOptions: ssrCompilerOptions,
+      include: [
+        "ssr-account.tsx",
+        "ssr-account-server.tsx",
+        "ssr-account-client.tsx",
+        "ssr-consumer.mts",
+      ],
+    }),
+  )
+  execFileSync(
+    process.execPath,
+    [
+      resolve(root, "node_modules/typescript/bin/tsc"),
+      "-p",
+      "tsconfig.ssr.json",
+    ],
+    { cwd: work, stdio: "inherit" },
+  )
+  execFileSync(process.execPath, ["ssr-out/ssr-consumer.mjs"], {
+    cwd: work,
+    stdio: "inherit",
+  })
   const pureBundles = {}
-  for (const subpath of ["data", "units", "address"]) {
+  for (const subpath of ["data", "units", "address", "nep413"]) {
     const bundled = await build({
       stdin: {
         contents: `export * from "@near-kit/next/${subpath}"`,
@@ -153,6 +199,7 @@ try {
     package: packed[0].id,
     browserOnlyTypes: true,
     optionalWalletTypesAndSsr: true,
+    requestScopedSsr: true,
     runtime: true,
   }
   mkdirSync(join(root, "artifacts"), { recursive: true })

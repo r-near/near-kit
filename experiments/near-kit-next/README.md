@@ -1,4 +1,4 @@
-# NEAR next: independent SDK candidate
+# NEAR next: SDK rewrite in progress
 
 A private ground-up candidate for exact protocol reads, public data and caller-owned Effect workflows. It does not replace the published SDK. The full workflow goal remains open; signing/custody and transaction/reconciliation work is paused, while independent public-data/authentication work is tracked separately; see [coverage](COVERAGE.md).
 
@@ -47,7 +47,7 @@ node --experimental-strip-types read.mts RPC_URL ACCOUNT_ID
 
 ## Runtime and imports
 
-Node 22.12+ and modern browsers are the target. Exact wire decoding requires native JSON source context, rawJSON and isRawJSON (feature floors: Chrome 114, Firefox 135, Safari 18.4). Missing/incomplete features fail with UnsupportedError before I/O. Actual tested engine versions are recorded separately; feature availability is not a platform acceptance claim. Effect 4.0.0-rc.118 and its HTTP API are prerelease/unstable dependencies, deliberately pinned.
+Node 22.12+ and modern browsers are the target. Deno 2.9.7 and Bun 1.4.2 passed the packed read-client checks on Linux x64; final optional-module coverage is recorded separately. Exact wire decoding requires native JSON source context, rawJSON and isRawJSON (feature floors: Chrome 114, Firefox 135, Safari 18.4). Missing/incomplete features fail with UnsupportedError before I/O. Actual tested engine versions are recorded separately; feature availability is not a platform acceptance claim. Effect 4.0.0-rc.118 and its HTTP API are prerelease/unstable dependencies, deliberately pinned.
 
 Strict browser-only TypeScript consumers need ESNext.Disposable alongside ES2022/DOM libs. Core and pure-subpath consumers are checked without Node globals. The optional WalletSelector 10.1.4 examples use Bundler module resolution and type-only @types/node because its declarations contain extensionless ESM imports and Buffer. Two upstream declarations also reference unexported @near-js/types paths (tested at 2.5.1; install it directly for the supplied paths). The supplied optional-example config maps those exact type-only imports to the real installed declarations. These requirements do not add runtime Node polyfills, ambient any types or skip library checking.
 
@@ -123,3 +123,62 @@ console.log(expected) // 0s2293da2d32cd0a067950616036ff973884abab0a
 ```
 
 The calculation is network-independent and does not establish account existence, ownership, current code/state or deployability. The publisher's referenced code can change. The offline `examples/address.ts` demonstrates both reference forms and invalid input handling; copy packed TypeScript into your project before native Node execution. This subpath imports the pinned Keccak implementation, with no Effect runtime; other subpaths do not import it. The package installs the hash dependency even if the subpath is unused.
+
+## Server render to browser hydration
+
+Copy `examples/ssr-account.tsx`, `ssr-account-server.tsx` and `ssr-account-client.tsx` into your application. The server uses one request-owned query cache; the browser validates a bounded decimal/hash payload before hydrating its own cache. The page makes one server read, preserves exact values, and refreshes only when requested. Every source key must identify the same immutable RPC configuration on server and browser. Matching document attributes catches accidental swaps, not authentication.
+
+Use the same React/Query versions above. These three files need no wallet connector or wallet-specific type mappings:
+
+```sh
+npx tsc --target ES2022 --module NodeNext --moduleResolution NodeNext --jsx react-jsx --strict --lib ES2022,DOM,DOM.Iterable,ESNext.Disposable --outDir app-dist ssr-account.tsx ssr-account-server.tsx ssr-account-client.tsx
+```
+
+Your Fetch-compatible route returns the response from `accountPageResponse(request, { source, accountId, browserModule: "/account.js" })`. The incoming request signal controls the read and suppresses publication after cancellation. On the browser side, bundle this entry as `/account.js`:
+
+```tsx
+import * as Near from "@near-kit/next"
+import { hydrateAccountPage } from "./ssr-account-client.js"
+const source = {
+  key: "testnet-public",
+  client: Near.make({ url: "https://rpc.testnet.near.org" }),
+}
+const page = hydrateAccountPage(document, { [source.key]: source })
+// Register page.dispose with your router's unmount lifecycle.
+// After loading a newer trusted page, page.render(nextDocument) changes identity.
+```
+
+The router owns navigation request ordering. It must discard older navigation responses, as the complete local demo does. Failed reads remain service errors rather than successful empty pages. The route emits `private, no-store`; application error middleware owns the HTTP error response.
+
+For a complete runnable local demonstration from this checkout, run `npm run build` followed by `node scripts/browser-server.mjs` and open `http://127.0.0.1:4177/ssr?account=alice.testnet&source=one`. Its loopback RPC is a deterministic test fixture, not chain evidence. The same shipped server/client examples run in the browser matrix.
+
+## Deliberate external boundaries
+
+Wallet setup, connection dialogs, restoration, sign-out and signing remain owned by the selected wallet connector. The supplied observation recipe targets WalletSelector 10.1.4; it does not claim near-connect/HotConnect compatibility. Applications migrating those adapters can retain their existing connector and expose its own account/source state to the ordinary read/query recipes, or choose WalletSelector. Actual connection/signing remains a distinct acceptance item in the full goal, not something proved by a mock observation store.
+
+Sandbox patching, fast-forward and whole-node dump/restore are deliberately outside this SDK's API. They belong to node/test infrastructure. The checked-in pinned Docker recipe provisions and tears down public static-genesis read fixtures; it does not replace whole-node backups or manufacture transaction history. The account snapshot exporter exports public account data, not a restorable node database.
+
+## Public NEP-413 proofs and application receipts
+
+`@near-kit/next/nep413` exports synchronous `verifyNep413Signature(payload, proof)`. It checks a public signature over the exact stored message, 32-byte nonce, recipient and optional callback URL. It supports canonical Ed25519 and low-S secp256k1 proofs; ML-DSA is explicitly unsupported by this authentication profile. The complete envelope is capped at 64 KiB. Invalid encodings throw Nep413InputError, unsupported recognized keys throw Nep413UnsupportedKeyError, and a well-formed invalid proof returns false. A true result does not authenticate an account, select a chain, consume a challenge or create a session.
+
+```ts
+import { verifyNep413Signature } from "@near-kit/next/nep413"
+const valid = verifyNep413Signature(storedChallenge.payload, {
+  publicKey: returnedProof.publicKey,
+  signature: returnedProof.signature,
+})
+```
+
+The complete `examples/authentication-server.ts` owns its challenge/session maps and cookie binding. It verifies the exact server-issued payload, explicitly awaits a final accessKey read, accepts FullAccess or GasKeyFullAccess, and rechecks expiry/current challenge before one synchronous consume-and-session commit. RPC failure is a service failure; it is not reported as invalid credentials. Disconnect or the five-second receipt deadline aborts the authority read and leaves an unconsumed challenge retryable. A lost response after the commit can still mean a session was created.
+
+Run this Node loopback demonstration from the checkout after building the package:
+
+```sh
+npx tsc --target ES2022 --module NodeNext --moduleResolution NodeNext --strict --rootDir . --outDir .receipt-build examples/authentication-server.ts
+node .receipt-build/examples/authentication-server.js
+```
+
+It exposes POST /challenge, POST /receipt and GET /me at http://127.0.0.1:8787 with same-origin checks. Its source is fixed to the configured testnet endpoint. Keep cookies between challenge and receipt; submit only a proof for that exact challenge. The checked-in disposable public fixtures exercise the entire flow against an isolated local RPC, including replay races, expiry, held-body timeout and account permissions. They carry no user wallet authority.
+
+This is a single-process application example with bounded in-memory maps and one-hour sessions. A deployed application owns HTTPS/secure-cookie policy, shared atomic storage, rate limits and session revocation. Copying the cryptographic helper alone is not a login system. The package introduces no production signer or custody API. Other entrypoints do not import the verifier, although its pinned crypto dependencies are installed with the package.

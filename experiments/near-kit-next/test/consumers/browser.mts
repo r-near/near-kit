@@ -1,5 +1,10 @@
 import * as Near from "@near-kit/next"
 import { deterministicAccountId, type StateInit } from "@near-kit/next/address"
+import {
+  type Nep413Payload,
+  type Nep413Proof,
+  verifyNep413Signature,
+} from "@near-kit/next/nep413"
 import * as Effect from "effect/Effect"
 import * as FetchHttpClient from "effect/http/FetchHttpClient"
 import * as Schema from "effect/Schema"
@@ -27,6 +32,15 @@ const typeErrors = () => {
     // @ts-expect-error Initial storage is bytes, not JSON strings.
     data: [["key", "value"]],
   })
+  const payload: Nep413Payload = {
+    message: "message",
+    recipient: "app",
+    nonce: new Uint8Array(32),
+  }
+  const proof: Nep413Proof = { publicKey: "ed25519:key", signature: "base64" }
+  const valid: boolean = verifyNep413Signature(payload, proof)
+  // @ts-expect-error Pure verification is synchronous and is not an Effect.
+  Effect.runPromise(valid)
   // @ts-expect-error Transport must still be supplied.
   Effect.runPromise(account)
   // @ts-expect-error The schema-inferred result is a number.

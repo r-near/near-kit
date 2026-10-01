@@ -165,7 +165,7 @@ jobs:
           mkdir -p artifacts/address-reference
           rustc --version > artifacts/address-reference/toolchain.txt
           cargo --version >> artifacts/address-reference/toolchain.txt
-          CARGO_TARGET_DIR="$RUNNER_TEMP/near-kit-address-target" cargo run --quiet --manifest-path test/reference/address/Cargo.toml > artifacts/address-reference/result.json
+          CARGO_TARGET_DIR="$RUNNER_TEMP/near-kit-address-target" cargo run --locked --quiet --manifest-path test/reference/address/Cargo.toml > artifacts/address-reference/result.json
           cp test/reference/address/Cargo.lock artifacts/address-reference/Cargo.lock
       - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
         if: always()

@@ -26,6 +26,10 @@
     "./address": {
       "types": "./dist/address.d.ts",
       "import": "./dist/address.js"
+    },
+    "./nep413": {
+      "types": "./dist/nep413.d.ts",
+      "import": "./dist/nep413.js"
     }
   },
   "files": [
@@ -50,6 +54,7 @@
     "test:packed": "node scripts/check-packed.mjs"
   },
   "dependencies": {
+    "@noble/curves": "2.4.0",
     "@noble/hashes": "2.4.0",
     "@scure/base": "2.2.0",
     "effect": "4.0.0-rc.118"

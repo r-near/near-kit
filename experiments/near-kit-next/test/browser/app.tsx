@@ -5,11 +5,14 @@ import { StrictMode, useRef, useState } from "react"
 import { createRoot } from "react-dom/client"
 import { AccountBalance } from "../../examples/account-balance.js"
 import { platformChecks } from "../consumers/platform.js"
+import { publicCryptoChecks } from "../consumers/public-crypto.mjs"
+import proofs from "../fixtures/nep413/vectors.json"
 
 declare global {
   interface Window {
     readDemo: {
       platform: typeof platformChecks
+      publicCrypto: () => ReturnType<typeof publicCryptoChecks>
       select: (accountId: string | null, network?: string) => void
       batchABA: () => void
       views: () => Promise<{
@@ -42,6 +45,7 @@ function App() {
   }
   window.readDemo = {
     platform: platformChecks,
+    publicCrypto: () => publicCryptoChecks(proofs),
     select,
     batchABA: () => {
       select("b.testnet")
