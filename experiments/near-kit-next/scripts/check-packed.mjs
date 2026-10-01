@@ -9,6 +9,7 @@ import {
   writeFileSync,
 } from "node:fs"
 import { join, resolve } from "node:path"
+import { build } from "esbuild"
 
 const root = process.cwd()
 mkdirSync(join(root, "artifacts"), { recursive: true })
@@ -47,6 +48,10 @@ try {
     join(root, "test/consumers/browser.mts"),
     join(work, "consumer.mts"),
   )
+  copyFileSync(
+    join(root, "test/consumers/platform.ts"),
+    join(work, "platform.ts"),
+  )
   writeFileSync(
     join(work, "tsconfig.json"),
     JSON.stringify({
@@ -60,7 +65,7 @@ try {
         skipLibCheck: false,
         outDir: "out",
       },
-      include: ["consumer.mts"],
+      include: ["consumer.mts", "platform.ts"],
     }),
   )
   execFileSync(
@@ -72,7 +77,35 @@ try {
     cwd: work,
     stdio: "inherit",
   })
+  const pureBundles = {}
+  for (const subpath of ["data", "units"]) {
+    const bundled = await build({
+      stdin: {
+        contents: `export * from "@near-kit/next/${subpath}"`,
+        resolveDir: work,
+      },
+      bundle: true,
+      format: "esm",
+      platform: "browser",
+      target: "es2022",
+      minify: true,
+      write: false,
+      metafile: true,
+    })
+    const inputs = Object.keys(bundled.metafile.inputs)
+    if (
+      inputs.some(
+        (file) => file.includes("/effect/") || file.includes("/internal/wire"),
+      )
+    )
+      throw new Error(`Pure ${subpath} imports the network/Effect runtime`)
+    pureBundles[subpath] = {
+      bytes: bundled.outputFiles[0].contents.byteLength,
+      inputs,
+    }
+  }
   const evidence = {
+    pureBundles,
     node: process.version,
     sha256: createHash("sha256").update(readFileSync(tarball)).digest("hex"),
     package: packed[0].id,

@@ -139,3 +139,17 @@ test("network replacement and disconnect keep wallet and read state distinct", a
     page.getByText("Choose a wallet account", { exact: true }),
   ).toHaveCount(0)
 })
+
+test("native JSON exactness, feature failure and resource errors match the public contract", async ({
+  page,
+}) => {
+  await page.goto("/")
+  await expect(page.getByText(/^[0-9]+ yoctoNEAR$/)).toBeVisible()
+  expect(await page.evaluate(() => window.readDemo.platform())).toEqual({
+    height: "18446744073709551615",
+    storage: "18446744073709551615",
+    amount: "340282366920938463463374607431768211455",
+    unsupported: 3,
+    depth: "JsonResource",
+  })
+})

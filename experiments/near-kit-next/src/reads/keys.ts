@@ -4,9 +4,11 @@ import * as Schema from "effect/Schema"
 import type { At, BlockMetadata, Client } from "../client.js"
 import { type PublicKeyReference, parsePublicKey } from "../data.js"
 import {
+  AccessKeyNotFound,
   DecodeError,
   type Operation,
   type ReadError,
+  RpcError,
   UnsupportedError,
 } from "../errors.js"
 import {
@@ -137,6 +139,40 @@ export const accessKey = Effect.fnUntraced(function* (
       context: { accountId: account, publicKey: encoded, at },
     }
   })
+  // nearcore 2.13.4 process_query_response preserves this legacy result shape.
+  // Match its complete formatter only; arbitrary provider text is not absence.
+  if (plainRecord(reply.value) && Object.hasOwn(reply.value, "error")) {
+    if (
+      Object.hasOwn(reply.value, "nonce") ||
+      Object.hasOwn(reply.value, "permission")
+    )
+      return yield* new DecodeError({
+        operation: "accessKey",
+        reason: "InvalidResponse",
+      })
+    const legacy = yield* decode(
+      Schema.Struct({
+        ...metadata,
+        error: Schema.String,
+        logs: Schema.Array(Schema.String),
+      }),
+      reply.value,
+      "accessKey",
+    )
+    yield* checkBlock(projectMetadata(legacy), reply.context.at, "accessKey")
+    if (
+      reply.context.publicKey !== undefined &&
+      reply.context.accountId !== undefined &&
+      legacy.error ===
+        `access key ${reply.context.publicKey} does not exist while viewing`
+    )
+      return yield* new AccessKeyNotFound({
+        operation: "accessKey",
+        accountId: reply.context.accountId,
+        publicKey: reply.context.publicKey,
+      })
+    return yield* new RpcError({ operation: "accessKey", kind: "Unknown" })
+  }
   const value = yield* decode(
     Schema.Struct({ ...metadata, ...wireKey }),
     reply.value,

@@ -2,6 +2,7 @@ import * as Near from "@near-kit/next"
 import * as Effect from "effect/Effect"
 import * as FetchHttpClient from "effect/http/FetchHttpClient"
 import * as Schema from "effect/Schema"
+import { platformChecks } from "./platform.js"
 
 const near = Near.make({ url: "https://fixture.invalid" })
 const account = Near.account(near, "fixture")
@@ -18,6 +19,15 @@ const typeErrors = () => {
   // @ts-expect-error The schema-inferred result is a number.
   const wrong: string = count
   void wrong
+  // @ts-expect-error Protocol height is bigint, not number.
+  const height: number = null as unknown as Effect.Success<
+    typeof account
+  >["blockHeight"]
+  // @ts-expect-error A plain record cannot impersonate the opaque client.
+  Near.account({}, "fixture")
+  // @ts-expect-error Heights must use bigint.
+  Near.account(near, "fixture", { at: { height: 1 } })
+  void height
 }
 void typeErrors
 const fetch: typeof globalThis.fetch = async (_input, init) => {
@@ -48,3 +58,5 @@ const result = await Effect.runPromise(
 if (result.amount !== 1234567890123456789012345n || result.blockHeight !== 0n)
   throw new Error("Packed consumer failed")
 console.log("Packed browser-types and runtime consumer passed")
+
+await platformChecks()

@@ -1093,3 +1093,49 @@ it.effect(
       }
     }),
 )
+
+it.effect(
+  "maps only the exact pinned legacy missing-key formatter to absence",
+  () =>
+    Effect.gen(function* () {
+      for (const [text, tag] of [
+        [
+          `access key ${publicKey} does not exist while viewing`,
+          "AccessKeyNotFound",
+        ],
+        [`access key ${otherKey} does not exist while viewing`, "RpcError"],
+        ["unknown future provider failure", "RpcError"],
+      ] as const) {
+        const h = harness(() => ({ ...metadata, error: text, logs: [] }))
+        const failure = yield* h
+          .provide(Near.accessKey(client, accountId, publicKey))
+          .pipe(Effect.flip)
+        expect(failure._tag).toBe(tag)
+        expect(JSON.stringify(failure)).not.toContain(text)
+      }
+      for (const extra of [
+        { logs: [5] },
+        { logs: undefined },
+        { error: 3 },
+        { nonce: 0 },
+        { permission: "FullAccess" },
+        { block_hash: OTHER_HASH },
+      ]) {
+        const h = harness(() => ({
+          ...metadata,
+          error: `access key ${publicKey} does not exist while viewing`,
+          logs: [],
+          ...extra,
+        }))
+        expect(
+          (yield* h
+            .provide(
+              Near.accessKey(client, accountId, publicKey, {
+                at: { hash: HASH },
+              }),
+            )
+            .pipe(Effect.flip))._tag,
+        ).toBe("DecodeError")
+      }
+    }),
+)

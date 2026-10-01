@@ -4,10 +4,12 @@ import * as Schema from "effect/Schema"
 import { StrictMode, useRef, useState } from "react"
 import { createRoot } from "react-dom/client"
 import { AccountBalance } from "../../examples/account-balance.js"
+import { platformChecks } from "../consumers/platform.js"
 
 declare global {
   interface Window {
     readDemo: {
+      platform: typeof platformChecks
       select: (accountId: string | null, network?: string) => void
       batchABA: () => void
       views: () => Promise<{
@@ -39,6 +41,7 @@ function App() {
     )
   }
   window.readDemo = {
+    platform: platformChecks,
     select,
     batchABA: () => {
       select("b.testnet")
