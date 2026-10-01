@@ -1,0 +1,120 @@
+{
+  "codeHash": "4SiEB8kYEDqwAW3MsXvrD1GeHp5an8YmW4xQBPBGwWsQ",
+  "wasmSha256": "3329325a7fa10fd854096f0fd0371ce8786fcb7f595b9b81eaa4ee8d15b1fc9f",
+  "wasmBytes": 402,
+  "amount": "999999995000000000000000000000000",
+  "locked": "50000000000000000000000000000000",
+  "storageUsage": 0,
+  "fixtureAmount": "1000000000000000000000000",
+  "data": [
+    {
+      "key": "",
+      "value": "AP8B"
+    },
+    {
+      "key": "AA==",
+      "value": ""
+    },
+    {
+      "key": "AAA=",
+      "value": "/w=="
+    },
+    {
+      "key": "AP8=",
+      "value": "gAA="
+    },
+    {
+      "key": "AQ==",
+      "value": "AA=="
+    },
+    {
+      "key": "gA==",
+      "value": "/wE="
+    },
+    {
+      "key": "/w==",
+      "value": "AP8="
+    }
+  ],
+  "keys": [
+    {
+      "publicKey": "ed25519:4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+      "nonce": "9007199254740993",
+      "permission": "FullAccess"
+    },
+    {
+      "publicKey": "secp256k1:3L3RY5sT8K4kyEnqhizwaqxLEbcYvpGrGPNEYRwtbCSUtL6YL86jdrvCbohnP5q8VxQ3qzGmt3W3iQJW97rD7m3",
+      "nonce": "18446744073709551615",
+      "permission": {
+        "FunctionCall": {
+          "allowance": null,
+          "receiver_id": "sandbox",
+          "method_names": []
+        }
+      }
+    },
+    {
+      "publicKey": "ed25519:CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+      "nonce": "9007199254740992",
+      "permission": {
+        "FunctionCall": {
+          "allowance": "0",
+          "receiver_id": "sandbox",
+          "method_names": [
+            "json",
+            "echo"
+          ]
+        }
+      }
+    },
+    {
+      "publicKey": "ed25519:GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+      "nonce": "0",
+      "permission": {
+        "GasKeyFullAccess": {
+          "balance": "123456789012345678901234",
+          "num_nonces": 5
+        }
+      }
+    },
+    {
+      "publicKey": "ed25519:LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+      "nonce": "0",
+      "permission": {
+        "GasKeyFunctionCall": [
+          {
+            "balance": "0",
+            "num_nonces": 2
+          },
+          {
+            "allowance": null,
+            "receiver_id": "sandbox",
+            "method_names": [
+              "echo"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "publicKey": "ml-dsa-65-hash:QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+      "nonce": "0",
+      "permission": "FullAccess"
+    }
+  ],
+  "nonces": [
+    "0",
+    "9007199254740991",
+    "9007199254740992",
+    "9007199254740993",
+    "18446744073709551615"
+  ],
+  "genesis": {
+    "chainId": "near-kit-read-fixture",
+    "protocolVersion": 86,
+    "genesisHeight": "0",
+    "epochLength": "60",
+    "totalSupply": "2050000000000000000000000000000000"
+  },
+  "caveat": "Gas balances are static serialization fixtures, not evidence of a funding workflow or economic consistency; global pointers do not seed the registry."
+}

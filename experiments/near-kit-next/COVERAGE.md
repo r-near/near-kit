@@ -17,10 +17,10 @@ This is an implementation candidate, not a full-SDK completion claim. Existing p
 
 ## Current evidence
 
-The source builds and the migrated first-checkpoint regressions pass. Expanded black-box, packed consumer, browser and real-node acceptance is still being completed. The historical evaluation is evidence for its exact earlier artifact, not acceptance of this candidate.
+The broader source checkpoint `842b463` passed 278 tests on Node 22 and 24, isolated packed strict core/optional-wallet consumers, 33 real-browser cases and 16 static-genesis nearcore Docker tests. Unchanged repository CI is separate baseline evidence. Subsequent curl delegation passed independent source review and 282 local tests; final-head CI/measurements are recorded in [the evaluation](EVALUATION.md) and [draft 257](https://github.com/r-near/near-kit/pull/257). Earlier five-read results are historical only.
 
-The static nearcore 2.13.4 fixture can seed public account/data/access-key/gas-lane/local-code records. It cannot seed the global-contract registry or manufacture historical block-effects categories. Successful global-code and some nonempty category coverage need existing, separately identified read-only evidence; no transaction setup is used to close these gaps.
+The static nearcore 2.13.4 fixture can seed public account/data/access-key/gas-lane/local-code records. It cannot seed the global-contract registry or manufacture historical block-effects categories. Successful global-code, full ML-DSA lookup and nonempty historical category coverage remain open. Both official-doc public testnet global-code candidates returned absence at the recorded final block; no transaction setup is used to close these gaps.
 
-Native JSON feature failure, exact raw u64 values, parser depth errors, cancellation/no-prefetch, mutable cursor isolation, known wallet-observation limitations and strict public consumer types are required gates. Protocol tests, synthetic transport tests, mocked connector behavior and real platform coverage are labelled separately.
+Native JSON feature failure, exact raw u64 values, parser depth errors, cancellation/no-prefetch, mutable cursor isolation, wallet-observation limitations and strict public consumer types have dedicated acceptance checks. Protocol tests, synthetic transport tests, mocked connector behavior and real platform coverage are labelled separately.
 
 Full extension/mobile/hardware wallet, React Native, Deno and Bun compatibility are not implied by desktop browser or Node tests. Effect remains pinned to a release candidate. No publication or default-package replacement is proposed yet.

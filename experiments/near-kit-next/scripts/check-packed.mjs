@@ -37,6 +37,7 @@ try {
         "@near-kit/next": `file:${tarball}`,
         effect: "4.0.0-rc.118",
         "@near-wallet-selector/core": "10.1.4",
+        "@near-js/types": "2.5.1",
         "@tanstack/react-query": "5.104.0",
         react: "19.2.7",
         "react-dom": "19.2.7",

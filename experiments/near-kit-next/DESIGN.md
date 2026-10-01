@@ -11,3 +11,15 @@ A modern native JSON boundary preserves source integer tokens and serializes val
 Wallet/framework examples must use actual external stores and caller-owned source identity, with cleanup, failure states and stale-result prevention. They do not turn the read client into a live wallet session. Test infrastructure owns the official pinned Docker node and static fixtures.
 
 The candidate remains incomplete as a whole SDK while separately paused workflows and platform evidence are unresolved. API size, more Effect or test count alone do not establish that it should replace the existing library.
+
+## Alternatives rejected
+
+| Shape | Tradeoff |
+| --- | --- |
+| Direct fetch / Promise-only | Smallest for a few application reads; caller must build the selected typed-error, transport-lifetime and stream composition contract. Still a valid consumer choice |
+| A public NEAR service over HttpClient | Adds a second dependency seam without a separate owned resource; named functions can borrow the standard transport directly |
+| Configured method client | Convenient discovery, but constructs a growing method surface. Module functions add an explicit client argument and let realistic consumers discard unused operation modules |
+| Adapter over another SDK | Inherits its parsing/retry/cancellation assumptions or duplicates them to achieve this contract |
+| A library runtime, contract proxy or framework provider | Adds ownership and synchronization concepts that ordinary functions and the caller's existing Effect/query/connector tools already provide |
+
+The remaining costs are intentional: Effect is a prerelease dependency, native JSON raises the runtime floor, and concrete wallet integration still has application/upstream complexity. Benchmarks and executable recipes expose those costs rather than making the architecture itself a performance or ease-of-use claim.

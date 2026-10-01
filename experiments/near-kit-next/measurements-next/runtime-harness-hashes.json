@@ -1,0 +1,21 @@
+{
+  "README.md": "6a870bda0c28b277b280061ef7f25ee08395bc64016d29c52856aa6def79dcc7",
+  "consumers/account-common.mjs": "08dec3315be016d532bccf3919530d368cd2a4fc9f103e4c95a957ea4b61e7f6",
+  "consumers/baseline-account.mjs": "1f17a3d4e85344bf3d888048bec978935d55f5c92ad41fcc7a07638430420aa0",
+  "consumers/baseline-snapshot.mjs": "470171e17dc3df993d2d521bcf985ca3b8a6055f2f2034979b2b9c6b7c4c0440",
+  "consumers/candidate-account.mjs": "eedae1bc5d620006945c575fa905448a6e879771e83c5f83e8a32b1999b883e9",
+  "consumers/candidate-snapshot.mjs": "9018033109929391131fa8b018ef7fc0ab5cfaee931bfd3bc470c713ea71c3ff",
+  "consumers/common.mjs": "d76cdc855209ad9487e59a16afc19e1404764889b766f531a206466a4bef93d6",
+  "consumers/fetch-bounded-account.mjs": "58aeb1b7b9ca3bf65aea3f59ed3ca246052018437c39fe6333e9f279a882bd34",
+  "consumers/fetch-bounded-snapshot.mjs": "c6f2a0f245454f6c61631050a8b297beefc8c914348c376ba29c38fd92b7485a",
+  "consumers/fetch-minimal-account.mjs": "683b65c1e20b69a91fd59d063b0afefa0989a113ccf85ab299c284397b78761d",
+  "consumers/fetch-minimal-snapshot.mjs": "be57c443b4ef6064f5e48cc7a26917549ac6509c300b36d4067724f697246382",
+  "consumers/fetch-transport.mjs": "16e2fa339f3077d35fdbea750e28f6dbe3f83804b9f38bb4dec9203a3136e403",
+  "consumers/near-api-account.mjs": "dfb8c2048ad950734b349dbca1805ce677708d5e4c2d0b14c09d54c047a2c2cf",
+  "consumers/near-api-snapshot.mjs": "7f8543dcc119063bf404316efedadd9bd3917aedd918cd8bdba98303b5d1e9fc",
+  "fixture.mjs": "a9a92ddfbde76fa2a1277662214a753f79e239fe9fc0061dbd2773098ba43d1e",
+  "run.mjs": "ac7f14c99654f59f097b7fa17175997aac557a0002cf17de93c7a8f08cacb3be",
+  "setup.mjs": "a13f31b20d8f285319027631766dad674259c9084330c2a775cfcffb9d648856",
+  "summarize.mjs": "12f7dd5fb6ca5d3ac423dffe33e2302d5b4e02fcbf7f3a2022c1135c672b753c",
+  "worker.mjs": "2a5cecad092e9eda191e66390aeb7aa04a716c76d920af7d205b1cfc28000b71"
+}

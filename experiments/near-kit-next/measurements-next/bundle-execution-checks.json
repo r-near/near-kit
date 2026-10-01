@@ -1,0 +1,459 @@
+{
+  "checkedAt": "2026-10-01T02:09:13.697Z",
+  "candidateSha256": "c1734db3169cc54c695597d02553e6a09e56be1d54d43d61b568e538c89eaf69",
+  "note": "Packaging execution only. Does not establish real browser, wallet, network or adversarial equivalence.",
+  "results": [
+    {
+      "label": "candidate-account",
+      "testedIn": "Node, browser-targeted ESM",
+      "result": {
+        "importMs": 31.895858000000004,
+        "timingsMs": [
+          44.787671999999986
+        ],
+        "samples": 1,
+        "warmups": 0,
+        "requests": 1,
+        "serializedBytes": 0,
+        "memory": {
+          "rss": 47587328,
+          "heapTotal": 14024704,
+          "heapUsed": 9808608,
+          "external": 4028980,
+          "arrayBuffers": 206177
+        },
+        "cpu": {
+          "user": 150429,
+          "system": 38922
+        },
+        "maxRssKiB": 46472
+      }
+    },
+    {
+      "label": "candidate-snapshot",
+      "testedIn": "Node, browser-targeted ESM",
+      "result": {
+        "importMs": 17.509128000000004,
+        "timingsMs": [
+          81.734615
+        ],
+        "samples": 1,
+        "warmups": 0,
+        "requests": 8,
+        "serializedBytes": 42600,
+        "memory": {
+          "rss": 65646592,
+          "heapTotal": 20328448,
+          "heapUsed": 13658432,
+          "external": 4132554,
+          "arrayBuffers": 279544
+        },
+        "cpu": {
+          "user": 202886,
+          "system": 64866
+        },
+        "maxRssKiB": 72208
+      }
+    },
+    {
+      "label": "baseline-account",
+      "testedIn": "Node, browser-targeted ESM",
+      "result": {
+        "importMs": 72.516886,
+        "timingsMs": [
+          34.65368599999999
+        ],
+        "samples": 1,
+        "warmups": 0,
+        "requests": 1,
+        "serializedBytes": 0,
+        "memory": {
+          "rss": 59133952,
+          "heapTotal": 32460800,
+          "heapUsed": 13430048,
+          "external": 3953463,
+          "arrayBuffers": 204742
+        },
+        "cpu": {
+          "user": 219434,
+          "system": 33736
+        },
+        "maxRssKiB": 58268
+      }
+    },
+    {
+      "label": "baseline-snapshot",
+      "testedIn": "Node, browser-targeted ESM",
+      "result": {
+        "importMs": 65.43657999999999,
+        "timingsMs": [
+          65.31416100000001
+        ],
+        "samples": 1,
+        "warmups": 0,
+        "requests": 8,
+        "serializedBytes": 42600,
+        "memory": {
+          "rss": 75345920,
+          "heapTotal": 32727040,
+          "heapUsed": 21353392,
+          "external": 4046176,
+          "arrayBuffers": 267248
+        },
+        "cpu": {
+          "user": 240039,
+          "system": 70699
+        },
+        "maxRssKiB": 80804
+      }
+    },
+    {
+      "label": "near-api-account",
+      "testedIn": "Node, browser-targeted ESM",
+      "result": {
+        "importMs": 23.715339999999998,
+        "timingsMs": [
+          29.04871300000002
+        ],
+        "samples": 1,
+        "warmups": 0,
+        "requests": 1,
+        "serializedBytes": 0,
+        "memory": {
+          "rss": 46940160,
+          "heapTotal": 13832192,
+          "heapUsed": 9421400,
+          "external": 3949565,
+          "arrayBuffers": 204795
+        },
+        "cpu": {
+          "user": 123805,
+          "system": 26339
+        },
+        "maxRssKiB": 46096
+      }
+    },
+    {
+      "label": "near-api-snapshot",
+      "testedIn": "Node, browser-targeted ESM",
+      "result": {
+        "importMs": 43.928241,
+        "timingsMs": [
+          76.738517
+        ],
+        "samples": 1,
+        "warmups": 0,
+        "requests": 8,
+        "serializedBytes": 42600,
+        "memory": {
+          "rss": 63823872,
+          "heapTotal": 19861504,
+          "heapUsed": 13959584,
+          "external": 4024485,
+          "arrayBuffers": 249508
+        },
+        "cpu": {
+          "user": 250490,
+          "system": 57694
+        },
+        "maxRssKiB": 71004
+      }
+    },
+    {
+      "label": "fetch-minimal-account",
+      "testedIn": "Node, browser-targeted ESM",
+      "result": {
+        "importMs": 0.5971549999999866,
+        "timingsMs": [
+          24.057457
+        ],
+        "samples": 1,
+        "warmups": 0,
+        "requests": 1,
+        "serializedBytes": 0,
+        "memory": {
+          "rss": 45637632,
+          "heapTotal": 13103104,
+          "heapUsed": 8162120,
+          "external": 3946276,
+          "arrayBuffers": 201506
+        },
+        "cpu": {
+          "user": 83934,
+          "system": 33509
+        },
+        "maxRssKiB": 44568
+      }
+    },
+    {
+      "label": "fetch-minimal-snapshot",
+      "testedIn": "Node, browser-targeted ESM",
+      "result": {
+        "importMs": 1.566046,
+        "timingsMs": [
+          51.780057
+        ],
+        "samples": 1,
+        "warmups": 0,
+        "requests": 8,
+        "serializedBytes": 42600,
+        "memory": {
+          "rss": 60182528,
+          "heapTotal": 14151680,
+          "heapUsed": 10581392,
+          "external": 3996585,
+          "arrayBuffers": 221608
+        },
+        "cpu": {
+          "user": 142399,
+          "system": 40886
+        },
+        "maxRssKiB": 69616
+      }
+    },
+    {
+      "label": "fetch-bounded-account",
+      "testedIn": "Node, browser-targeted ESM",
+      "result": {
+        "importMs": 0.6391589999999923,
+        "timingsMs": [
+          28.360073
+        ],
+        "samples": 1,
+        "warmups": 0,
+        "requests": 1,
+        "serializedBytes": 0,
+        "memory": {
+          "rss": 42696704,
+          "heapTotal": 13103104,
+          "heapUsed": 8436744,
+          "external": 3959776,
+          "arrayBuffers": 202036
+        },
+        "cpu": {
+          "user": 103392,
+          "system": 8730
+        },
+        "maxRssKiB": 41728
+      }
+    },
+    {
+      "label": "fetch-bounded-snapshot",
+      "testedIn": "Node, browser-targeted ESM",
+      "result": {
+        "importMs": 1.35558300000001,
+        "timingsMs": [
+          64.91432599999999
+        ],
+        "samples": 1,
+        "warmups": 0,
+        "requests": 8,
+        "serializedBytes": 42600,
+        "memory": {
+          "rss": 60870656,
+          "heapTotal": 14151680,
+          "heapUsed": 10944296,
+          "external": 4018241,
+          "arrayBuffers": 230294
+        },
+        "cpu": {
+          "user": 167337,
+          "system": 33552
+        },
+        "maxRssKiB": 69876
+      }
+    },
+    {
+      "label": "candidate-file-export-node",
+      "testedIn": "Node",
+      "pages": 3,
+      "entries": 237,
+      "finalPublished": true,
+      "partialAbsent": true
+    }
+  ],
+  "fixtureViolations": [],
+  "counts": {
+    "/bundled-candidate/account": {
+      "requests": 1,
+      "types": {
+        "view_account": 1
+      },
+      "selectors": {
+        "final": 1
+      },
+      "cursors": {},
+      "interruptedBodies": 0
+    },
+    "/bundled-candidate/snapshot": {
+      "requests": 8,
+      "types": {
+        "block": 1,
+        "view_account": 1,
+        "view_access_key_list": 1,
+        "view_code": 1,
+        "gas_price": 1,
+        "view_state": 3
+      },
+      "selectors": {
+        "final": 1,
+        "hash": 7
+      },
+      "cursors": {
+        "initial": 1,
+        "AGM=": 1,
+        "AMc=": 1
+      },
+      "interruptedBodies": 0
+    },
+    "/bundled-baseline/account": {
+      "requests": 1,
+      "types": {
+        "view_account": 1
+      },
+      "selectors": {
+        "final": 1
+      },
+      "cursors": {},
+      "interruptedBodies": 0
+    },
+    "/bundled-baseline/snapshot": {
+      "requests": 8,
+      "types": {
+        "block": 1,
+        "view_account": 1,
+        "view_access_key_list": 1,
+        "view_code": 1,
+        "gas_price": 1,
+        "view_state": 3
+      },
+      "selectors": {
+        "final": 1,
+        "hash": 7
+      },
+      "cursors": {
+        "initial": 1,
+        "AGM=": 1,
+        "AMc=": 1
+      },
+      "interruptedBodies": 0
+    },
+    "/bundled-near-api/account": {
+      "requests": 1,
+      "types": {
+        "view_account": 1
+      },
+      "selectors": {
+        "final": 1
+      },
+      "cursors": {},
+      "interruptedBodies": 0
+    },
+    "/bundled-near-api/snapshot": {
+      "requests": 8,
+      "types": {
+        "block": 1,
+        "view_account": 1,
+        "view_access_key_list": 1,
+        "view_code": 1,
+        "gas_price": 1,
+        "view_state": 3
+      },
+      "selectors": {
+        "final": 1,
+        "hash": 7
+      },
+      "cursors": {
+        "initial": 1,
+        "AGM=": 1,
+        "AMc=": 1
+      },
+      "interruptedBodies": 0
+    },
+    "/bundled-fetch-minimal/account": {
+      "requests": 1,
+      "types": {
+        "view_account": 1
+      },
+      "selectors": {
+        "final": 1
+      },
+      "cursors": {},
+      "interruptedBodies": 0
+    },
+    "/bundled-fetch-minimal/snapshot": {
+      "requests": 8,
+      "types": {
+        "block": 1,
+        "view_account": 1,
+        "view_access_key_list": 1,
+        "view_code": 1,
+        "gas_price": 1,
+        "view_state": 3
+      },
+      "selectors": {
+        "final": 1,
+        "hash": 7
+      },
+      "cursors": {
+        "initial": 1,
+        "AGM=": 1,
+        "AMc=": 1
+      },
+      "interruptedBodies": 0
+    },
+    "/bundled-fetch-bounded/account": {
+      "requests": 1,
+      "types": {
+        "view_account": 1
+      },
+      "selectors": {
+        "final": 1
+      },
+      "cursors": {},
+      "interruptedBodies": 0
+    },
+    "/bundled-fetch-bounded/snapshot": {
+      "requests": 8,
+      "types": {
+        "block": 1,
+        "view_account": 1,
+        "view_access_key_list": 1,
+        "view_code": 1,
+        "gas_price": 1,
+        "view_state": 3
+      },
+      "selectors": {
+        "final": 1,
+        "hash": 7
+      },
+      "cursors": {
+        "initial": 1,
+        "AGM=": 1,
+        "AMc=": 1
+      },
+      "interruptedBodies": 0
+    },
+    "/audited/file-export": {
+      "requests": 8,
+      "types": {
+        "block": 1,
+        "view_account": 1,
+        "view_access_key_list": 1,
+        "view_code": 1,
+        "gas_price": 1,
+        "view_state": 3
+      },
+      "selectors": {
+        "final": 1,
+        "hash": 7
+      },
+      "cursors": {
+        "initial": 1,
+        "AGM=": 1,
+        "AMc=": 1
+      },
+      "interruptedBodies": 0
+    }
+  }
+}
