@@ -45,7 +45,9 @@ export function createReceiptServer(
   const newNonce = options.nonce ?? (() => new Uint8Array(randomBytes(32)))
   const randomId =
     options.token ?? (() => randomBytes(32).toString("base64url"))
-  const source = options.source ?? defaultSource
+  // Capture configuration once. Replacing network/policy means creating a new
+  // server instance; caller mutation must not rebind a pending challenge.
+  const source: Source = Object.freeze({ ...(options.source ?? defaultSource) })
   const challenges = new Map<
     string,
     {

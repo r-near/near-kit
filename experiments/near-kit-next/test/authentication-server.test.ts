@@ -104,6 +104,12 @@ async function setup(
     ...fixture.app.tokenSequence,
     ...["D", "E", "F", "G"].map((value) => value.repeat(43)),
   ]
+  const source = {
+    id: sourceId,
+    chain: fixture.app.chain,
+    policy: fixture.app.policy,
+    client: Near.make({ url: rpcUrl }),
+  }
   const url = await listen(
     createReceiptServer({
       now: () => time,
@@ -113,12 +119,7 @@ async function setup(
         if (!value) throw new Error("Test token sequence exhausted")
         return value
       },
-      source: {
-        id: sourceId,
-        chain: fixture.app.chain,
-        policy: fixture.app.policy,
-        client: Near.make({ url: rpcUrl }),
-      },
+      source,
     }),
   )
   const post = (
@@ -169,6 +170,7 @@ async function setup(
   const me = (session = "") =>
     fetch(`${url}/me`, { headers: { cookie: session } })
   return {
+    source,
     url,
     requests,
     post,
@@ -183,6 +185,21 @@ async function setup(
     },
   }
 }
+
+it("captures source configuration so caller mutation cannot rebind a challenge", async () => {
+  const app = await setup()
+  const challenge = await app.issue()
+  app.source.id = "different-source"
+  app.source.chain = "different-chain"
+  app.source.policy = 2
+  app.source.client = Near.make({ url: "http://127.0.0.1:1" })
+  const receipt = await app.receipt(challenge.cookie)
+  expect(receipt.status).toBe(200)
+  expect(app.requests).toHaveLength(1)
+  expect(await receipt.json()).toMatchObject({ sourceId: fixture.app.sourceId })
+  const session = await app.me(cookie(receipt, "session"))
+  expect(await session.json()).toMatchObject({ sourceId: fixture.app.sourceId })
+})
 
 for (const vector of [ed, secp])
   it(`receives the exact independently signed ${vector.id} proof and issues a session`, async () => {
