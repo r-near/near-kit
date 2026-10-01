@@ -165,6 +165,53 @@ try {
     cwd: work,
     stdio: "inherit",
   })
+  execFileSync(
+    process.execPath,
+    [
+      resolve(root, "node_modules/typescript/bin/tsc"),
+      "--ignoreConfig",
+      "--target",
+      "ES2022",
+      "--module",
+      "NodeNext",
+      "--moduleResolution",
+      "NodeNext",
+      "--jsx",
+      "react-jsx",
+      "--strict",
+      "--types",
+      "node",
+      "--rootDir",
+      ".",
+      "--lib",
+      "ES2022,DOM,DOM.Iterable,ESNext.Disposable",
+      "--outDir",
+      "app-dist",
+      "ssr-account.tsx",
+      "ssr-account-server.tsx",
+      "ssr-account-client.tsx",
+    ],
+    { cwd: work, stdio: "inherit" },
+  )
+  copyFileSync(
+    join(root, "test/consumers/public-crypto.mjs"),
+    join(work, "public-crypto.mjs"),
+  )
+  copyFileSync(
+    join(root, "test/fixtures/nep413/vectors.json"),
+    join(work, "nep413-vectors.json"),
+  )
+  writeFileSync(
+    join(work, "crypto-consumer.mjs"),
+    `import proofs from "./nep413-vectors.json" with { type: "json" };
+import { publicCryptoChecks } from "./public-crypto.mjs";
+console.log(JSON.stringify(publicCryptoChecks(proofs)));
+`,
+  )
+  execFileSync(process.execPath, ["crypto-consumer.mjs"], {
+    cwd: work,
+    stdio: "inherit",
+  })
   const pureBundles = {}
   for (const subpath of ["data", "units", "address", "nep413"]) {
     const bundled = await build({

@@ -131,7 +131,7 @@ Copy `examples/ssr-account.tsx`, `ssr-account-server.tsx` and `ssr-account-clien
 Use the same React/Query versions above. These three files need no wallet connector or wallet-specific type mappings:
 
 ```sh
-npx tsc --target ES2022 --module NodeNext --moduleResolution NodeNext --jsx react-jsx --strict --lib ES2022,DOM,DOM.Iterable,ESNext.Disposable --outDir app-dist ssr-account.tsx ssr-account-server.tsx ssr-account-client.tsx
+npx tsc --ignoreConfig --target ES2022 --module NodeNext --moduleResolution NodeNext --jsx react-jsx --strict --types node --rootDir . --lib ES2022,DOM,DOM.Iterable,ESNext.Disposable --outDir app-dist ssr-account.tsx ssr-account-server.tsx ssr-account-client.tsx
 ```
 
 Your Fetch-compatible route returns the response from `accountPageResponse(request, { source, accountId, browserModule: "/account.js" })`. The incoming request signal controls the read and suppresses publication after cancellation. On the browser side, bundle this entry as `/account.js`:
@@ -175,7 +175,7 @@ The complete `examples/authentication-server.ts` owns its challenge/session maps
 Run this Node loopback demonstration from the checkout after building the package:
 
 ```sh
-npx tsc --target ES2022 --module NodeNext --moduleResolution NodeNext --strict --rootDir . --outDir .receipt-build examples/authentication-server.ts
+npx tsc --ignoreConfig --target ES2022 --module NodeNext --moduleResolution NodeNext --strict --types node --lib ES2022,DOM,DOM.Iterable,ESNext.Disposable --rootDir . --outDir .receipt-build examples/authentication-server.ts
 node .receipt-build/examples/authentication-server.js
 ```
 
