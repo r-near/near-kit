@@ -1,6 +1,11 @@
 import { once } from "node:events"
 import { readFileSync } from "node:fs"
-import { createServer, type Server, type ServerResponse } from "node:http"
+import {
+  createServer,
+  request as httpRequest,
+  type Server,
+  type ServerResponse,
+} from "node:http"
 import * as Near from "@near-kit/next"
 import { afterEach, expect, it } from "vitest"
 import { createReceiptServer } from "../examples/authentication-server.js"
@@ -110,18 +115,17 @@ async function setup(
     policy: fixture.app.policy,
     client: Near.make({ url: rpcUrl }),
   }
-  const url = await listen(
-    createReceiptServer({
-      now: () => time,
-      nonce: () => new Uint8Array(Buffer.from(ed.payload.nonceHex, "hex")),
-      token: () => {
-        const value = tokens.shift()
-        if (!value) throw new Error("Test token sequence exhausted")
-        return value
-      },
-      source,
-    }),
-  )
+  const server = createReceiptServer({
+    now: () => time,
+    nonce: () => new Uint8Array(Buffer.from(ed.payload.nonceHex, "hex")),
+    token: () => {
+      const value = tokens.shift()
+      if (!value) throw new Error("Test token sequence exhausted")
+      return value
+    },
+    source,
+  })
+  const url = await listen(server)
   const post = (
     path: string,
     value: unknown,
@@ -170,6 +174,7 @@ async function setup(
   const me = (session = "") =>
     fetch(`${url}/me`, { headers: { cookie: session } })
   return {
+    server,
     source,
     url,
     requests,
@@ -187,18 +192,65 @@ async function setup(
 }
 
 it("captures source configuration so caller mutation cannot rebind a challenge", async () => {
-  const app = await setup()
+  const app = await setup(() => {})
   const challenge = await app.issue()
   app.source.id = "different-source"
   app.source.chain = "different-chain"
   app.source.policy = 2
   app.source.client = Near.make({ url: "http://127.0.0.1:1" })
-  const receipt = await app.receipt(challenge.cookie)
+  const pending = app.receipt(challenge.cookie)
+  await expect.poll(() => app.requests.length).toBe(1)
+  app.source.id = "changed-again-during-read"
+  app.source.chain = "changed-again-during-read"
+  app.source.policy = 3
+  app.source.client = Near.make({ url: "http://127.0.0.1:2" })
+  keyReply(app.requests[0]!)
+  const receipt = await pending
   expect(receipt.status).toBe(200)
   expect(app.requests).toHaveLength(1)
   expect(await receipt.json()).toMatchObject({ sourceId: fixture.app.sourceId })
   const session = await app.me(cookie(receipt, "session"))
   expect(await session.json()).toMatchObject({ sourceId: fixture.app.sourceId })
+})
+
+it("captures named structural Source getters once without reading unrelated config", async () => {
+  const reads: string[] = []
+  const client = Near.make({ url: "http://127.0.0.1:1" })
+  class StructuralSource {
+    get id() {
+      reads.push("id")
+      return fixture.app.sourceId
+    }
+    get chain() {
+      reads.push("chain")
+      return fixture.app.chain
+    }
+    get policy() {
+      reads.push("policy")
+      return fixture.app.policy
+    }
+    get client() {
+      reads.push("client")
+      return client
+    }
+  }
+  const source = new StructuralSource()
+  Object.defineProperty(source, "unrelated", {
+    enumerable: true,
+    get() {
+      throw new Error("Unrelated configuration must not be retained")
+    },
+  })
+  const url = await listen(createReceiptServer({ source }))
+  const response = await fetch(`${url}/challenge`, {
+    method: "POST",
+    headers: { origin: fixture.app.origin, "content-type": "application/json" },
+    body: JSON.stringify({ accountId: fixture.app.accountId }),
+  })
+  expect(response.status).toBe(200)
+  const result = (await response.json()) as { payload: { message: string } }
+  expect(result.payload.message).toContain(`Source: ${fixture.app.sourceId}`)
+  expect(reads).toEqual(["id", "chain", "policy", "client"])
 })
 
 for (const vector of [ed, secp])
@@ -469,4 +521,119 @@ it("bounds and validates incoming bodies with generic errors", async () => {
     expect(response.status).toBe(400)
     expect(await response.json()).toEqual({ error: "Request rejected" })
   }
+})
+
+it("rejects a genuinely chunked oversized upload before its terminating chunk", async () => {
+  const app = await setup()
+  const incoming = once(app.server, "request")
+  let finishUpload = () => {}
+  const response = new Promise<{ status: number | undefined; body: string }>(
+    (resolve, reject) => {
+      const request = httpRequest(
+        `${app.url}/challenge`,
+        {
+          method: "POST",
+          headers: {
+            origin: fixture.app.origin,
+            "content-type": "application/json",
+          },
+        },
+        (response) => {
+          let body = ""
+          response.on("data", (chunk) => {
+            body += String(chunk)
+          })
+          response.once("end", () =>
+            resolve({ status: response.statusCode, body }),
+          )
+          response.once("error", reject)
+        },
+      )
+      request.once("error", reject)
+      finishUpload = () => {
+        request.end()
+        request.destroy()
+      }
+      request.write('{"accountId":"')
+      request.write("x".repeat(17_000))
+      // Intentionally no request.end(): the server must enforce its stream bound.
+    },
+  )
+  try {
+    const [request] = await incoming
+    expect(request.headers["transfer-encoding"]).toBe("chunked")
+    expect(request.headers["content-length"]).toBeUndefined()
+    const result = await response
+    expect(result.status).toBe(400)
+    expect(JSON.parse(result.body)).toEqual({ error: "Request rejected" })
+    expect(app.requests).toHaveLength(0)
+  } finally {
+    finishUpload()
+  }
+})
+
+it("cleans up an interrupted incomplete body without creating a challenge", async () => {
+  const app = await setup()
+  const incoming = once(app.server, "request")
+  const request = httpRequest(`${app.url}/challenge`, {
+    method: "POST",
+    headers: {
+      origin: fixture.app.origin,
+      "content-type": "application/json",
+    },
+  })
+  request.on("error", () => {}) // Expected local client abort.
+  request.write('{"accountId":"auth-fixture')
+  const [received] = await incoming
+  const closed = once(received, "close").catch(() => [])
+  request.destroy()
+  await closed
+  expect(app.requests).toHaveLength(0)
+  // Unused fixture tokens prove no abandoned challenge was issued.
+  const challenge = await app.issue()
+  expect(challenge.challengeId).toBe(fixture.app.challengeId)
+  expect(challenge.cookie).toBe(`challenge=${fixture.app.browserId}`)
+  expect((await app.receipt(challenge.cookie)).status).toBe(200)
+})
+
+it("does not reopen a committed challenge when the client discards its response", async () => {
+  const app = await setup()
+  const challenge = await app.issue()
+  await new Promise<void>((resolve, reject) => {
+    const request = httpRequest(
+      `${app.url}/receipt`,
+      {
+        method: "POST",
+        headers: {
+          origin: fixture.app.origin,
+          "content-type": "application/json",
+          cookie: challenge.cookie,
+        },
+      },
+      (response) => {
+        if (response.statusCode !== 200) {
+          response.resume()
+          reject(
+            new Error(`Expected committed receipt, got ${response.statusCode}`),
+          )
+          return
+        }
+        // Observe only status headers, discard body/cookies and close the stream.
+        response.on("error", () => {})
+        response.destroy()
+        resolve()
+      },
+    )
+    request.once("error", reject)
+    request.end(
+      JSON.stringify({
+        challengeId: fixture.app.challengeId,
+        accountId: fixture.app.accountId,
+        ...ed.proof,
+      }),
+    )
+  })
+  expect((await app.me(`session=${fixture.app.sessionId}`)).status).toBe(200)
+  expect((await app.receipt(challenge.cookie)).status).toBe(401)
+  expect(app.requests).toHaveLength(1)
 })
