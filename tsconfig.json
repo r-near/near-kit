@@ -23,8 +23,21 @@
     "isolatedModules": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "composite": true
+    "composite": true,
+    "plugins": [
+      {
+        "name": "@effect/language-service",
+        "diagnostics": false
+      }
+    ]
   },
   "files": [],
-  "references": [{ "path": "packages/near-kit" }, { "path": "packages/react" }]
+  "references": [
+    {
+      "path": "packages/near-kit"
+    },
+    {
+      "path": "packages/react"
+    }
+  ]
 }

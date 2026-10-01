@@ -6,17 +6,20 @@ description: "How to use near-kit documentation with AI coding assistants"
 This documentation is optimized for AI coding assistants. Whether you're using **Cursor**, **Windsurf**, **Claude**, **ChatGPT**, or other AI tools, there are multiple ways to give them context about `near-kit`.
 
 <Warning>
-**Important:** `near-kit` is NOT `near-api-js`. AI models often confuse the two. Always provide context to ensure the AI uses the correct, modern API.
+  **Important:** `near-kit` is NOT `near-api-js`. AI models often confuse the
+  two. Always provide context to ensure the AI uses the correct, modern API.
 </Warning>
 
 ## Quick Access Methods
 
 <CardGroup cols={2}>
   <Card title="Contextual Menu" icon="mouse-pointer">
-    Select any text on this site and use the popup menu to send it directly to ChatGPT, Claude, Cursor, or VS Code.
+    Select any text on this site and use the popup menu to send it directly to
+    ChatGPT, Claude, Cursor, or VS Code.
   </Card>
   <Card title="MCP Server" icon="plug">
-    Connect your AI tool to our Model Context Protocol server for live documentation access.
+    Connect your AI tool to our Model Context Protocol server for live
+    documentation access.
   </Card>
   <Card title="llms.txt" icon="file-text">
     Fetch the full documentation as a single text file optimized for LLMs.
@@ -58,6 +61,7 @@ https://kit.near.tools/mcp
       }
     }
     ```
+
   </Tab>
   <Tab title="Cursor">
     Add to your Cursor MCP settings:
@@ -71,6 +75,7 @@ https://kit.near.tools/mcp
       }
     }
     ```
+
   </Tab>
 </Tabs>
 
@@ -89,12 +94,14 @@ The full documentation is available as plain text files optimized for LLM contex
     ```bash
     curl https://kit.near.tools/llms-full.txt
     ```
+
   </Accordion>
 
   <Accordion title="llms.txt (Index Only)" icon="list">
     A condensed table of contents with page summaries. Use this if you're hitting context window limits.
 
     **URL:** [https://kit.near.tools/llms.txt](https://kit.near.tools/llms.txt)
+
   </Accordion>
 </AccordionGroup>
 
@@ -109,6 +116,7 @@ The full documentation is available as plain text files optimized for LLM contex
     3. Or use `@Web` to fetch any documentation page directly
 
     The editor will ingest the documentation as a reference file.
+
   </Tab>
 
   <Tab title="Claude Desktop">
@@ -119,13 +127,13 @@ The full documentation is available as plain text files optimized for LLM contex
     3. Claude can now search and read the docs directly
 
     Or paste the llms-full.txt URL in your conversation.
+
   </Tab>
 
-  <Tab title="ChatGPT">
-    1. Paste the URL in your chat: `https://kit.near.tools/llms-full.txt`
-    2. Ask ChatGPT to read and reference it
-    3. Add the recommended prompt below
-  </Tab>
+<Tab title="ChatGPT">
+  1. Paste the URL in your chat: `https://kit.near.tools/llms-full.txt` 2. Ask
+  ChatGPT to read and reference it 3. Add the recommended prompt below
+</Tab>
 
   <Tab title="VS Code Copilot">
     Use the contextual menu on this site:
@@ -133,6 +141,7 @@ The full documentation is available as plain text files optimized for LLM contex
     1. Select code or text you want to reference
     2. Click the VS Code option in the popup menu
     3. The content opens in your editor for Copilot context
+
   </Tab>
 </Tabs>
 
@@ -153,5 +162,6 @@ IMPORTANT: `near-kit` is NOT `near-api-js`. They are completely different librar
 ```
 
 <Note>
-This prompt helps prevent the AI from hallucinating `near-api-js` patterns, which is a common issue since that library has more training data.
+  This prompt helps prevent the AI from hallucinating `near-api-js` patterns,
+  which is a common issue since that library has more training data.
 </Note>

@@ -84,14 +84,9 @@ export type {
   Network,
 } from "./keys/index.js"
 // Key stores
-export {
-  InMemoryKeyStore,
-  RotatingKeyStore,
-  // Node.js-only keystores not exported by default (browser environments don't support them)
-  // For Node.js/Bun:
-  //   import { FileKeyStore } from "near-kit/keys/file"
-  //   import { NativeKeyStore } from "near-kit/keys/native"
-} from "./keys/index.js"
+export { InMemoryKeyStore } from "./keys/in-memory-keystore.js"
+export { RotatingKeyStore } from "./keys/rotating-keystore.js"
+// Node-only stores use near-kit/keys/file and near-kit/keys/native.
 // Sandbox is not exported by default (requires Node.js)
 // For Node.js/Bun: import { Sandbox } from "near-kit/sandbox"
 export type {

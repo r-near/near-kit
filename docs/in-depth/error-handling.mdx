@@ -40,59 +40,42 @@ try {
 <AccordionGroup>
   <Accordion title="FunctionCallError" icon="code">
     Thrown when a smart contract call fails (panics or runs out of gas).
-    
-    **Properties:**
-    - `panic`: The panic message from the contract
-    - `logs`: Any logs emitted before the failure
-    
-    ```typescript
-    if (e instanceof FunctionCallError) {
-      console.log("Contract panicked:", e.panic)
-    }
+    **Properties:** - `panic`: The panic message from the contract - `logs`: Any
+    logs emitted before the failure ```typescript if (e instanceof
+    FunctionCallError) {console.log("Contract panicked:", e.panic)}
     ```
   </Accordion>
-  
-  <Accordion title="AccountDoesNotExistError" icon="user-slash">
-    Thrown when trying to interact with an account that doesn't exist.
-    
-    **Properties:**
-    - `accountId`: The account that wasn't found
-    
-    ```typescript
-    if (e instanceof AccountDoesNotExistError) {
-      console.log(`Account ${e.accountId} not found`)
-    }
-    ```
-  </Accordion>
-  
-  <Accordion title="NetworkError" icon="wifi-slash">
-    Thrown when there's a network or RPC issue.
-    
-    **Properties:**
-    - `retryable`: Whether it's safe to retry
-    - `statusCode`: HTTP status code (if applicable)
-    
-    ```typescript
-    if (e instanceof NetworkError && e.retryable) {
-      // Wait and try again
-    }
-    ```
-  </Accordion>
-  
-  <Accordion title="InsufficientBalanceError" icon="wallet">
-    Thrown when an account doesn't have enough NEAR for the operation.
-    
-    **Properties:**
-    - `accountId`: The account with insufficient balance
-    - `required`: Amount needed
-    - `available`: Amount available
-  </Accordion>
-  
+
+<Accordion title="AccountDoesNotExistError" icon="user-slash">
+  Thrown when trying to interact with an account that doesn't exist.
+  **Properties:** - `accountId`: The account that wasn't found ```typescript if
+  (e instanceof AccountDoesNotExistError){" "}
+  {console.log(`Account ${e.accountId} not found`)}
+  ```
+</Accordion>
+
+<Accordion title="NetworkError" icon="wifi-slash">
+  Thrown when there's a network or RPC issue. **Properties:** - `retryable`:
+  Whether it's safe to retry - `statusCode`: HTTP status code (if applicable)
+  ```typescript if (e instanceof NetworkError && e.retryable){" "}
+  {
+    // Wait and try again
+  }
+  ```
+</Accordion>
+
+<Accordion title="InsufficientBalanceError" icon="wallet">
+  Thrown when an account doesn't have enough NEAR for the operation.
+  **Properties:** - `accountId`: The account with insufficient balance -
+  `required`: Amount needed - `available`: Amount available
+</Accordion>
+
   <Accordion title="InvalidNonceError" icon="rotate">
-    Thrown when a transaction's nonce is stale (usually from concurrent transactions).
-    
+    Thrown when a transaction's nonce is stale (usually from concurrent
+    transactions).
     <Tip>
-    Use `RotatingKeyStore` to avoid nonce issues in high-concurrency scenarios.
+      Use `RotatingKeyStore` to avoid nonce issues in high-concurrency
+      scenarios.
     </Tip>
   </Accordion>
 </AccordionGroup>

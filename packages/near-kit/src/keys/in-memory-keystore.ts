@@ -1,8 +1,11 @@
+import { nativeKeyStore } from "../effect/keys.js"
+import * as Effect from "effect/Effect"
 /**
  * In-memory key store implementation.
  */
 import type { KeyPair, KeyStore } from "../core/types.js"
-import { parseKey } from "../utils/key.js"
+import { makeMemoryStorage } from "../effect/key-storage.js"
+import { runPromise, runSync } from "../effect/runtime.js"
 
 /**
  * In-memory key store.
@@ -23,7 +26,9 @@ import { parseKey } from "../utils/key.js"
  * ```
  */
 export class InMemoryKeyStore implements KeyStore {
-  private keys: Map<string, KeyPair>
+  readonly [nativeKeyStore]: Effect.Success<
+    ReturnType<typeof makeMemoryStorage>
+  >
 
   /**
    * Create a new in-memory keystore.
@@ -38,14 +43,7 @@ export class InMemoryKeyStore implements KeyStore {
    * ```
    */
   constructor(initialKeys?: Record<string, string>) {
-    this.keys = new Map()
-
-    if (initialKeys) {
-      for (const [accountId, keyString] of Object.entries(initialKeys)) {
-        const keyPair = parseKey(keyString)
-        this.keys.set(accountId, keyPair)
-      }
-    }
+    this[nativeKeyStore] = runSync(makeMemoryStorage(initialKeys))
   }
 
   /**
@@ -54,8 +52,8 @@ export class InMemoryKeyStore implements KeyStore {
    * @param accountId - NEAR account ID
    * @param key - Key pair to store
    */
-  async add(accountId: string, key: KeyPair): Promise<void> {
-    this.keys.set(accountId, key)
+  add(accountId: string, key: KeyPair): Promise<void> {
+    return runPromise(this[nativeKeyStore].add(accountId, key))
   }
 
   /**
@@ -64,8 +62,8 @@ export class InMemoryKeyStore implements KeyStore {
    * @param accountId - NEAR account ID
    * @returns Key pair if found, null otherwise
    */
-  async get(accountId: string): Promise<KeyPair | null> {
-    return this.keys.get(accountId) ?? null
+  get(accountId: string): Promise<KeyPair | null> {
+    return runPromise(this[nativeKeyStore].get(accountId))
   }
 
   /**
@@ -73,8 +71,8 @@ export class InMemoryKeyStore implements KeyStore {
    *
    * @param accountId - NEAR account ID
    */
-  async remove(accountId: string): Promise<void> {
-    this.keys.delete(accountId)
+  remove(accountId: string): Promise<void> {
+    return runPromise(this[nativeKeyStore].remove(accountId))
   }
 
   /**
@@ -82,8 +80,8 @@ export class InMemoryKeyStore implements KeyStore {
    *
    * @returns Array of account IDs
    */
-  async list(): Promise<string[]> {
-    return Array.from(this.keys.keys())
+  list(): Promise<string[]> {
+    return runPromise(this[nativeKeyStore].list())
   }
 
   /**
@@ -92,6 +90,6 @@ export class InMemoryKeyStore implements KeyStore {
    * Useful for testing cleanup.
    */
   clear(): void {
-    this.keys.clear()
+    Effect.runSync(this[nativeKeyStore].clear())
   }
 }

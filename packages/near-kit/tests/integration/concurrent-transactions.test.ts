@@ -11,6 +11,7 @@ import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { afterAll, beforeAll, describe, expect, test } from "vitest"
 import { Near } from "../../src/core/near.js"
+import { InMemoryKeyStore } from "../../src/keys/in-memory-keystore.js"
 import { Sandbox } from "../../src/sandbox/sandbox.js"
 import { generateKey } from "../../src/utils/key.js"
 
@@ -19,6 +20,7 @@ describe("Concurrent Transactions", () => {
   let near: Near
   let contractId: string
   let userId: string
+  let keyStore: InMemoryKeyStore
 
   beforeAll(async () => {
     sandbox = await Sandbox.start()
@@ -54,15 +56,13 @@ describe("Concurrent Transactions", () => {
       .addKey(userKey.publicKey.toString(), { type: "fullAccess" })
       .send({ waitUntil: "FINAL" })
 
-    // Create Near instance with user key
-    near = new Near({
-      network: sandbox,
-      keyStore: {
-        [sandbox.rootAccount.id]: sandbox.rootAccount.secretKey,
-        [contractId]: contractKey.secretKey,
-        [userId]: userKey.secretKey,
-      },
+    // The caller owns storage; the client consumes the same native capability.
+    keyStore = new InMemoryKeyStore({
+      [sandbox.rootAccount.id]: sandbox.rootAccount.secretKey,
+      [contractId]: contractKey.secretKey,
+      [userId]: userKey.secretKey,
     })
+    near = new Near({ network: sandbox, keyStore })
 
     console.log(`✓ Sandbox started: ${sandbox.rpcUrl}`)
     console.log(`✓ Contract deployed: ${contractId}`)
@@ -307,19 +307,8 @@ describe("Concurrent Transactions", () => {
         .addKey(user2Key.publicKey.toString(), { type: "fullAccess" })
         .send({ waitUntil: "FINAL" })
 
-      // Get existing keys from current near instance
-      const existingKeys = near["keyStore"]
-      const userKeyPair = await existingKeys.get(userId)
-
-      // Update Near instance with user2 key
-      near = new Near({
-        network: sandbox,
-        keyStore: {
-          [sandbox.rootAccount.id]: sandbox.rootAccount.secretKey,
-          [userId]: userKeyPair?.secretKey || "",
-          [user2Id]: user2Key.secretKey,
-        },
-      })
+      // Add another account through the supported caller-owned store.
+      await keyStore.add(user2Id, user2Key)
 
       const initialCount = await near.view<number>(
         contractId,

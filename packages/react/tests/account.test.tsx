@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from "@testing-library/react"
-import type { Near } from "near-kit"
+import { Near } from "near-kit"
 import type { ReactNode } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { useAccount } from "../src/account.js"
@@ -10,30 +10,25 @@ interface MockWallet {
   getAccounts: () => Promise<Array<{ accountId: string }>>
 }
 
-// Mock Near client with wallet - properties that useAccount accesses
-interface MockNearWithWallet {
-  wallet: MockWallet | undefined
-  defaultSignerId: string | undefined
-}
-
-// Create mock Near client factory
-function createMockNear(
-  wallet?: MockWallet,
-  defaultSignerId?: string,
-): MockNearWithWallet {
-  return {
-    wallet,
+// Use a real client with a supported wallet adapter, not private Near fields.
+function createMockNear(wallet?: MockWallet, defaultSignerId?: string): Near {
+  return new Near({
     defaultSignerId,
-  }
+    ...(wallet
+      ? {
+          wallet: {
+            getAccounts: () => wallet.getAccounts(),
+            signAndSendTransaction: async () => {
+              throw new Error("Account reads cannot submit transactions")
+            },
+          },
+        }
+      : {}),
+  })
 }
-
-// Helper to create wrapper with mock Near
-function createWrapper(mockNear: MockNearWithWallet) {
+function createWrapper(near: Near) {
   return function Wrapper({ children }: { children: ReactNode }) {
-    // Cast to Near since we're testing internal behavior
-    return (
-      <NearProvider near={mockNear as unknown as Near}>{children}</NearProvider>
-    )
+    return <NearProvider near={near}>{children}</NearProvider>
   }
 }
 

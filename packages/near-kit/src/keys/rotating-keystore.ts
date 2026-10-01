@@ -1,8 +1,11 @@
+import { nativeKeyStore } from "../effect/keys.js"
+import * as Effect from "effect/Effect"
 /**
  * Rotating key store implementation for concurrent transaction handling.
  */
 import type { KeyPair, KeyStore } from "../core/types.js"
-import { parseKey } from "../utils/key.js"
+import { makeRotatingStorage } from "../effect/key-storage.js"
+import { runPromise, runSync } from "../effect/runtime.js"
 
 /**
  * Rotating key store that cycles through multiple keys per account.
@@ -19,7 +22,7 @@ import { parseKey } from "../utils/key.js"
  * ## How It Works
  * - Each account can have multiple keys registered
  * - `get()` returns the next key in round-robin order
- * - Each key has independent nonce tracking via NonceManager
+ * - Each key has independent reservations in the shared nonce service
  * - No nonce collisions between concurrent transactions
  *
  * @example
@@ -65,8 +68,9 @@ import { parseKey } from "../utils/key.js"
  * ```
  */
 export class RotatingKeyStore implements KeyStore {
-  private keys: Map<string, KeyPair[]>
-  private counters: Map<string, number>
+  readonly [nativeKeyStore]: Effect.Success<
+    ReturnType<typeof makeRotatingStorage>
+  >
 
   /**
    * Create a new rotating keystore.
@@ -83,19 +87,7 @@ export class RotatingKeyStore implements KeyStore {
    * ```
    */
   constructor(initialKeys?: Record<string, string[]>) {
-    this.keys = new Map()
-    this.counters = new Map()
-
-    if (initialKeys) {
-      for (const [accountId, keyStrings] of Object.entries(initialKeys)) {
-        for (const keyString of keyStrings) {
-          const keyPair = parseKey(keyString)
-          const existing = this.keys.get(accountId) ?? []
-          existing.push(keyPair)
-          this.keys.set(accountId, existing)
-        }
-      }
-    }
+    this[nativeKeyStore] = runSync(makeRotatingStorage(initialKeys))
   }
 
   /**
@@ -117,19 +109,8 @@ export class RotatingKeyStore implements KeyStore {
    * const key4 = await keyStore.get("alice.near") // Back to key1
    * ```
    */
-  async get(accountId: string): Promise<KeyPair | null> {
-    const accountKeys = this.keys.get(accountId)
-    if (!accountKeys || accountKeys.length === 0) {
-      return null
-    }
-
-    // Get current counter and increment for next call
-    const counter = this.counters.get(accountId) ?? 0
-    const key = accountKeys[counter % accountKeys.length]
-    this.counters.set(accountId, counter + 1)
-
-    // We know key exists because we checked accountKeys.length > 0 above
-    return key ?? null
+  get(accountId: string): Promise<KeyPair | null> {
+    return runPromise(this[nativeKeyStore].get(accountId))
   }
 
   /**
@@ -148,7 +129,7 @@ export class RotatingKeyStore implements KeyStore {
    * await keyStore.add("alice.near", keyPair2) // Now rotates between both
    * ```
    */
-  async add(
+  add(
     accountId: string,
     key: KeyPair,
     _options?: {
@@ -157,9 +138,7 @@ export class RotatingKeyStore implements KeyStore {
       implicitAccountId?: string
     },
   ): Promise<void> {
-    const existing = this.keys.get(accountId) ?? []
-    existing.push(key)
-    this.keys.set(accountId, existing)
+    return runPromise(this[nativeKeyStore].add(accountId, key))
   }
 
   /**
@@ -174,9 +153,8 @@ export class RotatingKeyStore implements KeyStore {
    * await keyStore.remove("alice.near")
    * ```
    */
-  async remove(accountId: string): Promise<void> {
-    this.keys.delete(accountId)
-    this.counters.delete(accountId)
+  remove(accountId: string): Promise<void> {
+    return runPromise(this[nativeKeyStore].remove(accountId))
   }
 
   /**
@@ -190,8 +168,8 @@ export class RotatingKeyStore implements KeyStore {
    * console.log(`Managing keys for: ${accounts.join(", ")}`)
    * ```
    */
-  async list(): Promise<string[]> {
-    return Array.from(this.keys.keys())
+  list(): Promise<string[]> {
+    return runPromise(this[nativeKeyStore].list())
   }
 
   /**
@@ -209,8 +187,8 @@ export class RotatingKeyStore implements KeyStore {
    * console.log(`Account has ${keys.length} keys in rotation`)
    * ```
    */
-  async getAll(accountId: string): Promise<KeyPair[]> {
-    return this.keys.get(accountId) ?? []
+  getAll(accountId: string): Promise<KeyPair[]> {
+    return runPromise(this[nativeKeyStore].getAll(accountId))
   }
 
   /**
@@ -229,7 +207,7 @@ export class RotatingKeyStore implements KeyStore {
    * ```
    */
   getCurrentIndex(accountId: string): number {
-    return this.counters.get(accountId) ?? 0
+    return Effect.runSync(this[nativeKeyStore].getCurrentIndex(accountId))
   }
 
   /**
@@ -246,7 +224,7 @@ export class RotatingKeyStore implements KeyStore {
    * ```
    */
   resetCounter(accountId: string): void {
-    this.counters.set(accountId, 0)
+    Effect.runSync(this[nativeKeyStore].resetCounter(accountId))
   }
 
   /**
@@ -260,7 +238,6 @@ export class RotatingKeyStore implements KeyStore {
    * ```
    */
   clear(): void {
-    this.keys.clear()
-    this.counters.clear()
+    Effect.runSync(this[nativeKeyStore].clear())
   }
 }

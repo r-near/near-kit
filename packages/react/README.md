@@ -91,7 +91,10 @@ function MyComponent() {
 Calls a view method on a contract.
 
 ```tsx
-const { data, isLoading, error, refetch } = useView<{ account_id: string }, string>({
+const { data, isLoading, error, refetch } = useView<
+  { account_id: string },
+  string
+>({
   contractId: "token.testnet",
   method: "ft_balance_of",
   args: { account_id: "alice.testnet" },
@@ -199,7 +202,7 @@ import { useNear } from "@near-kit/react"
 function useContractView<TArgs extends object, TResult>(
   contractId: string,
   method: string,
-  args: TArgs
+  args: TArgs,
 ) {
   const near = useNear()
 
@@ -211,7 +214,7 @@ function useContractView<TArgs extends object, TResult>(
 
 function useContractCall<TArgs extends object, TResult>(
   contractId: string,
-  method: string
+  method: string,
 ) {
   const near = useNear()
   const queryClient = useQueryClient()
@@ -230,12 +233,12 @@ function Counter() {
   const { data: count, isLoading } = useContractView<{}, number>(
     "counter.testnet",
     "get_count",
-    {}
+    {},
   )
 
   const { mutate: increment } = useContractCall<{}, void>(
     "counter.testnet",
-    "increment"
+    "increment",
   )
 
   return (
@@ -268,7 +271,7 @@ import { useNear } from "@near-kit/react"
 function useContractView<TArgs extends object, TResult>(
   contractId: string,
   method: string,
-  args: TArgs
+  args: TArgs,
 ) {
   const near = useNear()
   const key = ["near", "view", contractId, method, JSON.stringify(args)]
@@ -278,13 +281,13 @@ function useContractView<TArgs extends object, TResult>(
 
 function useContractCall<TArgs extends object, TResult>(
   contractId: string,
-  method: string
+  method: string,
 ) {
   const near = useNear()
   const key = ["near", "call", contractId, method]
 
   return useSWRMutation(key, (_key, { arg }: { arg: TArgs }) =>
-    near.call<TResult>(contractId, method, arg)
+    near.call<TResult>(contractId, method, arg),
   )
 }
 
@@ -293,12 +296,12 @@ function Counter() {
   const { data: count, isLoading } = useContractView<{}, number>(
     "counter.testnet",
     "get_count",
-    {}
+    {},
   )
 
   const { trigger: increment, isMutating } = useContractCall<{}, void>(
     "counter.testnet",
-    "increment"
+    "increment",
   )
 
   return (
@@ -315,7 +318,7 @@ function Counter() {
 const { data: balance } = useSWR(
   ["near", "balance", accountId],
   () => near.getBalance(accountId),
-  { refreshInterval: 5000 }
+  { refreshInterval: 5000 },
 )
 ```
 
@@ -350,14 +353,19 @@ This package is marked with `"use client"` and is designed for client-side use o
 import { NearProvider } from "@near-kit/react"
 
 export function Providers({ children }: { children: React.ReactNode }) {
-  return (
-    <NearProvider config={{ network: "testnet" }}>
-      {children}
-    </NearProvider>
-  )
+  return <NearProvider config={{ network: "testnet" }}>{children}</NearProvider>
 }
 ```
 
 ## License
 
 MIT
+
+## Effect implementation experiment
+
+This branch preserves the React 18+ public API while running real `Near` client
+operations through native Effects. Read hooks interrupt superseded requests and
+release owned resources when unmounted. Mutation calls retain their own Promise
+results; only the latest request updates the mounted UI. Unmounting does not roll
+back a wallet approval or a submitted transaction. Application-provided
+Promise-only clients remain supported at an explicit adapter boundary.

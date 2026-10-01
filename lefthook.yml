@@ -1,6 +1,9 @@
 pre-commit:
   commands:
-    check:
-      glob: "*.{js,ts,cjs,mjs,d.cts,d.mts,jsx,tsx,json,jsonc}"
-      run: bun run biome check --write --no-errors-on-unmatched --files-ignore-unknown=true --colors=off {staged_files}
+    format:
+      glob: "*.{js,ts,cjs,mjs,cts,mts,jsx,tsx,json,jsonc,md,yml,yaml,css,html}"
+      run: bun run oxfmt --write {staged_files}
       stage_fixed: true
+    lint:
+      glob: "*.{js,ts,cjs,mjs,cts,mts,jsx,tsx}"
+      run: bun run oxlint {staged_files}

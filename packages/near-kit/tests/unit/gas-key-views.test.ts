@@ -1,3 +1,4 @@
+import * as Schema from "effect/Schema"
 /**
  * Unit tests for the gas-key RPC view schemas (nearcore 2.13): the
  * AccessKeyPermission gas-key variants and the gas-key ActionView variants.
@@ -8,12 +9,14 @@ import {
   AccessKeyPermissionSchema,
   GasKeyNoncesResponseSchema,
   ActionSchema as RpcActionSchema,
-} from "../../src/core/rpc/rpc-schemas.js"
+} from "../../src/effect/protocol-schemas.js"
 
 describe("AccessKeyPermissionSchema (gas keys)", () => {
   test("still parses FullAccess and FunctionCall", () => {
-    expect(AccessKeyPermissionSchema.parse("FullAccess")).toBe("FullAccess")
-    const fc = AccessKeyPermissionSchema.parse({
+    expect(Schema.decodeSync(AccessKeyPermissionSchema)("FullAccess")).toBe(
+      "FullAccess",
+    )
+    const fc = Schema.decodeSync(AccessKeyPermissionSchema)({
       FunctionCall: {
         receiver_id: "app.near",
         method_names: ["go"],
@@ -24,7 +27,7 @@ describe("AccessKeyPermissionSchema (gas keys)", () => {
   })
 
   test("parses GasKeyFullAccess", () => {
-    const parsed = AccessKeyPermissionSchema.parse({
+    const parsed = Schema.decodeSync(AccessKeyPermissionSchema)({
       GasKeyFullAccess: { balance: "5000000000000000000000000", num_nonces: 4 },
     })
     expect(parsed).toEqual({
@@ -33,7 +36,7 @@ describe("AccessKeyPermissionSchema (gas keys)", () => {
   })
 
   test("parses GasKeyFunctionCall (with and without allowance)", () => {
-    const withAllowance = AccessKeyPermissionSchema.parse({
+    const withAllowance = Schema.decodeSync(AccessKeyPermissionSchema)({
       GasKeyFunctionCall: {
         balance: "1000",
         num_nonces: 8,
@@ -44,7 +47,7 @@ describe("AccessKeyPermissionSchema (gas keys)", () => {
     })
     expect(withAllowance).toHaveProperty("GasKeyFunctionCall")
 
-    const noAllowance = AccessKeyPermissionSchema.parse({
+    const noAllowance = Schema.decodeSync(AccessKeyPermissionSchema)({
       GasKeyFunctionCall: {
         balance: "1000",
         num_nonces: 8,
@@ -58,7 +61,7 @@ describe("AccessKeyPermissionSchema (gas keys)", () => {
 
 describe("RpcActionSchema (gas-key actions)", () => {
   test("parses TransferToGasKey", () => {
-    const parsed = RpcActionSchema.parse({
+    const parsed = Schema.decodeSync(RpcActionSchema)({
       TransferToGasKey: { public_key: "ed25519:abc", deposit: "100" },
     })
     expect(parsed).toEqual({
@@ -67,7 +70,7 @@ describe("RpcActionSchema (gas-key actions)", () => {
   })
 
   test("parses WithdrawFromGasKey", () => {
-    const parsed = RpcActionSchema.parse({
+    const parsed = Schema.decodeSync(RpcActionSchema)({
       WithdrawFromGasKey: { public_key: "ed25519:abc", amount: "50" },
     })
     expect(parsed).toEqual({
@@ -76,14 +79,16 @@ describe("RpcActionSchema (gas-key actions)", () => {
   })
 
   test("still parses a classic action (Transfer)", () => {
-    const parsed = RpcActionSchema.parse({ Transfer: { deposit: "1" } })
+    const parsed = Schema.decodeSync(RpcActionSchema)({
+      Transfer: { deposit: "1" },
+    })
     expect(parsed).toEqual({ Transfer: { deposit: "1" } })
   })
 })
 
 describe("GasKeyNoncesResponseSchema", () => {
   test("parses a multi-lane gas-key nonces response", () => {
-    const parsed = GasKeyNoncesResponseSchema.parse({
+    const parsed = Schema.decodeSync(GasKeyNoncesResponseSchema)({
       nonces: [12, 0, 5, 0],
       block_height: 42,
       block_hash: "11111111111111111111111111111111",
@@ -94,7 +99,7 @@ describe("GasKeyNoncesResponseSchema", () => {
   })
 
   test("parses a freshly funded gas key (all lanes at zero)", () => {
-    const parsed = GasKeyNoncesResponseSchema.parse({
+    const parsed = Schema.decodeSync(GasKeyNoncesResponseSchema)({
       nonces: [0, 0],
       block_height: 1,
       block_hash: "abc",
@@ -104,7 +109,10 @@ describe("GasKeyNoncesResponseSchema", () => {
 
   test("rejects a response missing the nonces array", () => {
     expect(() =>
-      GasKeyNoncesResponseSchema.parse({ block_height: 1, block_hash: "abc" }),
+      Schema.decodeUnknownSync(GasKeyNoncesResponseSchema)({
+        block_height: 1,
+        block_hash: "abc",
+      }),
     ).toThrow()
   })
 })

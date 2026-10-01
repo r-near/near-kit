@@ -1,7 +1,10 @@
 "use client"
 
+import { useMemo } from "react"
+import { useQuery, useStableInput } from "./effect-state.js"
+
 import type { NearError } from "near-kit"
-import { useCallback, useEffect, useRef, useState } from "react"
+
 import { useNear } from "./provider.js"
 
 /**
@@ -56,59 +59,14 @@ export interface UseViewParams<TArgs extends object = object> {
 export function useView<TArgs extends object = object, TResult = unknown>(
   params: UseViewParams<TArgs>,
 ): ViewResult<TResult> {
-  const { contractId, method, args, enabled = true } = params
+  const { contractId, method, enabled = true } = params
   const near = useNear()
-
-  const [data, setData] = useState<TResult | undefined>(undefined)
-  const [error, setError] = useState<NearError | Error | undefined>(undefined)
-  const [isLoading, setIsLoading] = useState(enabled)
-
-  // Serialize args for dependency comparison
-  const argsKey = JSON.stringify(args ?? {})
-
-  // Track current request to ignore stale responses
-  const requestIdRef = useRef(0)
-
-  // Store args in a ref to avoid dependency issues
-  const argsRef = useRef(args)
-  argsRef.current = args
-
-  // biome-ignore lint/correctness/useExhaustiveDependencies: argsKey intentionally triggers refetch when args change
-  const fetchData = useCallback(async () => {
-    if (!enabled) {
-      setIsLoading(false)
-      return
-    }
-
-    const currentRequestId = ++requestIdRef.current
-    setIsLoading(true)
-    setError(undefined)
-
-    try {
-      const result = await near.view<TResult>(
-        contractId,
-        method,
-        argsRef.current ?? {},
-      )
-      // Ignore if a newer request has started
-      if (currentRequestId !== requestIdRef.current) return
-      setData(result)
-    } catch (err) {
-      // Ignore if a newer request has started
-      if (currentRequestId !== requestIdRef.current) return
-      setError(err instanceof Error ? err : new Error(String(err)))
-    } finally {
-      if (currentRequestId === requestIdRef.current) {
-        setIsLoading(false)
-      }
-    }
-  }, [near, contractId, method, argsKey, enabled])
-
-  useEffect(() => {
-    void fetchData()
-  }, [fetchData])
-
-  return { data, error, isLoading, refetch: fetchData }
+  const args = useStableInput(params.args ?? {})
+  const program = useMemo(
+    () => near.effects.view<TResult>(contractId, method, args),
+    [near, contractId, method, args],
+  )
+  return useQuery(program, enabled)
 }
 
 /**
@@ -137,42 +95,11 @@ export interface UseBalanceParams {
 export function useBalance(params: UseBalanceParams): ViewResult<string> {
   const { accountId, enabled = true } = params
   const near = useNear()
-
-  const [data, setData] = useState<string | undefined>(undefined)
-  const [error, setError] = useState<NearError | Error | undefined>(undefined)
-  const [isLoading, setIsLoading] = useState(enabled)
-
-  const requestIdRef = useRef(0)
-
-  const fetchData = useCallback(async () => {
-    if (!enabled || !accountId) {
-      setIsLoading(false)
-      return
-    }
-
-    const currentRequestId = ++requestIdRef.current
-    setIsLoading(true)
-    setError(undefined)
-
-    try {
-      const result = await near.getBalance(accountId)
-      if (currentRequestId !== requestIdRef.current) return
-      setData(result)
-    } catch (err) {
-      if (currentRequestId !== requestIdRef.current) return
-      setError(err instanceof Error ? err : new Error(String(err)))
-    } finally {
-      if (currentRequestId === requestIdRef.current) {
-        setIsLoading(false)
-      }
-    }
-  }, [near, accountId, enabled])
-
-  useEffect(() => {
-    void fetchData()
-  }, [fetchData])
-
-  return { data, error, isLoading, refetch: fetchData }
+  const program = useMemo(
+    () => near.effects.getBalance(accountId),
+    [near, accountId],
+  )
+  return useQuery(program, enabled && Boolean(accountId))
 }
 
 /**
@@ -203,40 +130,9 @@ export function useAccountExists(
 ): ViewResult<boolean> {
   const { accountId, enabled = true } = params
   const near = useNear()
-
-  const [data, setData] = useState<boolean | undefined>(undefined)
-  const [error, setError] = useState<NearError | Error | undefined>(undefined)
-  const [isLoading, setIsLoading] = useState(enabled)
-
-  const requestIdRef = useRef(0)
-
-  const fetchData = useCallback(async () => {
-    if (!enabled || !accountId) {
-      setIsLoading(false)
-      return
-    }
-
-    const currentRequestId = ++requestIdRef.current
-    setIsLoading(true)
-    setError(undefined)
-
-    try {
-      const result = await near.accountExists(accountId)
-      if (currentRequestId !== requestIdRef.current) return
-      setData(result)
-    } catch (err) {
-      if (currentRequestId !== requestIdRef.current) return
-      setError(err instanceof Error ? err : new Error(String(err)))
-    } finally {
-      if (currentRequestId === requestIdRef.current) {
-        setIsLoading(false)
-      }
-    }
-  }, [near, accountId, enabled])
-
-  useEffect(() => {
-    void fetchData()
-  }, [fetchData])
-
-  return { data, error, isLoading, refetch: fetchData }
+  const program = useMemo(
+    () => near.effects.accountExists(accountId),
+    [near, accountId],
+  )
+  return useQuery(program, enabled && Boolean(accountId))
 }

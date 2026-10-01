@@ -90,7 +90,7 @@ describe("Gas key permissions", () => {
     const bytes = AccessKeyPermissionSchema.serialize(gasKeyFullAccess(5))
     const expected = new Uint8Array([
       3, // GasKeyFullAccess discriminant
-      ...new Array(16).fill(0), // balance u128 = 0
+      ...new Uint8Array(16), // balance u128 = 0
       5,
       0, // num_nonces u16 = 5 (little-endian)
     ])

@@ -1,22 +1,25 @@
+import * as Schema from "effect/Schema"
 /**
  * Tests for validation schemas
  */
 
 import { describe, expect, test } from "vitest"
-import { Amount } from "../../src/utils/amount.js"
-import { Gas } from "../../src/utils/gas.js"
-import { generateKey } from "../../src/utils/key.js"
 import {
   AccountIdSchema,
   AmountSchema,
   GasSchema,
+  PrivateKeySchema,
+  PublicKeySchema,
+} from "../../src/schemas/index.js"
+import { Amount } from "../../src/utils/amount.js"
+import { Gas } from "../../src/utils/gas.js"
+import { generateKey } from "../../src/utils/key.js"
+import {
   isPrivateKey,
   isValidAccountId,
   isValidPublicKey,
   normalizeAmount,
   normalizeGas,
-  PrivateKeySchema,
-  PublicKeySchema,
   validateAccountId,
   validatePrivateKey,
   validatePublicKey,
@@ -386,5 +389,32 @@ describe("Edge Cases", () => {
     expect(AmountSchema.parse("10 NEAR")).toBe("10000000000000000000000000")
     expect(GasSchema.parse("30 Tgas")).toBe("30000000000000")
     // Note: Extra whitespace in gas strings may not be handled by the regex
+  })
+})
+
+describe("native helper boundaries", () => {
+  test("private-key validation checks syntax without imposing curve lengths", () => {
+    for (const key of ["ed25519:1", "secp256k1:1", "ml-dsa-65:1"]) {
+      expect(isPrivateKey(key)).toBe(true)
+      expect(validatePrivateKey(key)).toBe(key)
+    }
+    expect(isValidPublicKey("ml-dsa-65-hash:1")).toBe(true)
+    expect(isPrivateKey("ml-dsa-65-hash:1")).toBe(false)
+  })
+
+  test("normalizers reject runtime input types excluded by their schemas", () => {
+    for (const value of [30, 30n, null, undefined, true, {}]) {
+      expect(() => Reflect.apply(normalizeGas, undefined, [value])).toThrow(
+        Schema.SchemaError,
+      )
+    }
+    for (const value of [30, null, undefined, true, {}]) {
+      expect(() => Reflect.apply(normalizeAmount, undefined, [value])).toThrow(
+        Schema.SchemaError,
+      )
+    }
+    expect(normalizeAmount(30n)).toBe("30")
+    expect(() => normalizeGas("-1 Tgas")).toThrow("Invalid gas format")
+    expect(() => normalizeAmount("-1 NEAR")).toThrow("Invalid amount format")
   })
 })

@@ -10,7 +10,7 @@ import {
   Near,
   type PrivateKey,
   type WalletConnection,
-} from "../src/index.js"
+} from "near-kit"
 
 // External wallet types
 // biome-ignore lint/suspicious/noExplicitAny: External library type

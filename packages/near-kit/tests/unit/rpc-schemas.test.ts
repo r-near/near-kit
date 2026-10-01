@@ -1,3 +1,4 @@
+import * as Schema from "effect/Schema"
 /**
  * Tests for RPC response schemas
  */
@@ -5,12 +6,14 @@
 import { describe, expect, test } from "vitest"
 import {
   AccessKeyPermissionSchema,
+  type AccountView,
+  type GenesisConfigResponse,
   ActionSchema,
   FinalExecutionOutcomeSchema,
   type FinalExecutionOutcomeWithReceiptsMap,
   FinalExecutionOutcomeWithReceiptsSchema,
   TransactionSchema,
-} from "../../src/core/rpc/rpc-schemas.js"
+} from "../../src/effect/protocol-schemas.js"
 
 const baseTransaction = {
   signer_id: "alice.near",
@@ -25,7 +28,7 @@ const baseTransaction = {
 describe("TransactionSchema", () => {
   describe("nonce_mode (new in nearcore 2.12)", () => {
     test("should parse a transaction with nonce_mode 'strict'", () => {
-      const result = TransactionSchema.parse({
+      const result = Schema.decodeSync(TransactionSchema)({
         ...baseTransaction,
         nonce_mode: "strict",
       })
@@ -34,7 +37,7 @@ describe("TransactionSchema", () => {
     })
 
     test("should parse a transaction with nonce_mode 'monotonic'", () => {
-      const result = TransactionSchema.parse({
+      const result = Schema.decodeSync(TransactionSchema)({
         ...baseTransaction,
         nonce_mode: "monotonic",
       })
@@ -43,7 +46,7 @@ describe("TransactionSchema", () => {
     })
 
     test("should parse a transaction with nonce_mode null", () => {
-      const result = TransactionSchema.parse({
+      const result = Schema.decodeSync(TransactionSchema)({
         ...baseTransaction,
         nonce_mode: null,
       })
@@ -52,14 +55,14 @@ describe("TransactionSchema", () => {
     })
 
     test("should parse a transaction without nonce_mode", () => {
-      const result = TransactionSchema.parse(baseTransaction)
+      const result = Schema.decodeSync(TransactionSchema)(baseTransaction)
 
       expect(result.nonce_mode).toBeUndefined()
     })
 
     test("should reject an invalid nonce_mode value", () => {
       expect(() =>
-        TransactionSchema.parse({
+        Schema.decodeUnknownSync(TransactionSchema)({
           ...baseTransaction,
           nonce_mode: "sequential",
         }),
@@ -71,7 +74,7 @@ describe("TransactionSchema", () => {
 describe("Gas key RPC views (NEAR 2.13)", () => {
   describe("AccessKeyPermissionSchema", () => {
     test("parses GasKeyFullAccess view", () => {
-      const parsed = AccessKeyPermissionSchema.parse({
+      const parsed = Schema.decodeSync(AccessKeyPermissionSchema)({
         GasKeyFullAccess: {
           balance: "5000000000000000000000000",
           num_nonces: 4,
@@ -95,11 +98,13 @@ describe("Gas key RPC views (NEAR 2.13)", () => {
           method_names: ["do_thing"],
         },
       }
-      expect(AccessKeyPermissionSchema.parse(view)).toEqual(view)
+      expect(Schema.decodeSync(AccessKeyPermissionSchema)(view)).toEqual(view)
     })
 
     test("still parses FullAccess and FunctionCall views", () => {
-      expect(AccessKeyPermissionSchema.parse("FullAccess")).toBe("FullAccess")
+      expect(Schema.decodeSync(AccessKeyPermissionSchema)("FullAccess")).toBe(
+        "FullAccess",
+      )
       const fc = {
         FunctionCall: {
           receiver_id: "c.near",
@@ -107,7 +112,7 @@ describe("Gas key RPC views (NEAR 2.13)", () => {
           allowance: null,
         },
       }
-      expect(AccessKeyPermissionSchema.parse(fc)).toEqual(fc)
+      expect(Schema.decodeSync(AccessKeyPermissionSchema)(fc)).toEqual(fc)
     })
   })
 
@@ -119,7 +124,7 @@ describe("Gas key RPC views (NEAR 2.13)", () => {
           deposit: "2000000000000000000000000",
         },
       }
-      expect(ActionSchema.parse(view)).toEqual(view)
+      expect(Schema.decodeSync(ActionSchema)(view)).toEqual(view)
     })
 
     test("parses a WithdrawFromGasKey action view (amount, not deposit)", () => {
@@ -129,14 +134,14 @@ describe("Gas key RPC views (NEAR 2.13)", () => {
           amount: "1000000000000000000000000",
         },
       }
-      expect(ActionSchema.parse(view)).toEqual(view)
+      expect(Schema.decodeSync(ActionSchema)(view)).toEqual(view)
     })
   })
 
   test("a transaction echoing gas-key actions parses (regression for default send)", () => {
     // Codex P1: a successful 2.13 EXECUTED_OPTIMISTIC response echoes these
     // actions; the default .send() path must parse them, not throw.
-    const parsed = TransactionSchema.parse({
+    const parsed = Schema.decodeSync(TransactionSchema)({
       ...baseTransaction,
       actions: [
         {
@@ -174,7 +179,7 @@ describe("Gas key RPC views (NEAR 2.13)", () => {
           signature: "ed25519:sig",
         },
       }
-      expect(ActionSchema.parse(view)).toEqual(view)
+      expect(Schema.decodeSync(ActionSchema)(view)).toEqual(view)
     })
 
     test("parses a DelegateV2 action view with a plain Nonce", () => {
@@ -194,7 +199,7 @@ describe("Gas key RPC views (NEAR 2.13)", () => {
           signature: "ed25519:sig",
         },
       }
-      expect(ActionSchema.parse(view)).toEqual(view)
+      expect(Schema.decodeSync(ActionSchema)(view)).toEqual(view)
     })
   })
 })
@@ -250,7 +255,7 @@ describe("FinalExecutionOutcomeSchema — early wait levels (EXPERIMENTAL_tx_sta
         receipts_outcome: [outcomeWithId("bob.near")],
       }
 
-      const parsed = FinalExecutionOutcomeSchema.parse(payload)
+      const parsed = Schema.decodeSync(FinalExecutionOutcomeSchema)(payload)
 
       expect(parsed.final_execution_status).toBe(level)
       // The whole point of the fix: these are no longer dropped.
@@ -275,7 +280,9 @@ describe("FinalExecutionOutcomeSchema — early wait levels (EXPERIMENTAL_tx_sta
         receipts: [receipt("bob.near")],
       }
 
-      const parsed = FinalExecutionOutcomeWithReceiptsSchema.parse(payload)
+      const parsed = Schema.decodeSync(FinalExecutionOutcomeWithReceiptsSchema)(
+        payload,
+      )
 
       expect(parsed.receipts).toHaveLength(1)
       expect(parsed.receipts[0]?.receiver_id).toBe("bob.near")
@@ -286,7 +293,7 @@ describe("FinalExecutionOutcomeSchema — early wait levels (EXPERIMENTAL_tx_sta
   // The send_tx path legitimately returns no execution fields at early levels
   // (the client injects a minimal transaction), so they must stay optional.
   test("still validates a minimal send_tx NONE response", () => {
-    const parsed = FinalExecutionOutcomeSchema.parse({
+    const parsed = Schema.decodeSync(FinalExecutionOutcomeSchema)({
       final_execution_status: "NONE",
       transaction: {
         hash: "55555555555555555555555555555555",
@@ -311,4 +318,40 @@ describe("FinalExecutionOutcomeSchema — early wait levels (EXPERIMENTAL_tx_sta
     }
     expect(none.receipts_outcome).toEqual([])
   })
+})
+
+test("public RPC response types preserve writable records, nested arrays, and extension data", () => {
+  const account: AccountView = {
+    amount: "1",
+    locked: "0",
+    code_hash: "hash",
+    storage_usage: 0,
+    storage_paid_at: 0,
+    block_height: 1,
+    block_hash: "block",
+  }
+  account.amount = "2"
+  account.global_contract_hash = undefined
+  const outcome: FinalExecutionOutcomeWithReceiptsMap["NONE"] = {
+    final_execution_status: "NONE",
+    receipts: [],
+  }
+  outcome.receipts.push({
+    predecessor_id: "alice.near",
+    receiver_id: "bob.near",
+    receipt_id: "receipt",
+    receipt: { Data: { data_id: "data" } },
+  })
+  const first = outcome.receipts[0]
+  if (!first) throw new Error("expected inserted receipt")
+  first.receiver_id = "carol.near"
+  const genesis: GenesisConfigResponse = {
+    protocol_version: 85,
+    chain_id: "testnet",
+    genesis_height: 0,
+  }
+  genesis["future_extension"] = 1
+  expect(account.amount).toBe("2")
+  expect(outcome.receipts[0]?.receiver_id).toBe("carol.near")
+  expect(genesis["future_extension"]).toBe(1)
 })

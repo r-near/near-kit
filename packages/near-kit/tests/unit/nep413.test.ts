@@ -1,3 +1,6 @@
+import type { AccessKeyView } from "../../src/effect/protocol-schemas.js"
+import { Effect } from "effect"
+import { verifyNep413SignatureEffect } from "../../src/utils/nep413.js"
 /**
  * Tests for NEP-413 message signing functionality
  */
@@ -621,102 +624,47 @@ describe("NEP-413 Nonce Validation", () => {
   })
 })
 
-describe("NEP-413 Near Client Validation", () => {
-  test("should return false when key does not belong to account", async () => {
-    const keyPair = Ed25519KeyPair.fromRandom()
-    const accountId = "test.near"
-    const nonce = generateNonce()
-
-    const params: SignMessageParams = {
-      message: "Login to MyApp",
-      recipient: "myapp.near",
-      nonce,
-    }
-
-    const signedMessage = keyPair.signNep413Message(accountId, params)
-
-    // Create a mock Near client that returns null for getAccessKey (key doesn't exist)
-    const mockNear = {
-      async getAccessKey(
-        _accountId: string,
-        _publicKey: string,
-      ): Promise<null> {
-        return null
+describe("NEP-413 native access-key authorization", () => {
+  test.each([
+    [null, false],
+    ["FullAccess", true],
+    [
+      {
+        FunctionCall: {
+          receiver_id: "contract.near",
+          method_names: ["method"],
+          allowance: null,
+        },
       },
-    } as unknown as import("../../src/core/near.js").Near
-
-    const isValid = await verifyNep413Signature(signedMessage, params, {
-      near: mockNear,
-    })
-    expect(isValid).toBe(false)
-  })
-
-  test("should pass validation when full access key exists for account", async () => {
-    const keyPair = Ed25519KeyPair.fromRandom()
-    const accountId = "test.near"
-    const nonce = generateNonce()
-
-    const params: SignMessageParams = {
-      message: "Login to MyApp",
-      recipient: "myapp.near",
-      nonce,
-    }
-
-    const signedMessage = keyPair.signNep413Message(accountId, params)
-
-    // Create a mock Near client that returns a full access key
-    const mockNear = {
-      async getAccessKey(_accountId: string, _publicKey: string) {
-        return {
-          nonce: 0,
-          permission: "FullAccess" as const,
-          block_height: 1,
-          block_hash: "test",
-        }
-      },
-    } as unknown as import("../../src/core/near.js").Near
-
-    const isValid = await verifyNep413Signature(signedMessage, params, {
-      near: mockNear,
-    })
-    expect(isValid).toBe(true)
-  })
-
-  test("should return false when key is a function call key (not full access)", async () => {
-    const keyPair = Ed25519KeyPair.fromRandom()
-    const accountId = "test.near"
-    const nonce = generateNonce()
-
-    const params: SignMessageParams = {
-      message: "Login to MyApp",
-      recipient: "myapp.near",
-      nonce,
-    }
-
-    const signedMessage = keyPair.signNep413Message(accountId, params)
-
-    // Create a mock Near client that returns a function call key
-    // (simulating a function call key that exists but isn't full access)
-    const mockNear = {
-      async getAccessKey(_accountId: string, _publicKey: string) {
-        return {
-          nonce: 0,
-          permission: {
-            FunctionCall: {
-              receiver_id: "contract.near",
-              method_names: ["some_method"],
-              allowance: null,
-            },
-          },
-          block_height: 1,
-          block_hash: "test",
-        }
-      },
-    } as unknown as import("../../src/core/near.js").Near
-
-    const isValid = await verifyNep413Signature(signedMessage, params, {
-      near: mockNear,
-    })
-    expect(isValid).toBe(false)
-  })
+      false,
+    ],
+  ] satisfies Array<[AccessKeyView["permission"] | null, boolean]>)(
+    "checks actual permission %j",
+    async (permission, expected) => {
+      const key = Ed25519KeyPair.fromRandom()
+      const params = {
+        message: "Login",
+        recipient: "app.near",
+        nonce: generateNonce(),
+      }
+      const signed = key.signNep413Message("alice.near", params)
+      const requested: Array<[string, string]> = []
+      const reader = {
+        getAccessKey: (accountId: string, publicKey: string) => {
+          requested.push([accountId, publicKey])
+          return Effect.succeed(
+            permission === null
+              ? null
+              : { nonce: 0, permission, block_height: 1, block_hash: "test" },
+          )
+        },
+      }
+      expect(
+        await Effect.runPromise(
+          verifyNep413SignatureEffect(signed, params, { near: reader }),
+        ),
+      ).toBe(expected)
+      expect(requested).toEqual([["alice.near", key.publicKey.toString()]])
+    },
+  )
 })

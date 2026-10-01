@@ -571,7 +571,7 @@ export function generateSeedPhrase(
       : wordCountOrOptions
 
   if (keyType !== "ed25519" && keyType !== "ml-dsa-65") {
-    throw new InvalidKeyError(`Unsupported key type: ${keyType}`)
+    throw new InvalidKeyError(`Unsupported key type: ${String(keyType)}`)
   }
 
   const resolvedWordCount = wordCount ?? (keyType === "ml-dsa-65" ? 24 : 12)
@@ -682,7 +682,7 @@ export function parseSeedPhrase(
     return new MlDsa65KeyPair(key)
   }
   if (keyType !== "ed25519") {
-    throw new InvalidKeyError(`Unsupported key type: ${keyType}`)
+    throw new InvalidKeyError(`Unsupported key type: ${String(keyType)}`)
   }
 
   const { key: privateKey } = slip10DerivePath(ED25519_CURVE_SALT, seed, path)

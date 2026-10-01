@@ -50,6 +50,7 @@ npm install @tanstack/react-query
       )
     }
     ```
+
   </Step>
 
   <Step title="Create custom hooks using useNear">
@@ -83,6 +84,7 @@ npm install @tanstack/react-query
       })
     }
     ```
+
   </Step>
 </Steps>
 
@@ -94,90 +96,94 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { useNear } from "@near-kit/react"
 
 interface Message {
-  id: number
-  sender: string
-  text: string
+id: number
+sender: string
+text: string
 }
 
 // Custom hooks
 function useMessages() {
-  const near = useNear()
-  return useQuery({
-    queryKey: ["guestbook", "messages"],
-    queryFn: () => near.view<Message[]>("guestbook.near", "get_messages", { limit: 50 }),
-    staleTime: 10_000,
-    refetchInterval: 30_000, // Poll every 30s
-  })
+const near = useNear()
+return useQuery({
+queryKey: ["guestbook", "messages"],
+queryFn: () => near.view<Message[]>("guestbook.near", "get_messages", { limit: 50 }),
+staleTime: 10_000,
+refetchInterval: 30_000, // Poll every 30s
+})
 }
 
 function useAddMessage() {
-  const near = useNear()
-  const queryClient = useQueryClient()
+const near = useNear()
+const queryClient = useQueryClient()
 
-  return useMutation({
-    mutationFn: async (text: string) => {
-      await near.call("guestbook.near", "add_message", { text })
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["guestbook", "messages"] })
-    },
-  })
+return useMutation({
+mutationFn: async (text: string) => {
+await near.call("guestbook.near", "add_message", { text })
+},
+onSuccess: () => {
+queryClient.invalidateQueries({ queryKey: ["guestbook", "messages"] })
+},
+})
 }
 
 // Components
 function MessageList() {
-  const { data: messages, isLoading, error } = useMessages()
+const { data: messages, isLoading, error } = useMessages()
 
-  if (isLoading) return <p>Loading messages...</p>
-  if (error) return <p>Error loading messages</p>
+if (isLoading) return <p>Loading messages...</p>
+if (error) return <p>Error loading messages</p>
 
-  return (
-    <ul>
-      {messages?.map((msg) => (
-        <li key={msg.id}>
-          <strong>{msg.sender}</strong>: {msg.text}
-        </li>
-      ))}
-    </ul>
-  )
+return (
+
+<ul>
+{messages?.map((msg) => (
+<li key={msg.id}>
+<strong>{msg.sender}</strong>: {msg.text}
+</li>
+))}
+</ul>
+)
 }
 
 function AddMessageForm() {
-  const { mutate, isPending } = useAddMessage()
-  const [text, setText] = useState("")
+const { mutate, isPending } = useAddMessage()
+const [text, setText] = useState("")
 
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault()
-    mutate(text, {
-      onSuccess: () => setText(""),
-    })
-  }
+const handleSubmit = (e: FormEvent) => {
+e.preventDefault()
+mutate(text, {
+onSuccess: () => setText(""),
+})
+}
 
-  return (
-    <form onSubmit={handleSubmit}>
-      <input
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        placeholder="Your message"
-        disabled={isPending}
-      />
-      <button type="submit" disabled={isPending || !text}>
-        {isPending ? "Sending..." : "Send"}
-      </button>
-    </form>
-  )
+return (
+
+<form onSubmit={handleSubmit}>
+<input
+value={text}
+onChange={(e) => setText(e.target.value)}
+placeholder="Your message"
+disabled={isPending}
+/>
+<button type="submit" disabled={isPending || !text}>
+{isPending ? "Sending..." : "Send"}
+</button>
+</form>
+)
 }
 
 function Guestbook() {
-  return (
-    <div>
-      <h1>Guestbook</h1>
-      <AddMessageForm />
-      <MessageList />
-    </div>
-  )
+return (
+
+<div>
+<h1>Guestbook</h1>
+<AddMessageForm />
+<MessageList />
+</div>
+)
 }
-```
+
+````
 </Accordion>
 
 ### Patterns
@@ -291,7 +297,7 @@ function Guestbook() {
 
 ```bash
 npm install swr
-```
+````
 
 ### Setup
 
@@ -314,6 +320,7 @@ npm install swr
       )
     }
     ```
+
   </Step>
 
   <Step title="Create custom hooks using useNear">
@@ -343,6 +350,7 @@ npm install swr
       )
     }
     ```
+
   </Step>
 </Steps>
 
@@ -355,77 +363,80 @@ import useSWRMutation from "swr/mutation"
 import { useNear } from "@near-kit/react"
 
 interface Message {
-  id: number
-  sender: string
-  text: string
+id: number
+sender: string
+text: string
 }
 
 // Custom hooks
 function useMessages() {
-  const near = useNear()
+const near = useNear()
 
-  return useSWR("messages", () =>
-    near.view<Message[]>("guestbook.near", "get_messages", { limit: 50 })
-  )
+return useSWR("messages", () =>
+near.view<Message[]>("guestbook.near", "get_messages", { limit: 50 })
+)
 }
 
 function useAddMessage() {
-  const near = useNear()
+const near = useNear()
 
-  return useSWRMutation(
-    "messages",
-    async (_, { arg: text }: { arg: string }) => {
-      await near.call("guestbook.near", "add_message", { text })
-    },
-    {
-      onSuccess: () => mutate("messages"), // Revalidate after success
-    }
-  )
+return useSWRMutation(
+"messages",
+async (\_, { arg: text }: { arg: string }) => {
+await near.call("guestbook.near", "add_message", { text })
+},
+{
+onSuccess: () => mutate("messages"), // Revalidate after success
+}
+)
 }
 
 // Components
 function MessageList() {
-  const { data: messages, isLoading, error } = useMessages()
+const { data: messages, isLoading, error } = useMessages()
 
-  if (isLoading) return <p>Loading messages...</p>
-  if (error) return <p>Error loading messages</p>
+if (isLoading) return <p>Loading messages...</p>
+if (error) return <p>Error loading messages</p>
 
-  return (
-    <ul>
-      {messages?.map((msg) => (
-        <li key={msg.id}>
-          <strong>{msg.sender}</strong>: {msg.text}
-        </li>
-      ))}
-    </ul>
-  )
+return (
+
+<ul>
+{messages?.map((msg) => (
+<li key={msg.id}>
+<strong>{msg.sender}</strong>: {msg.text}
+</li>
+))}
+</ul>
+)
 }
 
 function AddMessageForm() {
-  const { trigger, isMutating } = useAddMessage()
-  const [text, setText] = useState("")
+const { trigger, isMutating } = useAddMessage()
+const [text, setText] = useState("")
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault()
-    await trigger(text)
-    setText("")
-  }
-
-  return (
-    <form onSubmit={handleSubmit}>
-      <input
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        placeholder="Your message"
-        disabled={isMutating}
-      />
-      <button type="submit" disabled={isMutating || !text}>
-        {isMutating ? "Sending..." : "Send"}
-      </button>
-    </form>
-  )
+const handleSubmit = async (e: FormEvent) => {
+e.preventDefault()
+await trigger(text)
+setText("")
 }
-```
+
+return (
+
+<form onSubmit={handleSubmit}>
+<input
+value={text}
+onChange={(e) => setText(e.target.value)}
+placeholder="Your message"
+disabled={isMutating}
+/>
+<button type="submit" disabled={isMutating || !text}>
+{isMutating ? "Sending..." : "Send"}
+</button>
+</form>
+)
+}
+
+````
 </Accordion>
 
 ### Patterns
@@ -517,7 +528,7 @@ const handleSubmit = async () => {
   await mutate({ text: "Hello" })
   await refetchMessages() // May use stale args!
 }
-```
+````
 
 **Solution**: Use React Query's `invalidateQueries()` which properly handles the timing:
 

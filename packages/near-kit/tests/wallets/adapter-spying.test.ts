@@ -260,9 +260,11 @@ describe("Wallet Adapter Data Flow Verification", () => {
       const calls = mockConnector.getCallLog()
       const txCall = calls.find((c) => c.method === "signAndSendTransaction")
 
-      expect(txCall?.params.actions).toHaveLength(3)
+      expect(txCall).toBeDefined()
+      if (!txCall) throw new Error("Transaction call was not recorded")
+      expect(txCall.params.actions).toHaveLength(3)
 
-      const [a0, a1, a2] = txCall?.params.actions as Array<{
+      const [a0, a1, a2] = txCall.params.actions as Array<{
         type: string
         params: Record<string, unknown>
       }>

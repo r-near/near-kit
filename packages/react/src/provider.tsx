@@ -1,7 +1,20 @@
 "use client"
 
 import { Near, type NearConfig } from "near-kit"
-import { createContext, type ReactNode, useContext, useMemo } from "react"
+import { prepareClient, publicConfiguration } from "near-kit/effect"
+import * as Cause from "effect/Cause"
+import * as ConfigProvider from "effect/ConfigProvider"
+import * as Effect from "effect/Effect"
+import * as Fiber from "effect/Fiber"
+import {
+  createContext,
+  type ReactNode,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
 
 /**
  * Context for the Near client instance
@@ -50,27 +63,106 @@ export function NearProvider(props: NearProviderProps): ReactNode {
     )
   }
 
-  // Extract the Near instance or config for stable dependency tracking
   const nearProp = "near" in props ? props.near : undefined
-  const configProp = "config" in props ? props.config : undefined
-  // Serialize config for dependency comparison (only used when config is provided)
-  const configKey = configProp ? JSON.stringify(configProp) : undefined
+  const hasConfig = "config" in props && props.config !== undefined
+  const {
+    network,
+    rpcUrl,
+    headers,
+    keyStore,
+    signer,
+    privateKey,
+    wallet,
+    defaultSignerId,
+    defaultWaitUntil,
+    retryConfig,
+  } = ("config" in props ? props.config : undefined) ?? {}
+  const maxRetries = retryConfig?.maxRetries
+  const initialDelayMs = retryConfig?.initialDelayMs
+  // Capabilities carry authority and must be compared by identity, not JSON.
+  const projection = useMemo(() => {
+    if (nearProp) return { near: nearProp, prepared: undefined }
+    if (!hasConfig)
+      throw new Error("NearProvider requires either 'near' or 'config' prop")
+    const prepared = Effect.runSync(
+      prepareClient({
+        network,
+        rpcUrl,
+        headers,
+        keyStore,
+        signer,
+        wallet,
+        defaultSignerId,
+        defaultWaitUntil,
+        ...(privateKey !== undefined ? { privateKey } : {}),
+        retryConfig: { maxRetries, initialDelayMs },
+      }).pipe(
+        Effect.provideService(
+          ConfigProvider.ConfigProvider,
+          publicConfiguration(),
+        ),
+      ),
+    )
+    return { near: Near.fromClient(prepared.client), prepared }
+  }, [
+    nearProp,
+    hasConfig,
+    network,
+    rpcUrl,
+    headers,
+    keyStore,
+    signer,
+    privateKey,
+    wallet,
+    defaultSignerId,
+    defaultWaitUntil,
+    maxRetries,
+    initialDelayMs,
+  ])
 
-  // Create or use the provided Near instance
-  // biome-ignore lint/correctness/useExhaustiveDependencies: configKey is derived from configProp for stable comparison
-  const nearInstance = useMemo(() => {
-    if (nearProp) {
-      return nearProp
+  const owner = useRef<Fiber.Fiber<void> | undefined>(undefined)
+  const activeOwner = useRef<symbol | undefined>(undefined)
+  const [failure, setFailure] = useState<{ near: Near; cause: unknown }>()
+  useEffect(() => {
+    if (!projection.prepared) return
+    const previous = owner.current
+    const id = Symbol()
+    activeOwner.current = id
+    const { activate } = projection.prepared
+    const fiber = Effect.runFork(
+      Effect.gen(function* () {
+        // A cancelled intermediate owner must still retain the cleanup barrier.
+        if (previous) yield* Fiber.await(previous).pipe(Effect.uninterruptible)
+        return yield* Effect.scoped(activate.pipe(Effect.andThen(Effect.never)))
+      }).pipe(
+        Effect.onError((cause) => {
+          if (Cause.hasInterruptsOnly(cause)) return Effect.void
+          if (activeOwner.current !== id)
+            return Effect.logError(
+              "NearProvider observation cleanup failed",
+              cause,
+            )
+          return Effect.sync(() =>
+            setFailure({
+              near: projection.near,
+              cause: Cause.squash(cause),
+            }),
+          )
+        }),
+      ),
+    )
+    owner.current = fiber
+    return () => {
+      activeOwner.current = undefined
+      fiber.interruptUnsafe()
     }
-    if (configProp) {
-      return new Near(configProp)
-    }
-    throw new Error("NearProvider requires either 'near' or 'config' prop")
-  }, [nearProp, configKey])
+  }, [projection])
+
+  if (failure?.near === projection.near) throw failure.cause
 
   return (
     <NearProviderDetectionContext.Provider value={true}>
-      <NearContext.Provider value={nearInstance}>
+      <NearContext.Provider value={projection.near}>
         {children}
       </NearContext.Provider>
     </NearProviderDetectionContext.Provider>

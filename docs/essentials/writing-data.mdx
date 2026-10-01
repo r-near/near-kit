@@ -15,7 +15,7 @@ const result = await near
     // 2. Action
     "guestbook.near",
     "add_message",
-    { text: "Hello World" }
+    { text: "Hello World" },
   )
   .send() // 3. Sign & Broadcast
 ```
@@ -54,7 +54,7 @@ await near
     {
       gas: "100 Tgas", // Limit for complex operations
       attachedDeposit: "0.1 NEAR", // Payment (e.g. for storage)
-    }
+    },
   )
   .send()
 ```
@@ -85,6 +85,7 @@ await near.send("bob.near", 1000000n)
 ```
 
 **Constants:**
+
 - `Amount.ZERO` → `"0 yocto"`
 - `Amount.ONE_NEAR` → `"1 NEAR"`
 - `Amount.ONE_YOCTO` → `"1 yocto"`

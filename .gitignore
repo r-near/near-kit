@@ -20,6 +20,10 @@ dist
 coverage
 *.lcov
 
+# Playwright reports and browser artifacts
+playwright-report
+test-results
+
 # logs
 logs
 _.log

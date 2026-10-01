@@ -7,7 +7,11 @@
  * @internal
  */
 
-import type { FinalExecutionOutcome, SignedMessage } from "../core/types.js"
+import type {
+  FinalExecutionOutcome,
+  SignedMessage,
+  WalletAccount,
+} from "../core/types.js"
 
 /**
  * NEAR Connect action types, mirroring `@hot-labs/near-connect`'s
@@ -166,8 +170,21 @@ export type NearConnectWallet = {
   ): Promise<NearConnectSignDelegateActionsResponse>
 }
 
+export type NearConnectAccountEvents = {
+  "wallet:signIn": { accounts: WalletAccount[]; success: boolean }
+  "wallet:signOut": unknown
+}
+
 export type NearConnectConnector = {
   wallet(): Promise<NearConnectWallet>
+  on?<K extends keyof NearConnectAccountEvents>(
+    event: K,
+    callback: (payload: NearConnectAccountEvents[K]) => void,
+  ): void
+  off?<K extends keyof NearConnectAccountEvents>(
+    event: K,
+    callback: (payload: NearConnectAccountEvents[K]) => void,
+  ): void
 }
 
 /** @deprecated Use {@link NearConnectCreateAccountAction} instead */

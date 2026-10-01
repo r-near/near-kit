@@ -169,9 +169,10 @@ describe("Wallet Adapters", () => {
       const log = mockConnector.getCallLog()
       const txCall = log.find((l) => l.method === "signAndSendTransaction")
       expect(txCall).toBeDefined()
+      if (!txCall) throw new Error("Transaction call was not recorded")
 
       // biome-ignore lint/suspicious/noExplicitAny: Testing internal action structure
-      const hotAction = (txCall?.params.actions as any[])[0]
+      const hotAction = (txCall.params.actions as any[])[0]
       expect(hotAction.type).toBe("FunctionCall")
       expect(hotAction.params.methodName).toBe("myMethod")
       expect(hotAction.params.args).toEqual(args)

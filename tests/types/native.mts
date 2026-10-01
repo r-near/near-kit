@@ -1,0 +1,119 @@
+// Compile-only consumer contract. Never execute this fixture.
+import { Effect, Layer } from "effect"
+import type { Contract, DelegateActionResult } from "near-kit"
+import {
+  Near,
+  Actions,
+  type TransactionPlan,
+  type UnsignedTransactionValue,
+  Rpc,
+  KeyStore,
+  NonceReservation,
+  Wallet,
+  type NearFailure,
+  type RpcFailure,
+  type NearService,
+} from "near-kit/effect"
+
+type Equal<A, B> =
+  (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2
+    ? true
+    : false
+type Must<T extends true> = T
+export type RequiredClientInputs = Must<
+  Equal<
+    Layer.Services<ReturnType<typeof Near.layerWithServices>>,
+    Rpc | KeyStore | NonceReservation
+  >
+>
+export type RequiredWalletInputs = Must<
+  Equal<
+    Layer.Services<ReturnType<typeof Near.layerWithWallet>>,
+    Rpc | KeyStore | NonceReservation | Wallet
+  >
+>
+export type NativeClientOutput = Must<
+  Equal<Layer.Success<ReturnType<typeof Near.layerWithServices>>, Near>
+>
+
+export const read = Effect.gen(function* () {
+  const near = yield* Near
+  return yield* near.getBalance("alice.near")
+})
+export type ReadResult = Must<Equal<Effect.Success<typeof read>, string>>
+export type ReadRequirements = Must<Equal<Effect.Services<typeof read>, Near>>
+export type ReadError = Must<Equal<Effect.Error<typeof read>, RpcFailure>>
+
+export function consumeNative(near: NearService) {
+  const plan: TransactionPlan = {
+    signerId: "alice.near",
+    receiverId: "bob.near",
+    actions: [Actions.transfer(10n ** 24n)],
+  }
+  const tx = near.transactions
+  const unsigned: Effect.Effect<UnsignedTransactionValue, NearFailure> =
+    tx.build(plan)
+  const nonce = Effect.map(unsigned, (value): bigint =>
+    value.version === 0
+      ? value.transaction.nonce
+      : "nonce" in value.transaction.nonce
+        ? value.transaction.nonce.nonce.nonce
+        : value.transaction.nonce.gasKeyNonce.nonce,
+  )
+  const bytes: Effect.Effect<
+    DelegateActionResult<"bytes">,
+    NearFailure
+  > = tx.delegate(plan, { payloadFormat: "bytes" })
+  const base64: Effect.Effect<
+    DelegateActionResult<"base64">,
+    NearFailure
+  > = tx.delegate(plan)
+  const none = tx.send(plan, { waitUntil: "NONE" })
+  const final = tx.send(plan, { waitUntil: "FINAL" })
+  const noneIsNarrow: Must<
+    Equal<Effect.Success<typeof none>["final_execution_status"], "NONE">
+  > = true
+  const finalIsNarrow: Must<
+    Equal<Effect.Success<typeof final>["final_execution_status"], "FINAL">
+  > = true
+  const account: Effect.Effect<string | undefined, NearFailure> =
+    near.view<string>("contract.near", "read")
+  const contract = near.contract<
+    Contract<{
+      view: { read: () => Promise<number> }
+      call: { write: (args: { by: number }) => Promise<void> }
+    }>
+  >("contract.near")
+  const value: Effect.Effect<number, NearFailure> = contract.view.read()
+  const written: Effect.Effect<void, NearFailure> = contract.call.write(
+    { by: 1 },
+    { gas: "30 Tgas" },
+  )
+  const combined = Effect.all([Effect.succeed(1), Effect.succeed("value")], {
+    concurrency: "unbounded",
+  })
+  const tupleIsPreserved: Must<
+    Equal<Effect.Success<typeof combined>, [number, string]>
+  > = true
+  // Required dependencies cannot be discarded at the runner boundary.
+  // @ts-expect-error The client service must be supplied before running.
+  const missingService = Effect.runPromise(read)
+  // @ts-expect-error Wait levels must remain protocol literals.
+  const invalidWait = tx.send(plan, { waitUntil: "ALMOST_FINAL" })
+  return {
+    unsigned,
+    nonce,
+    bytes,
+    base64,
+    none,
+    final,
+    noneIsNarrow,
+    finalIsNarrow,
+    account,
+    value,
+    written,
+    tupleIsPreserved,
+    missingService,
+    invalidWait,
+  }
+}

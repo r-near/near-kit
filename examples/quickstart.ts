@@ -5,7 +5,7 @@
  * Run: bun run examples/quickstart.ts
  */
 
-import { type Contract, Near, type PrivateKey } from "../src/index.js"
+import { type Contract, Near, type PrivateKey } from "near-kit"
 
 const ACCOUNT_ID = process.env["NEAR_ACCOUNT_ID"] || "your-account.testnet"
 const PRIVATE_KEY = (process.env["NEAR_PRIVATE_KEY"] ||

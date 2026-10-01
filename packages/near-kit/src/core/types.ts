@@ -139,7 +139,7 @@ export type {
   FunctionCallPermissionDetails,
   GasKeyFullAccessPermissionDetails,
   GasKeyFunctionCallPermissionDetails,
-} from "./rpc/rpc-schemas.js"
+} from "../effect/protocol-schemas.js"
 
 // ==================== Transaction Types ====================
 
@@ -175,7 +175,7 @@ export type TxExecutionStatus =
  * Options for sending a transaction
  */
 // Import for use in SendOptions
-import type { FinalExecutionOutcomeMap } from "./rpc/rpc-schemas.js"
+import type { FinalExecutionOutcomeMap } from "../effect/protocol-schemas.js"
 
 export interface SendOptions<
   W extends keyof FinalExecutionOutcomeMap = keyof FinalExecutionOutcomeMap,
@@ -244,17 +244,17 @@ export type {
   RpcAction,
   RpcMinimalTransaction,
   RpcTransaction,
-} from "./rpc/rpc-schemas.js"
+} from "../effect/protocol-schemas.js"
 
 // Import for use in this file
-import type { FinalExecutionOutcome } from "./rpc/rpc-schemas.js"
+import type { FinalExecutionOutcome } from "../effect/protocol-schemas.js"
 
 // ==================== RPC Types ====================
 
 /**
  * RPC response types with runtime validation via Zod schemas
  *
- * These types are inferred from Zod schemas defined in rpc-schemas.ts
+ * These types are inferred from the canonical Effect protocol schemas
  * and provide both compile-time and runtime type safety.
  *
  * - ViewFunctionCallResult: Result from calling a view function on a contract
@@ -290,7 +290,7 @@ export type {
   StatusResponse,
   ViewFunctionCallResult,
   ViewStateResult,
-} from "./rpc/rpc-schemas.js"
+} from "../effect/protocol-schemas.js"
 
 // ==================== Global Contracts ====================
 

@@ -1,3 +1,6 @@
+import * as Effect from "effect/Effect"
+import { Near } from "near-kit"
+import { ExternalError } from "near-kit/effect"
 /**
  * Tests for edge cases and branch coverage
  * Imports from index.ts to ensure that file is covered
@@ -24,6 +27,10 @@ const mockCall = vi.fn()
 const mockSend = vi.fn()
 
 interface MockNearInstance {
+  effects: Record<
+    string,
+    (...args: unknown[]) => Effect.Effect<unknown, ExternalError>
+  >
   view: typeof mockView
   call: typeof mockCall
   send: typeof mockSend
@@ -35,6 +42,40 @@ interface MockNearInstance {
 vi.mock("near-kit", () => {
   return {
     Near: vi.fn().mockImplementation(function (this: MockNearInstance) {
+      // Native capability fakes preserve this suite's controlled Promise producers.
+      this.effects = {
+        view: (...args) =>
+          Effect.tryPromise({
+            try: () => mockView(...args),
+            catch: (cause) =>
+              new ExternalError({ operation: "test.client", cause }),
+          }),
+        getBalance: (...args) =>
+          Effect.tryPromise({
+            try: () => mockGetBalance(...args),
+            catch: (cause) =>
+              new ExternalError({ operation: "test.client", cause }),
+          }),
+        accountExists: (...args) =>
+          Effect.tryPromise({
+            try: () => mockAccountExists(...args),
+            catch: (cause) =>
+              new ExternalError({ operation: "test.client", cause }),
+          }),
+        call: (...args) =>
+          Effect.tryPromise({
+            try: () => mockCall(...args),
+            catch: (cause) =>
+              new ExternalError({ operation: "test.client", cause }),
+          }),
+        send: (...args) =>
+          Effect.tryPromise({
+            try: () => mockSend(...args),
+            catch: (cause) =>
+              new ExternalError({ operation: "test.client", cause }),
+          }),
+      }
+
       this.view = mockView
       this.call = mockCall
       this.send = mockSend
@@ -45,8 +86,9 @@ vi.mock("near-kit", () => {
   }
 })
 
+const near = new Near({ network: "testnet" })
 const wrapper = ({ children }: { children: ReactNode }) => (
-  <NearProvider config={{ network: "testnet" }}>{children}</NearProvider>
+  <NearProvider near={near}>{children}</NearProvider>
 )
 
 describe("stale request handling", () => {
@@ -373,7 +415,8 @@ describe("mutation stale handling", () => {
 
       // Start second mutation
       act(() => {
-        result.current.mutate({})
+        // Deliberately concurrent: completion and stale-result behavior are asserted below.
+        void result.current.mutate({})
       })
 
       // Resolve second first
@@ -443,12 +486,14 @@ describe("mutation stale handling", () => {
 
       // Start first send
       act(() => {
-        result.current.mutate("alice.testnet", "1 NEAR")
+        // Deliberately concurrent: completion and stale-result behavior are asserted below.
+        void result.current.mutate("alice.testnet", "1 NEAR")
       })
 
       // Start second send
       act(() => {
-        result.current.mutate("bob.testnet", "2 NEAR")
+        // Deliberately concurrent: completion and stale-result behavior are asserted below.
+        void result.current.mutate("bob.testnet", "2 NEAR")
       })
 
       expect(result.current.isPending).toBe(true)
@@ -498,7 +543,8 @@ describe("mutation stale handling", () => {
 
       // Start second send
       act(() => {
-        result.current.mutate("bob.testnet", "2 NEAR")
+        // Deliberately concurrent: completion and stale-result behavior are asserted below.
+        void result.current.mutate("bob.testnet", "2 NEAR")
       })
 
       // Resolve second first

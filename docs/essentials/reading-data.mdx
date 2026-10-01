@@ -16,7 +16,7 @@ Arguments are automatically JSON-serialized for you.
 const messages = await near.view(
   "guestbook.near", // Contract ID
   "get_messages", // Method Name
-  { limit: 10 } // Arguments object
+  { limit: 10 }, // Arguments object
 )
 ```
 
@@ -56,7 +56,7 @@ await near.view(
   { account_id: "alice.near" },
   {
     blockId: 120494923,
-  }
+  },
 )
 
 // Read from a specific Block Hash
@@ -71,7 +71,7 @@ await near.view(
   {},
   {
     finality: "final",
-  }
+  },
 )
 ```
 
@@ -93,12 +93,12 @@ Use `near.getAccount()` when you need all balance details:
 ```typescript
 const account = await near.getAccount("alice.near")
 
-console.log(`Liquid balance: ${account.balance} NEAR`)     // Total liquid tokens
+console.log(`Liquid balance: ${account.balance} NEAR`) // Total liquid tokens
 console.log(`Available to spend: ${account.available} NEAR`) // What you can actually transfer
-console.log(`Staked: ${account.staked} NEAR`)              // Locked for staking (validators)
-console.log(`Storage cost: ${account.storageUsage} NEAR`)  // Reserved for on-chain storage
-console.log(`Storage bytes: ${account.storageBytes}`)      // Raw storage in bytes
-console.log(`Has contract: ${account.hasContract}`)        // Whether contract is deployed
+console.log(`Staked: ${account.staked} NEAR`) // Locked for staking (validators)
+console.log(`Storage cost: ${account.storageUsage} NEAR`) // Reserved for on-chain storage
+console.log(`Storage bytes: ${account.storageBytes}`) // Raw storage in bytes
+console.log(`Has contract: ${account.hasContract}`) // Whether contract is deployed
 ```
 
 `hasContract` includes accounts using a global contract by publisher account or
@@ -109,10 +109,12 @@ read `global_contract_account_id` or `global_contract_hash`.
 **Why is available different from balance?**
 
 NEAR accounts must reserve tokens to pay for on-chain storage. However, staked tokens count towards this requirement. So:
+
 - If staked ≥ storage cost → all liquid balance is available
 - If staked < storage cost → some liquid balance is reserved
 
 This is why `getBalance()` returns `available`, not `balance` — it's what you can actually spend.
+
 </Note>
 
 ## 4. Listing Access Keys
@@ -124,12 +126,15 @@ const keys = await near.getAccessKeys("alice.near")
 
 for (const key of keys.keys) {
   console.log(key.public_key) // "ed25519:..."
-  
+
   if (key.access_key.permission === "FullAccess") {
     console.log("Full access key")
   } else {
     // Function call key - has receiver_id, method_names, allowance
-    console.log("Function call key for:", key.access_key.permission.FunctionCall.receiver_id)
+    console.log(
+      "Function call key for:",
+      key.access_key.permission.FunctionCall.receiver_id,
+    )
   }
 }
 ```
@@ -151,7 +156,7 @@ If you need to make multiple read calls at once, use `near.batch()`. This runs t
 const [balance, messages, exists] = await near.batch(
   near.getBalance("alice.near"),
   near.view<Message[]>("guestbook.near", "get_messages", {}),
-  near.accountExists("bob.near")
+  near.accountExists("bob.near"),
 )
 ```
 

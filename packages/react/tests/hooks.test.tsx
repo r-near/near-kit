@@ -1,3 +1,6 @@
+import * as Effect from "effect/Effect"
+import { Near } from "near-kit"
+import { ExternalError } from "near-kit/effect"
 import { act, renderHook, waitFor } from "@testing-library/react"
 import type { ReactNode } from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
@@ -14,6 +17,10 @@ const mockGetBalance = vi.fn()
 const mockAccountExists = vi.fn()
 
 interface MockNearInstance {
+  effects: Record<
+    string,
+    (...args: unknown[]) => Effect.Effect<unknown, ExternalError>
+  >
   view: typeof mockView
   call: ReturnType<typeof vi.fn>
   send: ReturnType<typeof vi.fn>
@@ -26,6 +33,28 @@ interface MockNearInstance {
 vi.mock("near-kit", () => {
   return {
     Near: vi.fn().mockImplementation(function (this: MockNearInstance) {
+      // Native capability fakes preserve this suite's controlled Promise producers.
+      this.effects = {
+        view: (...args) =>
+          Effect.tryPromise({
+            try: () => mockView(...args),
+            catch: (cause) =>
+              new ExternalError({ operation: "test.client", cause }),
+          }),
+        getBalance: (...args) =>
+          Effect.tryPromise({
+            try: () => mockGetBalance(...args),
+            catch: (cause) =>
+              new ExternalError({ operation: "test.client", cause }),
+          }),
+        accountExists: (...args) =>
+          Effect.tryPromise({
+            try: () => mockAccountExists(...args),
+            catch: (cause) =>
+              new ExternalError({ operation: "test.client", cause }),
+          }),
+      }
+
       this.view = mockView
       this.call = vi.fn()
       this.send = vi.fn()
@@ -36,8 +65,9 @@ vi.mock("near-kit", () => {
   }
 })
 
+const near = new Near({ network: "testnet" })
 const wrapper = ({ children }: { children: ReactNode }) => (
-  <NearProvider config={{ network: "testnet" }}>{children}</NearProvider>
+  <NearProvider near={near}>{children}</NearProvider>
 )
 
 describe("useView", () => {

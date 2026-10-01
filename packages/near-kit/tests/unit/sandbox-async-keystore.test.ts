@@ -1,188 +1,170 @@
-/**
- * Unit tests for sandbox auto-extraction with async keystores
- *
- * Verifies that pendingKeyStoreInit properly waits for async keyStore.add()
- * before build() or send() try to access the keyStore.
- */
-
-import { describe, expect, test } from "vitest"
+import { Effect } from "effect"
+import { describe, expect, test, vi } from "vitest"
 import { Near } from "../../src/core/near.js"
 import type { KeyPair, KeyStore } from "../../src/core/types.js"
+import { make } from "../../src/effect/near.js"
 import { generateKey } from "../../src/utils/key.js"
+import { verifyNep413Signature } from "../../src/utils/nep413.js"
 import type { PrivateKey } from "../../src/utils/validation.js"
 
-/**
- * Mock async KeyStore that simulates file I/O delay
- */
-class SlowAsyncKeyStore implements KeyStore {
-  private keys = new Map<string, KeyPair>()
-  private addDelay: number
+const accountId = "alice.near"
+const message = {
+  message: "Authorize this session",
+  recipient: "app.near",
+  nonce: new Uint8Array(32).fill(7),
+}
 
-  constructor(delayMs = 50) {
-    this.addDelay = delayMs
-  }
-
-  async add(accountId: string, key: KeyPair): Promise<void> {
-    // Simulate async file write with delay
-    await new Promise((resolve) => setTimeout(resolve, this.addDelay))
-    this.keys.set(accountId, key)
-  }
-
-  async get(accountId: string): Promise<KeyPair | null> {
-    return this.keys.get(accountId) || null
-  }
-
-  async remove(accountId: string): Promise<void> {
-    this.keys.delete(accountId)
-  }
-
-  async list(): Promise<string[]> {
-    return Array.from(this.keys.keys())
+function sandbox(key: KeyPair) {
+  return {
+    rpcUrl: "http://127.0.0.1:12345",
+    networkId: "localnet",
+    rootAccount: { id: accountId, secretKey: key.secretKey },
   }
 }
 
-describe("Sandbox async keyStore initialization", () => {
-  test("sets pendingKeyStoreInit when sandbox auto-extraction occurs", async () => {
-    const rootKey = generateKey()
-    const mockSandbox = {
-      rpcUrl: "http://127.0.0.1:12345",
-      networkId: "localnet",
-      rootAccount: {
-        id: "test.near",
-        secretKey: rootKey.secretKey,
-      },
-    }
+function externalStore(write: () => Promise<void>, initial?: KeyPair) {
+  const keys = new Map<string, KeyPair>(initial ? [[accountId, initial]] : [])
+  return {
+    add: vi.fn(async (id: string, key: KeyPair) => {
+      await write()
+      keys.set(id, key)
+    }),
+    get: vi.fn(async (id: string) => keys.get(id) ?? null),
+    remove: async (id: string) => {
+      keys.delete(id)
+    },
+    list: async () => [...keys.keys()],
+  } satisfies KeyStore
+}
 
-    const slowKeyStore = new SlowAsyncKeyStore(100)
+describe("configured key initialization reaches signing", () => {
+  test.each(["sandbox root", "explicit private key"] as const)(
+    "%s starts its external write eagerly and waits before NEP-413 signing",
+    async (source) => {
+      const key = generateKey()
+      const write = Promise.withResolvers<void>()
+      const store = externalStore(() => write.promise)
+      const near = new Near({
+        ...(source === "sandbox root"
+          ? { network: sandbox(key) }
+          : { network: "testnet", privateKey: key.secretKey as PrivateKey }),
+        defaultSignerId: accountId,
+        keyStore: store,
+      })
+      expect(store.add).toHaveBeenCalledTimes(1)
+      const signing = near.signMessage(message)
+      expect(store.get).not.toHaveBeenCalled()
 
-    // Create Near with sandbox auto-extraction + slow async keyStore
-    const near = new Near({
-      network: mockSandbox,
-      keyStore: slowKeyStore,
+      write.resolve()
+      const signed = await signing
+      expect(signed.accountId).toBe(accountId)
+      expect(signed.publicKey).toBe(key.publicKey.toString())
+      expect(
+        await verifyNep413Signature(signed, message, {
+          nonceValidation: "none",
+        }),
+      ).toBe(true)
+      expect(store.add).toHaveBeenCalledTimes(1)
+    },
+  )
+
+  test("native acquisition defers the write and returns a ready signing service", async () => {
+    const key = generateKey()
+    const write = Promise.withResolvers<void>()
+    const started = Promise.withResolvers<void>()
+    const store = externalStore(() => {
+      started.resolve()
+      return write.promise
     })
-
-    // Should have pending keyStore initialization
-    expect(near["pendingKeyStoreInit"]).toBeDefined()
-
-    // KeyStore should NOT have the key yet (still writing)
-    const keyBeforeInit = await slowKeyStore.get(mockSandbox.rootAccount.id)
-    expect(keyBeforeInit).toBeNull()
-
-    // After awaiting pendingKeyStoreInit, key should be available
-    await near["pendingKeyStoreInit"]
-
-    const keyAfterInit = await slowKeyStore.get(mockSandbox.rootAccount.id)
-    expect(keyAfterInit).not.toBeNull()
-    expect(keyAfterInit?.publicKey.toString()).toBe(
-      rootKey.publicKey.toString(),
+    let acquired = false
+    const program = make({
+      network: sandbox(key),
+      defaultSignerId: accountId,
+      keyStore: store,
+    }).pipe(
+      Effect.tap(() =>
+        Effect.sync(() => {
+          acquired = true
+        }),
+      ),
     )
+    expect(store.add).not.toHaveBeenCalled()
+    const running = Effect.runPromise(program)
+    await started.promise
+    expect(acquired).toBe(false)
+    expect(store.get).not.toHaveBeenCalled()
+    write.resolve()
+
+    const near = await running
+    expect(acquired).toBe(true)
+    const signed = await Effect.runPromise(near.signMessage(message))
+    expect(signed.publicKey).toBe(key.publicKey.toString())
+    expect(
+      await verifyNep413Signature(signed, message, { nonceValidation: "none" }),
+    ).toBe(true)
+    expect(store.add).toHaveBeenCalledTimes(1)
   })
 
-  test("TransactionBuilder awaits keyStore init before accessing keys", async () => {
-    const rootKey = generateKey()
-    const mockSandbox = {
-      rpcUrl: "http://127.0.0.1:12345",
-      networkId: "localnet",
-      rootAccount: {
-        id: "test.near",
-        secretKey: rootKey.secretKey,
-      },
-    }
-
-    const slowKeyStore = new SlowAsyncKeyStore(100)
-
+  test("a rejected key write reaches every signing caller unchanged without reading or signing", async () => {
+    const key = generateKey()
+    const write = Promise.withResolvers<void>()
+    const store = externalStore(() => write.promise)
     const near = new Near({
-      network: mockSandbox,
-      keyStore: slowKeyStore,
+      network: sandbox(key),
+      defaultSignerId: accountId,
+      keyStore: store,
     })
+    const messageResult = near
+      .signMessage(message)
+      .catch((error: unknown) => error)
+    const delegateResult = near
+      .transaction(accountId)
+      .transfer("bob.near", "1 NEAR")
+      .delegate({ nonce: 42n, maxBlockHeight: 200n })
+      .catch((error: unknown) => error)
+    const failure = new Error("storage permission denied")
+    write.reject(failure)
 
-    // TransactionBuilder should be created with ensureKeyStoreReady callback
-    const builder = near.transaction(mockSandbox.rootAccount.id)
-    expect(builder["ensureKeyStoreReady"]).toBeDefined()
-
-    // Verify that the callback actually waits for initialization
-    const startTime = Date.now()
-    await builder["ensureKeyStoreReady"]?.()
-    const elapsed = Date.now() - startTime
-
-    // Should have waited at least 100ms (the slowKeyStore delay)
-    expect(elapsed).toBeGreaterThanOrEqual(90) // Allow small margin
-
-    // After waiting, key should be in keyStore
-    const key = await slowKeyStore.get(mockSandbox.rootAccount.id)
-    expect(key).not.toBeNull()
+    expect(await messageResult).toBe(failure)
+    expect(await delegateResult).toBe(failure)
+    await expect(near.signMessage(message)).rejects.toBe(failure)
+    expect(store.add).toHaveBeenCalledTimes(1)
+    expect(store.get).not.toHaveBeenCalled()
   })
 
-  test("explicit privateKey triggers async init to prevent race conditions", async () => {
-    const rootKey = generateKey()
-    const mockSandbox = {
-      rpcUrl: "http://127.0.0.1:12345",
-      networkId: "localnet",
-      rootAccount: {
-        id: "test.near",
-        secretKey: rootKey.secretKey,
-      },
-    }
-
-    const slowKeyStore = new SlowAsyncKeyStore(100)
-
-    // When privateKey is explicitly provided, it adds to keyStore
-    // This triggers pendingKeyStoreInit to prevent race conditions
-    const near = new Near({
-      network: mockSandbox,
-      privateKey: rootKey.secretKey as PrivateKey,
-      keyStore: slowKeyStore,
-    })
-
-    // Check that pendingKeyStoreInit IS set (to prevent race conditions)
-    expect(near["pendingKeyStoreInit"]).toBeDefined()
-
-    // Wait for it to complete
-    await near["pendingKeyStoreInit"]
-
-    // Verify the key was added
-    const keyPair = await near["keyStore"].get("test.near")
-    expect(keyPair).not.toBeNull()
-  })
-
-  test("keyStore without sandbox auto-extraction", async () => {
-    const accountKey = generateKey()
-    const slowKeyStore = new SlowAsyncKeyStore(100)
-
-    // Manually add a key (not via sandbox auto-extraction)
-    await slowKeyStore.add("alice.near", accountKey)
-
-    const near = new Near({
-      network: "testnet",
-      keyStore: slowKeyStore,
-    })
-
-    // No pending init because no sandbox auto-extraction happened
-    expect(near["pendingKeyStoreInit"]).toBeUndefined()
-  })
-
-  test("sanitized sandbox (missing secretKey) doesn't trigger init", async () => {
-    const mockSandbox = {
-      rpcUrl: "http://127.0.0.1:12345",
-      networkId: "localnet",
-      rootAccount: {
-        id: "test.near",
-        // No secretKey - sanitized config
-      },
-    }
-
-    const slowKeyStore = new SlowAsyncKeyStore(100)
-
-    const near = new Near({
-      network: mockSandbox,
-      keyStore: slowKeyStore,
-    })
-
-    // No pending init because secretKey is missing (guarded)
-    expect(near["pendingKeyStoreInit"]).toBeUndefined()
-
-    // KeyStore should be empty
-    const keys = await slowKeyStore.list()
-    expect(keys.length).toBe(0)
-  })
+  test.each([
+    "ordinary network",
+    "sanitized sandbox",
+    "custom signer",
+  ] as const)(
+    "%s uses the supplied store without automatically replacing its key",
+    async (source) => {
+      const existingKey = generateKey()
+      const sandboxKey = generateKey()
+      const store = externalStore(async () => {}, existingKey)
+      const network =
+        source === "ordinary network"
+          ? "testnet"
+          : source === "sanitized sandbox"
+            ? { ...sandbox(sandboxKey), rootAccount: { id: accountId } }
+            : sandbox(sandboxKey)
+      const near = new Near({
+        network,
+        defaultSignerId: accountId,
+        keyStore: store,
+        ...(source === "custom signer"
+          ? { signer: async (bytes: Uint8Array) => existingKey.sign(bytes) }
+          : {}),
+      })
+      expect(store.add).not.toHaveBeenCalled()
+      const signed = await near.signMessage(message)
+      expect(signed.publicKey).toBe(existingKey.publicKey.toString())
+      expect(
+        await verifyNep413Signature(signed, message, {
+          nonceValidation: "none",
+        }),
+      ).toBe(true)
+      expect(store.add).not.toHaveBeenCalled()
+    },
+  )
 })

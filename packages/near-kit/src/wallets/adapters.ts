@@ -14,19 +14,27 @@
 
 import { sha256 } from "@noble/hashes/sha2.js"
 import { base58, base64 } from "@scure/base"
+import * as Effect from "effect/Effect"
+import * as Queue from "effect/Queue"
+import * as Result from "effect/Result"
+import * as Stream from "effect/Stream"
 import { decodeSignedDelegateAction } from "../core/schema.js"
 import type {
   Action,
   FinalExecutionOutcome,
-  SignDelegateActionsParams,
-  SignDelegateActionsResult,
   SignedMessage,
+  SignMessageParams,
+  SignDelegateActionsParams,
+  WalletAccount,
   WalletConnection,
 } from "../core/types.js"
+import { ExternalError, fromPromise, fromSync } from "../effect/runtime.js"
+import { observeAccountStream, walletConnection } from "../effect/wallet.js"
 import type {
   NearConnectAction,
   NearConnectAddKeyPermission,
   NearConnectConnector,
+  NearConnectAccountEvents,
 } from "./types.js"
 
 // Wallet interface types based on @near-wallet-selector/core v10.x (deprecated).
@@ -51,116 +59,79 @@ type WalletSelectorWallet = {
   }): Promise<unknown> // Many wallets type this as void | SignedMessage
 }
 
+// Preserve the adapter's existing forwarding of custom public-key representations.
+const walletPublicKey = (key: unknown): string => String(key)
+
 /**
  * Convert a near-kit Action to NEAR Connect's action format.
  * @internal
  */
 function convertActionToNearConnect(action: Action): NearConnectAction {
-  const a = action as Record<string, unknown>
-
-  if ("functionCall" in a && a["functionCall"]) {
-    const fc = a["functionCall"] as {
-      methodName: string
-      args: unknown
-      gas: bigint
-      deposit: bigint
-    }
-
-    let args: unknown = fc.args
+  if ("functionCall" in action && action.functionCall) {
+    const { methodName, gas, deposit } = action.functionCall
+    let args: unknown = action.functionCall.args
     if (args instanceof Uint8Array) {
       try {
-        const argsString = new TextDecoder().decode(args)
-        args = JSON.parse(argsString)
+        args = JSON.parse(new TextDecoder().decode(args))
       } catch {
-        // Non-JSON binary args — pass through as-is, matching
-        // near-connect's own deserializeArgs behavior.
+        /* Preserve non-JSON binary arguments, as NEAR Connect does. */
       }
     }
-
     return {
       type: "FunctionCall",
       params: {
-        methodName: fc.methodName,
+        methodName,
         args: args as Record<string, unknown>,
-        gas: fc.gas.toString(),
-        deposit: fc.deposit.toString(),
+        gas: gas.toString(),
+        deposit: deposit.toString(),
       },
     }
   }
-
-  if ("transfer" in a && a["transfer"]) {
-    const t = a["transfer"] as { deposit: bigint }
+  if ("transfer" in action && action.transfer)
     return {
       type: "Transfer",
-      params: { deposit: t.deposit.toString() },
+      params: { deposit: action.transfer.deposit.toString() },
     }
-  }
-
-  if ("stake" in a && a["stake"]) {
-    const s = a["stake"] as { stake: bigint; publicKey: unknown }
+  if ("stake" in action && action.stake)
     return {
       type: "Stake",
       params: {
-        stake: s.stake.toString(),
-        // NEAR Connect expects a base58 string; we forward whatever representation
-        // we have and rely on upstream tooling when stake is used with wallets.
-        publicKey: String(s.publicKey),
+        stake: action.stake.stake.toString(),
+        publicKey: walletPublicKey(action.stake.publicKey),
       },
     }
-  }
-
-  if ("addKey" in a && a["addKey"]) {
-    const ak = a["addKey"] as {
-      publicKey: unknown
-      accessKey: { nonce: bigint; permission: unknown }
-    }
+  if ("addKey" in action && action.addKey) {
+    const { publicKey, accessKey } = action.addKey
+    // The public adapter historically forwards the supplied permission shape.
+    const permission: unknown = accessKey.permission
     return {
       type: "AddKey",
       params: {
-        publicKey: String(ak.publicKey),
+        publicKey: walletPublicKey(publicKey),
         accessKey: {
-          nonce: Number(ak.accessKey.nonce),
-          permission: ak.accessKey.permission as NearConnectAddKeyPermission,
+          nonce: Number(accessKey.nonce),
+          permission: permission as NearConnectAddKeyPermission,
         },
       },
     }
   }
-
-  if ("deleteKey" in a && a["deleteKey"]) {
-    const dk = a["deleteKey"] as { publicKey: unknown }
+  if ("deleteKey" in action && action.deleteKey)
     return {
       type: "DeleteKey",
-      params: {
-        publicKey: String(dk.publicKey),
-      },
+      params: { publicKey: walletPublicKey(action.deleteKey.publicKey) },
     }
-  }
-
-  if ("deleteAccount" in a && a["deleteAccount"]) {
-    const da = a["deleteAccount"] as { beneficiaryId: string }
+  if ("deleteAccount" in action && action.deleteAccount)
     return {
       type: "DeleteAccount",
-      params: {
-        beneficiaryId: da.beneficiaryId,
-      },
+      params: { beneficiaryId: action.deleteAccount.beneficiaryId },
     }
-  }
-
-  if ("createAccount" in a && a["createAccount"] !== undefined) {
-    return {
-      type: "CreateAccount",
-    }
-  }
-
-  if ("deployContract" in a && a["deployContract"]) {
-    const dc = a["deployContract"] as { code: Uint8Array }
+  if ("createAccount" in action && action.createAccount !== undefined)
+    return { type: "CreateAccount" }
+  if ("deployContract" in action && action.deployContract)
     return {
       type: "DeployContract",
-      params: {
-        code: dc.code,
-      },
+      params: { code: action.deployContract.code },
     }
-  }
 
   if ("useGlobalContract" in action) {
     const { contractIdentifier } = action.useGlobalContract
@@ -191,7 +162,7 @@ function convertActionToNearConnect(action: Action): NearConnectAction {
   }
 
   throw new Error(
-    `Unsupported action type: ${Object.keys(a).join(", ") || "unknown"}`,
+    `Unsupported action type: ${Object.keys(action).join(", ") || "unknown"}`,
   )
 }
 
@@ -227,51 +198,11 @@ function convertActionToNearConnect(action: Action): NearConnectAction {
 export function fromWalletSelector(
   wallet: WalletSelectorWallet,
 ): WalletConnection {
-  return {
-    async getAccounts() {
-      const accounts = await wallet.getAccounts()
-      return accounts.map((acc) => ({
-        accountId: acc.accountId,
-        ...(acc.publicKey !== undefined && { publicKey: acc.publicKey }),
-      }))
-    },
-
-    async signAndSendTransaction(params): Promise<FinalExecutionOutcome> {
-      // Our Action[] type is structurally compatible with @near-js Action[]
-      // Duck typing works at runtime - see type-compatibility.test.ts
-      const result = await wallet.signAndSendTransaction({
-        ...(params.signerId !== undefined && { signerId: params.signerId }),
-        receiverId: params.receiverId,
-        actions: params.actions,
-      })
-
-      if (!result) {
-        throw new Error("Wallet did not return transaction outcome")
-      }
-      return result as FinalExecutionOutcome
-    },
-
-    async signMessage(params): Promise<SignedMessage> {
-      if (!wallet.signMessage) {
-        throw new Error("Wallet does not support message signing")
-      }
-
-      // wallet-selector expects Buffer, convert from Uint8Array
-      const nonce = Buffer.from(params.nonce)
-
-      const result = await wallet.signMessage({
-        message: params.message,
-        recipient: params.recipient,
-        nonce,
-      })
-
-      // Browser wallets may return void
-      if (!result) {
-        throw new Error("Wallet did not return signed message")
-      }
-      return result as SignedMessage
-    },
-  }
+  return walletConnection({
+    getAccounts: () => selectorAccounts(wallet),
+    signAndSendTransaction: (params) => selectorTransaction(wallet, params),
+    signMessage: (params) => selectorMessage(wallet, params),
+  })
 }
 
 /**
@@ -312,81 +243,222 @@ export function fromNearConnect(
     )
   }
 
-  return {
-    async getAccounts() {
-      const wallet = await connector.wallet()
-      const accounts = await wallet.getAccounts()
-
-      return accounts.map((acc) => ({
-        accountId: acc.accountId,
-        ...(acc.publicKey !== undefined && { publicKey: acc.publicKey }),
-      }))
-    },
-
-    async signAndSendTransaction(params): Promise<FinalExecutionOutcome> {
-      const wallet = await connector.wallet()
-      const nearConnectActions = params.actions.map(convertActionToNearConnect)
-
-      const result = await wallet.signAndSendTransaction({
-        ...(params.signerId !== undefined && { signerId: params.signerId }),
-        receiverId: params.receiverId,
-        actions: nearConnectActions,
-      })
-
-      return result as FinalExecutionOutcome
-    },
-
-    async signMessage(params): Promise<SignedMessage> {
-      const wallet = await connector.wallet()
-      const result = await wallet.signMessage({
-        message: params.message,
-        recipient: params.recipient,
-        nonce: params.nonce,
-      })
-      return result as SignedMessage
-    },
-
-    async signDelegateActions(
-      params: SignDelegateActionsParams,
-    ): Promise<SignDelegateActionsResult> {
-      const wallet = await connector.wallet()
-
-      if (wallet.manifest.features?.signDelegateActions === false) {
-        throw new Error(
-          "Connected wallet does not support delegate action signing. " +
-            "Make sure you're using a wallet that supports meta-transactions " +
-            "and @hot-labs/near-connect v0.9.0 or later.",
-        )
-      }
-
-      // Convert each delegate action's near-kit Actions to NEAR Connect format
-      const nearConnectDelegateActions = params.delegateActions.map((da) => ({
-        actions: da.actions.map(convertActionToNearConnect),
-        receiverId: da.receiverId,
-      }))
-
-      const response = await wallet.signDelegateActions({
-        ...(params.signerId !== undefined && { signerId: params.signerId }),
-        delegateActions: nearConnectDelegateActions,
-      })
-
-      // Bridge response: near-connect returns base64-encoded signed delegate
-      // actions as strings. Decode each into near-kit's structured format.
-      return {
-        signedDelegateActions: response.signedDelegateActions.map((encoded) => {
-          const signedDelegate = decodeSignedDelegateAction(encoded)
-          const bytes = base64.decode(encoded)
-          return {
-            delegateHash: sha256(bytes),
-            signedDelegate,
-          }
-        }),
-      }
-    },
-  }
+  const on = connector.on?.bind(connector)
+  const off = connector.off?.bind(connector)
+  return walletConnection({
+    getAccounts: () => connectAccounts(connector),
+    ...(on && off
+      ? {
+          observeAccounts: () =>
+            observeAccountStream(connectAccountChanges(connector, on, off)),
+        }
+      : {}),
+    signAndSendTransaction: (params) => connectTransaction(connector, params),
+    signMessage: (params) => connectMessage(connector, params),
+    signDelegateActions: (params) => connectDelegates(connector, params),
+  })
 }
 
 /**
  * @deprecated Renamed to {@link fromNearConnect}. This alias will be removed in a future major version.
  */
 export const fromHotConnect = fromNearConnect
+
+const walletFailure = (message: string) =>
+  Effect.fail(
+    new ExternalError({
+      operation: "wallet.validate",
+      cause: new Error(message),
+    }),
+  )
+
+// Programs are defined once; adapters bind only their external connector.
+type TransactionParams = Parameters<
+  WalletConnection["signAndSendTransaction"]
+>[0]
+const normalizeAccounts = (accounts: WalletAccount[]) =>
+  accounts.map(({ accountId, publicKey }) => ({
+    accountId,
+    ...(publicKey !== undefined ? { publicKey } : {}),
+  }))
+const selectorAccounts = Effect.fn("WalletSelector.getAccounts")(
+  (wallet: WalletSelectorWallet) =>
+    fromPromise(() => wallet.getAccounts(), "wallet-selector.getAccounts").pipe(
+      Effect.map(normalizeAccounts),
+    ),
+)
+const selectorTransaction = Effect.fn("WalletSelector.signAndSendTransaction")(
+  function* (wallet: WalletSelectorWallet, params: TransactionParams) {
+    const result = yield* fromPromise(
+      () => wallet.signAndSendTransaction(params),
+      "wallet-selector.signAndSendTransaction",
+    )
+    if (!result)
+      return yield* walletFailure("Wallet did not return transaction outcome")
+    return result as FinalExecutionOutcome
+  },
+)
+const selectorMessage = Effect.fn("WalletSelector.signMessage")(function* (
+  wallet: WalletSelectorWallet,
+  params: SignMessageParams,
+) {
+  const signMessage = wallet.signMessage?.bind(wallet)
+  if (!signMessage)
+    return yield* walletFailure("Wallet does not support message signing")
+  const result = yield* fromPromise(
+    () =>
+      signMessage({
+        message: params.message,
+        recipient: params.recipient,
+        nonce: Buffer.from(params.nonce),
+      }),
+    "wallet-selector.signMessage",
+  )
+  if (!result)
+    return yield* walletFailure("Wallet did not return signed message")
+  return result as SignedMessage
+})
+const connected = (connector: NearConnectConnector) =>
+  fromPromise(() => connector.wallet(), "near-connect.wallet")
+const connectAccounts = Effect.fn("NearConnect.getAccounts")(function* (
+  connector: NearConnectConnector,
+) {
+  const wallet = yield* connected(connector)
+  return normalizeAccounts(
+    yield* fromPromise(() => wallet.getAccounts(), "near-connect.getAccounts"),
+  )
+})
+
+/** The installed connector emits accounts on sign-in and no accounts on sign-out. */
+const connectAccountChanges = (
+  connector: NearConnectConnector,
+  on: NonNullable<NearConnectConnector["on"]>,
+  off: NonNullable<NearConnectConnector["off"]>,
+): Stream.Stream<
+  Result.Result<ReadonlyArray<WalletAccount>, ExternalError>,
+  ExternalError
+> =>
+  Stream.callback(
+    (queue) =>
+      Effect.gen(function* () {
+        let revision = 0
+        const signIn = (event: NearConnectAccountEvents["wallet:signIn"]) => {
+          let result: Result.Result<ReadonlyArray<WalletAccount>, ExternalError>
+          try {
+            if (!event.success) return
+            result = Result.succeed(normalizeAccounts(event.accounts))
+          } catch (cause) {
+            result = Result.fail(
+              new ExternalError({ operation: "wallet.observeAccounts", cause }),
+            )
+          }
+          revision++
+          Queue.offerUnsafe(queue, result)
+        }
+        const signOut = () => {
+          revision++
+          Queue.offerUnsafe(queue, Result.succeed([]))
+        }
+        // Each finalizer is installed before registration, including an on() that
+        // throws after adding its callback. The stream scope closes on failure.
+        yield* Effect.addFinalizer(() =>
+          Effect.sync(() => off("wallet:signIn", signIn)),
+        )
+        yield* fromSync(
+          () => on("wallet:signIn", signIn),
+          "wallet.observeAccounts",
+        )
+        yield* Effect.addFinalizer(() =>
+          Effect.sync(() => off("wallet:signOut", signOut)),
+        )
+        yield* fromSync(
+          () => on("wallet:signOut", signOut),
+          "wallet.observeAccounts",
+        )
+        yield* connectAccounts(connector).pipe(
+          Effect.catchIf(
+            (error) =>
+              error.operation === "near-connect.wallet" &&
+              error.cause instanceof Error &&
+              error.cause.message === "No accounts found",
+            () => Effect.succeed([]),
+          ),
+          Effect.match({
+            onSuccess: (accounts) => {
+              if (revision === 0)
+                Queue.offerUnsafe(queue, Result.succeed(accounts))
+            },
+            onFailure: (error) => {
+              if (revision === 0) Queue.offerUnsafe(queue, Result.fail(error))
+            },
+          }),
+          Effect.forkScoped,
+        )
+      }).pipe(Effect.catch((error) => Queue.fail(queue, error))),
+    { bufferSize: 1, strategy: "sliding" },
+  )
+const connectTransaction = Effect.fn("NearConnect.signAndSendTransaction")(
+  function* (connector: NearConnectConnector, params: TransactionParams) {
+    const wallet = yield* connected(connector)
+    const actions = yield* fromSync(
+      () => params.actions.map(convertActionToNearConnect),
+      "near-connect.actions",
+    )
+    return yield* fromPromise(
+      () => wallet.signAndSendTransaction({ ...params, actions }),
+      "near-connect.signAndSendTransaction",
+    )
+  },
+)
+const connectMessage = Effect.fn("NearConnect.signMessage")(function* (
+  connector: NearConnectConnector,
+  params: SignMessageParams,
+) {
+  const wallet = yield* connected(connector)
+  return yield* fromPromise(
+    () =>
+      wallet.signMessage({
+        message: params.message,
+        recipient: params.recipient,
+        nonce: params.nonce,
+      }),
+    "near-connect.signMessage",
+  )
+})
+const connectDelegates = Effect.fn("NearConnect.signDelegateActions")(
+  function* (
+    connector: NearConnectConnector,
+    params: SignDelegateActionsParams,
+  ) {
+    const wallet = yield* connected(connector)
+    if (wallet.manifest.features?.signDelegateActions === false)
+      return yield* walletFailure(
+        "Connected wallet does not support delegate action signing. " +
+          "Make sure you're using a wallet that supports meta-transactions " +
+          "and @hot-labs/near-connect v0.9.0 or later.",
+      )
+    const delegateActions = yield* fromSync(
+      () =>
+        params.delegateActions.map(({ actions, receiverId }) => ({
+          actions: actions.map(convertActionToNearConnect),
+          receiverId,
+        })),
+      "near-connect.actions",
+    )
+    const response = yield* fromPromise(
+      () => wallet.signDelegateActions({ ...params, delegateActions }),
+      "near-connect.signDelegateActions",
+    )
+    return yield* fromSync(
+      () => ({
+        signedDelegateActions: response.signedDelegateActions.map(
+          (encoded) => ({
+            delegateHash: sha256(base64.decode(encoded)),
+            signedDelegate: decodeSignedDelegateAction(encoded),
+          }),
+        ),
+      }),
+      "near-connect.decodeDelegate",
+    )
+  },
+)

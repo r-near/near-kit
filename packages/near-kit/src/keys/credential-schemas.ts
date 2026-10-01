@@ -132,23 +132,41 @@ export type Network = z.infer<typeof NetworkSchema>
  * @throws {z.ZodError} If the data doesn't match any supported format
  */
 export function parseCredentialFile(data: unknown): NearCliCredential {
-  // Try modern format first
-  const modernResult = NearCliCredentialSchema.safeParse(data)
-  if (modernResult.success) {
-    return modernResult.data
+  const current = NearCliCredentialSchema.safeParse(data)
+  if (current.success) return current.data
+  const legacy = LegacyCredentialSchema.safeParse(data)
+  if (legacy.success) {
+    const { secret_key, ...rest } = legacy.data
+    return { ...rest, private_key: secret_key }
   }
+  throw current.error
+}
 
-  // Try legacy format
-  const legacyResult = LegacyCredentialSchema.safeParse(data)
-  if (legacyResult.success) {
-    // Convert legacy format to modern format
-    const { secret_key, ...rest } = legacyResult.data
-    return {
-      ...rest,
-      private_key: secret_key,
-    }
+export interface CredentialMetadata {
+  seedPhrase?: string
+  derivationPath?: string
+  implicitAccountId?: string
+}
+
+/** Shared wire encoding used by disk and operating-system keyrings. */
+export function makeCredential(
+  accountId: string,
+  key: {
+    readonly publicKey: { toString(): string }
+    readonly secretKey: string
+  },
+  options?: CredentialMetadata,
+): NearCliCredential {
+  return {
+    account_id: accountId,
+    public_key: key.publicKey.toString(),
+    private_key: key.secretKey,
+    ...(options?.seedPhrase ? { master_seed_phrase: options.seedPhrase } : {}),
+    ...(options?.derivationPath
+      ? { seed_phrase_hd_path: options.derivationPath }
+      : {}),
+    ...(options?.implicitAccountId
+      ? { implicit_account_id: options.implicitAccountId }
+      : {}),
   }
-
-  // Neither format matched, throw the modern format error
-  throw modernResult.error
 }

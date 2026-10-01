@@ -13,13 +13,18 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version: "1.4.2"
 
       - name: Install dependencies
-        run: bun install
+        run: bun install --frozen-lockfile
 
       - name: Build packages
         run: bun run build
@@ -27,8 +32,20 @@ jobs:
       - name: Run typecheck
         run: bun run typecheck
 
+      - name: Check public and native consumer contracts
+        run: bun run typecheck:consumers
+
+      - name: Typecheck examples
+        run: bun run typecheck:examples
+
+      - name: Typecheck browser tests
+        run: bun run typecheck:browser
+
       - name: Run lint
         run: bun run lint
+
+      - name: Check formatting
+        run: bun run format:check
 
   tests:
     runs-on: arc-runner-set
@@ -44,10 +61,10 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version: "1.4.2"
 
       - name: Install dependencies
-        run: bun install
+        run: bun install --frozen-lockfile
 
       - name: Build packages
         run: bun run build
@@ -63,3 +80,66 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./packages/near-kit/coverage/lcov.info
           fail_ci_if_error: false
+
+  browser-tests:
+    runs-on: arc-runner-set
+    # Two independently 15-minute-bounded runs plus clean OS/browser installation.
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.2"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Inspect browser runner prerequisites
+        run: |
+          printf 'PLAYWRIGHT_BROWSERS_PATH=%s/playwright-browsers\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+          uname -srm
+          printf 'Runner UID: '
+          id -u
+          cat /etc/os-release
+          command -v apt-get || true
+
+      - name: Install pinned Playwright browsers and system libraries
+        # Use the official installer and the isolated runner's existing supported
+        # privileges. Do not change sudo policy, security controls or isolation.
+        run: bunx --no-install playwright install --with-deps chromium firefox webkit
+
+      - name: Verify browser renderer prerequisites
+        run: node tests/browser/check-runtime.ts
+
+      - name: Test built SDK in Chromium, Firefox and WebKit with React 18 and 19
+        run: bun run test:browser
+
+      - name: Repeat Chromium cancellation and commitment ownership races
+        run: >-
+          bunx --no-install playwright test
+          --project=chromium-react18 --project=chromium-react19
+          --grep='superseded|out-of-order|does not cancel|concurrent|repeating|replaying|StrictMode|captured'
+          --repeat-each=5 --retries=0
+
+      - name: Upload browser failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: playwright-failure-artifacts
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14
+          if-no-files-found: ignore

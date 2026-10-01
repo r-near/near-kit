@@ -2,7 +2,7 @@
  * Integration test for TransactionBuilder.nonce(): transactions signed at a
  * caller-chosen nonce are accepted by a real node, both for an ordinary access
  * key (V0) and for a gas-key nonce slot (V1 GasKeyNonce), and a reused nonce is
- * surfaced as InvalidNonceError instead of being silently re-signed.
+ * retained as the cause of a nonretryable unknown outcome, never re-signed.
  *
  * Sandbox version overridable via NEAR_SANDBOX_VERSION.
  */
@@ -52,7 +52,7 @@ describe("Explicit nonce - Integration Test", () => {
     return { accountId, key, accountNear }
   }
 
-  test("an ordinary key signs at the given nonce, and a reused nonce is rejected without retry", async () => {
+  test("an ordinary key signs at the given nonce, and rejected reuse cannot create another transfer", async () => {
     const { accountId, key, accountNear } = await createFundedAccount("xn")
 
     const accessKey = await near.getAccessKey(
@@ -72,14 +72,36 @@ describe("Explicit nonce - Integration Test", () => {
     const after = await near.getAccessKey(accountId, key.publicKey.toString())
     expect(BigInt(after?.nonce ?? 0)).toBe(chosen)
 
-    // Reusing the same nonce is refused by the node and surfaced as-is.
-    await expect(
-      accountNear
-        .transaction(accountId)
-        .nonce(chosen)
-        .transfer(sandbox.rootAccount.id, "1 NEAR")
-        .send(),
-    ).rejects.toBeInstanceOf(InvalidNonceError)
+    const beforeRejectedReuse = await near.rpc.getAccount(accountId)
+    // A distinct transfer reuses the accepted nonce. Rejection cannot prove that
+    // its hash never executed, so preserve uncertainty without signing new bytes.
+    const rejected = await accountNear
+      .transaction(accountId)
+      .nonce(chosen)
+      .transfer(sandbox.rootAccount.id, "2 NEAR")
+      .sign()
+    const rejectedHash = rejected.getHash()
+    expect(rejectedHash).not.toBeNull()
+    expect(rejectedHash).not.toBe(result.transaction.hash)
+    // NONE only acknowledges asynchronous submission; await validation here.
+    await expect(rejected.send()).rejects.toMatchObject({
+      code: "TRANSACTION_OUTCOME_UNKNOWN",
+      retryable: false,
+      data: {
+        hash: rejectedHash,
+        sender: accountId,
+        cause: expect.any(InvalidNonceError),
+      },
+    })
+    expect((await near.rpc.getAccount(accountId)).amount).toBe(
+      beforeRejectedReuse.amount,
+    )
+    expect(
+      BigInt(
+        (await near.getAccessKey(accountId, key.publicKey.toString()))?.nonce ??
+          0,
+      ),
+    ).toBe(chosen)
   }, 120000)
 
   test("a gas-key slot signs at the given nonce", async () => {

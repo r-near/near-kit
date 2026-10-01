@@ -13,7 +13,7 @@ import {
   type SignedMessage,
   type SignMessageParams,
   verifyNep413Signature,
-} from "../src/index.js"
+} from "near-kit"
 
 const ACCOUNT_ID = process.env["NEAR_ACCOUNT_ID"] || "user.testnet"
 const PRIVATE_KEY = (process.env["NEAR_PRIVATE_KEY"] ||

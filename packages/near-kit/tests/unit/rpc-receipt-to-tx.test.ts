@@ -3,8 +3,8 @@
  */
 
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
-import { RpcClient } from "../../src/core/rpc/rpc.js"
 import { UnknownReceiptError } from "../../src/errors/index.js"
+import { testRpcClient } from "../helpers/rpc.js"
 
 describe("RpcClient.receiptToTx", () => {
   let originalFetch: typeof global.fetch
@@ -37,7 +37,7 @@ describe("RpcClient.receiptToTx", () => {
 
     global.fetch = mockFetch as unknown as typeof global.fetch
 
-    const rpc = new RpcClient("https://test.rpc.near.org")
+    const rpc = testRpcClient("https://test.rpc.near.org")
     const result = await rpc.receiptToTx(receiptId)
 
     expect(result).toEqual(expected)
@@ -74,7 +74,7 @@ describe("RpcClient.receiptToTx", () => {
 
     global.fetch = mockFetch as unknown as typeof global.fetch
 
-    const rpc = new RpcClient("https://test.rpc.near.org")
+    const rpc = testRpcClient("https://test.rpc.near.org")
 
     await expect(rpc.receiptToTx(receiptId)).rejects.toThrow(
       UnknownReceiptError,

@@ -8,7 +8,7 @@
  *   npm install @hot-labs/near-connect
  */
 
-import { fromHotConnect, Near } from "../src/index.js"
+import { fromHotConnect, Near } from "near-kit"
 
 // Type definitions for external libraries
 // biome-ignore lint/suspicious/noExplicitAny: External library type
@@ -81,7 +81,7 @@ async function main() {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  main()
+  await main()
 }
 
 export { nearConnectExample }

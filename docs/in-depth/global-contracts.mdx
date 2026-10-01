@@ -144,16 +144,14 @@ There's also a matching `near.getContractCode("contract.near")` for reading the 
 ```typescript
 import { deriveAccountId } from "near-kit"
 
-const encoder = new TextEncoder();
+const encoder = new TextEncoder()
 
 // Deploy to deterministic address (auto-derived from state)
 await near
   .transaction("alice.near")
   .stateInit({
     code: { accountId: "publisher.near" },
-    data: new Map([
-      [encoder.encode("owner"), encoder.encode("alice.near")]
-    ]),
+    data: new Map([[encoder.encode("owner"), encoder.encode("alice.near")]]),
     deposit: "1 NEAR",
   })
   .send()
@@ -168,14 +166,12 @@ The `data` map is encoded as nearcore's `BTreeMap`, with entries sorted bytewise
 ### Computing Addresses
 
 ```typescript
-const encoder = new TextEncoder();
+const encoder = new TextEncoder()
 
 // Derive the address without deploying
 const accountId = deriveAccountId({
   code: { accountId: "publisher.near" },
-  data: new Map([
-    [encoder.encode("owner"), encoder.encode("alice.near")]
-  ]),
+  data: new Map([[encoder.encode("owner"), encoder.encode("alice.near")]]),
 })
 // => "0s1234567890abcdef1234567890abcdef12345678"
 
@@ -191,5 +187,6 @@ isDeterministicAccountId("alice.near") // false
 - **Code verification:** Verify that another contract is running specific code
 
 <Info title="Learn More">
-See [NEP-616](https://github.com/near/NEPs/blob/master/neps/nep-0616) for the full specification.
+  See [NEP-616](https://github.com/near/NEPs/blob/master/neps/nep-0616) for the
+  full specification.
 </Info>

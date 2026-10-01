@@ -2,6 +2,23 @@
   "name": "near-kit",
   "version": "0.20.2",
   "description": "A simple, intuitive TypeScript library for interacting with NEAR Protocol",
+  "keywords": [
+    "blockchain",
+    "near",
+    "near-protocol",
+    "typescript",
+    "web3"
+  ],
+  "license": "MIT",
+  "author": "",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/r-near/near-kit",
+    "directory": "packages/near-kit"
+  },
+  "files": [
+    "dist"
+  ],
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -31,11 +48,33 @@
     "./schemas": {
       "import": "./dist/schemas/index.js",
       "types": "./dist/schemas/index.d.ts"
+    },
+    "./effect": {
+      "types": "./dist/effect/index.d.ts",
+      "import": "./dist/effect/index.js",
+      "default": "./dist/effect/index.js"
+    },
+    "./effect/keys/file": {
+      "types": "./dist/effect/file-keystore.d.ts",
+      "import": "./dist/effect/file-keystore.js",
+      "default": "./dist/effect/file-keystore.js"
+    },
+    "./effect/keys/native": {
+      "types": "./dist/effect/native-keystore.d.ts",
+      "import": "./dist/effect/native-keystore.js",
+      "default": "./dist/effect/native-keystore.js"
+    },
+    "./effect/sandbox": {
+      "types": "./dist/effect/sandbox.d.ts",
+      "import": "./dist/effect/sandbox.js",
+      "default": "./dist/effect/sandbox.js"
+    },
+    "./effect/http": {
+      "types": "./dist/effect/rpc-http.d.ts",
+      "import": "./dist/effect/rpc-http.js",
+      "default": "./dist/effect/rpc-http.js"
     }
   },
-  "files": [
-    "dist"
-  ],
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
@@ -44,23 +83,35 @@
     "test:unit": "vitest run tests/unit",
     "test:integration": "vitest run tests/integration",
     "test:wallets": "vitest run tests/wallets",
-    "lint": "biome check . --write",
-    "typecheck": "tsc --noEmit --project tsconfig.typecheck.json",
+    "lint": "oxlint .",
+    "typecheck": "tsc --noEmit --project tsconfig.json",
     "prepublishOnly": "bun run build"
   },
-  "keywords": [
-    "near",
-    "near-protocol",
-    "blockchain",
-    "typescript",
-    "web3"
-  ],
-  "author": "",
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/r-near/near-kit",
-    "directory": "packages/near-kit"
+  "dependencies": {
+    "@effect/platform-node": "4.0.0-rc.118",
+    "@napi-rs/keyring": "^1.3.0",
+    "@noble/curves": "^2.2.0",
+    "@noble/hashes": "^2.0.1",
+    "@noble/post-quantum": "^0.6.1",
+    "@scure/base": "^2.2.0",
+    "@scure/bip32": "^2.2.0",
+    "@scure/bip39": "^2.2.0",
+    "@zorsh/zorsh": "^0.5.1",
+    "effect": "4.0.0-rc.118",
+    "tar": "^7.5.20",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@hot-labs/near-connect": "^0.11.4",
+    "@near-js/transactions": "^2.5.1",
+    "@near-js/types": "^2.5.1",
+    "@near-wallet-selector/core": "^10.1.1",
+    "@types/bun": "^1.3.14",
+    "@types/tar": "^7.0.87",
+    "@vitest/coverage-v8": "^4.1.9",
+    "@vitest/ui": "^4.1.9",
+    "typescript": "7.0.2",
+    "vitest": "^4.1.9"
   },
   "peerDependencies": {
     "@hot-labs/near-connect": ">=0.11.0",
@@ -73,29 +124,5 @@
     "@near-wallet-selector/core": {
       "optional": true
     }
-  },
-  "devDependencies": {
-    "@hot-labs/near-connect": "^0.11.4",
-    "@near-js/transactions": "^2.5.1",
-    "@near-js/types": "^2.5.1",
-    "@near-wallet-selector/core": "^10.1.1",
-    "@types/bun": "^1.3.14",
-    "@types/tar": "^7.0.87",
-    "@vitest/coverage-v8": "^4.1.9",
-    "@vitest/ui": "^4.1.9",
-    "typescript": "^6.0.3",
-    "vitest": "^4.1.9"
-  },
-  "dependencies": {
-    "@napi-rs/keyring": "^1.3.0",
-    "@noble/curves": "^2.2.0",
-    "@noble/hashes": "^2.0.1",
-    "@noble/post-quantum": "^0.6.1",
-    "@scure/base": "^2.2.0",
-    "@scure/bip32": "^2.2.0",
-    "@scure/bip39": "^2.2.0",
-    "@zorsh/zorsh": "^0.5.1",
-    "tar": "^7.5.20",
-    "zod": "^4.4.3"
   }
 }

@@ -7,12 +7,16 @@
  * @see https://github.com/near/NEPs/blob/master/neps/nep-0413.md
  */
 
+import * as Clock from "effect/Clock"
+import * as Effect from "effect/Effect"
+import { runPromise } from "../effect/runtime.js"
 import { ed25519 } from "@noble/curves/ed25519.js"
 import { sha256 } from "@noble/hashes/sha2.js"
 import { randomBytes } from "@noble/hashes/utils.js"
 import { base58, base64 } from "@scure/base"
 import { b } from "@zorsh/zorsh"
 import type { Near } from "../core/near.js"
+import type { AccessKeyView } from "../effect/protocol-schemas.js"
 import type { SignedMessage, SignMessageParams } from "../core/types.js"
 import { parsePublicKey } from "./key.js"
 
@@ -190,87 +194,90 @@ export interface VerifyNep413Options {
  * })
  * ```
  */
-export async function verifyNep413Signature(
+export function verifyNep413Signature(
   signedMessage: SignedMessage,
   params: SignMessageParams,
   options: VerifyNep413Options = {},
 ): Promise<boolean> {
-  try {
-    const {
-      maxAge: rawMaxAge = 5 * 60 * 1000,
-      nonceValidation = "timestamp",
-      near,
-    } = options // Default: 5 minutes
+  const { near, ...verification } = options
+  return runPromise(
+    verifyNep413SignatureEffect(signedMessage, params, {
+      ...verification,
+      ...(near ? { near: near.effects } : {}),
+    }),
+  )
+}
 
-    // Invalid runtime values (non-numbers, NaN, negatives — possible from
-    // plain JS callers) would silently disable or distort the expiry check;
-    // fail closed by falling back to the default. Infinity remains a valid
-    // opt-out.
-    const maxAge =
-      typeof rawMaxAge === "number" &&
-      !Number.isNaN(rawMaxAge) &&
-      rawMaxAge >= 0
-        ? rawMaxAge
-        : 5 * 60 * 1000
+/** Native readers keep their requirements in the caller's Effect environment. */
+export type VerifyNep413EffectOptions<E = never, R = never> = Omit<
+  VerifyNep413Options,
+  "near"
+> & {
+  near?: {
+    getAccessKey(
+      accountId: string,
+      publicKey: string,
+    ): Effect.Effect<AccessKeyView | null, E, R>
+  }
+}
 
-    // Check timestamp expiration if the nonce follows the near-kit timestamp
-    // convention and maxAge is finite. Fail closed: only an explicit "none"
-    // opts out, so unexpected values keep the default replay/expiry protection.
-    // Non-32-byte nonces skip this check but never verify: they are rejected
-    // by serializeNep413Message below.
-    if (
-      nonceValidation !== "none" &&
-      maxAge !== Infinity &&
-      params.nonce.length === 32
-    ) {
-      // Extract timestamp from first 8 bytes (big-endian uint64)
-      const view = new DataView(
-        params.nonce.buffer,
-        params.nonce.byteOffset,
-        params.nonce.byteLength,
-      )
-      const timestamp = Number(view.getBigUint64(0, false)) // false = big-endian
-
-      // Check if expired
-      const age = Date.now() - timestamp
-      if (age > maxAge || age < 0) {
-        // age < 0 means timestamp is in the future (clock skew or tampering)
-        return false
-      }
-    }
-
-    // Parse the public key
-    const publicKey = parsePublicKey(signedMessage.publicKey)
-
-    // Only Ed25519 is currently supported
-    if (publicKey.keyType !== 0) {
-      throw new Error("Only Ed25519 keys are supported for NEP-413")
-    }
-
-    // If Near client is provided, verify that the public key belongs to the account ID
-    // and is a full access key (not a function call key)
-    if (near) {
-      const accessKey = await near.getAccessKey(
+export const verifyNep413SignatureEffect = Effect.fn("NEP413.verify")(
+  function* <E = never, R = never>(
+    signedMessage: SignedMessage,
+    params: SignMessageParams,
+    options: VerifyNep413EffectOptions<E, R> = {},
+  ) {
+    const now = yield* Clock.currentTimeMillis
+    const publicKey = yield* Effect.try(() =>
+      verificationKey(signedMessage, params, options, now),
+    )
+    if (!publicKey) return false
+    if (options.near) {
+      const accessKey = yield* options.near.getAccessKey(
         signedMessage.accountId,
         signedMessage.publicKey,
       )
-      if (!accessKey || accessKey.permission !== "FullAccess") {
-        // Key does not exist for this account or is not a full access key
-        return false
-      }
+      if (accessKey?.permission !== "FullAccess") return false
     }
+    return yield* Effect.try(() => {
+      const hash = serializeNep413Message(params)
+      const signature = decodeSignature(signedMessage.signature)
+      return (
+        signature !== null && ed25519.verify(signature, hash, publicKey.data)
+      )
+    })
+  },
+  (program) => program.pipe(Effect.orElseSucceed(() => false)),
+)
 
-    // Reconstruct the hashed payload
-    const hash = serializeNep413Message(params)
-
-    const signatureBytes = decodeSignature(signedMessage.signature)
-    if (!signatureBytes) return false
-
-    // Verify the signature
-    return ed25519.verify(signatureBytes, hash, publicKey.data)
-  } catch {
-    return false
+/** Pure validation and cryptography stay outside the asynchronous workflow. */
+function verificationKey(
+  signedMessage: SignedMessage,
+  params: SignMessageParams,
+  options: Omit<VerifyNep413Options, "near">,
+  now: number,
+) {
+  const { maxAge: rawMaxAge = 5 * 60 * 1000, nonceValidation = "timestamp" } =
+    options
+  const maxAge =
+    typeof rawMaxAge === "number" && !Number.isNaN(rawMaxAge) && rawMaxAge >= 0
+      ? rawMaxAge
+      : 5 * 60 * 1000
+  if (
+    nonceValidation !== "none" &&
+    maxAge !== Infinity &&
+    params.nonce.length === 32
+  ) {
+    const view = new DataView(
+      params.nonce.buffer,
+      params.nonce.byteOffset,
+      params.nonce.byteLength,
+    )
+    const age = now - Number(view.getBigUint64(0, false))
+    if (age > maxAge || age < 0) return undefined
   }
+  const key = parsePublicKey(signedMessage.publicKey)
+  return key.keyType === 0 ? key : undefined
 }
 
 function decodeSignature(signature: string): Uint8Array | null {
