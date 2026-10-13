@@ -255,6 +255,50 @@ describe("RpcClient - transfers to universal accounts", () => {
     })
   })
 
+  // An unrelated failed receipt ahead of the one carrying the ban must not
+  // hide it, whichever failure the final status reports.
+  const unrelatedFailure = {
+    ActionError: {
+      index: 0,
+      kind: { AccountDoesNotExist: { account_id: "carol.near" } },
+    },
+  }
+  const multiFailureResult = {
+    ...receiptFailureResult,
+    status: { Failure: unrelatedFailure },
+    receipts_outcome: [
+      failedOutcome("carol.near", unrelatedFailure),
+      failedOutcome("bob.near", receiptFailure),
+    ],
+  }
+
+  test("sendTransaction finds the ban behind an unrelated failed receipt", async () => {
+    global.fetch = mockResult(
+      multiFailureResult,
+    ) as unknown as typeof global.fetch
+
+    const rpc = new RpcClient("https://test.rpc.near.org")
+
+    await expect(
+      rpc.sendTransaction(new Uint8Array([1, 2, 3])),
+    ).rejects.toBeInstanceOf(TransferToUniversalAccountNotAllowedError)
+  })
+
+  test("getTransactionStatus finds the ban behind an unrelated failed receipt", async () => {
+    global.fetch = mockResult(
+      multiFailureResult,
+    ) as unknown as typeof global.fetch
+
+    const rpc = new RpcClient("https://test.rpc.near.org")
+
+    await expect(
+      rpc.getTransactionStatus(
+        "55555555555555555555555555555555",
+        "alice.near",
+      ),
+    ).rejects.toBeInstanceOf(TransferToUniversalAccountNotAllowedError)
+  })
+
   test("sendTransaction surfaces the send_tx validation error as the typed error", async () => {
     global.fetch = vi.fn(
       async () =>

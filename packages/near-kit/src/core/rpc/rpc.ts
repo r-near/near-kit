@@ -31,8 +31,8 @@ import type {
   ViewStateResult,
 } from "../types.js"
 import {
-  checkFailureForUniversalAccountTransfer,
   checkOutcomeForFunctionCallError,
+  checkTransactionForUniversalAccountTransfer,
   extractErrorMessage,
   isRetryableStatus,
   parseQueryError,
@@ -555,7 +555,10 @@ export class RpcClient {
           )
         }
 
-        checkFailureForUniversalAccountTransfer(failureDetails)
+        checkTransactionForUniversalAccountTransfer(parsed.status.Failure, [
+          parsed.transaction_outcome,
+          ...(parsed.receipts_outcome ?? []),
+        ])
         throw new InvalidTransactionError(errorMessage, failureDetails)
       }
     }
@@ -646,7 +649,10 @@ export class RpcClient {
         )
       }
 
-      checkFailureForUniversalAccountTransfer(failureDetails)
+      checkTransactionForUniversalAccountTransfer(parsed.status.Failure, [
+        parsed.transaction_outcome,
+        ...(parsed.receipts_outcome ?? []),
+      ])
       throw new InvalidTransactionError(errorMessage, failureDetails)
     }
 

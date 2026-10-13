@@ -265,6 +265,29 @@ export function checkFailureForUniversalAccountTransfer(
 }
 
 /**
+ * Throw {@link TransferToUniversalAccountNotAllowedError} if the transaction's
+ * final failure, or any failed transaction/receipt outcome, is a banned
+ * transfer to a universal account.
+ *
+ * Every failed outcome is inspected, not just the first: a transaction can
+ * have an unrelated failed receipt ahead of the one carrying this error.
+ *
+ * @internal
+ */
+export function checkTransactionForUniversalAccountTransfer(
+  statusFailure: unknown,
+  outcomes: ReadonlyArray<ExecutionOutcomeWithId | undefined>,
+): void {
+  checkFailureForUniversalAccountTransfer(statusFailure)
+  for (const outcome of outcomes) {
+    const status = outcome?.outcome.status
+    if (typeof status === "object" && "Failure" in status) {
+      checkFailureForUniversalAccountTransfer(status.Failure)
+    }
+  }
+}
+
+/**
  * Parse the `identifier` from a NO_GLOBAL_CONTRACT_CODE error's info payload.
  *
  * nearcore >= 2.12 serializes it as `{"hash": "..."}` / `{"account_id": "..."}`;
