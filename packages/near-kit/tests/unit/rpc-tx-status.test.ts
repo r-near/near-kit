@@ -299,6 +299,51 @@ describe("RpcClient - transfers to universal accounts", () => {
     ).rejects.toBeInstanceOf(TransferToUniversalAccountNotAllowedError)
   })
 
+  // A contract panic in an earlier receipt must not hide the ban either.
+  const panicFailure = {
+    ActionError: {
+      index: 0,
+      kind: {
+        FunctionCallError: { ExecutionError: "Smart contract panicked: no" },
+      },
+    },
+  }
+  const panicFirstResult = {
+    ...receiptFailureResult,
+    status: { Failure: panicFailure },
+    receipts_outcome: [
+      failedOutcome("carol.near", panicFailure),
+      failedOutcome("bob.near", receiptFailure),
+    ],
+  }
+
+  test("sendTransaction reports the ban over an earlier contract panic", async () => {
+    global.fetch = mockResult(
+      panicFirstResult,
+    ) as unknown as typeof global.fetch
+
+    const rpc = new RpcClient("https://test.rpc.near.org")
+
+    await expect(
+      rpc.sendTransaction(new Uint8Array([1, 2, 3])),
+    ).rejects.toBeInstanceOf(TransferToUniversalAccountNotAllowedError)
+  })
+
+  test("getTransactionStatus reports the ban over an earlier contract panic", async () => {
+    global.fetch = mockResult(
+      panicFirstResult,
+    ) as unknown as typeof global.fetch
+
+    const rpc = new RpcClient("https://test.rpc.near.org")
+
+    await expect(
+      rpc.getTransactionStatus(
+        "55555555555555555555555555555555",
+        "alice.near",
+      ),
+    ).rejects.toBeInstanceOf(TransferToUniversalAccountNotAllowedError)
+  })
+
   test("sendTransaction surfaces the send_tx validation error as the typed error", async () => {
     global.fetch = vi.fn(
       async () =>
