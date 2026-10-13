@@ -1,5 +1,17 @@
 # near-kit
 
+## 0.21.0
+
+### Minor Changes
+
+- 86cf14a: Add `TransactionBuilder.nonce(n)` to sign a transaction at an explicit, caller-chosen nonce. The value is used as-is for ordinary keys and gas-key slots (`.useGasKey(i).nonce(n)`), bypasses the shared nonce cache, and `send()` surfaces `InvalidNonceError` instead of retrying a caller-owned nonce. This lets applications that coordinate nonces outside the process (shared allocators across servers, relayers recording the nonce before an asynchronous/MPC signature) sign without reaching into the builder's private nonce manager.
+- 58386b2: Add `TransferToUniversalAccountNotAllowedError`, thrown when nearcore rejects a transfer to a universal account (`0u...` id) with `TransferToUniversalAccountNotAllowed` while such transfers are banned (nearcore 2.14). It is recognized from `send_tx` validation errors, from failed contract-created receipts, and from transactions rejected when their chunk is applied, and exposes the target `accountId`.
+
+### Patch Changes
+
+- 86cf14a: Reject the transaction builder's `.nonce()` setting in `delegate()` and `delegateV2()` before RPC calls, signing, or wallet prompts. Use the existing delegate `{ nonce }` options for local signing; relayers can still set an independent outer transaction nonce when wrapping a signed delegate action.
+- 58386b2: Export `InvalidNonceError`, `InvalidTransactionError`, and `TimeoutError` from the package entry point. The README and docs already import them from `near-kit`, but they weren't exported, so `instanceof` checks against them couldn't be written.
+
 ## 0.20.2
 
 ### Patch Changes
