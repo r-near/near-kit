@@ -8,6 +8,7 @@
 
 import { describe, expect, test } from "vitest"
 import {
+  checkFailureForUniversalAccountTransfer,
   checkOutcomeForFunctionCallError,
   extractErrorMessage,
   isRetryableStatus,
@@ -36,6 +37,7 @@ import {
   ParseError,
   ShardUnavailableError,
   TimeoutError,
+  TransferToUniversalAccountNotAllowedError,
   UnknownBlockError,
   UnknownChunkError,
   UnknownEpochError,
@@ -246,6 +248,44 @@ function createMockTransaction(methodName?: string): RpcTransaction {
 }
 
 // ==================== parseRpcError() Tests ====================
+
+/**
+ * A `0u` universal account id: `0u` + 52 Crockford-base32 symbols of a hash.
+ */
+const UNIVERSAL_ACCOUNT_ID =
+  "0u0c51260z4rpk8et29585eqk5dhsqn0c8hyb9v95bpaww1hyetqe0"
+
+/**
+ * The `ActionsValidationError` nearcore (2.14, protocol 87) reports for a
+ * transfer to a universal account while such transfers are banned.
+ */
+const TRANSFER_TO_UNIVERSAL_ACCOUNT_NOT_ALLOWED = {
+  ActionsValidation: {
+    TransferToUniversalAccountNotAllowed: {
+      account_id: UNIVERSAL_ACCOUNT_ID,
+    },
+  },
+}
+
+/**
+ * send_tx response for a transaction rejected by validation. nearcore skips
+ * serializing the InvalidTxError into `cause.info` and puts it in `data`
+ * wrapped as `TxExecutionError.InvalidTxError`.
+ */
+const TRANSFER_TO_UNIVERSAL_ACCOUNT_RPC_ERROR = {
+  name: "HANDLER_ERROR",
+  code: -32000,
+  message: "Server error",
+  cause: {
+    name: "INVALID_TRANSACTION",
+    info: {},
+  },
+  data: {
+    TxExecutionError: {
+      InvalidTxError: TRANSFER_TO_UNIVERSAL_ACCOUNT_NOT_ALLOWED,
+    },
+  },
+}
 
 describe("parseRpcError", () => {
   describe("General Errors (HANDLER_ERROR)", () => {
@@ -973,6 +1013,60 @@ describe("parseRpcError", () => {
       }
     })
 
+    test("should throw TransferToUniversalAccountNotAllowedError for a banned transfer", () => {
+      expect(() =>
+        parseRpcError(TRANSFER_TO_UNIVERSAL_ACCOUNT_RPC_ERROR),
+      ).toThrow(TransferToUniversalAccountNotAllowedError)
+
+      try {
+        parseRpcError(TRANSFER_TO_UNIVERSAL_ACCOUNT_RPC_ERROR)
+      } catch (e) {
+        const err = e as TransferToUniversalAccountNotAllowedError
+        expect(err.code).toBe("TRANSFER_TO_UNIVERSAL_ACCOUNT_NOT_ALLOWED")
+        expect(err.accountId).toBe(UNIVERSAL_ACCOUNT_ID)
+        expect(err.retryable).toBe(false)
+        expect(err.message).toContain(UNIVERSAL_ACCOUNT_ID)
+        expect(err.data).toEqual(TRANSFER_TO_UNIVERSAL_ACCOUNT_NOT_ALLOWED)
+      }
+    })
+
+    test("should throw TransferToUniversalAccountNotAllowedError with direct InvalidTxError", () => {
+      const error = {
+        ...TRANSFER_TO_UNIVERSAL_ACCOUNT_RPC_ERROR,
+        data: { InvalidTxError: TRANSFER_TO_UNIVERSAL_ACCOUNT_NOT_ALLOWED },
+      }
+
+      expect(() => parseRpcError(error)).toThrow(
+        TransferToUniversalAccountNotAllowedError,
+      )
+    })
+
+    test("should keep other ActionsValidation errors as InvalidTransactionError", () => {
+      const error = {
+        ...TRANSFER_TO_UNIVERSAL_ACCOUNT_RPC_ERROR,
+        data: {
+          TxExecutionError: {
+            InvalidTxError: {
+              ActionsValidation: {
+                TotalNumberOfActionsExceeded: {
+                  total_number_of_actions: 101,
+                  limit: 100,
+                },
+              },
+            },
+          },
+        },
+      }
+
+      try {
+        parseRpcError(error)
+        expect.unreachable()
+      } catch (e) {
+        expect(e).toBeInstanceOf(InvalidTransactionError)
+        expect(e).not.toBeInstanceOf(TransferToUniversalAccountNotAllowedError)
+      }
+    })
+
     test("should throw UnknownReceiptError for UNKNOWN_RECEIPT", () => {
       const error = {
         name: "HANDLER_ERROR",
@@ -1669,6 +1763,62 @@ describe("checkOutcomeForFunctionCallError", () => {
 })
 
 // ==================== isRetryableStatus() Tests ====================
+
+describe("checkFailureForUniversalAccountTransfer", () => {
+  test("throws for a contract-created receipt transferring to a universal account", () => {
+    const failure = {
+      ActionError: {
+        index: 0,
+        kind: {
+          NewReceiptValidationError: TRANSFER_TO_UNIVERSAL_ACCOUNT_NOT_ALLOWED,
+        },
+      },
+    }
+
+    try {
+      checkFailureForUniversalAccountTransfer(failure)
+      expect.unreachable()
+    } catch (e) {
+      expect(e).toBeInstanceOf(TransferToUniversalAccountNotAllowedError)
+      const err = e as TransferToUniversalAccountNotAllowedError
+      expect(err.accountId).toBe(UNIVERSAL_ACCOUNT_ID)
+      expect(err.data).toEqual(failure)
+    }
+  })
+
+  test("throws for a transaction rejected when its chunk is applied", () => {
+    expect(() =>
+      checkFailureForUniversalAccountTransfer({
+        InvalidTxError: TRANSFER_TO_UNIVERSAL_ACCOUNT_NOT_ALLOWED,
+      }),
+    ).toThrow(TransferToUniversalAccountNotAllowedError)
+  })
+
+  test("ignores other failures", () => {
+    expect(() =>
+      checkFailureForUniversalAccountTransfer({
+        ActionError: {
+          index: 0,
+          kind: { AccountDoesNotExist: { account_id: "bob.near" } },
+        },
+      }),
+    ).not.toThrow()
+    expect(() =>
+      checkFailureForUniversalAccountTransfer({
+        InvalidTxError: { InvalidNonce: { tx_nonce: 1, ak_nonce: 2 } },
+      }),
+    ).not.toThrow()
+    expect(() =>
+      checkFailureForUniversalAccountTransfer({
+        error_message: "boom",
+        error_type: "ActionError",
+      }),
+    ).not.toThrow()
+    expect(() =>
+      checkFailureForUniversalAccountTransfer(undefined),
+    ).not.toThrow()
+  })
+})
 
 describe("isRetryableStatus", () => {
   test("should return true for 408 Request Timeout", () => {

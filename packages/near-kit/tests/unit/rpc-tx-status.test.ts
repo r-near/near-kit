@@ -9,7 +9,10 @@
 
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 import { RpcClient } from "../../src/core/rpc/rpc.js"
-import { InvalidTransactionError } from "../../src/errors/index.js"
+import {
+  InvalidTransactionError,
+  TransferToUniversalAccountNotAllowedError,
+} from "../../src/errors/index.js"
 
 const outcomeWithId = (executorId: string, failure = false) => ({
   id: "11111111111111111111111111111111",
@@ -133,5 +136,237 @@ describe("RpcClient.getTransactionStatus - early wait levels", () => {
 
     expect(status.final_execution_status).toBe("NONE")
     expect(status.receipts).toEqual([])
+  })
+})
+
+describe("RpcClient - transfers to universal accounts", () => {
+  const universalAccountId =
+    "0u0c51260z4rpk8et29585eqk5dhsqn0c8hyb9v95bpaww1hyetqe0"
+  const actionsValidation = {
+    ActionsValidation: {
+      TransferToUniversalAccountNotAllowed: { account_id: universalAccountId },
+    },
+  }
+
+  // A contract on bob.near creates a receipt transferring to a 0u account.
+  const receiptFailure = {
+    ActionError: {
+      index: 0,
+      kind: { NewReceiptValidationError: actionsValidation },
+    },
+  }
+
+  const fullTransaction = {
+    ...minimalTransaction,
+    public_key: "ed25519:8nFkHgRePSGD9UsK3Hx6nWKXGQ7Kd7k3k7k3k7k3k7k3",
+    actions: [
+      {
+        FunctionCall: {
+          method_name: "pay",
+          args: "",
+          gas: 30000000000000,
+          deposit: "0",
+        },
+      },
+    ],
+    signature:
+      "ed25519:2222222222222222222222222222222222222222222222222222222222222222",
+  }
+
+  const failedOutcome = (executorId: string, failure: unknown) => ({
+    ...outcomeWithId(executorId),
+    outcome: {
+      ...outcomeWithId(executorId).outcome,
+      status: { Failure: failure },
+    },
+  })
+
+  const receiptFailureResult = {
+    final_execution_status: "EXECUTED_OPTIMISTIC",
+    status: { Failure: receiptFailure },
+    transaction: fullTransaction,
+    transaction_outcome: outcomeWithId("alice.near"),
+    receipts_outcome: [failedOutcome("bob.near", receiptFailure)],
+    receipts: [receipt("bob.near")],
+  }
+
+  let originalFetch: typeof global.fetch
+
+  beforeEach(() => {
+    originalFetch = global.fetch
+  })
+
+  afterEach(() => {
+    global.fetch = originalFetch
+  })
+
+  test("sendTransaction throws the typed error for a failed receipt", async () => {
+    global.fetch = mockResult(
+      receiptFailureResult,
+    ) as unknown as typeof global.fetch
+
+    const rpc = new RpcClient("https://test.rpc.near.org")
+    const error = await rpc
+      .sendTransaction(new Uint8Array([1, 2, 3]))
+      .catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(TransferToUniversalAccountNotAllowedError)
+    expect((error as TransferToUniversalAccountNotAllowedError).accountId).toBe(
+      universalAccountId,
+    )
+  })
+
+  test("getTransactionStatus throws the typed error for a failed receipt", async () => {
+    global.fetch = mockResult(
+      receiptFailureResult,
+    ) as unknown as typeof global.fetch
+
+    const rpc = new RpcClient("https://test.rpc.near.org")
+
+    await expect(
+      rpc.getTransactionStatus(
+        "55555555555555555555555555555555",
+        "alice.near",
+      ),
+    ).rejects.toBeInstanceOf(TransferToUniversalAccountNotAllowedError)
+  })
+
+  test("getTransactionStatus throws the typed error for a transaction failing InvalidTxError", async () => {
+    const failure = { InvalidTxError: actionsValidation }
+    global.fetch = mockResult({
+      final_execution_status: "EXECUTED_OPTIMISTIC",
+      status: { Failure: failure },
+      transaction: fullTransaction,
+      transaction_outcome: failedOutcome("alice.near", failure),
+      receipts_outcome: [],
+      receipts: [],
+    }) as unknown as typeof global.fetch
+
+    const rpc = new RpcClient("https://test.rpc.near.org")
+
+    await expect(
+      rpc.getTransactionStatus(
+        "55555555555555555555555555555555",
+        "alice.near",
+      ),
+    ).rejects.toMatchObject({
+      code: "TRANSFER_TO_UNIVERSAL_ACCOUNT_NOT_ALLOWED",
+      accountId: universalAccountId,
+    })
+  })
+
+  // An unrelated failed receipt ahead of the one carrying the ban must not
+  // hide it, whichever failure the final status reports.
+  const unrelatedFailure = {
+    ActionError: {
+      index: 0,
+      kind: { AccountDoesNotExist: { account_id: "carol.near" } },
+    },
+  }
+  const multiFailureResult = {
+    ...receiptFailureResult,
+    status: { Failure: unrelatedFailure },
+    receipts_outcome: [
+      failedOutcome("carol.near", unrelatedFailure),
+      failedOutcome("bob.near", receiptFailure),
+    ],
+  }
+
+  test("sendTransaction finds the ban behind an unrelated failed receipt", async () => {
+    global.fetch = mockResult(
+      multiFailureResult,
+    ) as unknown as typeof global.fetch
+
+    const rpc = new RpcClient("https://test.rpc.near.org")
+
+    await expect(
+      rpc.sendTransaction(new Uint8Array([1, 2, 3])),
+    ).rejects.toBeInstanceOf(TransferToUniversalAccountNotAllowedError)
+  })
+
+  test("getTransactionStatus finds the ban behind an unrelated failed receipt", async () => {
+    global.fetch = mockResult(
+      multiFailureResult,
+    ) as unknown as typeof global.fetch
+
+    const rpc = new RpcClient("https://test.rpc.near.org")
+
+    await expect(
+      rpc.getTransactionStatus(
+        "55555555555555555555555555555555",
+        "alice.near",
+      ),
+    ).rejects.toBeInstanceOf(TransferToUniversalAccountNotAllowedError)
+  })
+
+  // A contract panic in an earlier receipt must not hide the ban either.
+  const panicFailure = {
+    ActionError: {
+      index: 0,
+      kind: {
+        FunctionCallError: { ExecutionError: "Smart contract panicked: no" },
+      },
+    },
+  }
+  const panicFirstResult = {
+    ...receiptFailureResult,
+    status: { Failure: panicFailure },
+    receipts_outcome: [
+      failedOutcome("carol.near", panicFailure),
+      failedOutcome("bob.near", receiptFailure),
+    ],
+  }
+
+  test("sendTransaction reports the ban over an earlier contract panic", async () => {
+    global.fetch = mockResult(
+      panicFirstResult,
+    ) as unknown as typeof global.fetch
+
+    const rpc = new RpcClient("https://test.rpc.near.org")
+
+    await expect(
+      rpc.sendTransaction(new Uint8Array([1, 2, 3])),
+    ).rejects.toBeInstanceOf(TransferToUniversalAccountNotAllowedError)
+  })
+
+  test("getTransactionStatus reports the ban over an earlier contract panic", async () => {
+    global.fetch = mockResult(
+      panicFirstResult,
+    ) as unknown as typeof global.fetch
+
+    const rpc = new RpcClient("https://test.rpc.near.org")
+
+    await expect(
+      rpc.getTransactionStatus(
+        "55555555555555555555555555555555",
+        "alice.near",
+      ),
+    ).rejects.toBeInstanceOf(TransferToUniversalAccountNotAllowedError)
+  })
+
+  test("sendTransaction surfaces the send_tx validation error as the typed error", async () => {
+    global.fetch = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            jsonrpc: "2.0",
+            id: 1,
+            error: {
+              name: "HANDLER_ERROR",
+              code: -32000,
+              message: "Server error",
+              cause: { name: "INVALID_TRANSACTION", info: {} },
+              data: { TxExecutionError: { InvalidTxError: actionsValidation } },
+            },
+          }),
+          { status: 200 },
+        ),
+    ) as unknown as typeof global.fetch
+
+    const rpc = new RpcClient("https://test.rpc.near.org")
+
+    await expect(
+      rpc.sendTransaction(new Uint8Array([1, 2, 3])),
+    ).rejects.toBeInstanceOf(TransferToUniversalAccountNotAllowedError)
   })
 })

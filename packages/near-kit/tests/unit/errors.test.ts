@@ -27,6 +27,7 @@ import {
   SignatureError,
   TimeoutError,
   TransactionTimeoutError,
+  TransferToUniversalAccountNotAllowedError,
   UnknownBlockError,
   UnknownChunkError,
   UnknownEpochError,
@@ -658,6 +659,50 @@ describe("InvalidTransactionError", () => {
     const error = new InvalidTransactionError("test")
     expect(error).toBeInstanceOf(NearError)
     expect(error).toBeInstanceOf(InvalidTransactionError)
+  })
+})
+
+describe("TransferToUniversalAccountNotAllowedError", () => {
+  const accountId = "0u0c51260z4rpk8et29585eqk5dhsqn0c8hyb9v95bpaww1hyetqe0"
+
+  test("creates error with account ID", () => {
+    const error = new TransferToUniversalAccountNotAllowedError(accountId)
+    expect(error.accountId).toBe(accountId)
+    expect(error.code).toBe("TRANSFER_TO_UNIVERSAL_ACCOUNT_NOT_ALLOWED")
+    expect(error.name).toBe("TransferToUniversalAccountNotAllowedError")
+    expect(error.data).toBeUndefined()
+  })
+
+  test("formats message correctly", () => {
+    const error = new TransferToUniversalAccountNotAllowedError(accountId)
+    expect(error.message).toContain(
+      `Transfers to the universal account ${accountId} are not allowed yet`,
+    )
+    expect(error.message).toContain("until universal accounts are enabled")
+  })
+
+  test("keeps the raw failure as data", () => {
+    const details = {
+      ActionsValidation: {
+        TransferToUniversalAccountNotAllowed: { account_id: accountId },
+      },
+    }
+    const error = new TransferToUniversalAccountNotAllowedError(
+      accountId,
+      details,
+    )
+    expect(error.data).toEqual(details)
+  })
+
+  test("is not retryable", () => {
+    const error = new TransferToUniversalAccountNotAllowedError(accountId)
+    expect(error.retryable).toBe(false)
+  })
+
+  test("is instance of NearError", () => {
+    const error = new TransferToUniversalAccountNotAllowedError(accountId)
+    expect(error).toBeInstanceOf(NearError)
+    expect(error).toBeInstanceOf(TransferToUniversalAccountNotAllowedError)
   })
 })
 

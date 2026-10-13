@@ -71,10 +71,14 @@ export {
   InsufficientBalanceError,
   InvalidAccountIdError,
   InvalidKeyError,
+  InvalidNonceError,
+  InvalidTransactionError,
   NearError,
   NetworkError,
   SignatureError,
+  TimeoutError,
   TransactionTimeoutError,
+  TransferToUniversalAccountNotAllowedError,
   WalletError,
 } from "./errors/index.js"
 // Credential schemas and types

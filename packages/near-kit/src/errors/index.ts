@@ -435,6 +435,33 @@ export class InvalidNonceError extends NearError {
 }
 
 /**
+ * Thrown when a transaction or a contract-created receipt transfers NEAR to a
+ * universal account (`0u...` id) while the network bans such transfers.
+ *
+ * nearcore rejects these with `TransferToUniversalAccountNotAllowed` from the
+ * protocol version that introduces the ban until universal accounts are
+ * enabled. Retrying the same transfer will fail the same way until then.
+ */
+export class TransferToUniversalAccountNotAllowedError extends NearError {
+  accountId: string
+  retryable = false
+
+  constructor(accountId: string, details?: unknown) {
+    super(
+      `Transfers to the universal account ${accountId} are not allowed yet: the network rejects transfers to 0u accounts until universal accounts are enabled`,
+      "TRANSFER_TO_UNIVERSAL_ACCOUNT_NOT_ALLOWED",
+      details,
+    )
+    this.name = "TransferToUniversalAccountNotAllowedError"
+    this.accountId = accountId
+    Object.setPrototypeOf(
+      this,
+      TransferToUniversalAccountNotAllowedError.prototype,
+    )
+  }
+}
+
+/**
  * Thrown when a transaction is invalid
  * Check details for specific reasons like ShardCongested or ShardStuck
  */

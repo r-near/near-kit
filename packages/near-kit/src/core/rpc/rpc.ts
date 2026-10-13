@@ -32,6 +32,7 @@ import type {
 } from "../types.js"
 import {
   checkOutcomeForFunctionCallError,
+  checkTransactionForUniversalAccountTransfer,
   extractErrorMessage,
   isRetryableStatus,
   parseQueryError,
@@ -510,6 +511,14 @@ export class RpcClient {
         typeof parsed.status === "object" &&
         "Failure" in parsed.status
       ) {
+        // A banned transfer to a universal account is reported over any other
+        // failure (including contract panics in other receipts): it is the
+        // protocol-level reason the transaction can't succeed.
+        checkTransactionForUniversalAccountTransfer(parsed.status.Failure, [
+          parsed.transaction_outcome,
+          ...(parsed.receipts_outcome ?? []),
+        ])
+
         // Check transaction_outcome for direct failures
         if (parsed.transaction_outcome) {
           checkOutcomeForFunctionCallError(
@@ -600,6 +609,14 @@ export class RpcClient {
       typeof parsed.status === "object" &&
       "Failure" in parsed.status
     ) {
+      // A banned transfer to a universal account is reported over any other
+      // failure (including contract panics in other receipts): it is the
+      // protocol-level reason the transaction can't succeed.
+      checkTransactionForUniversalAccountTransfer(parsed.status.Failure, [
+        parsed.transaction_outcome,
+        ...(parsed.receipts_outcome ?? []),
+      ])
+
       // Check transaction_outcome for direct failures
       if (parsed.transaction_outcome) {
         checkOutcomeForFunctionCallError(
