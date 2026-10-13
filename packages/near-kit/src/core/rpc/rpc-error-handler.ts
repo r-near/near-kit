@@ -22,6 +22,7 @@ import {
   ParseError,
   ShardUnavailableError,
   TimeoutError,
+  TransferToUniversalAccountNotAllowedError,
   UnknownBlockError,
   UnknownChunkError,
   UnknownEpochError,
@@ -212,6 +213,54 @@ export function checkOutcomeForFunctionCallError(
 
       throw new FunctionCallError(contractId, methodName, panicMessage, logs)
     }
+  }
+}
+
+/**
+ * Extract the receiver of a banned transfer from an `ActionsValidationError`
+ * object, if it is `TransferToUniversalAccountNotAllowed`.
+ */
+function universalAccountTransferReceiver(
+  actionsValidation: unknown,
+): string | undefined {
+  if (!actionsValidation || typeof actionsValidation !== "object") {
+    return undefined
+  }
+  const banned = (actionsValidation as Record<string, unknown>)[
+    "TransferToUniversalAccountNotAllowed"
+  ]
+  if (!banned || typeof banned !== "object") return undefined
+  const accountId = (banned as Record<string, unknown>)["account_id"]
+  return typeof accountId === "string" ? accountId : undefined
+}
+
+/**
+ * Throw {@link TransferToUniversalAccountNotAllowedError} if an execution
+ * failure is a banned transfer to a universal account.
+ *
+ * Matches both shapes nearcore produces: a contract-created receipt
+ * (`ActionError.kind.NewReceiptValidationError.ActionsValidation`) and a
+ * transaction rejected when its chunk is applied
+ * (`InvalidTxError.ActionsValidation`).
+ *
+ * @internal
+ */
+export function checkFailureForUniversalAccountTransfer(
+  failure: unknown,
+): void {
+  if (!failure || typeof failure !== "object") return
+  const obj = failure as {
+    ActionError?: {
+      kind?: { NewReceiptValidationError?: { ActionsValidation?: unknown } }
+    }
+    InvalidTxError?: { ActionsValidation?: unknown }
+  }
+  const accountId =
+    universalAccountTransferReceiver(
+      obj.ActionError?.kind?.NewReceiptValidationError?.ActionsValidation,
+    ) ?? universalAccountTransferReceiver(obj.InvalidTxError?.ActionsValidation)
+  if (accountId !== undefined) {
+    throw new TransferToUniversalAccountNotAllowedError(accountId, failure)
   }
 }
 
@@ -497,6 +546,16 @@ export function parseRpcError(
           throw new InvalidNonceError(
             invalidNonce.tx_nonce as number,
             invalidNonce.ak_nonce as number,
+          )
+        }
+
+        const universalAccountId = universalAccountTransferReceiver(
+          invalidTxError?.ActionsValidation,
+        )
+        if (universalAccountId !== undefined) {
+          throw new TransferToUniversalAccountNotAllowedError(
+            universalAccountId,
+            invalidTxError,
           )
         }
       }

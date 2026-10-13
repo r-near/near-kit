@@ -95,6 +95,20 @@ try {
     Use `RotatingKeyStore` to avoid nonce issues in high-concurrency scenarios.
     </Tip>
   </Accordion>
+
+  <Accordion title="TransferToUniversalAccountNotAllowedError" icon="ban">
+    Thrown when a transaction, or a receipt created by a contract, transfers NEAR to a universal account (a `0u...` id) while the network bans such transfers. nearcore rejects them until universal accounts are enabled, so retrying won't help before then.
+
+    **Properties:**
+    - `accountId`: The universal account the transfer targeted
+    - `retryable`: Always `false`
+
+    ```typescript
+    if (e instanceof TransferToUniversalAccountNotAllowedError) {
+      console.log(`Can't send to ${e.accountId} yet`)
+    }
+    ```
+  </Accordion>
 </AccordionGroup>
 
 ## Panic Messages

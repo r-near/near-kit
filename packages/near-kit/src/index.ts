@@ -75,6 +75,7 @@ export {
   NetworkError,
   SignatureError,
   TransactionTimeoutError,
+  TransferToUniversalAccountNotAllowedError,
   WalletError,
 } from "./errors/index.js"
 // Credential schemas and types
