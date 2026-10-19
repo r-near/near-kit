@@ -1,0 +1,43 @@
+{
+  "runtime": "deno",
+  "version": "2.9.7",
+  "passed": true,
+  "package": "@near-kit/next@0.0.0-experimental.1",
+  "sha256": "cade03b8334666c67a9889f5622faaab1e2afbb673122a76f4d91c67fc497dcd",
+  "fixtureSha256": "5c840fcfdb7f432eaab4c28ae6e20131dddaffd6d22a14355d393758e1b5fcf8",
+  "dependencies": {
+    "@noble/hashes": {
+      "version": "2.4.0",
+      "integrity": "sha512-X5XaVWZIBCT7HHZGm5I7ZQXDwLG+bGXuSrMQAW+7Zvl87h1kmc1ZB1VSRJcpUfoUrGQp4Fkoxm5kZ+Ms+aW+eA=="
+    },
+    "@scure/base": {
+      "version": "2.2.0",
+      "integrity": "sha512-b8XEupJibegiXV+tDUseI8oLQc8ei3d/4Jkb2RpbHh3MfE054ov3uIz2dhFkB3FI8iwYkEh0gGCApkrYggkPNg=="
+    },
+    "effect": {
+      "version": "4.0.0-rc.118",
+      "integrity": "sha512-hxhpCd+swzrtu9lnyPpEFre2ODQzJ9qxgyL1oHIEY8NKnW4PxTbM1XzplMZXiAsLD62HO+KJc41Nqxr9T791ZQ=="
+    }
+  },
+  "consumer": {
+    "runtime": "deno",
+    "version": "2.9.7",
+    "capabilities": {
+      "source": true,
+      "rawJSON": true,
+      "isRawJSON": true
+    },
+    "pure": true,
+    "account": {
+      "amount": "340282366920938463463374607431768211455",
+      "height": "18446744073709551615",
+      "storage": "18446744073709551615"
+    },
+    "schemaView": true,
+    "invalidUtf8": "InvalidUtf8",
+    "nativeRecursion": "JsonResource",
+    "unsupported": 3,
+    "bodyCancelled": true,
+    "status": "passed"
+  }
+}
