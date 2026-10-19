@@ -1,0 +1,92 @@
+name: Read experiment
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "experiments/read-client/**"
+      - ".github/workflows/read-experiment.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Node ${{ matrix.node }} read checks
+    runs-on: arc-runner-set
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24]
+    defaults:
+      run:
+        working-directory: experiments/read-client
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run check
+      - name: Verify an isolated packed consumer
+        run: npm run test:packed
+
+  sandbox-docker:
+    name: Pinned nearcore Docker reads
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: experiments/read-client
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run build
+      - name: Verify Docker capability and run the seeded read-only node
+        run: scripts/run-docker-sandbox.sh
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+        if: always()
+        with:
+          name: read-sandbox-evidence
+          path: experiments/read-client/artifacts/sandbox/
+          retention-days: 7
+          if-no-files-found: warn
+
+  browsers:
+    name: Chromium, Firefox and WebKit reads
+    runs-on: arc-runner-set
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: experiments/read-client
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run build
+      - name: Install the pinned official browser runtimes
+        run: npx --no-install playwright install --with-deps chromium firefox webkit
+      - run: npm run test:browser
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+        if: failure()
+        with:
+          name: read-browser-failures
+          path: experiments/read-client/test-results/
+          retention-days: 7
+          if-no-files-found: warn
