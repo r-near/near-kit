@@ -1,0 +1,176 @@
+name: Next SDK experiment
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "experiments/near-kit-next/**"
+      - ".github/workflows/read-experiment.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Node ${{ matrix.node }} read checks
+    runs-on: arc-runner-set
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24]
+    defaults:
+      run:
+        working-directory: experiments/near-kit-next
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run check
+      - name: Verify an isolated packed consumer
+        run: npm run test:packed
+
+  sandbox-docker:
+    name: Pinned nearcore Docker reads
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: experiments/near-kit-next
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run build
+      - name: Verify Docker capability and run the seeded read-only node
+        run: scripts/run-docker-sandbox.sh
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+        if: always()
+        with:
+          name: read-sandbox-evidence
+          path: experiments/near-kit-next/artifacts/sandbox/
+          retention-days: 7
+          if-no-files-found: warn
+
+  browsers:
+    name: Chromium, Firefox and WebKit reads
+    runs-on: arc-runner-set
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: experiments/near-kit-next
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run build
+      - name: Install the pinned official browser runtimes
+        run: npx --no-install playwright install --with-deps chromium firefox webkit
+      - run: npm run test:browser
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+        if: failure()
+        with:
+          name: read-browser-failures
+          path: experiments/near-kit-next/test-results/
+          retention-days: 7
+          if-no-files-found: warn
+
+  runtimes:
+    name: Packed ${{ matrix.runtime }} read consumer
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        runtime: [deno, bun]
+    defaults:
+      run:
+        working-directory: experiments/near-kit-next
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run build
+      - name: Download and verify the official pinned runtime
+        env:
+          RUNTIME: ${{ matrix.runtime }}
+        run: |
+          set -eu
+          mkdir -p artifacts/runtime-bin
+          if [ "$RUNTIME" = deno ]; then
+            url=https://github.com/denoland/deno/releases/download/v2.9.7/deno-x86_64-unknown-linux-gnu.zip
+            checksum=c6527f24f4b16031d3ae4fa9f658d5f11534c8d84ce7dc8502420280919c3490
+          else
+            url=https://github.com/oven-sh/bun/releases/download/bun-v1.4.2/bun-linux-x64-baseline.zip
+            checksum=c678040f14fe0440eb839d37cbd0ce4c051a32da72806ac97de6a6aab6bf728f
+          fi
+          curl --disable --fail --silent --show-error --location --proto '=https' --max-time 120 "$url" -o artifacts/runtime-bin/runtime.zip
+          printf '%s  %s\n' "$checksum" artifacts/runtime-bin/runtime.zip | sha256sum --check --strict
+          unzip -q artifacts/runtime-bin/runtime.zip -d artifacts/runtime-bin
+      - name: Execute the isolated packed consumer
+        env:
+          RUNTIME: ${{ matrix.runtime }}
+        run: |
+          set -eu
+          if [ "$RUNTIME" = deno ]; then
+            binary="$PWD/artifacts/runtime-bin/deno"
+          else
+            binary="$PWD/artifacts/runtime-bin/bun-linux-x64-baseline/bun"
+          fi
+          node scripts/check-runtimes.mjs "$RUNTIME" "$binary"
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+        if: always()
+        with:
+          name: read-runtime-${{ matrix.runtime }}
+          path: experiments/near-kit-next/artifacts/runtime-${{ matrix.runtime }}.json
+          retention-days: 7
+          if-no-files-found: warn
+
+  public-address-reference:
+    name: Independent public address reference
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: experiments/near-kit-next
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Verify public vectors with Rust Borsh and Keccak
+        run: |
+          set -eu
+          mkdir -p artifacts/address-reference
+          rustc --version > artifacts/address-reference/toolchain.txt
+          cargo --version >> artifacts/address-reference/toolchain.txt
+          CARGO_TARGET_DIR="$RUNNER_TEMP/near-kit-address-target" cargo run --locked --quiet --manifest-path test/reference/address/Cargo.toml > artifacts/address-reference/result.json
+          cp test/reference/address/Cargo.lock artifacts/address-reference/Cargo.lock
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+        if: always()
+        with:
+          name: public-address-reference
+          path: experiments/near-kit-next/artifacts/address-reference/
+          retention-days: 7
+          if-no-files-found: warn
