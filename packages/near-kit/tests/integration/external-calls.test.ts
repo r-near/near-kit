@@ -31,7 +31,7 @@ import {
   FunctionCallError,
   InvalidStateInitError,
   InvalidTransactionError,
-  NearError,
+  ParseError,
   ReservedMethodNameError,
   UninitializedAccountError,
 } from "../../src/errors/index.js"
@@ -99,7 +99,7 @@ describe("external calls (nearcore 2.15)", () => {
     if (supported) ctx.skip()
     await expect(
       near.externalCall(sandbox.rootAccount.id, bytes("a")),
-    ).rejects.toBeInstanceOf(NearError)
+    ).rejects.toBeInstanceOf(ParseError)
   })
 
   describe("dry run", () => {

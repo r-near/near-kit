@@ -2,7 +2,8 @@
  * Differential tests against nearcore's own near-primitives (0.39.0-rc.1, from
  * nearcore 2.15.0-rc.1). tests/fixtures/nearcore-2.15/oracle generates random
  * calls and mutated encodings with it; near-kit must agree on every encoding,
- * hash and unique id, and accept exactly the encodings nearcore accepts.
+ * hash and unique id, accept exactly the encodings nearcore accepts, and
+ * accept exactly the account ids nearcore accepts.
  */
 
 import { readFileSync } from "node:fs"
@@ -17,6 +18,7 @@ import {
   externalCallHash,
   externalCallUniqueId,
 } from "../../src/core/external-call.js"
+import { isValidAccountId } from "../../src/utils/validation.js"
 
 type Call = {
   contract_id: string
@@ -43,7 +45,11 @@ const fixture = JSON.parse(
     resolve(__dirname, "../fixtures/nearcore-2.15/near-primitives-fuzz.json"),
     "utf8",
   ),
-) as { calls: Call[]; decodes: Decode[] }
+) as {
+  calls: Call[]
+  decodes: Decode[]
+  account_ids: { id: string; ok: boolean }[]
+}
 
 const callOf = (c: {
   contract_id: string
@@ -121,5 +127,15 @@ describe("mutated encodings", () => {
     for (const d of rejected) {
       expect(() => decodeExternalCall(hex.decode(d.bytes)), d.bytes).toThrow()
     }
+  })
+})
+
+describe("account ids", () => {
+  test("are valid exactly where nearcore takes them", () => {
+    const { account_ids } = fixture
+    expect(account_ids.filter((a) => a.ok).length).toBeGreaterThan(50)
+    expect(account_ids.filter((a) => !a.ok).length).toBeGreaterThan(100)
+    const disagree = account_ids.filter((a) => isValidAccountId(a.id) !== a.ok)
+    expect(disagree).toEqual([])
   })
 })

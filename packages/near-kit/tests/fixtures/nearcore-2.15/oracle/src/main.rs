@@ -62,6 +62,38 @@ fn account_id(rng: &mut Rng) -> AccountId {
     }
 }
 
+/// Account id candidates, valid or not, with nearcore's verdict: edge cases,
+/// then random strings over a small alphabet that make separators collide.
+fn account_id_verdicts(rng: &mut Rng) -> Vec<Value> {
+    let mut candidates: Vec<String> = [
+        "", "a", "ab", "a.b", "a-b", "a_b", "a..b", "a.-b", "a-.b", "a__b", "a--b", "a-_b",
+        ".ab", "ab.", "-ab", "ab-", "_ab", "ab_", "Ab", "aB", "a b", "a+b", "a@b", "a/b", "é.near",
+        "near", "0", "00", "0x", "0u", "test.near", "sub.test.near", "a.b.c.d.e.f",
+    ]
+    .iter()
+    .map(|s| s.to_string())
+    .collect();
+    for len in [63, 64, 65] {
+        candidates.push("a".repeat(len));
+        candidates.push(format!("{}.near", "b".repeat(len - 5)));
+    }
+    candidates.push(format!("0x{}", hex(&rng.bytes(20))));
+    candidates.push(format!("0x{}", hex(&rng.bytes(20)).to_uppercase()));
+    candidates.push(hex(&rng.bytes(32)));
+    candidates.push(format!("0u{}", "a".repeat(52)));
+    const CHARS: &[u8] = b"ab0-_.A ";
+    for _ in 0..2000 {
+        let len = rng.below(10) as usize;
+        candidates.push(
+            (0..len).map(|_| CHARS[rng.below(CHARS.len() as u64) as usize] as char).collect(),
+        );
+    }
+    candidates
+        .into_iter()
+        .map(|id| json!({ "id": id, "ok": id.parse::<AccountId>().is_ok() }))
+        .collect()
+}
+
 fn height(rng: &mut Rng) -> u64 {
     match rng.below(5) {
         0 => rng.below(1000),
@@ -171,12 +203,14 @@ fn main() {
         entry["bytes"] = json!(hex(&bytes));
         decodes.push(entry);
     }
+    let account_ids = account_id_verdicts(&mut rng);
     let accepted = decodes.iter().filter(|d| d["ok"] == true).count();
     eprintln!("{} calls, {} decodes ({} accepted)", calls.len(), decodes.len(), accepted);
     let out = json!({
         "source": "near-primitives 0.39.0-rc.1 (nearcore 2.15.0-rc.1), tests/fixtures/nearcore-2.15/oracle",
         "calls": calls,
         "decodes": decodes,
+        "account_ids": account_ids,
     });
     println!("{}", serde_json::to_string(&out).unwrap());
 }
