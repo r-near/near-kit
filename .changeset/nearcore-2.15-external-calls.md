@@ -4,6 +4,7 @@
 
 Support nearcore 2.15 (protocol version 89):
 
+- `Sandbox.start()` defaults to nearcore 2.15.0-rc.1.
 - External contract calls (NEP-667): `near.externalCall()`, `near.viewExternalCall()` (dry run), `near.getExternalCallStatus()` and `near.findExternalCall()`, the wire codec (`encodeExternalCall`, `decodeExternalCall`, `externalCallHash`, `externalCallUniqueId`), and `ExternalCallRefusedError` and `ExternalCallTimeoutError`.
 - Transaction views with `kind`, receipts with `authorization_context` and `creation_protocol_version`, the `external_call_processing` state change cause, and `near.getProtocolConfig()` with the external call limits.
 - New typed errors: `ReservedMethodNameError`, `UninitializedAccountError`, `InvalidStateInitError` and `UnknownTransactionError`. `UNKNOWN_TRANSACTION` and `DOES_NOT_TRACK_SHARD` were `NetworkError`s before; `DOES_NOT_TRACK_SHARD` is now a non-retryable `ShardUnavailableError`.

@@ -67,7 +67,7 @@ describe("external calls (nearcore 2.15)", () => {
   let plain: string
 
   beforeAll(async () => {
-    sandbox = await Sandbox.start({ version: "2.15.0-rc.1" })
+    sandbox = await Sandbox.start()
     near = new Near({ network: sandbox })
     supported = (await near.getStatus()).protocol_version >= 89
     if (!supported) return
