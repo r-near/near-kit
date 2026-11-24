@@ -9,24 +9,29 @@ import {
   ContractExecutionError,
   ContractNotDeployedError,
   ContractStateTooLargeError,
+  ExternalCallRefusedError,
   FunctionCallError,
   GlobalContractNotFoundError,
   InternalServerError,
   InvalidAccountError,
   InvalidNonceError,
   InvalidShardIdError,
+  InvalidStateInitError,
   InvalidTransactionError,
   NearError,
   NetworkError,
   NodeNotSyncedError,
   ParseError,
+  ReservedMethodNameError,
   ShardUnavailableError,
   TimeoutError,
   TransferToUniversalAccountNotAllowedError,
+  UninitializedAccountError,
   UnknownBlockError,
   UnknownChunkError,
   UnknownEpochError,
   UnknownReceiptError,
+  UnknownTransactionError,
 } from "../../errors/index.js"
 import type {
   ExecutionOutcomeWithId,
@@ -265,6 +270,34 @@ export function checkFailureForUniversalAccountTransfer(
 }
 
 /**
+ * Throw {@link ReservedMethodNameError} if any failed outcome is a
+ * `FunctionCall` to `__external_call` (`ActionErrorKind::ReservedMethodName`).
+ *
+ * @internal
+ */
+export function checkOutcomesForReservedMethodName(
+  outcomes: ReadonlyArray<ExecutionOutcomeWithId | undefined>,
+): void {
+  for (const outcome of outcomes) {
+    const status = outcome?.outcome.status
+    if (typeof status !== "object" || !("Failure" in status)) continue
+    const kind = (
+      status.Failure as { ActionError?: { kind?: Record<string, unknown> } }
+    ).ActionError?.kind
+    const reserved = kind?.["ReservedMethodName"] as
+      | { method_name?: unknown }
+      | undefined
+    if (reserved && typeof reserved === "object") {
+      const methodName =
+        typeof reserved.method_name === "string"
+          ? reserved.method_name
+          : "__external_call"
+      throw new ReservedMethodNameError(methodName, status.Failure)
+    }
+  }
+}
+
+/**
  * Throw {@link TransferToUniversalAccountNotAllowedError} if the transaction's
  * final failure, or any failed transaction/receipt outcome, is a banned
  * transfer to a universal account.
@@ -451,6 +484,55 @@ export function parseRpcError(
       throw new AccessKeyDoesNotExistError(accountId, publicKey)
     }
 
+    if (causeName === "UNINITIALIZED_ACCOUNT") {
+      const accountId = (causeInfo.requested_account_id as string) || "unknown"
+      throw new UninitializedAccountError(accountId)
+    }
+
+    if (causeName === "INVALID_STATE_INIT") {
+      throw new InvalidStateInitError(
+        typeof parsedError.data === "string"
+          ? parsedError.data
+          : parsedError.message,
+        causeInfo["error"],
+      )
+    }
+
+    // A view call of `__external_call` that the contract refuses: the chunk
+    // producer's dry run would not include the call. nearcore does not echo
+    // the contract, so callers re-key the error with it (see viewFunction).
+    if (causeName === "EXTERNAL_CALL_REFUSED") {
+      const logs = Array.isArray(causeInfo["logs"])
+        ? (causeInfo["logs"] as string[])
+        : []
+      const context: { blockHeight?: number; blockHash?: string } = {}
+      if (typeof causeInfo["block_height"] === "number") {
+        context.blockHeight = causeInfo["block_height"]
+      }
+      if (typeof causeInfo["block_hash"] === "string") {
+        context.blockHash = causeInfo["block_hash"]
+      }
+      throw new ExternalCallRefusedError(
+        (causeInfo["contract_id"] as string) || "unknown",
+        causeInfo["error"],
+        logs,
+        context,
+      )
+    }
+
+    if (causeName === "UNKNOWN_TRANSACTION") {
+      const hash =
+        (causeInfo["requested_transaction_hash"] as string) || "unknown"
+      throw new UnknownTransactionError(hash)
+    }
+
+    // This node can't answer for the shard; asking it again won't help.
+    if (causeName === "DOES_NOT_TRACK_SHARD") {
+      const error = new ShardUnavailableError(parsedError.message)
+      error.retryable = false
+      throw error
+    }
+
     if (causeName === "UNAVAILABLE_SHARD") {
       throw new ShardUnavailableError(parsedError.message)
     }
@@ -572,6 +654,18 @@ export function parseRpcError(
           )
         }
 
+        // An external call to an account without a contract, or no account.
+        const contractNotFound = invalidTxError?.ContractNotFound as
+          | { contract_id?: unknown }
+          | undefined
+        if (contractNotFound && typeof contractNotFound === "object") {
+          throw new ContractNotDeployedError(
+            typeof contractNotFound.contract_id === "string"
+              ? contractNotFound.contract_id
+              : "unknown",
+          )
+        }
+
         const universalAccountId = universalAccountTransferReceiver(
           invalidTxError?.ActionsValidation,
         )
@@ -602,7 +696,7 @@ export function parseRpcError(
 
     if (causeName === "TIMEOUT_ERROR") {
       const txHash = causeInfo["transaction_hash"] as string | undefined
-      throw new TimeoutError(parsedError.message, txHash)
+      throw new TimeoutError(parsedError.message, txHash, causeInfo)
     }
 
     // === Request Validation Errors (400) ===

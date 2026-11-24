@@ -1,0 +1,28 @@
+{
+  "http": 200,
+  "body": {
+    "jsonrpc": "2.0",
+    "error": {
+      "name": "HANDLER_ERROR",
+      "cause": {
+        "info": {
+          "block_hash": "6XVoF1oKU4p5xh9UcHBgF1XYuANbpEHwvFBzBjLUtdqA",
+          "block_height": 12,
+          "error": {
+            "InvalidTxError": {
+              "ContractNotFound": {
+                "contract_id": "plain-1795554409281.test.near"
+              }
+            }
+          },
+          "logs": []
+        },
+        "name": "EXTERNAL_CALL_REFUSED"
+      },
+      "code": -32000,
+      "message": "Server error",
+      "data": "The contract refused the external call: InvalidTxError(ContractNotFound { contract_id: AccountId(\"plain-1795554409281.test.near\") })"
+    },
+    "id": 1
+  }
+}

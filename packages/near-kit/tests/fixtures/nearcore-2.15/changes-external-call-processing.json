@@ -1,0 +1,27 @@
+{
+  "http": 200,
+  "body": {
+    "jsonrpc": "2.0",
+    "result": {
+      "block_hash": "59guMi343dxtE3i3BckLzpkaqySLMR1GLuhqgumGbnvo",
+      "changes": [
+        {
+          "cause": {
+            "transaction_id": "7GACTspx75YEcW25VohrTvf9pmfiQkf1aneZagNvKxAz",
+            "type": "external_call_processing"
+          },
+          "change": {
+            "account_id": "ecc-1795554409281.test.near",
+            "amount": "9999629834881183899999999",
+            "code_hash": "77Rry9mjsEqdZy9zmj2t4dJS4G617p38VG6QhoJ85CFC",
+            "locked": "0",
+            "storage_paid_at": 0,
+            "storage_usage": 475
+          },
+          "type": "account_update"
+        }
+      ]
+    },
+    "id": 1
+  }
+}

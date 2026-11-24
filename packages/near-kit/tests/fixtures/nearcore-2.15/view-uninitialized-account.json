@@ -1,0 +1,21 @@
+{
+  "http": 200,
+  "body": {
+    "jsonrpc": "2.0",
+    "error": {
+      "name": "HANDLER_ERROR",
+      "cause": {
+        "info": {
+          "block_hash": "27eWVW8ttnh6crXHjcna9sTzFb6W6JzRPt5vmLsNrQmj",
+          "block_height": 6,
+          "requested_account_id": "0ur4hp47xzeqz730v3a6mnkwrccrq5j8012ekb7635js7fct47kpd0"
+        },
+        "name": "UNINITIALIZED_ACCOUNT"
+      },
+      "code": -32000,
+      "message": "Server error",
+      "data": "account 0ur4hp47xzeqz730v3a6mnkwrccrq5j8012ekb7635js7fct47kpd0 exists but is not initialized"
+    },
+    "id": 1
+  }
+}

@@ -8,8 +8,24 @@ export type { Contract, ContractMethods } from "./contracts/contract.js"
 export { DelegateAction, DelegateActionV2 } from "./core/actions.js"
 // Constants
 export { STORAGE_AMOUNT_PER_BYTE } from "./core/constants.js"
+// External contract calls (NEP-667)
+export {
+  decodeExternalCall,
+  EXTERNAL_CALL_ESCAPE_BYTE,
+  EXTERNAL_CALL_METHOD_NAME,
+  EXTERNAL_CALL_VERSION,
+  type ExternalCall,
+  encodeExternalCall,
+  externalCallHash,
+  externalCallHashBytes,
+  externalCallUniqueId,
+} from "./core/external-call.js"
 // Main class
 export { Near } from "./core/near.js"
+export type {
+  ViewFunctionOptions,
+  ViewStateInit,
+} from "./core/rpc/rpc.js"
 export {
   DELEGATE_ACTION_PREFIX,
   DELEGATE_ACTION_V2_PREFIX,
@@ -32,9 +48,15 @@ export { TransactionBuilder } from "./core/transaction.js"
 export type {
   AccessKeyView,
   AccountState,
+  AuthorizationContext,
   CallOptions,
   ContractCodeResult,
   ContractCodeView,
+  ExternalCallOutcome,
+  ExternalCallOutcomeMap,
+  ExternalCallOutcomeWithReceipts,
+  ExternalCallOutcomeWithReceiptsMap,
+  ExternalCallsConfig,
   FinalExecutionOutcome,
   GasKeyNoncesResponse,
   GlobalContractReference,
@@ -44,14 +66,20 @@ export type {
   MlDsa65PublicKey,
   NearConfig,
   NetworkConfig,
+  ProtocolConfigResponse,
   PublicKey,
   ReceiptToTxResponse,
+  ReceiptView,
+  RpcChunkTransaction,
+  RpcExternalCallTransaction,
+  RpcTransactionEnvelope,
   SendOptions,
   Signature,
   SignDelegateActionsParams,
   SignDelegateActionsResult,
   SignedMessage,
   SignMessageParams,
+  StateChangeCause,
   StatusResponse,
   TxExecutionStatus,
   WalletAccount,
@@ -65,6 +93,8 @@ export {
   AccessKeyDoesNotExistError,
   AccountDoesNotExistError,
   ContractNotDeployedError,
+  ExternalCallRefusedError,
+  ExternalCallTimeoutError,
   FunctionCallError,
   GasLimitExceededError,
   GlobalContractNotFoundError,
@@ -72,13 +102,18 @@ export {
   InvalidAccountIdError,
   InvalidKeyError,
   InvalidNonceError,
+  InvalidStateInitError,
   InvalidTransactionError,
   NearError,
   NetworkError,
+  ReservedMethodNameError,
+  ShardUnavailableError,
   SignatureError,
   TimeoutError,
   TransactionTimeoutError,
   TransferToUniversalAccountNotAllowedError,
+  UninitializedAccountError,
+  UnknownTransactionError,
   WalletError,
 } from "./errors/index.js"
 // Credential schemas and types

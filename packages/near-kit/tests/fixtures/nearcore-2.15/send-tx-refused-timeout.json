@@ -1,0 +1,19 @@
+{
+  "http": 408,
+  "body": {
+    "jsonrpc": "2.0",
+    "error": {
+      "name": "HANDLER_ERROR",
+      "cause": {
+        "info": {
+          "cause": "NOT_OBSERVED"
+        },
+        "name": "TIMEOUT_ERROR"
+      },
+      "code": -32000,
+      "message": "Server error",
+      "data": "Timeout"
+    },
+    "id": 1
+  }
+}

@@ -1,0 +1,9 @@
+[
+  {
+    "contract_id": "ecc-1795554409281.test.near",
+    "kind": "external_call",
+    "payload": "cDE3OTU1NTQ0MTYzNjItMC4xMzY3NTA5MDYxMzA4NjgwNA==",
+    "state_init": null,
+    "transaction_id": "7GACTspx75YEcW25VohrTvf9pmfiQkf1aneZagNvKxAz"
+  }
+]

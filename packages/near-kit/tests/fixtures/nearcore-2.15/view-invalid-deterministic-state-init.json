@@ -1,0 +1,26 @@
+{
+  "http": 200,
+  "body": {
+    "jsonrpc": "2.0",
+    "error": {
+      "name": "HANDLER_ERROR",
+      "cause": {
+        "info": {
+          "block_hash": "27eWVW8ttnh6crXHjcna9sTzFb6W6JzRPt5vmLsNrQmj",
+          "block_height": 6,
+          "error": {
+            "InvalidDeterministicStateInitReceiver": {
+              "derived_id": "0s1dfb60a75b451d1d2bc7952c0d4689cc04ad2b30",
+              "receiver_id": "test.near"
+            }
+          }
+        },
+        "name": "INVALID_STATE_INIT"
+      },
+      "code": -32000,
+      "message": "Server error",
+      "data": "invalid state init: DeterministicStateInit action payload is invalid for account test.near, derived id is 0s1dfb60a75b451d1d2bc7952c0d4689cc04ad2b30"
+    },
+    "id": 1
+  }
+}

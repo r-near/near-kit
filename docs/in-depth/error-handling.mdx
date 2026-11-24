@@ -109,6 +109,39 @@ try {
     }
     ```
   </Accordion>
+
+  <Accordion title="ExternalCallRefusedError" icon="hand">
+    Thrown when a contract refuses an external call, from a dry run (`viewExternalCall()`) or from a copy refused when it ran.
+
+    **Properties:**
+    - `contractId`: The contract that refused it
+    - `error`: The reason, as nearcore's `TxExecutionError` (`ContractNotFound` when the account has no contract)
+    - `logs`: The logs of the contract's run
+    - `retryable`: `true` only when the chunk's share for external calls was used up
+  </Accordion>
+
+  <Accordion title="ExternalCallTimeoutError" icon="clock">
+    Thrown when `externalCall()` times out before the node finds a copy of the call. A refused call is dropped, so it ends this way too. The call may still land: see [finding a copy](/in-depth/external-calls#timeouts-and-finding-a-copy).
+
+    **Properties:**
+    - `callHash`: The hash every copy's unique id comes from
+    - `sentAtHeight`: The head height seen before sending
+  </Accordion>
+
+  <Accordion title="ReservedMethodNameError" icon="lock">
+    Thrown when a signed transaction's `FunctionCall` calls `__external_call`. Only an external call or a view call can run that method.
+  </Accordion>
+
+  <Accordion title="UnknownTransactionError" icon="magnifying-glass">
+    Thrown when the node doesn't know the transaction hash or external call unique id asked for. It may not have landed yet.
+
+    **Properties:**
+    - `transactionHash`: The hash or unique id asked for
+  </Accordion>
+
+  <Accordion title="UninitializedAccountError" icon="user-clock">
+    Thrown when a view targets a funded universal account whose state init isn't installed yet (nearcore 2.15). Pass the state init in the view's `stateInit` option to run it anyway.
+  </Accordion>
 </AccordionGroup>
 
 ## Panic Messages

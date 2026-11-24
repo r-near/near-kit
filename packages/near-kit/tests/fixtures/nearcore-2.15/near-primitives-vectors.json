@@ -1,0 +1,634 @@
+{
+  "source": "near-primitives 0.39.0-rc.1 (nearcore 2.15.0-rc.1)",
+  "external_calls": [
+    {
+      "name": "nearcore",
+      "contract_id": "wallet.near",
+      "payload": "010203",
+      "state_init": null,
+      "bytes": "ff000b00000077616c6c65742e6e6561720300000001020300",
+      "base64": "/wALAAAAd2FsbGV0Lm5lYXIDAAAAAQIDAA==",
+      "call_hash": "9AGEjoDcMkzqgRFAYQtpkvaf15jp8r7ciuT6WaHa9wjb",
+      "tx_root_leaf_hash": "9AGEjoDcMkzqgRFAYQtpkvaf15jp8r7ciuT6WaHa9wjb",
+      "unique_ids": [
+        {
+          "height": "0",
+          "unique_id": "FUvxoLHz21H279DMtu9S1ntEeXTa9DY3XF6sifThjbx8"
+        },
+        {
+          "height": "1",
+          "unique_id": "9xTNwjY1X96eiEyLs73stYv4WqEZaHNoMKp2j7TZaEki"
+        },
+        {
+          "height": "7",
+          "unique_id": "5ESotbKCQfpqwMHTrYfZfkCLaidiGi63tKi2zcb1K2fh"
+        },
+        {
+          "height": "8",
+          "unique_id": "fs74SMoVXD9VAuQXKsEpsSULn5WkBp6xsbxjezhRA79"
+        },
+        {
+          "height": "4294967296",
+          "unique_id": "5pUvd9RaJoJ83b8tkd8dsLo8mMfm8AyFyGxbFjVCLUbm"
+        },
+        {
+          "height": "18446744073709551615",
+          "unique_id": "41vKYQSh48g2NJ3jAEbwWQ3QssssVtDETjbwkRHMGeTB"
+        }
+      ]
+    },
+    {
+      "name": "nearcore with state init",
+      "contract_id": "wallet.near",
+      "payload": "010203",
+      "state_init": "040506",
+      "bytes": "ff000b00000077616c6c65742e6e656172030000000102030103000000040506",
+      "base64": "/wALAAAAd2FsbGV0Lm5lYXIDAAAAAQIDAQMAAAAEBQY=",
+      "call_hash": "9AGEjoDcMkzqgRFAYQtpkvaf15jp8r7ciuT6WaHa9wjb",
+      "tx_root_leaf_hash": "4TkKjmagbUrXetFnNRdRMPDXE5hKsmG1NHhMf69hfkvH",
+      "unique_ids": [
+        {
+          "height": "0",
+          "unique_id": "FUvxoLHz21H279DMtu9S1ntEeXTa9DY3XF6sifThjbx8"
+        },
+        {
+          "height": "1",
+          "unique_id": "9xTNwjY1X96eiEyLs73stYv4WqEZaHNoMKp2j7TZaEki"
+        },
+        {
+          "height": "7",
+          "unique_id": "5ESotbKCQfpqwMHTrYfZfkCLaidiGi63tKi2zcb1K2fh"
+        },
+        {
+          "height": "8",
+          "unique_id": "fs74SMoVXD9VAuQXKsEpsSULn5WkBp6xsbxjezhRA79"
+        },
+        {
+          "height": "4294967296",
+          "unique_id": "5pUvd9RaJoJ83b8tkd8dsLo8mMfm8AyFyGxbFjVCLUbm"
+        },
+        {
+          "height": "18446744073709551615",
+          "unique_id": "41vKYQSh48g2NJ3jAEbwWQ3QssssVtDETjbwkRHMGeTB"
+        }
+      ]
+    },
+    {
+      "name": "contract.near",
+      "contract_id": "contract.near",
+      "payload": "010203",
+      "state_init": null,
+      "bytes": "ff000d000000636f6e74726163742e6e6561720300000001020300",
+      "base64": "/wANAAAAY29udHJhY3QubmVhcgMAAAABAgMA",
+      "call_hash": "HBcwXue7ENonpP3HuV9exhCeHeLZdWgZUbs3mA8Boei7",
+      "tx_root_leaf_hash": "HBcwXue7ENonpP3HuV9exhCeHeLZdWgZUbs3mA8Boei7",
+      "unique_ids": [
+        {
+          "height": "0",
+          "unique_id": "7tmnBDggxuQ4WNA8YJ7JmVsgqnLAWR48YAfJFuWjf7kg"
+        },
+        {
+          "height": "1",
+          "unique_id": "a1x8vzgyTUwLXuf26sJukx5Lvts7PvqFPSoKkc1AZ9Q"
+        },
+        {
+          "height": "7",
+          "unique_id": "FWZhvx5ZW6KnN9UdcMhV5EGvm1GakLgtxQ5AiBc5BvfL"
+        },
+        {
+          "height": "8",
+          "unique_id": "bFj4EjYnjGbBXap8vbJ2HuDJtuGXVbx1vKk3RQVbb6Q"
+        },
+        {
+          "height": "4294967296",
+          "unique_id": "BTQBgQzWrwWX6ncPSaHtUdag5d1HeuKuwTDnkExUkvkW"
+        },
+        {
+          "height": "18446744073709551615",
+          "unique_id": "4a4oHDKs8amPWTx3esH4YSZ4YHZ12RGQmRbnDpm9nLGo"
+        }
+      ]
+    },
+    {
+      "name": "empty payload",
+      "contract_id": "wallet.near",
+      "payload": "",
+      "state_init": null,
+      "bytes": "ff000b00000077616c6c65742e6e6561720000000000",
+      "base64": "/wALAAAAd2FsbGV0Lm5lYXIAAAAAAA==",
+      "call_hash": "3LLU7rFu1TDLaawmbk5CXXQ6qd2k6coR2x8pn88hCRbJ",
+      "tx_root_leaf_hash": "3LLU7rFu1TDLaawmbk5CXXQ6qd2k6coR2x8pn88hCRbJ",
+      "unique_ids": [
+        {
+          "height": "0",
+          "unique_id": "9PpWtPXfQPJCtsLoZycooNGQ7WFtD9jckUdWvfFa4F8c"
+        },
+        {
+          "height": "1",
+          "unique_id": "CcwyqYEayeNB6t8F8mTHFVLjWG9dRjStbcZm8MLKpY7d"
+        },
+        {
+          "height": "7",
+          "unique_id": "GoG8GBJ316w83XehtBrqpHCaCvhBPnTUMJ6b69scoy3T"
+        },
+        {
+          "height": "8",
+          "unique_id": "GG9RfZ1Xnnffz8ijceETWshJkYq35jYvd6wT8UakfA4G"
+        },
+        {
+          "height": "4294967296",
+          "unique_id": "6s33APvaojNmHLCiRARL6VbTRDCVRuYCnmBpkxtyzuQR"
+        },
+        {
+          "height": "18446744073709551615",
+          "unique_id": "62harrn2xz3n5Cqnzvpth98pPx218k1VQqqoCz7o2uxe"
+        }
+      ]
+    },
+    {
+      "name": "empty state init",
+      "contract_id": "wallet.near",
+      "payload": "01",
+      "state_init": "",
+      "bytes": "ff000b00000077616c6c65742e6e65617201000000010100000000",
+      "base64": "/wALAAAAd2FsbGV0Lm5lYXIBAAAAAQEAAAAA",
+      "call_hash": "6uyg7HjM3ACNK7r9YZGS478odsBYN1A1kK5GXK9CCyxn",
+      "tx_root_leaf_hash": "4dJKvLTk13zZR7K8qon6XHVQJsDs43UAxRYcm5s3UR7H",
+      "unique_ids": [
+        {
+          "height": "0",
+          "unique_id": "4we7VWiCrFuwGGFofsU8KoXmnYEMtGnPWVkm6bcwmw3p"
+        },
+        {
+          "height": "1",
+          "unique_id": "2xGvPrUJC2vFndEFeXxNjRp1yUtEs376YGKv4AmYvxKp"
+        },
+        {
+          "height": "7",
+          "unique_id": "6LzM4S7vGLw5mwTRojMN5HGPZxn5CSirpfGdLhTYwtyZ"
+        },
+        {
+          "height": "8",
+          "unique_id": "7yYx2JFXF2dnL24UUpcC8V1onB1yb9svWjCEfW4HLy19"
+        },
+        {
+          "height": "4294967296",
+          "unique_id": "BWazPvyTjs8eSLzZTSsQNCFggtEj4GKfGJzNeNxAWYNc"
+        },
+        {
+          "height": "18446744073709551615",
+          "unique_id": "J6poWZjL6DjjmKJzjQf4ugnUe2JmdtG6Sctdni47ZVAE"
+        }
+      ]
+    },
+    {
+      "name": "300-byte payload",
+      "contract_id": "wallet.near",
+      "payload": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b",
+      "state_init": null,
+      "bytes": "ff000b00000077616c6c65742e6e6561722c010000000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b00",
+      "base64": "/wALAAAAd2FsbGV0Lm5lYXIsAQAAAAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/wABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicoKSorAA==",
+      "call_hash": "5SpXLCzWAjVN2HiHNhGnMvKitaZgaEok8ajobfCqBZM9",
+      "tx_root_leaf_hash": "5SpXLCzWAjVN2HiHNhGnMvKitaZgaEok8ajobfCqBZM9",
+      "unique_ids": [
+        {
+          "height": "0",
+          "unique_id": "571nSnXTMGod2T14V6QnbNd34TaidaTWCKBHAucXV1fr"
+        },
+        {
+          "height": "1",
+          "unique_id": "DuWmQbSR6LPVbnSo9djDgPcuCVk43PLBVReRcWxUipFG"
+        },
+        {
+          "height": "7",
+          "unique_id": "5p597YenhzpjzMtr3FVYxdTkitzC1iPRrcfHLVtBcUtp"
+        },
+        {
+          "height": "8",
+          "unique_id": "DJhv5dddXwRhdeFpAou2spj93PdCSRJweHLjv55ZxWcs"
+        },
+        {
+          "height": "4294967296",
+          "unique_id": "885u3rwGhqtHbPPgCSvJTs44J8yHxrLw6tJVmGsrz8wu"
+        },
+        {
+          "height": "18446744073709551615",
+          "unique_id": "B86Y7xJUqEv8qtEuaTeYLoMCHCYFhq1Xrig1Euhs1xiA"
+        }
+      ]
+    },
+    {
+      "name": "64-character account",
+      "contract_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "payload": "78",
+      "state_init": null,
+      "bytes": "ff004000000061616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161010000007800",
+      "base64": "/wBAAAAAYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYQEAAAB4AA==",
+      "call_hash": "9QeWTF6ebLnTrasgsxHRQiLBBMgaKmYUz1T4gfBLSJFW",
+      "tx_root_leaf_hash": "9QeWTF6ebLnTrasgsxHRQiLBBMgaKmYUz1T4gfBLSJFW",
+      "unique_ids": [
+        {
+          "height": "0",
+          "unique_id": "Hke49GYPJEBffpCkxcrsvVJw89j9LnLheGpyJVtURzR"
+        },
+        {
+          "height": "1",
+          "unique_id": "2YRvf7haVX6aJNneWhVgqW3nKDeThUodkE1zLZShR9rx"
+        },
+        {
+          "height": "7",
+          "unique_id": "957ZQLTNhZ7oYoWEg9fExeuehhmWvG8HcHViNzwdzBfd"
+        },
+        {
+          "height": "8",
+          "unique_id": "5fXEPs7iRYu9AGjXD6sVcovb6PHe6cJtANdsFD1i2tWg"
+        },
+        {
+          "height": "4294967296",
+          "unique_id": "5RuuWMuhd1aVTs4u6KvnEaUveBeiKsi4V9BQ1J3Yz7yD"
+        },
+        {
+          "height": "18446744073709551615",
+          "unique_id": "8hbEmueFspkmbJBAFx8Vd1WbCZvaf7ZSsfAAAGugE4iL"
+        }
+      ]
+    },
+    {
+      "name": "implicit account",
+      "contract_id": "0000000000000000000000000000000000000000000000000000000000000000",
+      "payload": "7b7d",
+      "state_init": null,
+      "bytes": "ff004000000030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030020000007b7d00",
+      "base64": "/wBAAAAAMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMAIAAAB7fQA=",
+      "call_hash": "DRBwM8Q2f8drgHcQtJjcFGBSZWAgoG34GVpb9ekgt4bX",
+      "tx_root_leaf_hash": "DRBwM8Q2f8drgHcQtJjcFGBSZWAgoG34GVpb9ekgt4bX",
+      "unique_ids": [
+        {
+          "height": "0",
+          "unique_id": "Gi4b2cPpojaN4DdH2dYyEMLt1uDmmikJGV52hEACtpsB"
+        },
+        {
+          "height": "1",
+          "unique_id": "HCPuwzZutHCTzVL4rn38H2yZK6pjzdWYi15qpbUbQv3E"
+        },
+        {
+          "height": "7",
+          "unique_id": "82tHEJ53pT8qfVRyEVGbWXjE4JEMKSDpkFcYUZF897v6"
+        },
+        {
+          "height": "8",
+          "unique_id": "CmU3GKqZXT78bGETEBFQhCDZ684cPPNetT2znfZRdBFk"
+        },
+        {
+          "height": "4294967296",
+          "unique_id": "BSC8YXDuND4gGxUFfGa7VzniksMYP54o8SxCCwhJRmy5"
+        },
+        {
+          "height": "18446744073709551615",
+          "unique_id": "BSZF2fvY3i9it4SL5EaT2PpGACkJ9QK6MAUUyBGhmFJe"
+        }
+      ]
+    },
+    {
+      "name": "universal account with its state init",
+      "contract_id": "0ur4hp47xzeqz730v3a6mnkwrccrq5j8012ekb7635js7fct47kpd0",
+      "payload": "abababab",
+      "state_init": "0000000000000100000000ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c",
+      "bytes": "ff00360000003075723468703437787a65717a373330763361366d6e6b777263637271356a38303132656b62373633356a733766637434376b70643004000000abababab012b0000000000000000000100000000ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c",
+      "base64": "/wA2AAAAMHVyNGhwNDd4emVxejczMHYzYTZtbmt3cmNjcnE1ajgwMTJla2I3NjM1anM3ZmN0NDdrcGQwBAAAAKurq6sBKwAAAAAAAAAAAAEAAAAA6kpsY+KcUgq+9VB7Ey7F+ZVHdq6+vnuSQh7qaRRG0iw=",
+      "call_hash": "CkWcNZUD56TapZZBEX3YYGWz3vRzT1FQu5HjQZn8qUgM",
+      "tx_root_leaf_hash": "87eaTkqTWR4rob95TS4qnBXZNRj9HUYiivnvzKZoEr7H",
+      "unique_ids": [
+        {
+          "height": "0",
+          "unique_id": "3LGszQcv7kgKRpdnZFcQgV9cNgUXCxFspSGGRRoNG9fB"
+        },
+        {
+          "height": "1",
+          "unique_id": "7gFcNeQugZtnfgk46byLqakRW8oJSqEKCzXvRQ6RsDGA"
+        },
+        {
+          "height": "7",
+          "unique_id": "5agpDmksWwixZSYDppFSywhvo5XwbyTyTpgvYigoHJSW"
+        },
+        {
+          "height": "8",
+          "unique_id": "G469KaKzRUfEB93RzkegeJ91Hg2QdN69QJRM1rtgLHkN"
+        },
+        {
+          "height": "4294967296",
+          "unique_id": "5yMJy8Bkc74YxExxwvxxhkn6h9w5gL3JKLPfMsTGxZzN"
+        },
+        {
+          "height": "18446744073709551615",
+          "unique_id": "Dwn5W2rakXecuhdziYtA4BgeGg85uCeE5Zxk982NznPJ"
+        }
+      ]
+    }
+  ],
+  "views": {
+    "transaction signed": {
+      "kind": "signed",
+      "signer_id": "alice.near",
+      "public_key": "ed25519:AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
+      "nonce": 1,
+      "receiver_id": "bob.near",
+      "actions": [
+        {
+          "Transfer": {
+            "deposit": "1"
+          }
+        }
+      ],
+      "priority_fee": 0,
+      "signature": "ed25519:2iMFGP3CnPaUYwA9eAX17KEnWWoJXUjCQG8RLFUHjg9Ti5uqN9zQgGvBw6truSNpk3AhjxS9XJNc8dXG363KXDTc",
+      "hash": "E46cVDWkqXkwPFj2GaPj5n9bnMhNfTkMujdHU5LRtKkr"
+    },
+    "transaction signed without kind": {
+      "hash": "E46cVDWkqXkwPFj2GaPj5n9bnMhNfTkMujdHU5LRtKkr",
+      "signer_id": "alice.near",
+      "public_key": "ed25519:AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
+      "nonce": 1,
+      "receiver_id": "bob.near",
+      "actions": [
+        {
+          "Transfer": {
+            "deposit": "1"
+          }
+        }
+      ],
+      "priority_fee": 0,
+      "signature": "ed25519:2iMFGP3CnPaUYwA9eAX17KEnWWoJXUjCQG8RLFUHjg9Ti5uqN9zQgGvBw6truSNpk3AhjxS9XJNc8dXG363KXDTc"
+    },
+    "transaction external call": {
+      "kind": "external_call",
+      "contract_id": "wallet.near",
+      "payload": "AQID",
+      "transaction_id": "9xTNwjY1X96eiEyLs73stYv4WqEZaHNoMKp2j7TZaEki",
+      "state_init": null
+    },
+    "transaction external call with state init": {
+      "kind": "external_call",
+      "contract_id": "wallet.near",
+      "payload": "AQID",
+      "transaction_id": "9xTNwjY1X96eiEyLs73stYv4WqEZaHNoMKp2j7TZaEki",
+      "state_init": "BAUG"
+    },
+    "outcome external call accepted": {
+      "status": {
+        "SuccessValue": "Im9rIg=="
+      },
+      "transaction": {
+        "kind": "external_call",
+        "contract_id": "wallet.near",
+        "payload": "AQID",
+        "transaction_id": "9xTNwjY1X96eiEyLs73stYv4WqEZaHNoMKp2j7TZaEki",
+        "state_init": null
+      },
+      "transaction_outcome": {
+        "proof": [],
+        "block_hash": "5wbD6GsVBReHetMUw17QcNne8BjB1xSKRoU4JYpafEx5",
+        "id": "9xTNwjY1X96eiEyLs73stYv4WqEZaHNoMKp2j7TZaEki",
+        "outcome": {
+          "logs": ["accepted"],
+          "receipt_ids": [],
+          "gas_burnt": 0,
+          "tokens_burnt": "0",
+          "executor_id": "wallet.near",
+          "status": {
+            "SuccessValue": "Im9rIg=="
+          },
+          "metadata": {
+            "version": 1,
+            "gas_profile": null
+          }
+        }
+      },
+      "receipts_outcome": []
+    },
+    "outcome external call refused in the run": {
+      "status": {
+        "Failure": {
+          "ActionError": {
+            "index": 0,
+            "kind": {
+              "FunctionCallError": {
+                "ExecutionError": "Smart contract panicked: refused"
+              }
+            }
+          }
+        }
+      },
+      "transaction": {
+        "kind": "external_call",
+        "contract_id": "wallet.near",
+        "payload": "AQID",
+        "transaction_id": "9xTNwjY1X96eiEyLs73stYv4WqEZaHNoMKp2j7TZaEki",
+        "state_init": null
+      },
+      "transaction_outcome": {
+        "proof": [],
+        "block_hash": "5wbD6GsVBReHetMUw17QcNne8BjB1xSKRoU4JYpafEx5",
+        "id": "9xTNwjY1X96eiEyLs73stYv4WqEZaHNoMKp2j7TZaEki",
+        "outcome": {
+          "logs": ["checking"],
+          "receipt_ids": [],
+          "gas_burnt": 0,
+          "tokens_burnt": "0",
+          "executor_id": "wallet.near",
+          "status": {
+            "Failure": {
+              "ActionError": {
+                "index": 0,
+                "kind": {
+                  "FunctionCallError": {
+                    "ExecutionError": "Smart contract panicked: refused"
+                  }
+                }
+              }
+            }
+          },
+          "metadata": {
+            "version": 1,
+            "gas_profile": null
+          }
+        }
+      },
+      "receipts_outcome": []
+    },
+    "outcome external call refused at execution": {
+      "status": {
+        "Failure": {
+          "InvalidTxError": {
+            "ContractNotFound": {
+              "contract_id": "wallet.near"
+            }
+          }
+        }
+      },
+      "transaction": {
+        "kind": "external_call",
+        "contract_id": "wallet.near",
+        "payload": "AQID",
+        "transaction_id": "9xTNwjY1X96eiEyLs73stYv4WqEZaHNoMKp2j7TZaEki",
+        "state_init": null
+      },
+      "transaction_outcome": {
+        "proof": [],
+        "block_hash": "5wbD6GsVBReHetMUw17QcNne8BjB1xSKRoU4JYpafEx5",
+        "id": "9xTNwjY1X96eiEyLs73stYv4WqEZaHNoMKp2j7TZaEki",
+        "outcome": {
+          "logs": [],
+          "receipt_ids": [],
+          "gas_burnt": 0,
+          "tokens_burnt": "0",
+          "executor_id": "wallet.near",
+          "status": {
+            "Failure": {
+              "InvalidTxError": {
+                "ContractNotFound": {
+                  "contract_id": "wallet.near"
+                }
+              }
+            }
+          },
+          "metadata": {
+            "version": 1,
+            "gas_profile": null
+          }
+        }
+      },
+      "receipts_outcome": []
+    },
+    "receipt v3 access key": {
+      "predecessor_id": "wallet.near",
+      "receiver_id": "wallet.near",
+      "receipt_id": "8V4wPcrdG9WWedNvPuTUZ6a3uHT8SpeddJGCNWSt1wj2",
+      "receipt": {
+        "Action": {
+          "signer_id": "wallet.near",
+          "signer_public_key": "ed25519:AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
+          "gas_price": "100000000",
+          "output_data_receivers": [],
+          "input_data_ids": [],
+          "actions": [
+            {
+              "Transfer": {
+                "deposit": "1"
+              }
+            }
+          ],
+          "is_promise_yield": false,
+          "authorization_context": {
+            "AccessKey": "ed25519:AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9"
+          },
+          "creation_protocol_version": 89
+        }
+      },
+      "priority": 0
+    },
+    "receipt v3 external call": {
+      "predecessor_id": "wallet.near",
+      "receiver_id": "wallet.near",
+      "receipt_id": "8V4wPcrdG9WWedNvPuTUZ6a3uHT8SpeddJGCNWSt1wj2",
+      "receipt": {
+        "Action": {
+          "signer_id": "wallet.near",
+          "gas_price": "100000000",
+          "output_data_receivers": [],
+          "input_data_ids": [],
+          "actions": [
+            {
+              "Transfer": {
+                "deposit": "1"
+              }
+            }
+          ],
+          "is_promise_yield": false,
+          "authorization_context": "ExternalContractCall",
+          "creation_protocol_version": 89
+        }
+      },
+      "priority": 0
+    }
+  },
+  "errors": {
+    "ContractNotFound": {
+      "InvalidTxError": {
+        "ContractNotFound": {
+          "contract_id": "wallet.near"
+        }
+      }
+    },
+    "ExternalCallChunkShareReached Compute": {
+      "InvalidTxError": {
+        "ExternalCallChunkShareReached": {
+          "share": {
+            "Compute": {
+              "used": 400,
+              "limit": 300
+            }
+          }
+        }
+      }
+    },
+    "ExternalCallChunkShareReached StorageProof": {
+      "InvalidTxError": {
+        "ExternalCallChunkShareReached": {
+          "share": {
+            "StorageProof": {
+              "used": 5,
+              "limit": 4
+            }
+          }
+        }
+      }
+    },
+    "RecordingBudgetExceeded": {
+      "InvalidTxError": {
+        "StorageError": {
+          "RecordingBudgetExceeded": {
+            "limit": 51200
+          }
+        }
+      }
+    },
+    "ReservedMethodName": {
+      "ActionError": {
+        "index": 0,
+        "kind": {
+          "ReservedMethodName": {
+            "method_name": "__external_call"
+          }
+        }
+      }
+    },
+    "TotalNumberOfGasKeyNoncesRemovedExceeded": {
+      "ActionError": {
+        "index": 0,
+        "kind": {
+          "TotalNumberOfGasKeyNoncesRemovedExceeded": {
+            "number_of_nonces": 1025,
+            "limit": 1024
+          }
+        }
+      }
+    },
+    "TotalNumberOfGasKeyNoncesAddedExceeded": {
+      "InvalidTxError": {
+        "ActionsValidation": {
+          "TotalNumberOfGasKeyNoncesAddedExceeded": {
+            "number_of_nonces": 1025,
+            "limit": 1024
+          }
+        }
+      }
+    },
+    "HostError ProhibitedInExternalCall": {
+      "ProhibitedInExternalCall": {
+        "method_name": "random_seed"
+      }
+    },
+    "HostError DepositInExternalCall": "DepositInExternalCall"
+  }
+}

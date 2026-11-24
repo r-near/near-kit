@@ -8,10 +8,17 @@ import * as nearKit from "../../src/index.js"
 
 describe("public error exports", () => {
   test.each([
+    "ExternalCallRefusedError",
+    "ExternalCallTimeoutError",
     "InvalidNonceError",
+    "InvalidStateInitError",
     "InvalidTransactionError",
     "TimeoutError",
+    "ReservedMethodNameError",
+    "ShardUnavailableError",
     "TransferToUniversalAccountNotAllowedError",
+    "UninitializedAccountError",
+    "UnknownTransactionError",
   ])("exports %s as a NearError subclass", (name) => {
     const ErrorClass = (nearKit as Record<string, unknown>)[name]
     expect(typeof ErrorClass).toBe("function")

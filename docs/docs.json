@@ -80,7 +80,8 @@
           "in-depth/advanced-transactions",
           "in-depth/meta-transactions",
           "in-depth/message-signing",
-          "in-depth/global-contracts"
+          "in-depth/global-contracts",
+          "in-depth/external-calls"
         ]
       },
       {
