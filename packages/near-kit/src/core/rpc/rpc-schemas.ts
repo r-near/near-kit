@@ -83,6 +83,16 @@ export const AccountViewSchema = z.object({
   global_contract_account_id: z.string().nullable().optional(),
   storage_usage: z.number(),
   storage_paid_at: z.number(),
+  /**
+   * "uninitialized" for a universal account no state init has reached yet
+   * (nearcore 2.15+). Omitted for initialized accounts.
+   */
+  state: z.enum(["initialized", "uninitialized"]).optional(),
+  /**
+   * While the account is uninitialized: the nonce its self-signed state init
+   * must exceed by exactly one.
+   */
+  bootstrap_nonce: z.number().optional(),
   block_height: z.number(),
   block_hash: z.string(),
 })

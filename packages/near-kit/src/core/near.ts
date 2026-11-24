@@ -7,6 +7,7 @@ import type { ContractMethods } from "../contracts/contract.js"
 import { createContract } from "../contracts/contract.js"
 import {
   AccountDoesNotExistError,
+  ExternalCallRefusedError,
   ExternalCallTimeoutError,
   GlobalContractNotFoundError,
   NearError,
@@ -31,17 +32,18 @@ import {
   externalCallUniqueId,
 } from "./external-call.js"
 import { RpcClient, type ViewFunctionOptions } from "./rpc/rpc.js"
-import type {
-  AccessKeyListResponse,
-  AccessKeyView,
-  ExternalCallOutcomeMap,
-  ExternalCallOutcomeWithReceiptsMap,
-  FinalExecutionOutcome,
-  FinalExecutionOutcomeWithReceiptsMap,
-  ProtocolConfigResponse,
-  StateItem,
-  StatusResponse,
-  ViewStateResult,
+import {
+  type AccessKeyListResponse,
+  type AccessKeyView,
+  type ExternalCallOutcomeMap,
+  ExternalCallOutcomeSchema,
+  type ExternalCallOutcomeWithReceiptsMap,
+  type FinalExecutionOutcome,
+  type FinalExecutionOutcomeWithReceiptsMap,
+  type ProtocolConfigResponse,
+  type StateItem,
+  type StatusResponse,
+  type ViewStateResult,
 } from "./rpc/rpc-schemas.js"
 import { TransactionBuilder } from "./transaction.js"
 import type {
@@ -358,8 +360,8 @@ export class Near {
    *
    * @param contractId - The contract the call goes to.
    * @param payload - The payload: raw bytes, or an object sent as JSON.
-   * @param options - Block reference, and the state init the call carries as
-   * `{ stateInit: { universal: bytes } }`.
+   * @param options - Block reference (default: optimistic), and the
+   * universal account state init the call carries, as for {@link externalCall}.
    *
    * @returns The run's decoded return value, as for {@link view}.
    *
@@ -369,14 +371,10 @@ export class Near {
   async viewExternalCall<T = unknown>(
     contractId: string,
     payload: object | Uint8Array,
-    options?: ViewFunctionOptions,
+    options: BlockReference & { stateInit?: Uint8Array } = {},
   ): Promise<T | undefined> {
-    const call = toExternalCall(contractId, payload)
-    const result = await this._rpc.viewExternalCall(
-      contractId,
-      call.payload,
-      options,
-    )
+    const call = toExternalCall(contractId, payload, options.stateInit)
+    const result = await this._rpc.viewExternalCall(call, options)
     return decodeViewResult<T>(result.result)
   }
 
@@ -399,34 +397,46 @@ export class Near {
   }
 
   /**
-   * Find the copy of an external call that landed on chain, for example after
-   * {@link externalCall} timed out.
+   * Find the copy of an external call the contract accepted, for example
+   * after {@link externalCall} timed out (nearcore >= 2.15).
    *
-   * With `resend`, the call is first sent again: a node that tracks the
-   * contract's shard returns a copy that already landed, and a copy that has
-   * not landed may land now. A timeout that names a copy still short of the
-   * wait level is followed by its unique id. If the resend times out
-   * otherwise or the node does not track the shard, or without `resend`,
-   * every block height from `fromHeight` is tried:
-   * a copy's unique id is the call hash combined with the height of the block
-   * that includes it, so each height has one candidate id.
+   * A copy's unique id is the call hash combined with the height of the block
+   * that includes it, so each height has one candidate id. The search tries
+   * them from `fromHeight` up and returns the first accepted copy, skipping
+   * copies refused when they ran. Without `toHeight` it stops at the current
+   * head. With it, it waits for new blocks until the head passes `toHeight`:
+   * pass the payload's expiry, after which the contract accepts no copy.
    *
-   * Without `toHeight` the search stops at the current head. With it, the
-   * search waits for new blocks until the head passes `toHeight`. Pass the
-   * height at which the contract stops accepting the payload (its expiry):
-   * no copy can be accepted after it.
+   * With `resend`, the call is first sent again. A node that saw a copy land
+   * returns it at once, and a call that never landed may land now. If that
+   * finds no accepted copy, the search runs as above.
    *
    * @param contractId - The contract the call went to.
    * @param payload - The payload, exactly as sent.
    * @param options - `fromHeight` (e.g. `ExternalCallTimeoutError.sentAtHeight`),
-   * the optional `toHeight`, `resend`, the wait level of the returned outcome,
-   * and how many heights to query at once.
+   * `toHeight`, `resend`, the state init to resend with, and the wait level
+   * of the returned outcome.
    *
-   * @returns The outcome and receipts of the lowest copy found, or
-   * `undefined` if none landed in the range.
+   * @returns The outcome and receipts of the first accepted copy, or
+   * `undefined` if no copy landed in the range.
    *
-   * @throws {ExternalCallRefusedError} If the copy found was refused at execution.
+   * @throws {ExternalCallRefusedError} If every copy in the range was refused.
    * @throws {ShardUnavailableError} If the node does not track the contract's shard.
+   *
+   * @example
+   * ```typescript
+   * try {
+   *   await near.externalCall("wallet.near", payload)
+   * } catch (e) {
+   *   if (e instanceof ExternalCallTimeoutError) {
+   *     const found = await near.findExternalCall("wallet.near", payload, {
+   *       fromHeight: e.sentAtHeight,
+   *       toHeight: expiryHeight,
+   *       resend: true,
+   *     })
+   *   }
+   * }
+   * ```
    */
   async findExternalCall<
     W extends keyof ExternalCallOutcomeWithReceiptsMap = "EXECUTED_OPTIMISTIC",
@@ -436,45 +446,27 @@ export class Near {
     options: {
       fromHeight: number
       toHeight?: number
-      stateInit?: Uint8Array
       resend?: boolean
+      stateInit?: Uint8Array
       waitUntil?: W
-      concurrency?: number
-      pollIntervalMs?: number
     },
   ): Promise<ExternalCallOutcomeWithReceiptsMap[W] | undefined> {
     const call = toExternalCall(contractId, payload, options.stateInit)
     const waitUntil = (options.waitUntil ?? "EXECUTED_OPTIMISTIC") as W
     const statusOf = (uniqueId: string) =>
       this._rpc.getExternalCallStatus(uniqueId, contractId, waitUntil)
+    let refusal: ExternalCallRefusedError | undefined
 
     if (options.resend) {
-      const resendWait = waitUntil === "NONE" ? "INCLUDED" : waitUntil
-      try {
-        const outcome = await this._rpc.sendExternalCall(call, resendWait)
-        const uniqueId =
-          outcome.transaction_outcome?.id ?? outcome.transaction?.transaction_id
-        if (uniqueId !== undefined) {
-          return await statusOf(uniqueId)
-        }
-      } catch (error) {
-        if (
-          error instanceof ExternalCallTimeoutError &&
-          error.uniqueId !== undefined
-        ) {
-          return await statusOf(error.uniqueId)
-        }
-        const shardNotTracked =
-          error instanceof ShardUnavailableError && !error.retryable
-        if (!(error instanceof ExternalCallTimeoutError) && !shardNotTracked) {
-          throw error
-        }
+      const landed = await this.resendExternalCall(call, waitUntil)
+      if (landed instanceof ExternalCallRefusedError) {
+        refusal = landed
+      } else if (landed !== undefined) {
+        return await statusOf(landed)
       }
     }
 
     const callHash = externalCallHash(call)
-    const concurrency = Math.max(1, options.concurrency ?? 8)
-    const pollIntervalMs = options.pollIntervalMs ?? 1000
     let height = options.fromHeight
     for (;;) {
       const head = (await this._rpc.getBlock({ finality: "optimistic" })).header
@@ -482,37 +474,90 @@ export class Near {
       const end =
         options.toHeight === undefined ? head : Math.min(options.toHeight, head)
       while (height <= end) {
-        const batch: number[] = []
-        for (let h = height; h <= end && batch.length < concurrency; h++) {
-          batch.push(h)
+        const heights: number[] = []
+        for (let h = height; h <= end && heights.length < 8; h++) {
+          heights.push(h)
         }
-        const found = await Promise.all(
-          batch.map(async (h) => {
-            const uniqueId = externalCallUniqueId(callHash, h)
-            try {
-              await this._rpc.getExternalCallStatus(
-                uniqueId,
-                contractId,
-                "NONE",
-              )
-              return uniqueId
-            } catch (error) {
-              if (error instanceof UnknownTransactionError) return undefined
-              throw error
-            }
-          }),
+        const probes = await Promise.all(
+          heights.map((h) =>
+            this.probeExternalCall(
+              externalCallUniqueId(callHash, h),
+              contractId,
+            ),
+          ),
         )
-        const uniqueId = found.find((id) => id !== undefined)
-        if (uniqueId !== undefined) {
-          return await statusOf(uniqueId)
+        for (const probe of probes) {
+          if (probe instanceof ExternalCallRefusedError) {
+            refusal = probe
+          } else if (probe !== undefined) {
+            return await statusOf(probe)
+          }
         }
-        height += batch.length
+        height += heights.length
       }
       if (options.toHeight === undefined || height > options.toHeight) {
+        if (refusal) throw refusal
         return undefined
       }
-      await new Promise((resolve) => setTimeout(resolve, pollIntervalMs))
+      await new Promise((resolve) => setTimeout(resolve, 1000))
     }
+  }
+
+  /**
+   * Send a call again for {@link findExternalCall}: the unique id of the copy
+   * the node found, its refusal, or `undefined` if the node can't tell.
+   */
+  private async resendExternalCall(
+    call: ExternalCall,
+    waitUntil: TxExecutionStatus,
+  ): Promise<string | ExternalCallRefusedError | undefined> {
+    try {
+      const outcome = await this._rpc.sendExternalCall(
+        call,
+        waitUntil === "NONE" ? "INCLUDED" : waitUntil,
+      )
+      return outcome.transaction_outcome?.id
+    } catch (error) {
+      if (error instanceof ExternalCallRefusedError) return error
+      if (error instanceof ExternalCallTimeoutError) return error.uniqueId
+      if (error instanceof ShardUnavailableError && !error.retryable) {
+        return undefined
+      }
+      throw error
+    }
+  }
+
+  /**
+   * Whether a copy with this unique id landed: its id if the contract
+   * accepted it, its refusal if it was refused when it ran, `undefined` if
+   * the node doesn't know it.
+   */
+  private async probeExternalCall(
+    uniqueId: string,
+    contractId: string,
+  ): Promise<string | ExternalCallRefusedError | undefined> {
+    let result: unknown
+    try {
+      result = await this._rpc.call("tx", {
+        tx_hash: uniqueId,
+        sender_account_id: contractId,
+        wait_until: "NONE",
+      })
+    } catch (error) {
+      if (error instanceof UnknownTransactionError) return undefined
+      throw error
+    }
+    const copy = ExternalCallOutcomeSchema.parse(result).transaction_outcome
+    const status = copy?.outcome.status
+    if (copy && typeof status === "object" && "Failure" in status) {
+      return new ExternalCallRefusedError(
+        contractId,
+        status.Failure,
+        copy.outcome.logs,
+        { uniqueId, blockHash: copy.block_hash },
+      )
+    }
+    return uniqueId
   }
 
   /**

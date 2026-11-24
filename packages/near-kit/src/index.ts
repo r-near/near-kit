@@ -11,13 +11,10 @@ export { STORAGE_AMOUNT_PER_BYTE } from "./core/constants.js"
 // External contract calls (NEP-667)
 export {
   decodeExternalCall,
-  EXTERNAL_CALL_ESCAPE_BYTE,
   EXTERNAL_CALL_METHOD_NAME,
-  EXTERNAL_CALL_VERSION,
   type ExternalCall,
   encodeExternalCall,
   externalCallHash,
-  externalCallHashBytes,
   externalCallUniqueId,
 } from "./core/external-call.js"
 // Main class

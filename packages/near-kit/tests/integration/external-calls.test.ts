@@ -3,18 +3,22 @@
  *
  * tests/contracts/external-call.wat logs "checked" from `__external_call`,
  * then refuses a payload starting with 0xFF (it traps), accepts one starting
- * with "p" and makes a 1 yoctoNEAR transfer to itself, and accepts anything
+ * with "p" and makes a 1 yoctoNEAR transfer to itself, accepts one starting
+ * with "f" and calls a method it doesn't have on itself, and accepts anything
  * else. An accepted call returns its payload.
  *
  * The tests skip on a node below protocol version 89, such as when
- * NEAR_SANDBOX_BIN_PATH points at a 2.14 binary.
+ * NEAR_SANDBOX_BIN_PATH points at a 2.14 binary; one checks that such a node
+ * refuses a send at once.
  */
 
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
-import { hex } from "@scure/base"
+import { sha256 } from "@noble/hashes/sha2.js"
+import { base58, base64, hex } from "@scure/base"
 import { afterAll, beforeAll, describe, expect, test } from "vitest"
 import {
+  encodeExternalCall,
   externalCallHash,
   externalCallUniqueId,
 } from "../../src/core/external-call.js"
@@ -26,10 +30,16 @@ import {
   ExternalCallTimeoutError,
   FunctionCallError,
   InvalidStateInitError,
+  InvalidTransactionError,
+  NearError,
   ReservedMethodNameError,
   UninitializedAccountError,
 } from "../../src/errors/index.js"
 import { Sandbox } from "../../src/sandbox/sandbox.js"
+import {
+  universalAccountId,
+  universalStateInit,
+} from "../helpers/universal-account.js"
 
 const WASM = readFileSync(resolve(__dirname, "../contracts/external-call.wasm"))
 
@@ -45,6 +55,9 @@ const bytes = (prefix: string | number, rest = unique()) =>
 
 const actionOf = (receipt: ReceiptView) =>
   (receipt.receipt as { Action?: Record<string, unknown> }).Action
+
+const isFailure = (status: unknown): status is { Failure: unknown } =>
+  typeof status === "object" && status !== null && "Failure" in status
 
 describe("external calls (nearcore 2.15)", () => {
   let sandbox: Sandbox
@@ -79,6 +92,16 @@ describe("external calls (nearcore 2.15)", () => {
     await sandbox?.stop()
   })
 
+  const heightOf = async (blockHash: string) =>
+    (await near.rpc.getBlock({ blockId: blockHash })).header.height
+
+  test("a node without external calls refuses a send at once", async (ctx) => {
+    if (supported) ctx.skip()
+    await expect(
+      near.externalCall(sandbox.rootAccount.id, bytes("a")),
+    ).rejects.toBeInstanceOf(NearError)
+  })
+
   describe("dry run", () => {
     test("returns an accepted call's result", async (ctx) => {
       if (!supported) ctx.skip()
@@ -95,7 +118,7 @@ describe("external calls (nearcore 2.15)", () => {
       expect(refusal.contractId).toBe(contract)
       expect(refusal.logs).toEqual(["checked"])
       expect(refusal.blockHeight).toBeGreaterThan(0)
-      expect(refusal.error).toMatchObject({
+      expect(refusal.details).toMatchObject({
         ActionError: { kind: { FunctionCallError: {} } },
       })
     })
@@ -106,7 +129,7 @@ describe("external calls (nearcore 2.15)", () => {
         .viewExternalCall(plain, bytes("a"))
         .catch((e: unknown) => e)
       expect(error).toBeInstanceOf(ExternalCallRefusedError)
-      expect((error as ExternalCallRefusedError).error).toEqual({
+      expect((error as ExternalCallRefusedError).details).toEqual({
         InvalidTxError: { ContractNotFound: { contract_id: plain } },
       })
       expect((error as ExternalCallRefusedError).logs).toEqual([])
@@ -190,6 +213,94 @@ describe("external calls (nearcore 2.15)", () => {
       )
     })
 
+    test("succeeds when a receipt it starts fails, like a signed transaction", async (ctx) => {
+      if (!supported) ctx.skip()
+      const payload = bytes("f")
+      const outcome = await near.externalCall(contract, payload, {
+        waitUntil: "FINAL",
+      })
+      expect(outcome.status).toEqual({
+        SuccessValue: base64.encode(payload),
+      })
+      const failed = outcome.receipts_outcome.filter((receipt) =>
+        isFailure(receipt.outcome.status),
+      )
+      expect(failed).toHaveLength(1)
+      expect(failed[0]?.outcome.status).toMatchObject({
+        Failure: {
+          ActionError: {
+            kind: {
+              FunctionCallError: { MethodResolveError: "MethodNotFound" },
+            },
+          },
+        },
+      })
+    }, 60000)
+
+    test("a call over max_call_size is rejected at once", async (ctx) => {
+      if (!supported) ctx.skip()
+      const { max_call_size: limit } = (await near.getProtocolConfig())
+        .runtime_config.external_calls_config as { max_call_size: number }
+      const overhead = encodeExternalCall({
+        contractId: contract,
+        payload: new Uint8Array(),
+      }).length
+      const ofSize = (size: number) =>
+        Uint8Array.from({ length: size - overhead }, (_, i) =>
+          i === 0 ? 0x61 : 0x30 + (i % 10),
+        )
+
+      const atLimit = ofSize(limit)
+      atLimit.set(new TextEncoder().encode(unique()), 1)
+      await expect(
+        near.externalCall(contract, atLimit, { waitUntil: "INCLUDED" }),
+      ).resolves.toHaveProperty("transaction_outcome")
+
+      const error = await near
+        .externalCall(contract, ofSize(limit + 1), { waitUntil: "INCLUDED" })
+        .catch((e: unknown) => e)
+      expect(error).toBeInstanceOf(InvalidTransactionError)
+      expect((error as InvalidTransactionError).details).toMatchObject({
+        InvalidTxError: {
+          TransactionSizeExceeded: { limit, size: limit + 1 },
+        },
+      })
+    }, 60000)
+
+    test("parallel calls all land, each under its own unique id", async (ctx) => {
+      if (!supported) ctx.skip()
+      const payloads = Array.from({ length: 6 }, () => bytes("a"))
+      const outcomes = await Promise.all(
+        payloads.map((payload) =>
+          near.externalCall(contract, payload, {
+            waitUntil: "EXECUTED_OPTIMISTIC",
+          }),
+        ),
+      )
+      for (const [i, outcome] of outcomes.entries()) {
+        const height = await heightOf(outcome.transaction_outcome.block_hash)
+        expect(
+          externalCallUniqueId(
+            { contractId: contract, payload: payloads[i] as Uint8Array },
+            height,
+          ),
+        ).toBe(outcome.transaction_outcome.id)
+      }
+      expect(new Set(outcomes.map((o) => o.transaction_outcome.id)).size).toBe(
+        6,
+      )
+    }, 60000)
+
+    test("the same call sent twice at once lands once", async (ctx) => {
+      if (!supported) ctx.skip()
+      const payload = bytes("a")
+      const [first, second] = await Promise.all([
+        near.externalCall(contract, payload),
+        near.externalCall(contract, payload),
+      ])
+      expect(second?.transaction_outcome.id).toBe(first?.transaction_outcome.id)
+    }, 60000)
+
     test("a refused call is never found: the send times out", async (ctx) => {
       if (!supported) ctx.skip()
       const payload = bytes(0xff)
@@ -227,7 +338,6 @@ describe("external calls (nearcore 2.15)", () => {
       const found = await near.findExternalCall(contract, payload, {
         fromHeight,
         toHeight: fromHeight + 20,
-        pollIntervalMs: 200,
         waitUntil: "FINAL",
       })
       expect(found?.transaction.contract_id).toBe(contract)
@@ -278,6 +388,92 @@ describe("external calls (nearcore 2.15)", () => {
           })
           .send(),
       ).rejects.toBeInstanceOf(ReservedMethodNameError)
+    }, 60000)
+  })
+
+  describe("universal account with a global contract", () => {
+    let accountId: string
+    let stateInit: Uint8Array
+
+    beforeAll(async () => {
+      if (!supported) return
+      const root = sandbox.rootAccount.id
+      await near
+        .transaction(root)
+        .publishContract(WASM, { identifiedBy: "hash" })
+        .send({ waitUntil: "FINAL" })
+      stateInit = universalStateInit(sha256(WASM))
+      accountId = universalAccountId(stateInit)
+      await near
+        .transaction(root)
+        .transfer(accountId, "5 NEAR")
+        .send({ waitUntil: "FINAL" })
+    }, 60000)
+
+    test("installs on the first call that brings its state init", async (ctx) => {
+      if (!supported) ctx.skip()
+      expect(await near.rpc.getAccount(accountId)).toMatchObject({
+        state: "uninitialized",
+        bootstrap_nonce: expect.any(Number),
+      })
+
+      // A dry run needs the state init too.
+      const withoutInit = await near
+        .viewExternalCall(accountId, bytes("a"))
+        .catch((e: unknown) => e)
+      expect((withoutInit as ExternalCallRefusedError).details).toEqual({
+        InvalidTxError: { ContractNotFound: { contract_id: accountId } },
+      })
+      expect(
+        await near.viewExternalCall(accountId, { dry: true }, { stateInit }),
+      ).toEqual({ dry: true })
+
+      const payload = bytes("a")
+      const installed = await near.externalCall(accountId, payload, {
+        stateInit,
+        waitUntil: "FINAL",
+      })
+      expect(installed.transaction.state_init).toBe(base64.encode(stateInit))
+      expect(installed.status).toEqual({
+        SuccessValue: base64.encode(payload),
+      })
+      // The unique id leaves the state init out.
+      expect(
+        externalCallUniqueId(
+          { contractId: accountId, payload },
+          await heightOf(installed.transaction_outcome.block_hash),
+        ),
+      ).toBe(installed.transaction_outcome.id)
+
+      const account = await near.rpc.getAccount(accountId, {
+        finality: "final",
+      })
+      expect(account.state).toBeUndefined()
+      expect(account.bootstrap_nonce).toBeUndefined()
+      expect(account.global_contract_hash).toBe(base58.encode(sha256(WASM)))
+    }, 60000)
+
+    test("later calls need no state init, and one sent anyway is dropped", async (ctx) => {
+      if (!supported) ctx.skip()
+      const plainCall = await near.externalCall(accountId, bytes("a"), {
+        waitUntil: "FINAL",
+      })
+      expect(plainCall.transaction.state_init).toBeNull()
+
+      const payload = bytes("a")
+      const again = await near.externalCall(accountId, payload, {
+        stateInit,
+        waitUntil: "FINAL",
+      })
+      expect(again.transaction.state_init).toBeNull()
+      expect(again.status).toEqual({ SuccessValue: base64.encode(payload) })
+
+      const found = await near.findExternalCall(accountId, payload, {
+        fromHeight: await heightOf(again.transaction_outcome.block_hash),
+        toHeight: await heightOf(again.transaction_outcome.block_hash),
+        stateInit,
+      })
+      expect(found?.transaction_outcome.id).toBe(again.transaction_outcome.id)
     }, 60000)
   })
 
@@ -352,11 +548,9 @@ describe("external calls (nearcore 2.15)", () => {
       expect(view).toBeInstanceOf(FunctionCallError)
       expect((view as FunctionCallError).panic).toContain("CodeDoesNotExist")
       const refusal = await near
-        .viewExternalCall(accountId, Uint8Array.of(1), {
-          stateInit: { universal: stateInit },
-        })
+        .viewExternalCall(accountId, Uint8Array.of(1), { stateInit })
         .catch((e: unknown) => e)
-      expect((refusal as ExternalCallRefusedError).error).toEqual({
+      expect((refusal as ExternalCallRefusedError).details).toEqual({
         InvalidTxError: { ContractNotFound: { contract_id: accountId } },
       })
       await expect(

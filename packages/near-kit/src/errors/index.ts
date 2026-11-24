@@ -478,7 +478,7 @@ export class TransferToUniversalAccountNotAllowedError extends NearError {
 export class ExternalCallRefusedError extends NearError {
   contractId: string
   /** The reason, as nearcore's `TxExecutionError`. */
-  error: unknown
+  details: unknown
   /** The logs of the contract's run; empty for a call refused before its run. */
   logs: string[]
   uniqueId?: string
@@ -488,7 +488,7 @@ export class ExternalCallRefusedError extends NearError {
 
   constructor(
     contractId: string,
-    error: unknown,
+    details: unknown,
     logs: string[] = [],
     context: {
       uniqueId?: string
@@ -497,26 +497,24 @@ export class ExternalCallRefusedError extends NearError {
     } = {},
   ) {
     super(
-      `External call refused by ${contractId}: ${describeExecutionError(error)}`,
+      `External call refused by ${contractId}: ${describeExecutionError(details)}`,
       "EXTERNAL_CALL_REFUSED",
-      error,
+      details,
     )
     this.name = "ExternalCallRefusedError"
     this.contractId = contractId
-    this.error = error
+    this.details = details
     this.logs = logs
     if (context.uniqueId !== undefined) this.uniqueId = context.uniqueId
     if (context.blockHeight !== undefined)
       this.blockHeight = context.blockHeight
     if (context.blockHash !== undefined) this.blockHash = context.blockHash
+    const invalidTx = (details as { InvalidTxError?: unknown } | null)
+      ?.InvalidTxError
     this.retryable =
-      typeof error === "object" &&
-      error !== null &&
-      typeof (error as { InvalidTxError?: unknown }).InvalidTxError ===
-        "object" &&
-      (error as { InvalidTxError: object | null }).InvalidTxError !== null &&
-      "ExternalCallChunkShareReached" in
-        (error as { InvalidTxError: object }).InvalidTxError
+      typeof invalidTx === "object" &&
+      invalidTx !== null &&
+      "ExternalCallChunkShareReached" in invalidTx
     Object.setPrototypeOf(this, ExternalCallRefusedError.prototype)
   }
 }
@@ -548,7 +546,6 @@ export class ExternalCallTimeoutError extends NearError {
     contractId: string,
     callHash: string,
     sentAtHeight: number,
-    details?: unknown,
     uniqueId?: string,
   ) {
     super(
@@ -556,7 +553,6 @@ export class ExternalCallTimeoutError extends NearError {
         ? `External call to ${contractId} (call hash ${callHash}) was not found on chain before the request timed out. It may still land: send it again or search from height ${sentAtHeight}.`
         : `External call to ${contractId} landed as ${uniqueId} but did not reach the requested wait level before the request timed out.`,
       "EXTERNAL_CALL_TIMEOUT",
-      details,
     )
     this.name = "ExternalCallTimeoutError"
     this.contractId = contractId

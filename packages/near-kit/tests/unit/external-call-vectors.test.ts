@@ -36,6 +36,10 @@ import {
   type NearError,
   ReservedMethodNameError,
 } from "../../src/errors/index.js"
+import {
+  universalAccountId,
+  universalStateInit,
+} from "../helpers/universal-account.js"
 
 type Vector = {
   name: string
@@ -155,7 +159,7 @@ describe("views", () => {
     expect((error as ExternalCallRefusedError).uniqueId).toBe(
       "9xTNwjY1X96eiEyLs73stYv4WqEZaHNoMKp2j7TZaEki",
     )
-    expect((error as ExternalCallRefusedError).error).toEqual({
+    expect((error as ExternalCallRefusedError).details).toEqual({
       InvalidTxError: { ContractNotFound: { contract_id: "wallet.near" } },
     })
   })
@@ -273,5 +277,22 @@ describe("errors through the decoders", () => {
     expect((error as FunctionCallError).panic).toContain(expected)
     expect((error as FunctionCallError).panic).not.toContain("[object Object]")
     expect((error as FunctionCallError).logs).toEqual(["before"])
+  })
+})
+
+describe("the universal account test helper", () => {
+  test("derives the vector's universal account from its state init", () => {
+    const universal = fixture.external_calls.find((v) =>
+      v.name.startsWith("universal"),
+    ) as Vector
+    expect(universalAccountId(hex.decode(universal.state_init as string))).toBe(
+      universal.contract_id,
+    )
+  })
+
+  test("builds a V1 state init with code by hash", () => {
+    const bytes = universalStateInit(new Uint8Array(32).fill(7))
+    expect(bytes.length).toBe(3 + 32 + 8)
+    expect(universalAccountId(bytes)).toMatch(/^0u[0-9a-hjkmnp-tv-z]{52}$/)
   })
 })

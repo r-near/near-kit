@@ -10,7 +10,6 @@ import { afterEach, describe, expect, test, vi } from "vitest"
 import {
   encodeExternalCall,
   externalCallHash,
-  externalCallUniqueId,
 } from "../../src/core/external-call.js"
 import { Near } from "../../src/core/near.js"
 import { encodeViewStateInit, RpcClient } from "../../src/core/rpc/rpc.js"
@@ -58,7 +57,6 @@ const PAYLOAD = base64.decode(
   "cDE3OTU1NTQ0MTYzNjItMC4xMzY3NTA5MDYxMzA4NjgwNA==",
 )
 const UNIQUE_ID = "7GACTspx75YEcW25VohrTvf9pmfiQkf1aneZagNvKxAz"
-const LANDED_AT = 14
 
 type Request = { method: string; params: Record<string, unknown> }
 type Reply = Captured | ((request: Request) => Captured)
@@ -80,24 +78,6 @@ function mockRpc(routes: Record<string, Reply>) {
 const ok = (value: unknown): Captured => ({
   http: 200,
   body: { jsonrpc: "2.0", id: 1, result: value },
-})
-
-const unknownTransaction = (hash: string): Captured => ({
-  http: 200,
-  body: {
-    jsonrpc: "2.0",
-    id: 1,
-    error: {
-      name: "HANDLER_ERROR",
-      cause: {
-        name: "UNKNOWN_TRANSACTION",
-        info: { requested_transaction_hash: hash },
-      },
-      code: -32000,
-      message: "Server error",
-      data: `Transaction ${hash} doesn't exist`,
-    },
-  },
 })
 
 const H = "11111111111111111111111111111111"
@@ -320,21 +300,6 @@ describe("RpcClient.sendExternalCall", () => {
     })
   })
 
-  test("takes encoded bytes", async () => {
-    const requests = mockRpc({
-      block: block(12),
-      send_tx: fixture("send-tx-executed-optimistic"),
-    })
-    await new RpcClient("https://rpc.test").sendExternalCall(
-      encodeExternalCall(call),
-    )
-    expect(
-      requests.find((r) => r.method === "send_tx")?.params[
-        "external_call_base64"
-      ],
-    ).toBe(base64.encode(encodeExternalCall(call)))
-  })
-
   test("NONE skips the head lookup and returns no outcome", async () => {
     const requests = mockRpc({ send_tx: fixture("send-tx-none") })
     const outcome = await new RpcClient("https://rpc.test").sendExternalCall(
@@ -466,10 +431,10 @@ describe("RpcClient.sendExternalCall", () => {
 describe("RpcClient.viewExternalCall", () => {
   test("returns the accepted run's result and logs, at optimistic finality", async () => {
     const requests = mockRpc({ query: fixture("view-external-call-accepted") })
-    const view = await new RpcClient("https://rpc.test").viewExternalCall(
-      CONTRACT,
-      PAYLOAD,
-    )
+    const view = await new RpcClient("https://rpc.test").viewExternalCall({
+      contractId: CONTRACT,
+      payload: PAYLOAD,
+    })
     expect(view.logs).toEqual(["checked"])
     expect(requests[0]?.params).toEqual({
       request_type: "call_function",
@@ -483,11 +448,8 @@ describe("RpcClient.viewExternalCall", () => {
   test("keeps a block reference it is given", async () => {
     const requests = mockRpc({ query: fixture("view-external-call-accepted") })
     await new RpcClient("https://rpc.test").viewExternalCall(
-      CONTRACT,
-      PAYLOAD,
-      {
-        blockId: 12,
-      },
+      { contractId: CONTRACT, payload: PAYLOAD },
+      { blockId: 12 },
     )
     expect(requests[0]?.params["block_id"]).toBe(12)
     expect(requests[0]?.params["finality"]).toBeUndefined()
@@ -500,7 +462,7 @@ describe("RpcClient.viewExternalCall", () => {
     // Both methods answer with the same error; RpcClient views go through query.
     mockRpc({ query: fixture(name) })
     const error = await new RpcClient("https://rpc.test")
-      .viewExternalCall(CONTRACT, Uint8Array.of(0xff))
+      .viewExternalCall({ contractId: CONTRACT, payload: Uint8Array.of(0xff) })
       .catch((e: unknown) => e)
     expect(error).toBeInstanceOf(ExternalCallRefusedError)
     const refusal = error as ExternalCallRefusedError
@@ -510,7 +472,7 @@ describe("RpcClient.viewExternalCall", () => {
     expect(refusal.blockHeight).toBeTypeOf("number")
     expect(refusal.blockHash).toBeTypeOf("string")
     expect(refusal.retryable).toBe(false)
-    expect(refusal.error).toMatchObject({
+    expect(refusal.details).toMatchObject({
       ActionError: { kind: { FunctionCallError: {} } },
     })
   })
@@ -518,10 +480,13 @@ describe("RpcClient.viewExternalCall", () => {
   test("an account without a contract is refused with ContractNotFound", async () => {
     mockRpc({ query: fixture("view-external-call-no-contract") })
     const error = await new RpcClient("https://rpc.test")
-      .viewExternalCall("plain-1795554409281.test.near", new Uint8Array())
+      .viewExternalCall({
+        contractId: "plain-1795554409281.test.near",
+        payload: new Uint8Array(),
+      })
       .catch((e: unknown) => e)
     expect(error).toBeInstanceOf(ExternalCallRefusedError)
-    expect((error as ExternalCallRefusedError).error).toEqual({
+    expect((error as ExternalCallRefusedError).details).toEqual({
       InvalidTxError: {
         ContractNotFound: { contract_id: "plain-1795554409281.test.near" },
       },
@@ -531,13 +496,11 @@ describe("RpcClient.viewExternalCall", () => {
 
   test("sends a state init", async () => {
     const requests = mockRpc({ query: fixture("view-external-call-accepted") })
-    await new RpcClient("https://rpc.test").viewExternalCall(
-      CONTRACT,
-      PAYLOAD,
-      {
-        stateInit: { universal: Uint8Array.of(1, 2, 3) },
-      },
-    )
+    await new RpcClient("https://rpc.test").viewExternalCall({
+      contractId: CONTRACT,
+      payload: PAYLOAD,
+      stateInit: Uint8Array.of(1, 2, 3),
+    })
     expect(requests[0]?.params["state_init"]).toEqual({ universal: "AQID" })
   })
 })
@@ -699,162 +662,6 @@ describe("Near external calls", () => {
       network: { networkId: "localnet", rpcUrl: "https://rpc.test" },
     })
     expect(await near.viewExternalCall(CONTRACT, {})).toEqual({ ok: true })
-  })
-
-  test("findExternalCall tries one candidate id per height", async () => {
-    const tried: string[] = []
-    mockRpc({
-      block: block(20),
-      EXPERIMENTAL_tx_status: (request) => {
-        const id = request.params["tx_hash"] as string
-        tried.push(id)
-        return id === UNIQUE_ID
-          ? fixture("tx-status-external-call")
-          : unknownTransaction(id)
-      },
-    })
-    const near = new Near({
-      network: { networkId: "localnet", rpcUrl: "https://rpc.test" },
-    })
-    const found = await near.findExternalCall(CONTRACT, PAYLOAD, {
-      fromHeight: 10,
-      concurrency: 3,
-      waitUntil: "FINAL",
-    })
-    expect(found?.transaction.transaction_id).toBe(UNIQUE_ID)
-    const call = { contractId: CONTRACT, payload: PAYLOAD }
-    // Heights 10..15 in batches of three, then the hit's status.
-    expect(tried.slice(0, 6)).toEqual(
-      [10, 11, 12, 13, 14, 15].map((h) => externalCallUniqueId(call, h)),
-    )
-    expect(tried.at(-1)).toBe(UNIQUE_ID)
-    expect(tried).toHaveLength(7)
-  })
-
-  test("findExternalCall returns undefined when no height holds a copy", async () => {
-    mockRpc({
-      block: block(LANDED_AT - 1),
-      EXPERIMENTAL_tx_status: (request) =>
-        unknownTransaction(request.params["tx_hash"] as string),
-    })
-    const near = new Near({
-      network: { networkId: "localnet", rpcUrl: "https://rpc.test" },
-    })
-    expect(
-      await near.findExternalCall(CONTRACT, PAYLOAD, { fromHeight: 10 }),
-    ).toBeUndefined()
-  })
-
-  test("findExternalCall waits for the head to reach toHeight", async () => {
-    let head = 12
-    mockRpc({
-      block: () => block(head++),
-      EXPERIMENTAL_tx_status: (request) => {
-        const id = request.params["tx_hash"] as string
-        return id === UNIQUE_ID
-          ? fixture("tx-status-external-call")
-          : unknownTransaction(id)
-      },
-    })
-    const near = new Near({
-      network: { networkId: "localnet", rpcUrl: "https://rpc.test" },
-    })
-    const found = await near.findExternalCall(CONTRACT, PAYLOAD, {
-      fromHeight: 10,
-      toHeight: 20,
-      pollIntervalMs: 1,
-    })
-    expect(found?.transaction.transaction_id).toBe(UNIQUE_ID)
-    expect(head).toBeGreaterThan(LANDED_AT)
-  })
-
-  test("findExternalCall with resend takes the id from send_tx", async () => {
-    const requests = mockRpc({
-      block: block(20),
-      send_tx: fixture("send-tx-resend"),
-      EXPERIMENTAL_tx_status: fixture("tx-status-external-call"),
-    })
-    const near = new Near({
-      network: { networkId: "localnet", rpcUrl: "https://rpc.test" },
-    })
-    const found = await near.findExternalCall(CONTRACT, PAYLOAD, {
-      fromHeight: 10,
-      resend: true,
-    })
-    expect(found?.transaction.transaction_id).toBe(UNIQUE_ID)
-    expect(
-      requests
-        .filter((r) => r.method === "EXPERIMENTAL_tx_status")
-        .map((r) => r.params["tx_hash"]),
-    ).toEqual([UNIQUE_ID])
-  })
-
-  test("findExternalCall falls back to the search when the resend times out", async () => {
-    const requests = mockRpc({
-      block: block(LANDED_AT),
-      send_tx: fixture("send-tx-refused-timeout"),
-      EXPERIMENTAL_tx_status: (request) => {
-        const id = request.params["tx_hash"] as string
-        return id === UNIQUE_ID
-          ? fixture("tx-status-external-call")
-          : unknownTransaction(id)
-      },
-    })
-    const near = new Near({
-      network: { networkId: "localnet", rpcUrl: "https://rpc.test" },
-    })
-    const found = await near.findExternalCall(CONTRACT, PAYLOAD, {
-      fromHeight: LANDED_AT,
-      resend: true,
-    })
-    expect(found?.transaction.transaction_id).toBe(UNIQUE_ID)
-    expect(requests.filter((r) => r.method === "send_tx")).toHaveLength(1)
-  })
-
-  test("findExternalCall follows the copy a pending timeout names", async () => {
-    const pending = fixture("send-tx-refused-timeout")
-    ;(pending.body["error"] as { cause: { info: unknown } }).cause.info = {
-      cause: "PENDING",
-      status: {
-        ...result("send-tx-executed-optimistic"),
-        final_execution_status: "INCLUDED",
-      },
-    }
-    const requests = mockRpc({
-      block: block(20),
-      send_tx: pending,
-      EXPERIMENTAL_tx_status: fixture("tx-status-external-call"),
-    })
-    const near = new Near({
-      network: { networkId: "localnet", rpcUrl: "https://rpc.test" },
-    })
-    const found = await near.findExternalCall(CONTRACT, PAYLOAD, {
-      fromHeight: 10,
-      resend: true,
-      waitUntil: "FINAL",
-    })
-    expect(found?.transaction.transaction_id).toBe(UNIQUE_ID)
-    expect(
-      requests
-        .filter((r) => r.method === "EXPERIMENTAL_tx_status")
-        .map((r) => r.params["tx_hash"]),
-    ).toEqual([UNIQUE_ID])
-  })
-
-  test("findExternalCall rethrows other resend errors", async () => {
-    mockRpc({
-      block: block(12),
-      send_tx: fixture("send-tx-contract-not-found"),
-    })
-    const near = new Near({
-      network: { networkId: "localnet", rpcUrl: "https://rpc.test" },
-    })
-    await expect(
-      near.findExternalCall("plain-1795554409281.test.near", PAYLOAD, {
-        fromHeight: 10,
-        resend: true,
-      }),
-    ).rejects.toBeInstanceOf(ContractNotDeployedError)
   })
 })
 

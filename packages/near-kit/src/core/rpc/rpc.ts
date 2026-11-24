@@ -15,7 +15,6 @@ import {
 } from "../../utils/state-init.js"
 import type { BlockReference, RpcRetryConfigInput } from "../config-schemas.js"
 import {
-  decodeExternalCall,
   EXTERNAL_CALL_METHOD_NAME,
   type ExternalCall,
   encodeExternalCall,
@@ -454,7 +453,7 @@ export class RpcClient {
         if (error.blockHash !== undefined) context.blockHash = error.blockHash
         throw new ExternalCallRefusedError(
           contractId,
-          error.error,
+          error.details,
           error.logs,
           context,
         )
@@ -484,16 +483,20 @@ export class RpcClient {
    * carries the reason and the run's logs.
    */
   async viewExternalCall(
-    contractId: string,
-    payload: Uint8Array,
-    options?: ViewFunctionOptions,
+    call: ExternalCall,
+    options?: BlockReference,
   ): Promise<ViewFunctionCallResult> {
-    return this.viewFunction(contractId, EXTERNAL_CALL_METHOD_NAME, payload, {
-      ...options,
-      ...(options?.blockId || options?.finality
-        ? {}
-        : { finality: "optimistic" as const }),
-    })
+    return this.viewFunction(
+      call.contractId,
+      EXTERNAL_CALL_METHOD_NAME,
+      call.payload,
+      {
+        ...(options?.blockId
+          ? { blockId: options.blockId }
+          : { finality: options?.finality ?? "optimistic" }),
+        ...(call.stateInit ? { stateInit: { universal: call.stateInit } } : {}),
+      },
+    )
   }
 
   /**
@@ -799,13 +802,9 @@ export class RpcClient {
    */
   async sendExternalCall<
     W extends keyof ExternalCallOutcomeMap = "EXECUTED_OPTIMISTIC",
-  >(
-    call: ExternalCall | Uint8Array,
-    waitUntil?: W,
-  ): Promise<ExternalCallOutcomeMap[W]> {
+  >(call: ExternalCall, waitUntil?: W): Promise<ExternalCallOutcomeMap[W]> {
     const actualWaitUntil = (waitUntil ?? "EXECUTED_OPTIMISTIC") as W
-    const encoded = call instanceof Uint8Array ? call : encodeExternalCall(call)
-    const decoded = call instanceof Uint8Array ? decodeExternalCall(call) : call
+    const encoded = encodeExternalCall(call)
 
     const sentAtHeight =
       actualWaitUntil === "NONE"
@@ -822,10 +821,9 @@ export class RpcClient {
     ).catch((error) => {
       if (error instanceof TimeoutError && sentAtHeight !== undefined) {
         throw new ExternalCallTimeoutError(
-          decoded.contractId,
-          externalCallHash(decoded),
+          call.contractId,
+          externalCallHash(call),
           sentAtHeight,
-          error,
           pendingUniqueId(error.data),
         )
       }
@@ -833,7 +831,7 @@ export class RpcClient {
     })
 
     const parsed = ExternalCallOutcomeSchema.parse(result)
-    checkExternalCallOutcome(parsed, decoded.contractId)
+    checkExternalCallOutcome(parsed, call.contractId)
     return parsed as ExternalCallOutcomeMap[W]
   }
 

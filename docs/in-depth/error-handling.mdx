@@ -115,8 +115,10 @@ try {
 
     **Properties:**
     - `contractId`: The contract that refused it
-    - `error`: The reason, as nearcore's `TxExecutionError` (`ContractNotFound` when the account has no contract)
+    - `details`: The reason, as nearcore's `TxExecutionError` (`ContractNotFound` when the account has no contract)
     - `logs`: The logs of the contract's run
+    - `uniqueId`, `blockHash`: The refused copy, when one landed
+    - `blockHeight`: The block a dry run ran at
     - `retryable`: `true` only when the chunk's share for external calls was used up
   </Accordion>
 
@@ -126,6 +128,7 @@ try {
     **Properties:**
     - `callHash`: The hash every copy's unique id comes from
     - `sentAtHeight`: The head height seen before sending
+    - `uniqueId`: The copy's unique id, when the node saw one land that hadn't reached the wait level
   </Accordion>
 
   <Accordion title="ReservedMethodNameError" icon="lock">
