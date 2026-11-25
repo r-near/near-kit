@@ -14,6 +14,7 @@ describe("public error exports", () => {
     "InvalidStateInitError",
     "InvalidTransactionError",
     "TimeoutError",
+    "RemovedProtocolFeatureError",
     "ReservedMethodNameError",
     "ShardUnavailableError",
     "TransferToUniversalAccountNotAllowedError",

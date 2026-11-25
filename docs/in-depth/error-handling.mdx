@@ -110,6 +110,15 @@ try {
     ```
   </Accordion>
 
+  <Accordion title="RemovedProtocolFeatureError" icon="ban">
+    Thrown when a transaction uses an action the protocol has removed. nearcore rejects `Action::DelegateV2` from protocol version 87, so relaying a `delegateV2()` action fails this way: relay a `delegate()` action instead. It extends `InvalidTransactionError`.
+
+    **Properties:**
+    - `protocolFeature`: The removed feature, such as `"DelegateV2"`
+    - `protocolVersion`: The protocol version the node rejected it at
+    - `retryable`: Always `false`
+  </Accordion>
+
   <Accordion title="ExternalCallRefusedError" icon="hand">
     Thrown when a contract refuses an external call, from a dry run (`viewExternalCall()`) or from a copy refused when it ran.
 

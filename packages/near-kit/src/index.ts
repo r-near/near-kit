@@ -103,6 +103,7 @@ export {
   InvalidTransactionError,
   NearError,
   NetworkError,
+  RemovedProtocolFeatureError,
   ReservedMethodNameError,
   ShardUnavailableError,
   SignatureError,

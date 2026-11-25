@@ -922,6 +922,9 @@ export function serializeDelegateAction(
  *
  * @param delegateAction - The V2 delegate action in Borsh-ready form (its
  *   `publicKey` already converted via {@link publicKeyToZorsh}).
+ *
+ * @deprecated nearcore rejects `Action::DelegateV2` from protocol version 87
+ * (NEAR 2.14) with `RemovedProtocolFeatureError`. Use `serializeDelegateAction` instead.
  */
 export function serializeDelegateActionV2(
   delegateAction: DelegateActionV2Borsh,
@@ -989,10 +992,17 @@ export function decodeSignedDelegateAction(
  *
  * - Default output is a base64 string that can be sent via JSON/HTTP.
  * - Pass `"bytes"` to receive a raw Uint8Array.
+ *
+ * @deprecated nearcore rejects `Action::DelegateV2` from protocol version 87
+ * (NEAR 2.14) with `RemovedProtocolFeatureError`. Use `encodeSignedDelegateAction` instead.
  */
 export function encodeSignedDelegateActionV2(
   signedDelegate: DelegateV2Action,
 ): string
+/**
+ * @deprecated nearcore rejects `Action::DelegateV2` from protocol version 87
+ * (NEAR 2.14) with `RemovedProtocolFeatureError`. Use `encodeSignedDelegateAction` instead.
+ */
 export function encodeSignedDelegateActionV2<
   F extends DelegateActionPayloadFormat,
 >(signedDelegate: DelegateV2Action, format: F): DelegatePayloadReturn<F>
@@ -1009,6 +1019,9 @@ export function encodeSignedDelegateActionV2(
 /**
  * Decode an encoded V2 payload (base64 string or bytes) back into a
  * {@link DelegateV2Action}.
+ *
+ * @deprecated nearcore rejects `Action::DelegateV2` from protocol version 87
+ * (NEAR 2.14) with `RemovedProtocolFeatureError`. Use `decodeSignedDelegateAction` instead.
  */
 export function decodeSignedDelegateActionV2(
   payload: string | Uint8Array,

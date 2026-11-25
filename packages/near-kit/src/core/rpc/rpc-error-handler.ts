@@ -22,6 +22,7 @@ import {
   NetworkError,
   NodeNotSyncedError,
   ParseError,
+  RemovedProtocolFeatureError,
   ReservedMethodNameError,
   ShardUnavailableError,
   TimeoutError,
@@ -672,6 +673,21 @@ export function parseRpcError(
         if (universalAccountId !== undefined) {
           throw new TransferToUniversalAccountNotAllowedError(
             universalAccountId,
+            invalidTxError,
+          )
+        }
+
+        const removed = (
+          invalidTxError?.ActionsValidation as
+            | { RemovedProtocolFeature?: unknown }
+            | undefined
+        )?.RemovedProtocolFeature as
+          | { protocol_feature?: unknown; version?: unknown }
+          | undefined
+        if (removed && typeof removed.protocol_feature === "string") {
+          throw new RemovedProtocolFeatureError(
+            removed.protocol_feature,
+            typeof removed.version === "number" ? removed.version : 0,
             invalidTxError,
           )
         }
