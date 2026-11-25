@@ -1,5 +1,29 @@
 # near-kit
 
+## 0.21.0-rc.0
+
+### Minor Changes
+
+- 86cf14a: Add `TransactionBuilder.nonce(n)` to sign a transaction at an explicit, caller-chosen nonce. The value is used as-is for ordinary keys and gas-key slots (`.useGasKey(i).nonce(n)`), bypasses the shared nonce cache, and `send()` surfaces `InvalidNonceError` instead of retrying a caller-owned nonce. This lets applications that coordinate nonces outside the process (shared allocators across servers, relayers recording the nonce before an asynchronous/MPC signature) sign without reaching into the builder's private nonce manager.
+- a6d8508: Support nearcore 2.15 (protocol version 89):
+
+  - `Sandbox.start()` defaults to nearcore 2.15.0-rc.1.
+  - External contract calls (NEP-667): `near.externalCall()`, `near.viewExternalCall()` (dry run), `near.getExternalCallStatus()` and `near.findExternalCall()`, the wire codec (`encodeExternalCall`, `decodeExternalCall`, `externalCallHash`, `externalCallUniqueId`), and `ExternalCallRefusedError` and `ExternalCallTimeoutError`.
+  - Transaction views with `kind`, receipts with `authorization_context` and `creation_protocol_version`, the `external_call_processing` state change cause, and `near.getProtocolConfig()` with the external call limits.
+  - New typed errors: `ReservedMethodNameError`, `UninitializedAccountError`, `InvalidStateInitError` and `UnknownTransactionError`. `UNKNOWN_TRANSACTION` and `DOES_NOT_TRACK_SHARD` were `NetworkError`s before; `DOES_NOT_TRACK_SHARD` is now a non-retryable `ShardUnavailableError`.
+  - A `stateInit` option on view calls, and `state` and `bootstrap_nonce` on account views of uninitialized universal accounts.
+  - A JSON-RPC error sent with a non-2xx status, such as `TIMEOUT_ERROR` with HTTP 408, is now parsed into its typed error instead of a generic `NetworkError`.
+  - On nearcore 2.15, `getAccessKeys()` for a missing account throws `AccountDoesNotExistError` instead of returning no keys.
+
+- 58386b2: Add `TransferToUniversalAccountNotAllowedError`, thrown when nearcore rejects a transfer to a universal account (`0u...` id) with `TransferToUniversalAccountNotAllowed` while such transfers are banned (nearcore 2.14). It is recognized from `send_tx` validation errors, from failed contract-created receipts, and from transactions rejected when their chunk is applied, and exposes the target `accountId`.
+
+### Patch Changes
+
+- 86cf14a: Reject the transaction builder's `.nonce()` setting in `delegate()` and `delegateV2()` before RPC calls, signing, or wallet prompts. Use the existing delegate `{ nonce }` options for local signing; relayers can still set an independent outer transaction nonce when wrapping a signed delegate action.
+- 204c22f: Deprecate the DelegateV2 builders: `delegateV2()`, `signedDelegateActionV2()`, `signedDelegateV2()`, `DelegateActionV2`, `serializeDelegateActionV2()` and the V2 payload codecs. nearcore rejects `Action::DelegateV2` from protocol version 87 (NEAR 2.14), and near-kit now throws that rejection as `RemovedProtocolFeatureError` instead of a generic `InvalidTransactionError`. DelegateV2 actions in existing transactions still decode.
+- 58386b2: Export `InvalidNonceError`, `InvalidTransactionError`, and `TimeoutError` from the package entry point. The README and docs already import them from `near-kit`, but they weren't exported, so `instanceof` checks against them couldn't be written.
+- 6831f3b: Update sandbox to nearcore 2.14.0
+
 ## 0.20.2
 
 ### Patch Changes

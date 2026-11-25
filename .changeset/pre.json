@@ -5,5 +5,13 @@
     "near-kit": "0.20.2",
     "@near-kit/react": "0.20.2"
   },
-  "changesets": []
+  "changesets": [
+    "delegate-explicit-nonce-guard",
+    "deprecate-delegate-v2",
+    "explicit-transaction-nonce",
+    "export-transaction-errors",
+    "nearcore-2.14.0",
+    "nearcore-2.15-external-calls",
+    "transfer-to-universal-account-not-allowed"
+  ]
 }
