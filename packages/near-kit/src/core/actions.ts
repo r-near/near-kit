@@ -81,6 +81,9 @@ export class DelegateAction {
  * NEP-461 domain tag — a V1 delegate signature is never valid for a V2 action.
  * The `actions` are full (non-delegate) actions and must already be in
  * Borsh-ready form (as returned by the action factories).
+ *
+ * @deprecated nearcore rejects `Action::DelegateV2` from protocol version 87
+ * (NEAR 2.14) with `RemovedProtocolFeatureError`. Use `DelegateAction` instead.
  */
 export class DelegateActionV2 {
   senderId: string
@@ -503,6 +506,9 @@ export function signedDelegate(
  * Wraps the signed V2 payload in `Action::DelegateV2` (discriminant 14). The
  * signature must have been produced over {@link serializeDelegateActionV2} of
  * the same delegate action.
+ *
+ * @deprecated nearcore rejects `Action::DelegateV2` from protocol version 87
+ * (NEAR 2.14) with `RemovedProtocolFeatureError`. Use `signedDelegate` instead.
  */
 export function signedDelegateV2(
   delegateAction: DelegateActionV2,

@@ -9,11 +9,8 @@
  *
  * The default EXECUTED_OPTIMISTIC wait parses the response through
  * FinalExecutionOutcomeSchema; this confirms the gas-key action/permission view
- * schemas added in this PR parse a successful 2.13 response (the default public
+ * schemas added in this PR parse a successful response (the default public
  * API path) rather than throwing.
- *
- * The sandbox version is pinned to a 2.13 release explicitly so this test does
- * not depend on the default-version bump landing first.
  */
 
 import { afterAll, beforeAll, describe, expect, test } from "vitest"
@@ -21,26 +18,19 @@ import { Near } from "../../src/core/near.js"
 import { Sandbox } from "../../src/sandbox/sandbox.js"
 import { generateKey } from "../../src/utils/key.js"
 
-// Newest published 2.13 sandbox binary (stable 2.13.0 not yet released).
-// Overridable via NEAR_SANDBOX_VERSION so CI can move off a renamed/GC'd RC or
-// to a stable 2.13.0 without a code change.
-const SANDBOX_VERSION = process.env.NEAR_SANDBOX_VERSION ?? "2.13.0-rc.2"
-
 describe("Gas Key Actions - Integration Tests (NEAR 2.13)", () => {
   let sandbox: Sandbox
   let near: Near
 
   beforeAll(async () => {
-    sandbox = await Sandbox.start({ version: SANDBOX_VERSION })
+    sandbox = await Sandbox.start()
     near = new Near({
       network: sandbox,
       keyStore: {
         [sandbox.rootAccount.id]: sandbox.rootAccount.secretKey,
       },
     })
-    console.log(
-      `✓ Sandbox ${SANDBOX_VERSION} started: ${sandbox.rootAccount.id}`,
-    )
+    console.log(`✓ Sandbox started: ${sandbox.rootAccount.id}`)
   }, 180000)
 
   afterAll(async () => {

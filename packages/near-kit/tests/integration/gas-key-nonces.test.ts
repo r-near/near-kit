@@ -5,8 +5,6 @@
  * nonce lanes, fund it, then read the lanes back with
  * `RpcClient.getGasKeyNonces` and assert we get exactly N sane per-lane nonces
  * plus the block context. Also asserts that reading a non-gas key rejects.
- *
- * Sandbox version overridable via NEAR_SANDBOX_VERSION; defaults to a 2.13 RC.
  */
 
 import { afterAll, beforeAll, describe, expect, test } from "vitest"
@@ -15,23 +13,19 @@ import { AccessKeyDoesNotExistError } from "../../src/errors/index.js"
 import { Sandbox } from "../../src/sandbox/sandbox.js"
 import { generateKey } from "../../src/utils/key.js"
 
-const SANDBOX_VERSION = process.env.NEAR_SANDBOX_VERSION ?? "2.13.0-rc.2"
-
 describe("view_gas_key_nonces reader - Integration Test (NEAR 2.13)", () => {
   let sandbox: Sandbox
   let near: Near
 
   beforeAll(async () => {
-    sandbox = await Sandbox.start({ version: SANDBOX_VERSION })
+    sandbox = await Sandbox.start()
     near = new Near({
       network: sandbox,
       keyStore: {
         [sandbox.rootAccount.id]: sandbox.rootAccount.secretKey,
       },
     })
-    console.log(
-      `✓ Sandbox ${SANDBOX_VERSION} started: ${sandbox.rootAccount.id}`,
-    )
+    console.log(`✓ Sandbox started: ${sandbox.rootAccount.id}`)
   }, 180000)
 
   afterAll(async () => {

@@ -682,6 +682,39 @@ export class InvalidTransactionError extends NearError {
 }
 
 /**
+ * Thrown when a transaction uses an action the protocol has removed
+ * (`ActionsValidationError::RemovedProtocolFeature`). nearcore rejects
+ * `Action::DelegateV2` from protocol version 87, for example: relay a
+ * `delegate()` action instead.
+ */
+export class RemovedProtocolFeatureError extends InvalidTransactionError {
+  /** The removed feature, such as `"DelegateV2"`. */
+  protocolFeature: string
+  /** The protocol version the node rejected it at. */
+  protocolVersion: number
+
+  constructor(
+    protocolFeature: string,
+    protocolVersion: number,
+    details?: unknown,
+  ) {
+    super(
+      `${protocolFeature} was removed from the protocol and is rejected at protocol version ${protocolVersion}${
+        protocolFeature === "DelegateV2"
+          ? ": relay a delegate() action instead"
+          : ""
+      }`,
+      details,
+    )
+    this.name = "RemovedProtocolFeatureError"
+    this.code = "REMOVED_PROTOCOL_FEATURE"
+    this.protocolFeature = protocolFeature
+    this.protocolVersion = protocolVersion
+    Object.setPrototypeOf(this, RemovedProtocolFeatureError.prototype)
+  }
+}
+
+/**
  * Thrown when a receipt cannot be found
  */
 export class UnknownReceiptError extends NearError {

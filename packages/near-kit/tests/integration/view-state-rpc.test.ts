@@ -10,11 +10,7 @@ import { EMPTY_CODE_HASH, Sandbox } from "../../src/sandbox/sandbox.js"
 import { generateKey } from "../../src/utils/key.js"
 
 // view_state `limit`/`after_key_base64` pagination was added in nearcore 2.13
-// (protocol v85). Older nodes ignore `limit` and return every entry, so this
-// test pins a 2.13.x sandbox so the pagination assertions actually run rather
-// than relying on the (separately bumped) default version. The protocol guard
-// below stays as a safety net (e.g. an older NEAR_SANDBOX_BIN_PATH override).
-const VIEW_STATE_SANDBOX_VERSION = "2.13.0-rc.2"
+// (protocol v85). Older nodes ignore `limit` and return every entry.
 const VIEW_STATE_PAGINATION_PROTOCOL_VERSION = 85
 
 describe("view_state + stabilized RPC - Integration Tests", () => {
@@ -24,7 +20,7 @@ describe("view_state + stabilized RPC - Integration Tests", () => {
   let protocolVersion = 0
 
   beforeAll(async () => {
-    sandbox = await Sandbox.start({ version: VIEW_STATE_SANDBOX_VERSION })
+    sandbox = await Sandbox.start()
     near = new Near({
       network: sandbox,
       keyStore: { [sandbox.rootAccount.id]: sandbox.rootAccount.secretKey },
@@ -76,7 +72,7 @@ describe("view_state + stabilized RPC - Integration Tests", () => {
     if (protocolVersion < VIEW_STATE_PAGINATION_PROTOCOL_VERSION) {
       console.warn(
         `⚠ Skipping view_state pagination test: node is protocol ${protocolVersion}, ` +
-          `limit/after_key_base64 needs ${VIEW_STATE_PAGINATION_PROTOCOL_VERSION}+ (2.13.x sandbox)`,
+          `limit/after_key_base64 needs ${VIEW_STATE_PAGINATION_PROTOCOL_VERSION}+`,
       )
       ctx.skip()
       return

@@ -726,6 +726,9 @@ export class TransactionBuilder {
    *
    * The receiver is set to the V2 delegate action's sender (the account whose
    * actions are being relayed).
+   *
+   * @deprecated nearcore rejects `Action::DelegateV2` from protocol version 87
+   * (NEAR 2.14) with `RemovedProtocolFeatureError`. Use {@link signedDelegateAction} instead.
    */
   signedDelegateActionV2(signedDelegate: DelegateV2Action): this {
     this.actions.push(signedDelegate)
@@ -878,6 +881,9 @@ export class TransactionBuilder {
    *
    * @returns The structured V2 signed delegate action plus an encoded payload
    *   (`base64` by default).
+   *
+   * @deprecated nearcore rejects `Action::DelegateV2` from protocol version 87
+   * (NEAR 2.14) with `RemovedProtocolFeatureError`. Use {@link delegate} instead.
    */
   async delegateV2<F extends DelegateActionPayloadFormat = "base64">(
     options?: DelegateV2Options<F>,

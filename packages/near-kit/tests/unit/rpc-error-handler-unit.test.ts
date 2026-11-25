@@ -35,6 +35,7 @@ import {
   NetworkError,
   NodeNotSyncedError,
   ParseError,
+  RemovedProtocolFeatureError,
   ShardUnavailableError,
   TimeoutError,
   TransferToUniversalAccountNotAllowedError,
@@ -263,6 +264,29 @@ const TRANSFER_TO_UNIVERSAL_ACCOUNT_NOT_ALLOWED = {
   ActionsValidation: {
     TransferToUniversalAccountNotAllowed: {
       account_id: UNIVERSAL_ACCOUNT_ID,
+    },
+  },
+}
+
+/**
+ * send_tx response from a 2.15.0-rc.1 sandbox for a transaction carrying
+ * `Action::DelegateV2`, which nearcore rejects from protocol 87.
+ */
+const DELEGATE_V2_REJECTED_RPC_ERROR = {
+  name: "HANDLER_ERROR",
+  cause: { info: {}, name: "INVALID_TRANSACTION" },
+  code: -32000,
+  message: "Server error",
+  data: {
+    TxExecutionError: {
+      InvalidTxError: {
+        ActionsValidation: {
+          RemovedProtocolFeature: {
+            protocol_feature: "DelegateV2",
+            version: 89,
+          },
+        },
+      },
     },
   },
 }
@@ -1041,6 +1065,28 @@ describe("parseRpcError", () => {
       )
     })
 
+    test("should throw RemovedProtocolFeatureError for a DelegateV2 transaction", () => {
+      const error = (() => {
+        try {
+          parseRpcError(DELEGATE_V2_REJECTED_RPC_ERROR)
+        } catch (e) {
+          return e
+        }
+      })()
+
+      expect(error).toBeInstanceOf(RemovedProtocolFeatureError)
+      expect(error).toBeInstanceOf(InvalidTransactionError)
+      const err = error as RemovedProtocolFeatureError
+      expect(err.code).toBe("REMOVED_PROTOCOL_FEATURE")
+      expect(err.protocolFeature).toBe("DelegateV2")
+      expect(err.protocolVersion).toBe(89)
+      expect(err.retryable).toBe(false)
+      expect(err.message).toMatch(/delegate\(\)/)
+      expect(err.details).toEqual(
+        DELEGATE_V2_REJECTED_RPC_ERROR.data.TxExecutionError.InvalidTxError,
+      )
+    })
+
     test("should keep other ActionsValidation errors as InvalidTransactionError", () => {
       const error = {
         ...TRANSFER_TO_UNIVERSAL_ACCOUNT_RPC_ERROR,
@@ -1064,6 +1110,7 @@ describe("parseRpcError", () => {
       } catch (e) {
         expect(e).toBeInstanceOf(InvalidTransactionError)
         expect(e).not.toBeInstanceOf(TransferToUniversalAccountNotAllowedError)
+        expect(e).not.toBeInstanceOf(RemovedProtocolFeatureError)
       }
     })
 
