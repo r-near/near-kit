@@ -1,0 +1,2 @@
+neard (release 2.13.4) (build 2.13.4) (commit 44f7ae6cd7ef08bab604e20a473bf77e35d4c993) (rustc 1.93.0) (min_protocol 83) (protocol 86) (db 49)
+features: [default, dump_test_contract, json_rpc, near_dump_test_contract, rosetta_rpc, sandbox]

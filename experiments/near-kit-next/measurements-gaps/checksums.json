@@ -1,0 +1,18 @@
+{
+  "raw.json": {
+    "sha256": "0ad5d34b91a3bfbd4bc6570c78f8829911677366fb1eff7e7112150731558cca",
+    "gzipSha256": "2ce6e4fea64f4256abe066dadf85d436ca58382d1a29ada28921b69028b63377"
+  },
+  "summary.json": {
+    "sha256": "9f5b53124f9cf24306ae77aa902a5daff84f97c3055580a8028097b4dce9cbf3",
+    "gzipSha256": "09fa2e1a0520611810e14f5093b53fc82d8e0c6b268511ccb0bc64fa00686c06"
+  },
+  "normalized-html.json": {
+    "sha256": "01bfa1bb271a8e6c51e592a33064a3d9058e8aa0e1a0dc3d8bc272702ccbab98",
+    "gzipSha256": "37485095fc30000cc4102cb8f76b1940f844eb1609963b0c9fbe3a6a4e064b28"
+  },
+  "postrun-equality.json": {
+    "sha256": "a2fad5a7e16247f5ca75e1ab6365c2719e57c9b6cdc7930c72e3e563d7564d86",
+    "gzipSha256": "6c762fa1b1e6a9d34fe302140c13a10dfa24dd310933b7b6863a75f99d19fa6c"
+  }
+}

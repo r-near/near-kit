@@ -1,0 +1,12 @@
+{
+  "measuredArchiveSha256": "14a06e61a4aa3b3ad05e10cd427d8a720af1087aaaf1f43ee710134fd5d5ec8b",
+  "finalArchiveSha256": "e539b5decdc8d71f2f9a47d9bac9d11cf9b4a153db904512ec47e8a082f4e6cb",
+  "identicalRuntimeExampleMembers": 53,
+  "runtimeExampleDifferences": [],
+  "changedArchiveMembers": [
+    "package/COVERAGE.md",
+    "package/EVALUATION.md",
+    "package/GOAL.md",
+    "package/README.md"
+  ]
+}

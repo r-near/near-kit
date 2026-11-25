@@ -1,0 +1,26 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": ".",
+    "jsx": "react-jsx",
+    "types": ["node"],
+    "lib": ["ES2023", "DOM", "DOM.Iterable"]
+  },
+  "include": [
+    "src/**/*.ts",
+    "test/**/*.ts",
+    "examples/**/*.ts",
+    "examples/**/*.tsx",
+    "vitest.config.ts",
+    "test/**/*.tsx",
+    "playwright.config.ts",
+    "vitest.sandbox.config.ts"
+  ],
+  "exclude": [
+    "examples/wallet*.ts",
+    "examples/wallet*.tsx",
+    "test/wallet*.ts",
+    "test/browser/**"
+  ]
+}

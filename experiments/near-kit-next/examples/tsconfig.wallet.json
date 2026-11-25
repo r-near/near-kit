@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "paths": {
+      "@near-js/types/lib/esm/provider/protocol": [
+        "./node_modules/@near-js/types/lib/esm/provider/protocol.d.ts"
+      ],
+      "@near-js/types/lib/esm/provider/response": [
+        "./node_modules/@near-js/types/lib/esm/provider/response.d.ts"
+      ]
+    },
+    "target": "ES2022",
+    "strict": true,
+    "skipLibCheck": false,
+    "jsx": "react-jsx",
+    "lib": ["ES2023", "DOM", "DOM.Iterable", "ESNext.Disposable"],
+    "types": ["node"],
+    "noEmit": true
+  },
+  "include": ["wallet*.ts", "wallet*.tsx"]
+}
