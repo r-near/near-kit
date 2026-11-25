@@ -59,7 +59,7 @@ for (const { receipt } of status.receipts) {
 
 ## Timeouts and Finding a Copy
 
-A refused call is dropped, not rejected, so `send_tx` waits until it times out. near-kit sends the call once and throws `ExternalCallTimeoutError`, with the call hash and the head height seen before sending. The call may still land. If the node saw a copy land that hadn't reached the wait level yet, the error also has its `uniqueId`.
+A refused call is dropped, not rejected, so `send_tx` waits until it times out. near-kit sends the call once, never retrying it, and throws `ExternalCallTimeoutError`, with the call hash and the head height seen before sending. The call may still land. If the node saw a copy land that hadn't reached the wait level yet, the error also has its `uniqueId`. A network error on the send is thrown as is: the call may have landed, so look for it with `findExternalCall()` before sending it again.
 
 `findExternalCall()` finds the copy. With `resend: true` it first sends the same call again: a node that saw a copy land returns it at once. Otherwise, or if that fails, it tries one candidate unique id per height:
 

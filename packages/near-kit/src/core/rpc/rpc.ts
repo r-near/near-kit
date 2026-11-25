@@ -260,6 +260,7 @@ export class RpcClient {
    *
    * @param method - RPC method name (e.g. `"query"`, `"status"`).
    * @param params - RPC params object or array.
+   * @param options.retry - `false` sends the request once, whatever the error.
    *
    * @returns Parsed JSON result typed as `T`.
    *
@@ -270,7 +271,7 @@ export class RpcClient {
   async call<T = unknown>(
     method: string,
     params: unknown,
-    options?: { retryOnTimeout?: boolean },
+    options?: { retry?: boolean },
   ): Promise<T> {
     const request: RpcRequest = {
       jsonrpc: "2.0",
@@ -364,12 +365,9 @@ export class RpcClient {
 
         // Check if we should retry
         const isRetryable =
+          options?.retry !== false &&
           "retryable" in lastError &&
-          lastError.retryable &&
-          !(
-            options?.retryOnTimeout === false &&
-            lastError instanceof TimeoutError
-          )
+          lastError.retryable
         const hasRetriesLeft = attempt + 1 < totalAttempts
 
         if (!isRetryable || !hasRetriesLeft) {
@@ -799,6 +797,8 @@ export class RpcClient {
    * @throws {ExternalCallTimeoutError} If no copy was found before the node
    * timed out: for example the producer's dry run refused the call, or the
    * node does not track the contract's shard.
+   * @throws {NetworkError} If the request failed. The call is never resent:
+   * it may have landed.
    */
   async sendExternalCall<
     W extends keyof ExternalCallOutcomeMap = "EXECUTED_OPTIMISTIC",
@@ -817,7 +817,7 @@ export class RpcClient {
         external_call_base64: base64.encode(encoded),
         wait_until: actualWaitUntil,
       },
-      { retryOnTimeout: false },
+      { retry: false },
     ).catch((error) => {
       if (error instanceof TimeoutError && sentAtHeight !== undefined) {
         throw new ExternalCallTimeoutError(

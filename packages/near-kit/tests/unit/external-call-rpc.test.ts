@@ -329,6 +329,28 @@ describe("RpcClient.sendExternalCall", () => {
     expect(requests.filter((r) => r.method === "send_tx")).toHaveLength(1)
   })
 
+  test.each([
+    ["a network failure", () => Promise.reject(new TypeError("fetch failed"))],
+    [
+      "an HTTP 503",
+      () => Promise.resolve(new Response("unavailable", { status: 503 })),
+    ],
+  ])("%s on send is thrown without resending", async (_, fail) => {
+    const sends: unknown[] = []
+    global.fetch = vi.fn(async (_url: unknown, init?: { body?: unknown }) => {
+      const { method } = JSON.parse(String(init?.body)) as Request
+      if (method === "block")
+        return new Response(JSON.stringify(block(12).body))
+      sends.push(method)
+      return fail()
+    }) as unknown as typeof global.fetch
+    const rpc = new RpcClient("https://rpc.test", {}, { initialDelayMs: 1 })
+    await expect(rpc.sendExternalCall(call)).rejects.toBeInstanceOf(
+      NetworkError,
+    )
+    expect(sends).toEqual(["send_tx"])
+  })
+
   test("a timeout that names a pending copy carries its unique id", async () => {
     const pending = fixture("send-tx-refused-timeout")
     const error = pending.body["error"] as {
