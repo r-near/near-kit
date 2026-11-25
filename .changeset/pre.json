@@ -1,0 +1,9 @@
+{
+  "mode": "pre",
+  "tag": "rc",
+  "initialVersions": {
+    "near-kit": "0.20.2",
+    "@near-kit/react": "0.20.2"
+  },
+  "changesets": []
+}

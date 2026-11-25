@@ -12,7 +12,7 @@
     "lint": "biome check . --write",
     "typecheck": "tsc --build --noEmit",
     "ci:version": "changeset version && bun update",
-    "ci:publish": "bun run build && for dir in packages/*; do (cd \"$dir\" && PKG_NAME=$(jq -r .name package.json) && PKG_VERSION=$(jq -r .version package.json) && if npm view \"$PKG_NAME@$PKG_VERSION\" version 2>/dev/null; then echo \"$PKG_NAME@$PKG_VERSION already published, skipping\"; else bun pm pack && npm publish *.tgz --access public && rm *.tgz; fi); done && changeset tag",
+    "ci:publish": "bun run build && for dir in packages/*; do (cd \"$dir\" && PKG_NAME=$(jq -r .name package.json) && PKG_VERSION=$(jq -r .version package.json) && if npm view \"$PKG_NAME@$PKG_VERSION\" version 2>/dev/null; then echo \"$PKG_NAME@$PKG_VERSION already published, skipping\"; else TAG_ARGS= && case \"$PKG_VERSION\" in *-*) PRE=${PKG_VERSION#*-} && TAG_ARGS=\"--tag ${PRE%%.*}\";; esac && bun pm pack && npm publish *.tgz --access public $TAG_ARGS && rm *.tgz; fi); done && changeset tag",
     "release": "bun run ci:publish",
     "lefthook": "lefthook install"
   },
