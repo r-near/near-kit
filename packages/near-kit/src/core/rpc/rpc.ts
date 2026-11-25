@@ -1,12 +1,25 @@
 import { base58, base64 } from "@scure/base"
 import {
   AccessKeyDoesNotExistError,
+  ExternalCallRefusedError,
+  ExternalCallTimeoutError,
   GlobalContractNotFoundError,
   InvalidTransactionError,
   NearError,
   NetworkError,
+  TimeoutError,
 } from "../../errors/index.js"
+import {
+  createStateInit,
+  type StateInitOptions,
+} from "../../utils/state-init.js"
 import type { BlockReference, RpcRetryConfigInput } from "../config-schemas.js"
+import {
+  EXTERNAL_CALL_METHOD_NAME,
+  type ExternalCall,
+  encodeExternalCall,
+  externalCallHash,
+} from "../external-call.js"
 import type {
   AccessKeyListResponse,
   AccessKeyView,
@@ -15,6 +28,10 @@ import type {
   BlockView,
   ContractCodeView,
   ExecutionOutcomeWithId,
+  ExternalCallOutcome,
+  ExternalCallOutcomeMap,
+  ExternalCallOutcomeWithReceipts,
+  ExternalCallOutcomeWithReceiptsMap,
   FinalExecutionOutcome,
   FinalExecutionOutcomeMap,
   FinalExecutionOutcomeWithReceipts,
@@ -24,6 +41,7 @@ import type {
   GenesisConfigResponse,
   GlobalContractReference,
   MaintenanceWindowsResponse,
+  ProtocolConfigResponse,
   ReceiptToTxResponse,
   StateItem,
   StatusResponse,
@@ -32,11 +50,13 @@ import type {
 } from "../types.js"
 import {
   checkOutcomeForFunctionCallError,
+  checkOutcomesForReservedMethodName,
   checkTransactionForUniversalAccountTransfer,
   extractErrorMessage,
   isRetryableStatus,
   parseQueryError,
   parseRpcError,
+  type RpcErrorResponse,
 } from "./rpc-error-handler.js"
 import {
   AccessKeyListResponseSchema,
@@ -45,12 +65,15 @@ import {
   BlockEffectsResponseSchema,
   BlockViewSchema,
   ContractCodeViewSchema,
+  ExternalCallOutcomeSchema,
+  ExternalCallOutcomeWithReceiptsSchema,
   FinalExecutionOutcomeSchema,
   FinalExecutionOutcomeWithReceiptsSchema,
   GasKeyNoncesResponseSchema,
   GasPriceResponseSchema,
   GenesisConfigResponseSchema,
   MaintenanceWindowsResponseSchema,
+  ProtocolConfigResponseSchema,
   ReceiptToTxResponseSchema,
   StatusResponseSchema,
   ViewFunctionCallResultSchema,
@@ -83,6 +106,111 @@ export interface RpcResponse<T = unknown> {
 export interface RpcRetryConfig {
   maxRetries: number
   initialDelayMs: number
+}
+
+/**
+ * The state init a view call runs with (nearcore 2.15): unless the account
+ * already has its state, the call runs as if this were installed.
+ *
+ * - A deterministic (`0s`) account's NEP-616 state init, as {@link StateInitOptions}.
+ * - `{ universal }`: the raw bytes of a universal (`0u`) account's `UniversalStateInit`.
+ */
+export type ViewStateInit = StateInitOptions | { universal: Uint8Array }
+
+/**
+ * Options of a view function call.
+ */
+export type ViewFunctionOptions = BlockReference & {
+  /** Run the call as if this state init were installed. Requires nearcore >= 2.15. */
+  stateInit?: ViewStateInit
+}
+
+/**
+ * Encode a {@link ViewStateInit} as the `state_init` field of a
+ * `call_function` query.
+ * @internal
+ */
+export function encodeViewStateInit(stateInit: ViewStateInit): unknown {
+  if ("universal" in stateInit) {
+    return { universal: base64.encode(stateInit.universal) }
+  }
+  const { code, data } = createStateInit(stateInit)
+  const entries = [...data.entries()]
+    .map(([key, value]) => [key, value] as const)
+    .sort(([a], [b]) => compareBytes(a, b))
+  return {
+    deterministic: {
+      code:
+        code.type === "accountId"
+          ? { account_id: code.accountId }
+          : { hash: base58.encode(code.hash) },
+      data: Object.fromEntries(
+        entries.map(([key, value]) => [
+          base64.encode(key),
+          base64.encode(value),
+        ]),
+      ),
+    },
+  }
+}
+
+function compareBytes(a: Uint8Array, b: Uint8Array): number {
+  const length = Math.min(a.length, b.length)
+  for (let i = 0; i < length; i++) {
+    const diff = (a[i] as number) - (b[i] as number)
+    if (diff !== 0) return diff
+  }
+  return a.length - b.length
+}
+
+/**
+ * Throw a typed error if an external call's outcome failed.
+ *
+ * A failed transaction outcome means the copy was refused (nothing ran or was
+ * charged): {@link ExternalCallRefusedError}. A failure in a later receipt
+ * means the contract accepted and paid for the call but one of its promises
+ * failed; that is reported as for a signed transaction.
+ * @internal
+ */
+function checkExternalCallOutcome(
+  parsed: ExternalCallOutcome,
+  contractId: string,
+): void {
+  const status = parsed.status
+  if (!status || typeof status !== "object" || !("Failure" in status)) return
+
+  const txOutcome = parsed.transaction_outcome
+  const txStatus = txOutcome?.outcome.status
+  if (txOutcome && typeof txStatus === "object" && "Failure" in txStatus) {
+    throw new ExternalCallRefusedError(
+      parsed.transaction?.contract_id ?? contractId,
+      txStatus.Failure,
+      txOutcome.outcome.logs,
+      { uniqueId: txOutcome.id, blockHash: txOutcome.block_hash },
+    )
+  }
+
+  const receipts = parsed.receipts_outcome ?? []
+  checkTransactionForUniversalAccountTransfer(status.Failure, receipts)
+  checkOutcomesForReservedMethodName(receipts)
+  const failedReceipt = receipts.find(
+    (receipt) =>
+      typeof receipt.outcome.status === "object" &&
+      "Failure" in receipt.outcome.status,
+  )
+  if (failedReceipt) {
+    checkOutcomeForFunctionCallError(failedReceipt, undefined)
+    const failure = (failedReceipt.outcome.status as { Failure: unknown })
+      .Failure
+    throw new InvalidTransactionError(
+      extractErrorMessage(failure as Record<string, unknown>),
+      failure,
+    )
+  }
+  throw new InvalidTransactionError(
+    extractErrorMessage(status.Failure as Record<string, unknown>),
+    status.Failure,
+  )
 }
 
 const DEFAULT_RETRY_CONFIG: RpcRetryConfig = {
@@ -132,6 +260,7 @@ export class RpcClient {
    *
    * @param method - RPC method name (e.g. `"query"`, `"status"`).
    * @param params - RPC params object or array.
+   * @param options.retry - `false` sends the request once, whatever the error.
    *
    * @returns Parsed JSON result typed as `T`.
    *
@@ -139,7 +268,11 @@ export class RpcClient {
    * @throws {InvalidTransactionError} For transaction failures detected by {@link parseRpcError}.
    * @throws {NearError} For other RPC-level errors.
    */
-  async call<T = unknown>(method: string, params: unknown): Promise<T> {
+  async call<T = unknown>(
+    method: string,
+    params: unknown,
+    options?: { retry?: boolean },
+  ): Promise<T> {
     const request: RpcRequest = {
       jsonrpc: "2.0",
       id: ++this.requestId,
@@ -172,6 +305,20 @@ export class RpcClient {
         })
 
         if (!response.ok) {
+          // nearcore sends some JSON-RPC errors with a non-2xx status, such as
+          // TIMEOUT_ERROR with 408.
+          const body = await response
+            .clone()
+            .json()
+            .catch(() => undefined)
+          const rpcError = (body as { error?: unknown } | undefined)?.error
+          if (
+            rpcError !== null &&
+            typeof rpcError === "object" &&
+            "name" in rpcError
+          ) {
+            parseRpcError(rpcError as RpcErrorResponse, response.status)
+          }
           // Use isRetryableStatus to determine if this HTTP error is retryable
           throw new NetworkError(
             `HTTP ${response.status}: ${response.statusText}`,
@@ -217,7 +364,10 @@ export class RpcClient {
         lastError = nearError
 
         // Check if we should retry
-        const isRetryable = "retryable" in lastError && lastError.retryable
+        const isRetryable =
+          options?.retry !== false &&
+          "retryable" in lastError &&
+          lastError.retryable
         const hasRetriesLeft = attempt + 1 < totalAttempts
 
         if (!isRetryable || !hasRetriesLeft) {
@@ -260,13 +410,17 @@ export class RpcClient {
    * @param contractId - Account ID of the target contract.
    * @param methodName - Name of the view method.
    * @param args - Arguments object or raw bytes; defaults to `{}`.
-   * @param options - Optional {@link BlockReference} to control finality or block.
+   * @param options - Optional {@link BlockReference} to control finality or
+   * block, and a `stateInit` to run the call with (nearcore >= 2.15).
+   *
+   * @throws {ExternalCallRefusedError} If `methodName` is `__external_call`
+   * and the contract refuses the call.
    */
   async viewFunction(
     contractId: string,
     methodName: string,
     args: unknown = {},
-    options?: BlockReference,
+    options?: ViewFunctionOptions,
   ): Promise<ViewFunctionCallResult> {
     const argsBytes =
       args instanceof Uint8Array
@@ -282,12 +436,65 @@ export class RpcClient {
       account_id: contractId,
       method_name: methodName,
       args_base64: argsBase64,
+      ...(options?.stateInit
+        ? { state_init: encodeViewStateInit(options.stateInit) }
+        : {}),
+    }).catch((error) => {
+      if (
+        error instanceof ExternalCallRefusedError &&
+        error.contractId === "unknown"
+      ) {
+        const context: { blockHeight?: number; blockHash?: string } = {}
+        if (error.blockHeight !== undefined) {
+          context.blockHeight = error.blockHeight
+        }
+        if (error.blockHash !== undefined) context.blockHash = error.blockHash
+        throw new ExternalCallRefusedError(
+          contractId,
+          error.details,
+          error.logs,
+          context,
+        )
+      }
+      throw error
     })
 
     // Check for errors in result (NEAR returns view function errors this way)
     parseQueryError(result, { contractId, methodName })
 
     return ViewFunctionCallResultSchema.parse(result)
+  }
+
+  /**
+   * Run an external call as the chunk producer's dry run would, without
+   * saving anything: a view call of `__external_call` with the payload as its
+   * input (nearcore >= 2.15).
+   *
+   * @param contractId - The contract the call goes to.
+   * @param payload - The call's payload.
+   * @param options - Block reference (default: optimistic, the state a chunk
+   * producer runs the call on), and the state init the call carries.
+   *
+   * @returns The run's return value and logs if the contract accepts the call.
+   *
+   * @throws {ExternalCallRefusedError} If the contract refuses the call; it
+   * carries the reason and the run's logs.
+   */
+  async viewExternalCall(
+    call: ExternalCall,
+    options?: BlockReference,
+  ): Promise<ViewFunctionCallResult> {
+    return this.viewFunction(
+      call.contractId,
+      EXTERNAL_CALL_METHOD_NAME,
+      call.payload,
+      {
+        ...(options?.blockId
+          ? { blockId: options.blockId }
+          : { finality: options?.finality ?? "optimistic" }),
+        ...(call.stateInit ? { stateInit: { universal: call.stateInit } } : {}),
+      },
+    )
   }
 
   /**
@@ -518,6 +725,7 @@ export class RpcClient {
           parsed.transaction_outcome,
           ...(parsed.receipts_outcome ?? []),
         ])
+        checkOutcomesForReservedMethodName(parsed.receipts_outcome ?? [])
 
         // Check transaction_outcome for direct failures
         if (parsed.transaction_outcome) {
@@ -573,6 +781,117 @@ export class RpcClient {
   }
 
   /**
+   * Send an external contract call (NEP-667) via `send_tx` with
+   * `external_call_base64` (nearcore >= 2.15).
+   *
+   * At `INCLUDED` and above the node waits for a copy of the call to land
+   * and returns its outcome, whose `transaction_outcome.id` is the copy's
+   * unique id. At `NONE` it returns no outcome: the unique id depends on the
+   * height the copy lands at.
+   *
+   * @param call - The call, or its borsh encoding.
+   * @param waitUntil - Execution status level to wait for.
+   *
+   * @throws {ContractNotDeployedError} If the account has no contract or does not exist.
+   * @throws {ExternalCallRefusedError} If the copy was refused at execution.
+   * @throws {ExternalCallTimeoutError} If no copy was found before the node
+   * timed out: for example the producer's dry run refused the call, or the
+   * node does not track the contract's shard.
+   * @throws {NetworkError} If the request failed. The call is never resent:
+   * it may have landed.
+   */
+  async sendExternalCall<
+    W extends keyof ExternalCallOutcomeMap = "EXECUTED_OPTIMISTIC",
+  >(call: ExternalCall, waitUntil?: W): Promise<ExternalCallOutcomeMap[W]> {
+    const actualWaitUntil = (waitUntil ?? "EXECUTED_OPTIMISTIC") as W
+    const encoded = encodeExternalCall(call)
+
+    const sentAtHeight =
+      actualWaitUntil === "NONE"
+        ? undefined
+        : (await this.getBlock({ finality: "final" })).header.height
+
+    const result = await this.call(
+      "send_tx",
+      {
+        external_call_base64: base64.encode(encoded),
+        wait_until: actualWaitUntil,
+      },
+      { retry: false },
+    ).catch((error) => {
+      if (error instanceof TimeoutError && sentAtHeight !== undefined) {
+        throw new ExternalCallTimeoutError(
+          call.contractId,
+          externalCallHash(call),
+          sentAtHeight,
+          pendingUniqueId(error.data),
+        )
+      }
+      throw error
+    })
+
+    const parsed = ExternalCallOutcomeSchema.parse(result)
+    checkExternalCallOutcome(parsed, call.contractId)
+    return parsed as ExternalCallOutcomeMap[W]
+  }
+
+  /**
+   * Query a copy of an external call by its unique id via
+   * `EXPERIMENTAL_tx_status`, with its receipts (nearcore >= 2.15).
+   *
+   * @param uniqueId - The copy's unique id (see `externalCallUniqueId`).
+   * @param contractId - The contract the call went to.
+   * @param waitUntil - Execution status level to wait for.
+   *
+   * @throws {UnknownTransactionError} With `waitUntil: "NONE"`, if the node
+   * has no copy with this id.
+   * @throws {ExternalCallRefusedError} If the copy was refused at execution.
+   */
+  async getExternalCallStatus<
+    W extends keyof ExternalCallOutcomeWithReceiptsMap = "EXECUTED_OPTIMISTIC",
+  >(
+    uniqueId: string,
+    contractId: string,
+    waitUntil?: W,
+  ): Promise<ExternalCallOutcomeWithReceiptsMap[W]> {
+    const result = await this.call("EXPERIMENTAL_tx_status", {
+      tx_hash: uniqueId,
+      sender_account_id: contractId,
+      wait_until: waitUntil ?? "EXECUTED_OPTIMISTIC",
+    })
+    if (transactionKind(result) === "signed") {
+      throw new NearError(
+        `${uniqueId} is a signed transaction, not an external call: use getTransactionStatus`,
+        "NOT_AN_EXTERNAL_CALL",
+      )
+    }
+    const parsed: ExternalCallOutcomeWithReceipts =
+      ExternalCallOutcomeWithReceiptsSchema.parse(result)
+    checkExternalCallOutcome(parsed, contractId)
+    return parsed as ExternalCallOutcomeWithReceiptsMap[W]
+  }
+
+  /**
+   * Get the protocol config via `EXPERIMENTAL_protocol_config`, including
+   * the external call limits of nearcore 2.15
+   * (`runtime_config.external_calls_config` and
+   * `runtime_config.wasm_config.limit_config.max_gas_burnt_external`).
+   *
+   * @param options - Block reference. Defaults to the latest final block.
+   */
+  async getProtocolConfig(
+    options?: BlockReference,
+  ): Promise<ProtocolConfigResponse> {
+    const result = await this.call(
+      "EXPERIMENTAL_protocol_config",
+      options?.blockId
+        ? { block_id: options.blockId }
+        : { finality: options?.finality || "final" },
+    )
+    return ProtocolConfigResponseSchema.parse(result)
+  }
+
+  /**
    * Query transaction status with receipts via `EXPERIMENTAL_tx_status`.
    *
    * @param txHash - Transaction hash.
@@ -596,6 +915,13 @@ export class RpcClient {
       wait_until: actualWaitUntil,
     })
 
+    if (transactionKind(result) === "external_call") {
+      throw new NearError(
+        `${txHash} is an external call, not a signed transaction: use getExternalCallStatus`,
+        "NOT_A_SIGNED_TRANSACTION",
+      )
+    }
+
     const parsed: FinalExecutionOutcomeWithReceipts =
       FinalExecutionOutcomeWithReceiptsSchema.parse(result)
 
@@ -616,6 +942,7 @@ export class RpcClient {
         parsed.transaction_outcome,
         ...(parsed.receipts_outcome ?? []),
       ])
+      checkOutcomesForReservedMethodName(parsed.receipts_outcome ?? [])
 
       // Check transaction_outcome for direct failures
       if (parsed.transaction_outcome) {
@@ -904,6 +1231,37 @@ export class RpcClient {
       throw error
     }
   }
+}
+
+/**
+ * The `kind` of the transaction view in a tx status result: `"signed"` for a
+ * view without `kind` (older nodes), `undefined` without a transaction.
+ * @internal
+ */
+/**
+ * The unique id in a `TIMEOUT_ERROR` whose cause is `PENDING`: the node saw a
+ * copy land, short of the wait level asked for.
+ */
+function pendingUniqueId(info: unknown): string | undefined {
+  if (typeof info !== "object" || info === null) return undefined
+  const { cause, status } = info as { cause?: unknown; status?: unknown }
+  if (cause !== "PENDING" || typeof status !== "object" || status === null) {
+    return undefined
+  }
+  const { transaction_outcome, transaction } = status as {
+    transaction_outcome?: { id?: unknown }
+    transaction?: { transaction_id?: unknown }
+  }
+  const id = transaction_outcome?.id ?? transaction?.transaction_id
+  return typeof id === "string" ? id : undefined
+}
+
+function transactionKind(result: unknown): string | undefined {
+  if (!result || typeof result !== "object") return undefined
+  const transaction = (result as { transaction?: unknown }).transaction
+  if (!transaction || typeof transaction !== "object") return undefined
+  const kind = (transaction as { kind?: unknown }).kind
+  return typeof kind === "string" ? kind : "signed"
 }
 
 /**

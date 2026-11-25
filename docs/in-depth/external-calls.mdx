@@ -1,0 +1,133 @@
+---
+title: "External Calls"
+description: "Calls a contract authorizes and pays for itself (NEP-667, nearcore 2.15)"
+---
+
+An **external call** has no signer, access key, nonce or signature. Anyone can send one. The contract it names runs its reserved `__external_call` method with the call's payload as input, decides whether to accept it, and pays for it from its own balance. A refused call never lands and costs nobody anything.
+
+This lets a contract check its own authorization, for example a wallet contract that verifies a passkey or secp256k1 signature inside the payload, without a relayer.
+
+<Note>
+External calls need a node running protocol version 89 (nearcore 2.15) or later. An older node rejects a send at once.
+</Note>
+
+## Dry Run
+
+Before sending, run the call as a chunk producer would. `viewExternalCall()` is a view call of `__external_call`, at optimistic finality by default:
+
+```typescript
+import { ExternalCallRefusedError } from "near-kit"
+
+try {
+  const result = await near.viewExternalCall("wallet.near", payload)
+  console.log("Accepted, returns:", result)
+} catch (e) {
+  if (e instanceof ExternalCallRefusedError) {
+    console.log("Refused:", e.details, "logs:", e.logs)
+  }
+}
+```
+
+The payload is an object (sent as JSON) or a `Uint8Array`.
+
+## Sending
+
+```typescript
+const outcome = await near.externalCall("wallet.near", payload, {
+  waitUntil: "EXECUTED_OPTIMISTIC",
+})
+
+console.log(outcome.transaction.kind) // "external_call"
+console.log(outcome.transaction_outcome.id) // the copy's unique id
+```
+
+A call encoded larger than `max_call_size` (see [Limits](#limits)) is rejected at once with an `InvalidTransactionError` carrying `TransactionSizeExceeded`. As with a signed transaction, `externalCall()` throws only when the call itself fails: a receipt it starts that fails shows up in `outcome.receipts_outcome`.
+
+An external call has no hash known before it lands. Each copy that lands gets a **unique id** from the call hash and the height of the block that includes it. `send_tx` returns it once a copy is included. With `waitUntil: "NONE"` the node returns nothing to follow.
+
+To look a copy up later, pass its unique id and the contract:
+
+```typescript
+const status = await near.getExternalCallStatus(uniqueId, "wallet.near", "FINAL")
+
+for (const { receipt } of status.receipts) {
+  // "ExternalContractCall" for receipts an external call created,
+  // { AccessKey: publicKey } for receipts a signed transaction created.
+  if ("Action" in receipt) console.log(receipt.Action.authorization_context)
+}
+```
+
+## Timeouts and Finding a Copy
+
+A refused call is dropped, not rejected, so `send_tx` waits until it times out. near-kit sends the call once, never retrying it, and throws `ExternalCallTimeoutError`, with the call hash and the final block height seen before sending. The call may still land. If the node saw a copy land that hadn't reached the wait level yet, the error also has its `uniqueId`. A network error on the send is thrown as is: the call may have landed, so look for it with `findExternalCall()` before sending it again.
+
+`findExternalCall()` finds the copy. With `resend: true` it first sends the same call again: a node that saw a copy land returns it at once. Otherwise, or if that fails, it tries one candidate unique id per height:
+
+```typescript
+import { ExternalCallTimeoutError } from "near-kit"
+
+try {
+  await near.externalCall("wallet.near", payload)
+} catch (e) {
+  if (e instanceof ExternalCallTimeoutError) {
+    const found = await near.findExternalCall("wallet.near", payload, {
+      fromHeight: e.sentAtHeight,
+      toHeight: e.sentAtHeight + 200, // e.g. the payload's expiry
+      resend: true,
+    })
+    if (!found) console.log("Never landed")
+  }
+}
+```
+
+Without `toHeight`, the search stops at the current head. With a `toHeight` past the head, it waits for new blocks. A copy refused at execution doesn't count as found: the search goes on, and throws that copy's `ExternalCallRefusedError` only if no accepted copy turns up.
+
+A miss is only as certain as the node that answered it. Behind a load balancer, a node a few blocks behind can report a landed copy as unknown. When a miss must be certain before you send the call again, search through a single node.
+
+<Warning>
+The protocol does not stop a call from landing more than once. A contract that accepts external calls should keep a nonce and an expiry in its own state and check them against the payload, so it accepts only the first copy.
+</Warning>
+
+## Uninitialized Universal Accounts
+
+A funded universal (`0u...`) account has no code until its state init is installed. Until then `near.rpc.getAccount()` shows `state: "uninitialized"` and its `bootstrap_nonce`. The first external call can carry the state init:
+
+```typescript
+await near.viewExternalCall(universalAccountId, payload, { stateInit }) // dry run
+await near.externalCall(universalAccountId, payload, { stateInit })
+```
+
+`stateInit` is the raw borsh-encoded `UniversalStateInit`. `findExternalCall()` takes it the same way. It isn't part of the call hash or unique id, and once the account is initialized, chunk producers drop it from later calls, so the landed copy's `transaction.state_init` is `null`.
+
+`near.view()` takes a state init too, as `{ stateInit: { universal: bytes } }` or a deterministic `{ stateInit: { code, data } }`.
+
+## Wire Format
+
+The codec is exported for tools that build or inspect calls themselves:
+
+```typescript
+import {
+  encodeExternalCall,
+  decodeExternalCall,
+  externalCallHash,
+  externalCallUniqueId,
+} from "near-kit"
+
+const call = { contractId: "wallet.near", payload: new Uint8Array([1, 2]) }
+
+encodeExternalCall(call) // 0xFF, version 0, then borsh fields
+externalCallHash(call) // sha256 of the encoding without the state init
+externalCallUniqueId(call, 7) // sha256(call hash || height as u64 LE)
+```
+
+## Limits
+
+`getProtocolConfig()` reports them:
+
+```typescript
+const config = await near.getProtocolConfig()
+console.log(config.runtime_config.external_calls_config)
+// { max_call_size: 20480, max_calls_per_chunk: 100, chunk_compute_share: [2, 5], ... }
+console.log(config.runtime_config.wasm_config?.limit_config?.max_gas_burnt_external)
+// 20000000000000 (20 Tgas per call)
+```

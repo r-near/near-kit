@@ -1,0 +1,10 @@
+{
+  "http": 200,
+  "body": {
+    "jsonrpc": "2.0",
+    "result": {
+      "final_execution_status": "NONE"
+    },
+    "id": 1
+  }
+}

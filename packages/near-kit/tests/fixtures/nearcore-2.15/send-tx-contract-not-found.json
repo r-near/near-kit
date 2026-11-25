@@ -1,0 +1,25 @@
+{
+  "http": 200,
+  "body": {
+    "jsonrpc": "2.0",
+    "error": {
+      "name": "HANDLER_ERROR",
+      "cause": {
+        "info": {},
+        "name": "INVALID_TRANSACTION"
+      },
+      "code": -32000,
+      "message": "Server error",
+      "data": {
+        "TxExecutionError": {
+          "InvalidTxError": {
+            "ContractNotFound": {
+              "contract_id": "plain-1795554409281.test.near"
+            }
+          }
+        }
+      }
+    },
+    "id": 1
+  }
+}

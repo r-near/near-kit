@@ -1,0 +1,62 @@
+[
+  {
+    "predecessor_id": "test.near",
+    "priority": 0,
+    "receipt": {
+      "Action": {
+        "actions": [
+          "CreateAccount",
+          {
+            "Transfer": {
+              "deposit": "10000000000000000000000000"
+            }
+          },
+          {
+            "DeployContract": {
+              "code": "Wsu3qPqGKSr8pVpyOMEgFymO7v+92FY1KpMUXbjWj/M="
+            }
+          }
+        ],
+        "authorization_context": {
+          "AccessKey": "ed25519:E4QgqUFsmiDefUTtCDFtpqymsu9KLJPaCWLQGhzwzT4i"
+        },
+        "creation_protocol_version": 89,
+        "gas_price": "1000000000",
+        "input_data_ids": [],
+        "is_promise_yield": false,
+        "output_data_receivers": [],
+        "signer_id": "test.near",
+        "signer_public_key": "ed25519:E4QgqUFsmiDefUTtCDFtpqymsu9KLJPaCWLQGhzwzT4i"
+      }
+    },
+    "receipt_id": "4PyjKmVg3D8KoUs1BXnABZQGGdqxTWAyAFx9ZrCPtooR",
+    "receiver_id": "ecc-1795554409281.test.near"
+  },
+  {
+    "predecessor_id": "system",
+    "priority": 0,
+    "receipt": {
+      "Action": {
+        "actions": [
+          {
+            "Transfer": {
+              "deposit": "588946849850000000000"
+            }
+          }
+        ],
+        "authorization_context": {
+          "AccessKey": "ed25519:E4QgqUFsmiDefUTtCDFtpqymsu9KLJPaCWLQGhzwzT4i"
+        },
+        "creation_protocol_version": 89,
+        "gas_price": "0",
+        "input_data_ids": [],
+        "is_promise_yield": false,
+        "output_data_receivers": [],
+        "signer_id": "test.near",
+        "signer_public_key": "ed25519:E4QgqUFsmiDefUTtCDFtpqymsu9KLJPaCWLQGhzwzT4i"
+      }
+    },
+    "receipt_id": "6dJBsUHWYgDaNmYHS6VmeiZxSJbxzK9a6b1Roub258aN",
+    "receiver_id": "test.near"
+  }
+]

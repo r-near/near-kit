@@ -83,6 +83,16 @@ export const AccountViewSchema = z.object({
   global_contract_account_id: z.string().nullable().optional(),
   storage_usage: z.number(),
   storage_paid_at: z.number(),
+  /**
+   * "uninitialized" for a universal account no state init has reached yet
+   * (nearcore 2.15+). Omitted for initialized accounts.
+   */
+  state: z.enum(["initialized", "uninitialized"]).optional(),
+  /**
+   * While the account is uninitialized: the nonce its self-signed state init
+   * must exceed by exactly one.
+   */
+  bootstrap_nonce: z.number().optional(),
   block_height: z.number(),
   block_hash: z.string(),
 })
@@ -582,6 +592,11 @@ export const NonceModeSchema = z.enum(["monotonic", "strict"])
  * Transaction schema (as returned by RPC)
  */
 export const TransactionSchema = z.object({
+  /**
+   * `"signed"` from nearcore 2.15, which tags every transaction view with its
+   * kind. Absent on older nodes.
+   */
+  kind: z.literal("signed").optional(),
   signer_id: z.string(),
   public_key: z.string(),
   nonce: z.number(),
@@ -611,6 +626,49 @@ export const MinimalTransactionSchema = z.object({
   receiver_id: z.string(),
   nonce: z.number(),
 })
+
+/**
+ * An external contract call (NEP-667, nearcore 2.15) as a transaction view, in
+ * `tx` / `EXPERIMENTAL_tx_status` / `send_tx` results. It has no signer, key,
+ * nonce, signature or actions.
+ */
+export const ExternalCallTransactionSchema = z.object({
+  kind: z.literal("external_call"),
+  /** The contract that authorized, paid for and received the call. */
+  contract_id: z.string(),
+  /** The call's payload, base64. */
+  payload: z.string(),
+  /** The unique id of this copy of the call: its outcome id. */
+  transaction_id: z.string(),
+  /** The universal account state init this copy carries, base64, or `null`. */
+  state_init: z.string().nullable(),
+})
+
+/**
+ * A transaction of either kind, as nearcore 2.15 writes it in transaction
+ * views. A view without `kind` (from an older node) is a signed transaction.
+ */
+export const TransactionEnvelopeSchema = z.union([
+  ExternalCallTransactionSchema,
+  TransactionSchema,
+])
+
+/**
+ * An external call as a chunk holds it. `transaction_id` is `null` when no
+ * block on the canonical chain includes the chunk.
+ */
+export const ChunkExternalCallTransactionSchema =
+  ExternalCallTransactionSchema.extend({
+    transaction_id: z.string().nullable(),
+  })
+
+/**
+ * A transaction in a chunk's `transactions`, of either kind.
+ */
+export const ChunkTransactionSchema = z.union([
+  ChunkExternalCallTransactionSchema,
+  TransactionSchema,
+])
 
 /**
  * Final execution outcome schema - the response from send_tx
@@ -687,7 +745,42 @@ export const FinalExecutionOutcomeSchema = z.discriminatedUnion(
 )
 
 /**
- * Receipt schema (for EXPERIMENTAL_tx_status)
+ * What authorized an action receipt's chain (nearcore 2.15): the access key
+ * that signed the transaction, or an external contract call.
+ */
+export const AuthorizationContextSchema = z.union([
+  z.literal("ExternalContractCall"),
+  z.object({ AccessKey: z.string() }),
+])
+
+const ActionReceiptFields = {
+  signer_id: z.string(),
+  gas_price: z.string(),
+  output_data_receivers: z.array(z.any()),
+  input_data_ids: z.array(z.string()),
+  actions: z.array(ActionSchema),
+  is_promise_yield: z.boolean().optional(),
+  refund_to: z.string().nullable().optional(),
+  /**
+   * What authorized the chain. Present on `ActionReceiptV3`, the version of
+   * every action receipt created from protocol version 89.
+   */
+  authorization_context: AuthorizationContextSchema.optional(),
+  /** The protocol version the receipt was created at (`ActionReceiptV3`). */
+  creation_protocol_version: z.number().optional(),
+}
+
+const DataReceiptSchema = z.object({
+  Data: z.object({
+    data_id: z.string(),
+    data: z.string().nullable().optional(),
+    is_promise_resume: z.boolean().optional(),
+  }),
+})
+
+/**
+ * Receipt schema (for EXPERIMENTAL_tx_status of a signed transaction, whose
+ * action receipts all carry the signer's public key)
  */
 export const ReceiptSchema = z.object({
   predecessor_id: z.string(),
@@ -696,21 +789,32 @@ export const ReceiptSchema = z.object({
   receipt: z.union([
     z.object({
       Action: z.object({
-        signer_id: z.string(),
+        ...ActionReceiptFields,
         signer_public_key: z.string(),
-        gas_price: z.string(),
-        output_data_receivers: z.array(z.any()),
-        input_data_ids: z.array(z.string()),
-        actions: z.array(ActionSchema),
-        is_promise_yield: z.boolean().optional(),
       }),
     }),
+    DataReceiptSchema,
+  ]),
+  priority: z.number().optional(),
+})
+
+/**
+ * Receipt schema for any receipt, including those an external call started:
+ * they have no `signer_public_key`, and their `authorization_context` is
+ * `"ExternalContractCall"`.
+ */
+export const ReceiptViewSchema = z.object({
+  predecessor_id: z.string(),
+  receiver_id: z.string(),
+  receipt_id: z.string(),
+  receipt: z.union([
     z.object({
-      Data: z.object({
-        data_id: z.string(),
-        data: z.string().nullable().optional(),
+      Action: z.object({
+        ...ActionReceiptFields,
+        signer_public_key: z.string().optional(),
       }),
     }),
+    DataReceiptSchema,
   ]),
   priority: z.number().optional(),
 })
@@ -725,6 +829,157 @@ export const FinalExecutionOutcomeWithReceiptsSchema = z.intersection(
     receipts: z.array(ReceiptSchema),
   }),
 )
+
+// ==================== External calls (NEP-667) ====================
+
+const ExternalCallEarlyOutcomeFields = {
+  transaction: ExternalCallTransactionSchema.optional(),
+  status: ExecutionStatusSchema.optional(),
+  transaction_outcome: ExecutionOutcomeWithIdSchema.optional(),
+  receipts_outcome: z.array(ExecutionOutcomeWithIdSchema).optional(),
+}
+
+const ExternalCallExecutedOutcomeFields = {
+  status: ExecutionStatusSchema,
+  transaction: ExternalCallTransactionSchema,
+  transaction_outcome: ExecutionOutcomeWithIdSchema,
+  receipts_outcome: z.array(ExecutionOutcomeWithIdSchema),
+}
+
+/**
+ * The outcome of an external call's copy, from `send_tx` with
+ * `external_call_base64` or from `tx` / `EXPERIMENTAL_tx_status` by its unique
+ * id. `transaction_outcome.id` and `transaction.transaction_id` are the copy's
+ * unique id. At `NONE` the node returns no outcome.
+ */
+export const ExternalCallOutcomeSchema = z.discriminatedUnion(
+  "final_execution_status",
+  [
+    z.object({
+      final_execution_status: z.literal("NONE"),
+      ...ExternalCallEarlyOutcomeFields,
+    }),
+    z.object({
+      final_execution_status: z.literal("INCLUDED"),
+      ...ExternalCallEarlyOutcomeFields,
+    }),
+    z.object({
+      final_execution_status: z.literal("INCLUDED_FINAL"),
+      ...ExternalCallEarlyOutcomeFields,
+    }),
+    z.object({
+      final_execution_status: z.literal("EXECUTED_OPTIMISTIC"),
+      ...ExternalCallExecutedOutcomeFields,
+    }),
+    z.object({
+      final_execution_status: z.literal("EXECUTED"),
+      ...ExternalCallExecutedOutcomeFields,
+    }),
+    z.object({
+      final_execution_status: z.literal("FINAL"),
+      ...ExternalCallExecutedOutcomeFields,
+    }),
+  ],
+)
+
+/**
+ * An external call's outcome with its receipts (`EXPERIMENTAL_tx_status`).
+ */
+export const ExternalCallOutcomeWithReceiptsSchema = z.intersection(
+  ExternalCallOutcomeSchema,
+  z.object({
+    receipts: z.array(ReceiptViewSchema),
+  }),
+)
+
+/**
+ * Why a state change happened, as `EXPERIMENTAL_changes` and the indexer
+ * report it, internally tagged by `type`. nearcore 2.15 adds
+ * `external_call_processing` for the changes an accepted external call made.
+ */
+export const StateChangeCauseSchema = z.union([
+  z.object({
+    type: z.enum([
+      "not_writable_to_disk",
+      "initial_state",
+      "updated_delayed_receipts",
+      "validator_accounts_update",
+      "migration",
+      "bandwidth_scheduler_state_update",
+      "contract_compilation_status_update",
+    ]),
+  }),
+  z.object({ type: z.literal("transaction_processing"), tx_hash: z.string() }),
+  z.object({
+    type: z.enum([
+      "action_receipt_processing_started",
+      "action_receipt_gas_reward",
+      "receipt_processing",
+      "postponed_receipt",
+    ]),
+    receipt_hash: z.string(),
+  }),
+  z.object({
+    type: z.literal("external_call_processing"),
+    transaction_id: z.string(),
+  }),
+])
+
+// ==================== EXPERIMENTAL_protocol_config ====================
+
+/** A `[numerator, denominator]` ratio. */
+const RatioSchema = z.tuple([z.number(), z.number()])
+
+/**
+ * Limits on external calls (`runtime_config.external_calls_config`, nearcore
+ * 2.15). Each chunk share is a `[numerator, denominator]` ratio of the chunk's
+ * limit that all its external calls together may use.
+ */
+export const ExternalCallsConfigSchema = z
+  .object({
+    max_call_size: z.number(),
+    max_call_recorded_size: z.number(),
+    chunk_compute_share: RatioSchema,
+    chunk_storage_proof_share: RatioSchema,
+    chunk_transactions_size_share: RatioSchema,
+    max_calls_per_chunk: z.number(),
+  })
+  .catchall(z.any())
+
+/**
+ * Response of `EXPERIMENTAL_protocol_config`.
+ *
+ * Only the commonly used fields and the external-call limits are typed; every
+ * other field is preserved as returned.
+ */
+export const ProtocolConfigResponseSchema = z
+  .object({
+    protocol_version: z.number(),
+    chain_id: z.string(),
+    genesis_height: z.number().optional(),
+    epoch_length: z.number().optional(),
+    runtime_config: z
+      .object({
+        storage_amount_per_byte: z.string().optional(),
+        wasm_config: z
+          .object({
+            limit_config: z
+              .object({
+                max_gas_burnt: z.number().optional(),
+                /** Gas budget of one external call's run (20 Tgas). */
+                max_gas_burnt_external: z.number().optional(),
+                max_transaction_size: z.number().optional(),
+              })
+              .catchall(z.any())
+              .optional(),
+          })
+          .catchall(z.any())
+          .optional(),
+        external_calls_config: ExternalCallsConfigSchema.optional(),
+      })
+      .catchall(z.any()),
+  })
+  .catchall(z.any())
 
 // ==================== view_state ====================
 
@@ -874,6 +1129,25 @@ export type RpcTransaction = z.infer<typeof TransactionSchema>
 export type RpcMinimalTransaction = z.infer<typeof MinimalTransactionSchema>
 export type FinalExecutionOutcome = z.infer<typeof FinalExecutionOutcomeSchema>
 export type Receipt = z.infer<typeof ReceiptSchema>
+export type ReceiptView = z.infer<typeof ReceiptViewSchema>
+export type AuthorizationContext = z.infer<typeof AuthorizationContextSchema>
+export type RpcExternalCallTransaction = z.infer<
+  typeof ExternalCallTransactionSchema
+>
+export type RpcTransactionEnvelope = z.infer<typeof TransactionEnvelopeSchema>
+export type RpcChunkExternalCallTransaction = z.infer<
+  typeof ChunkExternalCallTransactionSchema
+>
+export type RpcChunkTransaction = z.infer<typeof ChunkTransactionSchema>
+export type ExternalCallOutcome = z.infer<typeof ExternalCallOutcomeSchema>
+export type ExternalCallOutcomeWithReceipts = z.infer<
+  typeof ExternalCallOutcomeWithReceiptsSchema
+>
+export type StateChangeCause = z.infer<typeof StateChangeCauseSchema>
+export type ExternalCallsConfig = z.infer<typeof ExternalCallsConfigSchema>
+export type ProtocolConfigResponse = z.infer<
+  typeof ProtocolConfigResponseSchema
+>
 export type FinalExecutionOutcomeWithReceipts = z.infer<
   typeof FinalExecutionOutcomeWithReceiptsSchema
 >
@@ -949,5 +1223,25 @@ export type FinalExecutionOutcomeWithReceiptsMap = {
   FINAL: Extract<
     FinalExecutionOutcomeWithReceipts,
     { final_execution_status: "FINAL" }
+  >
+}
+
+/**
+ * The {@link ExternalCallOutcome} variant for each wait level.
+ */
+export type ExternalCallOutcomeMap = {
+  [W in TxExecutionStatus]: Extract<
+    ExternalCallOutcome,
+    { final_execution_status: W }
+  >
+}
+
+/**
+ * The {@link ExternalCallOutcomeWithReceipts} variant for each wait level.
+ */
+export type ExternalCallOutcomeWithReceiptsMap = {
+  [W in TxExecutionStatus]: Extract<
+    ExternalCallOutcomeWithReceipts,
+    { final_execution_status: W }
   >
 }

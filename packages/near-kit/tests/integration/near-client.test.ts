@@ -6,6 +6,7 @@
 
 import { afterAll, beforeAll, describe, expect, test } from "vitest"
 import { Near } from "../../src/core/near.js"
+import { AccountDoesNotExistError } from "../../src/errors/index.js"
 import { Sandbox } from "../../src/sandbox/sandbox.js"
 import { generateKey } from "../../src/utils/key.js"
 
@@ -155,9 +156,15 @@ describe("Near Client - Integration Tests", () => {
       )
     })
 
-    test("should return empty keys for non-existent account", async () => {
-      const keys = await near.getAccessKeys("nonexistent-account-xyz.test.near")
-      expect(keys.keys).toEqual([])
+    test("handles a non-existent account per node version", async () => {
+      const { protocol_version } = await near.getStatus()
+      const keys = near.getAccessKeys("nonexistent-account-xyz.test.near")
+      if (protocol_version >= 89) {
+        // nearcore 2.15 answers UNKNOWN_ACCOUNT (near/nearcore#16267).
+        await expect(keys).rejects.toBeInstanceOf(AccountDoesNotExistError)
+      } else {
+        expect((await keys).keys).toEqual([])
+      }
     })
 
     test("should accept blockId option", async () => {

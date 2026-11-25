@@ -1,0 +1,16 @@
+{
+  "http": 200,
+  "body": {
+    "jsonrpc": "2.0",
+    "result": {
+      "block_hash": "6XVoF1oKU4p5xh9UcHBgF1XYuANbpEHwvFBzBjLUtdqA",
+      "block_height": 12,
+      "logs": ["checked"],
+      "result": [
+        97, 49, 55, 57, 53, 53, 53, 52, 52, 49, 54, 51, 53, 55, 45, 48, 46, 51,
+        56, 52, 49, 49, 54, 55, 49, 50, 52, 48, 53, 56, 52, 49
+      ]
+    },
+    "id": 1
+  }
+}

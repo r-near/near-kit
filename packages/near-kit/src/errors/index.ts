@@ -462,6 +462,199 @@ export class TransferToUniversalAccountNotAllowedError extends NearError {
 }
 
 /**
+ * Thrown when a contract refuses an external call (NEP-667): its
+ * `__external_call` method failed, or the call failed a check before or after
+ * the run. A refused call is rolled back and nobody pays.
+ *
+ * Raised by a view call of `__external_call` (the chunk producer's dry run,
+ * RPC error `EXTERNAL_CALL_REFUSED`) and by a copy of the call that was
+ * included in a chunk and refused at execution. For the latter, `uniqueId` is
+ * the copy's unique id.
+ *
+ * `retryable` is true when the copy did not run because the chunk's external
+ * calls had used up their share of the chunk (`ExternalCallChunkShareReached`):
+ * sending the call again can land it in a later chunk.
+ */
+export class ExternalCallRefusedError extends NearError {
+  contractId: string
+  /** The reason, as nearcore's `TxExecutionError`. */
+  details: unknown
+  /** The logs of the contract's run; empty for a call refused before its run. */
+  logs: string[]
+  uniqueId?: string
+  blockHeight?: number
+  blockHash?: string
+  retryable: boolean
+
+  constructor(
+    contractId: string,
+    details: unknown,
+    logs: string[] = [],
+    context: {
+      uniqueId?: string
+      blockHeight?: number
+      blockHash?: string
+    } = {},
+  ) {
+    super(
+      `External call refused by ${contractId}: ${describeExecutionError(details)}`,
+      "EXTERNAL_CALL_REFUSED",
+      details,
+    )
+    this.name = "ExternalCallRefusedError"
+    this.contractId = contractId
+    this.details = details
+    this.logs = logs
+    if (context.uniqueId !== undefined) this.uniqueId = context.uniqueId
+    if (context.blockHeight !== undefined)
+      this.blockHeight = context.blockHeight
+    if (context.blockHash !== undefined) this.blockHash = context.blockHash
+    const invalidTx = (details as { InvalidTxError?: unknown } | null)
+      ?.InvalidTxError
+    this.retryable =
+      typeof invalidTx === "object" &&
+      invalidTx !== null &&
+      "ExternalCallChunkShareReached" in invalidTx
+    Object.setPrototypeOf(this, ExternalCallRefusedError.prototype)
+  }
+}
+
+/**
+ * Thrown when a waiting `send_tx` of an external call times out before the
+ * node finds a copy of the call on chain.
+ *
+ * The call may still land, or may have landed where this node cannot see it.
+ * Send the same call again (`send_tx` returns a copy that already landed), or
+ * search for it by `callHash` from `sentAtHeight` with
+ * `Near.findExternalCall`.
+ */
+export class ExternalCallTimeoutError extends NearError {
+  retryable = true
+  contractId: string
+  /** The call hash (without the state init) every copy's unique id comes from. */
+  callHash: string
+  /**
+   * The final block height seen right before the call was sent. A copy can
+   * only land above it; an optimistic head could still be forked away.
+   */
+  sentAtHeight: number
+  /**
+   * The unique id of a copy the node saw land that had not reached the
+   * requested wait level yet (timeout cause `PENDING`). Look it up with
+   * `Near.getExternalCallStatus`.
+   */
+  uniqueId?: string
+
+  constructor(
+    contractId: string,
+    callHash: string,
+    sentAtHeight: number,
+    uniqueId?: string,
+  ) {
+    super(
+      uniqueId === undefined
+        ? `External call to ${contractId} (call hash ${callHash}) was not found on chain before the request timed out. It may still land: send it again or search from height ${sentAtHeight}.`
+        : `External call to ${contractId} landed as ${uniqueId} but did not reach the requested wait level before the request timed out.`,
+      "EXTERNAL_CALL_TIMEOUT",
+    )
+    this.name = "ExternalCallTimeoutError"
+    this.contractId = contractId
+    this.callHash = callHash
+    this.sentAtHeight = sentAtHeight
+    if (uniqueId !== undefined) this.uniqueId = uniqueId
+    Object.setPrototypeOf(this, ExternalCallTimeoutError.prototype)
+  }
+}
+
+/**
+ * Thrown when a `FunctionCall` action calls `__external_call`, the method
+ * reserved for external contract calls (`ActionErrorKind::ReservedMethodName`,
+ * nearcore 2.15). Only an external call or a view call can run it.
+ */
+export class ReservedMethodNameError extends NearError {
+  methodName: string
+  retryable = false
+
+  constructor(methodName: string, details?: unknown) {
+    super(
+      `Method ${methodName} is reserved for external contract calls and can't be called by a FunctionCall action`,
+      "RESERVED_METHOD_NAME",
+      details,
+    )
+    this.name = "ReservedMethodNameError"
+    this.methodName = methodName
+    Object.setPrototypeOf(this, ReservedMethodNameError.prototype)
+  }
+}
+
+/**
+ * Thrown when a view query targets a funded but uninitialized universal
+ * (`0u`) account (RPC error `UNINITIALIZED_ACCOUNT`, nearcore 2.15). Pass the
+ * account's state init to a view call to run it as if it were installed.
+ */
+export class UninitializedAccountError extends NearError {
+  accountId: string
+
+  constructor(accountId: string) {
+    super(
+      `Account ${accountId} exists but is not initialized`,
+      "UNINITIALIZED_ACCOUNT",
+    )
+    this.name = "UninitializedAccountError"
+    this.accountId = accountId
+    Object.setPrototypeOf(this, UninitializedAccountError.prototype)
+  }
+}
+
+/**
+ * Thrown when the `state_init` of a view call is invalid for the account
+ * (RPC error `INVALID_STATE_INIT`, nearcore 2.15). `details` holds nearcore's
+ * `ActionsValidationError`.
+ */
+export class InvalidStateInitError extends NearError {
+  details?: unknown
+
+  constructor(message: string, details?: unknown) {
+    super(
+      /^invalid state init/i.test(message)
+        ? message
+        : `Invalid state init: ${message}`,
+      "INVALID_STATE_INIT",
+      details,
+    )
+    this.name = "InvalidStateInitError"
+    this.details = details
+    Object.setPrototypeOf(this, InvalidStateInitError.prototype)
+  }
+}
+
+/**
+ * Thrown when the node does not know a transaction or external call copy with
+ * the requested hash or unique id (RPC error `UNKNOWN_TRANSACTION`). It may not
+ * have landed yet, or may be on a shard this node does not track.
+ */
+export class UnknownTransactionError extends NearError {
+  transactionHash: string
+  retryable = false
+
+  constructor(transactionHash: string) {
+    super(`Transaction ${transactionHash} doesn't exist`, "UNKNOWN_TRANSACTION")
+    this.name = "UnknownTransactionError"
+    this.transactionHash = transactionHash
+    Object.setPrototypeOf(this, UnknownTransactionError.prototype)
+  }
+}
+
+function describeExecutionError(error: unknown): string {
+  if (typeof error === "string") return error
+  try {
+    return JSON.stringify(error)
+  } catch {
+    return String(error)
+  }
+}
+
+/**
  * Thrown when a transaction is invalid
  * Check details for specific reasons like ShardCongested or ShardStuck
  */
@@ -528,11 +721,12 @@ export class TimeoutError extends NearError {
   retryable = true
   transactionHash?: string
 
-  constructor(message?: string, transactionHash?: string) {
+  constructor(message?: string, transactionHash?: string, data?: unknown) {
     super(
       message ||
         "Request timed out. The transaction may still be processed. Resubmit the identical transaction.",
       "TIMEOUT_ERROR",
+      data,
     )
     this.name = "TimeoutError"
     if (transactionHash !== undefined) {

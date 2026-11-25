@@ -1,0 +1,26 @@
+{
+  "http": 200,
+  "body": {
+    "jsonrpc": "2.0",
+    "error": {
+      "name": "HANDLER_ERROR",
+      "cause": {
+        "info": {
+          "block_hash": "27eWVW8ttnh6crXHjcna9sTzFb6W6JzRPt5vmLsNrQmj",
+          "block_height": 6,
+          "error": {
+            "InvalidUniversalStateInitReceiver": {
+              "derived_id": "0u1kajgpx8a97y8ap8y03pvt8kbm2p2cn9k5h17bgw1wa21j88865g",
+              "receiver_id": "0ur4hp47xzeqz730v3a6mnkwrccrq5j8012ekb7635js7fct47kpd0"
+            }
+          }
+        },
+        "name": "INVALID_STATE_INIT"
+      },
+      "code": -32000,
+      "message": "Server error",
+      "data": "invalid state init: UniversalStateInit action payload is invalid for account 0ur4hp47xzeqz730v3a6mnkwrccrq5j8012ekb7635js7fct47kpd0, derived id is 0u1kajgpx8a97y8ap8y03pvt8kbm2p2cn9k5h17bgw1wa21j88865g"
+    },
+    "id": 1
+  }
+}

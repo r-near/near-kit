@@ -25,7 +25,11 @@ jobs:
           echo "latest=$LATEST" >> $GITHUB_OUTPUT
           echo "Current: $CURRENT, Latest: $LATEST"
 
-          if [ "$CURRENT" != "$LATEST" ]; then
+          # The default may be a release candidate ahead of the latest
+          # release; bump only to a newer version. "~" sorts a pre-release
+          # before its release.
+          NEWEST=$(printf '%s\n' "${CURRENT/-/\~}" "${LATEST/-/\~}" | sort -V | tail -1)
+          if [ "$CURRENT" != "$LATEST" ] && [ "$NEWEST" = "${LATEST/-/\~}" ]; then
             echo "needs_update=true" >> $GITHUB_OUTPUT
           fi
         env:

@@ -1,0 +1,21 @@
+{
+  "http": 200,
+  "body": {
+    "jsonrpc": "2.0",
+    "error": {
+      "name": "HANDLER_ERROR",
+      "cause": {
+        "info": {
+          "block_hash": "EWn4M9da2cBdEF7AxWzr4K3NCvi9pEuBNVwvSx9aUhht",
+          "block_height": 43,
+          "requested_account_id": "missing.test.near"
+        },
+        "name": "UNKNOWN_ACCOUNT"
+      },
+      "code": -32000,
+      "message": "Server error",
+      "data": "account missing.test.near does not exist while viewing"
+    },
+    "id": 1
+  }
+}

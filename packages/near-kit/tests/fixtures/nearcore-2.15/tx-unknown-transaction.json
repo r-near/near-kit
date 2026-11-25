@@ -1,0 +1,19 @@
+{
+  "http": 200,
+  "body": {
+    "jsonrpc": "2.0",
+    "error": {
+      "name": "HANDLER_ERROR",
+      "cause": {
+        "info": {
+          "requested_transaction_hash": "687zkAF1F9Vk2EUgYzzHxHgG3K7TcvXiMkAEfR6BKTTq"
+        },
+        "name": "UNKNOWN_TRANSACTION"
+      },
+      "code": -32000,
+      "message": "Server error",
+      "data": "Transaction 687zkAF1F9Vk2EUgYzzHxHgG3K7TcvXiMkAEfR6BKTTq doesn't exist"
+    },
+    "id": 1
+  }
+}
