@@ -59,7 +59,7 @@ for (const { receipt } of status.receipts) {
 
 ## Timeouts and Finding a Copy
 
-A refused call is dropped, not rejected, so `send_tx` waits until it times out. near-kit sends the call once, never retrying it, and throws `ExternalCallTimeoutError`, with the call hash and the head height seen before sending. The call may still land. If the node saw a copy land that hadn't reached the wait level yet, the error also has its `uniqueId`. A network error on the send is thrown as is: the call may have landed, so look for it with `findExternalCall()` before sending it again.
+A refused call is dropped, not rejected, so `send_tx` waits until it times out. near-kit sends the call once, never retrying it, and throws `ExternalCallTimeoutError`, with the call hash and the final block height seen before sending. The call may still land. If the node saw a copy land that hadn't reached the wait level yet, the error also has its `uniqueId`. A network error on the send is thrown as is: the call may have landed, so look for it with `findExternalCall()` before sending it again.
 
 `findExternalCall()` finds the copy. With `resend: true` it first sends the same call again: a node that saw a copy land returns it at once. Otherwise, or if that fails, it tries one candidate unique id per height:
 
@@ -81,6 +81,8 @@ try {
 ```
 
 Without `toHeight`, the search stops at the current head. With a `toHeight` past the head, it waits for new blocks. A copy refused at execution doesn't count as found: the search goes on, and throws that copy's `ExternalCallRefusedError` only if no accepted copy turns up.
+
+A miss is only as certain as the node that answered it. Behind a load balancer, a node a few blocks behind can report a landed copy as unknown. When a miss must be certain before you send the call again, search through a single node.
 
 <Warning>
 The protocol does not stop a call from landing more than once. A contract that accepts external calls should keep a nonce and an expiry in its own state and check them against the payload, so it accepts only the first copy.

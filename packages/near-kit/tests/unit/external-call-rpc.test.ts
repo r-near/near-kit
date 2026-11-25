@@ -326,6 +326,9 @@ describe("RpcClient.sendExternalCall", () => {
     expect(timeout.contractId).toBe(CONTRACT)
     expect(timeout.callHash).toBe(externalCallHash(call))
     expect(timeout.sentAtHeight).toBe(12)
+    expect(requests.find((r) => r.method === "block")?.params).toEqual({
+      finality: "final",
+    })
     expect(requests.filter((r) => r.method === "send_tx")).toHaveLength(1)
   })
 

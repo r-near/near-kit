@@ -533,7 +533,10 @@ export class ExternalCallTimeoutError extends NearError {
   contractId: string
   /** The call hash (without the state init) every copy's unique id comes from. */
   callHash: string
-  /** The chain head height seen right before the call was sent. */
+  /**
+   * The final block height seen right before the call was sent. A copy can
+   * only land above it; an optimistic head could still be forked away.
+   */
   sentAtHeight: number
   /**
    * The unique id of a copy the node saw land that had not reached the

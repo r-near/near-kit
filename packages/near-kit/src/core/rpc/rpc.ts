@@ -809,7 +809,7 @@ export class RpcClient {
     const sentAtHeight =
       actualWaitUntil === "NONE"
         ? undefined
-        : (await this.getBlock({ finality: "optimistic" })).header.height
+        : (await this.getBlock({ finality: "final" })).header.height
 
     const result = await this.call(
       "send_tx",
