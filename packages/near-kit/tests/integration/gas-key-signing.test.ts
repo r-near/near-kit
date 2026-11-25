@@ -10,8 +10,6 @@
  * Both the setup (add + fund) and the gas-key-signed transfer use the default
  * status-bearing send and assert real execution success; the gas-key action /
  * permission RPC views (in #196) parse the echoed responses.
- *
- * Sandbox version overridable via NEAR_SANDBOX_VERSION; defaults to a 2.13 RC.
  */
 
 import { afterAll, beforeAll, describe, expect, test } from "vitest"
@@ -19,23 +17,19 @@ import { Near } from "../../src/core/near.js"
 import { Sandbox } from "../../src/sandbox/sandbox.js"
 import { generateKey } from "../../src/utils/key.js"
 
-const SANDBOX_VERSION = process.env.NEAR_SANDBOX_VERSION ?? "2.13.0-rc.2"
-
 describe("Gas Key Signing - Integration Test (NEAR 2.13)", () => {
   let sandbox: Sandbox
   let near: Near
 
   beforeAll(async () => {
-    sandbox = await Sandbox.start({ version: SANDBOX_VERSION })
+    sandbox = await Sandbox.start()
     near = new Near({
       network: sandbox,
       keyStore: {
         [sandbox.rootAccount.id]: sandbox.rootAccount.secretKey,
       },
     })
-    console.log(
-      `✓ Sandbox ${SANDBOX_VERSION} started: ${sandbox.rootAccount.id}`,
-    )
+    console.log(`✓ Sandbox started: ${sandbox.rootAccount.id}`)
   }, 180000)
 
   afterAll(async () => {

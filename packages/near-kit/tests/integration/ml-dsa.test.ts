@@ -2,7 +2,7 @@
  * Integration tests for ML-DSA-65 (FIPS 204) post-quantum keys.
  *
  * The definitive correctness proof: an account whose only full-access key is an
- * ML-DSA-65 key signs a transfer that a 2.13 node accepts on-chain. This proves
+ * ML-DSA-65 key signs a transfer that a node accepts on-chain. This proves
  * the @noble/post-quantum seed -> keypair derivation and signature format are
  * wire-compatible with nearcore's aws-lc-rs FIPS-204 verifier.
  */
@@ -18,18 +18,7 @@ import {
 } from "../../src/utils/key.js"
 
 // ML-DSA-65 (ProtocolFeature::PostQuantumSignatures) is gated at protocol v85.
-// A pre-85 node rejects key type 2 with "unknown key type '2'", so this test
-// pins the sandbox to a version whose binary runs proto 85 WITH the PQ impl,
-// rather than relying on the (separately bumped) default version.
-//
-// NOTE (binary vs image): the near-sandbox S3 *binary* this downloader fetches
-// for "2.13.0-rc.2" (git tag commit 315524124) genuinely contains the ML-DSA
-// impl — verified on-chain here (AddKey + ML-DSA-signed transfer both reach
-// FINAL/SuccessValue). This differs from the `nearprotocol/sandbox:2.13.0-rc.2`
-// Docker *image* (used by near-kit-rs), which was built before the PQ merge and
-// rejects key type 2; that side has to use a `pre-release` image instead.
-// TODO: re-pin to a stable 2.13.x once one ships with PQ.
-const ML_DSA_SANDBOX_VERSION = "2.13.0-rc.2"
+// A pre-85 node rejects key type 2 with "unknown key type '2'".
 const POST_QUANTUM_PROTOCOL_VERSION = 85
 
 describe("ML-DSA-65 - Integration Tests", () => {
@@ -38,7 +27,7 @@ describe("ML-DSA-65 - Integration Tests", () => {
   let protocolVersion = 0
 
   beforeAll(async () => {
-    sandbox = await Sandbox.start({ version: ML_DSA_SANDBOX_VERSION })
+    sandbox = await Sandbox.start()
     near = new Near({
       network: sandbox,
       keyStore: {
@@ -59,7 +48,7 @@ describe("ML-DSA-65 - Integration Tests", () => {
     if (protocolVersion < POST_QUANTUM_PROTOCOL_VERSION) {
       console.warn(
         `⚠ Skipping on-chain ML-DSA-65 test: node is protocol ${protocolVersion}, ` +
-          `PostQuantumSignatures needs ${POST_QUANTUM_PROTOCOL_VERSION}+ (2.13.x sandbox)`,
+          `PostQuantumSignatures needs ${POST_QUANTUM_PROTOCOL_VERSION}+`,
       )
       ctx.skip()
       return

@@ -3,8 +3,6 @@
  * caller-chosen nonce are accepted by a real node, both for an ordinary access
  * key (V0) and for a gas-key nonce slot (V1 GasKeyNonce), and a reused nonce is
  * surfaced as InvalidNonceError instead of being silently re-signed.
- *
- * Sandbox version overridable via NEAR_SANDBOX_VERSION.
  */
 
 import { afterAll, beforeAll, describe, expect, test } from "vitest"
@@ -14,14 +12,12 @@ import { Sandbox } from "../../src/sandbox/sandbox.js"
 import { generateKey } from "../../src/utils/key.js"
 import type { PrivateKey } from "../../src/utils/validation.js"
 
-const SANDBOX_VERSION = process.env["NEAR_SANDBOX_VERSION"] ?? "2.13.0-rc.2"
-
 describe("Explicit nonce - Integration Test", () => {
   let sandbox: Sandbox
   let near: Near
 
   beforeAll(async () => {
-    sandbox = await Sandbox.start({ version: SANDBOX_VERSION })
+    sandbox = await Sandbox.start()
     near = new Near({
       network: sandbox,
       keyStore: {
